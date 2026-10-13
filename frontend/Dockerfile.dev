@@ -1,0 +1,18 @@
+# Development image: hot-reloading Vite dev server.
+FROM node:22-alpine
+
+WORKDIR /app
+
+# pnpm is installed through npm to avoid relying on a specific corepack build.
+RUN npm install -g pnpm@12.11.2
+
+# Install dependencies first so Docker can cache this layer.
+# pnpm-workspace.yaml is required by pnpm 12 (allowBuilds for esbuild).
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+EXPOSE 5173
+
+CMD ["pnpm", "dev", "--host", "0.0.0.0"]

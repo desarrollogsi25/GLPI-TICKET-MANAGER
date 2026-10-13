@@ -1,0 +1,98 @@
+using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Dtos.Tickets;
+using GlpiTicketManager.Application.Models;
+
+namespace GlpiTicketManager.Api.Endpoints;
+
+public static class TicketEndpoints
+{
+    public static RouteGroupBuilder MapTicketEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/tickets")
+            .WithTags("Tickets")
+            .RequireAuthorization();
+
+        group.MapGet(string.Empty, GetByAssignee)
+            .WithName("GetTicketsByAssignee")
+            .WithSummary("Tickets assigned to a technician (glpi_tickets_users.type = 2)")
+            .Produces<PagedResult<TicketSummaryDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapGet("/{id:int}", GetById)
+            .WithName("GetTicketById")
+            .WithSummary("Full ticket detail, including follow-ups")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost(string.Empty, Create)
+            .WithName("CreateTicket")
+            .WithSummary("Create a ticket through the GLPI REST API")
+            .Accepts<CreateTicketRequest>("application/json")
+            .Produces<CreatedTicketResponse>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPatch("/{id:int}/status", UpdateStatus)
+            .WithName("UpdateTicketStatus")
+            .WithSummary("Change the status of a ticket through the GLPI REST API")
+            .Accepts<UpdateTicketStatusRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        return group;
+    }
+
+    private static async Task<IResult> GetByAssignee(
+        int assigneeId,
+        ITicketService ticketService,
+        CancellationToken cancellationToken,
+        int? limit = null,
+        int? offset = null)
+    {
+        var result = await ticketService.GetByAssigneeAsync(
+            assigneeId,
+            limit ?? 0,
+            offset ?? 0,
+            cancellationToken);
+
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetById(
+        int id,
+        ITicketService ticketService,
+        CancellationToken cancellationToken)
+    {
+        var ticket = await ticketService.GetByIdAsync(id, cancellationToken);
+        return ticket is null ? Results.NotFound() : Results.Ok(ticket);
+    }
+
+    private static async Task<IResult> Create(
+        CreateTicketRequest request,
+        ITicketService ticketService,
+        CancellationToken cancellationToken)
+    {
+        var id = await ticketService.CreateAsync(request, cancellationToken);
+        return Results.Created($"/api/tickets/{id}", new CreatedTicketResponse(id));
+    }
+
+    private static async Task<IResult> UpdateStatus(
+        int id,
+        UpdateTicketStatusRequest request,
+        ITicketService ticketService,
+        CancellationToken cancellationToken)
+    {
+        var updated = await ticketService.UpdateStatusAsync(id, request.Status, cancellationToken);
+        return updated ? Results.NoContent() : Results.NotFound();
+    }
+}
+
+/// <summary>Minimal response returned after creating a ticket.</summary>
+public sealed record CreatedTicketResponse(int Id);

@@ -1,0 +1,61 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+export interface TicketTask {
+  id: string
+  label: string
+  done: boolean
+}
+
+interface UiState {
+  /** Technician currently being viewed. `null` falls back to the logged-in user. */
+  selectedAssigneeId: number | null
+  setSelectedAssigneeId: (assigneeId: number | null) => void
+
+  /**
+   * Per-ticket subtask checklist. This is purely client-side UI state:
+   * the API has no tasks endpoint yet, so it lives in the browser.
+   */
+  tasks: Record<number, TicketTask[]>
+  addTask: (ticketId: number, label: string) => void
+  toggleTask: (ticketId: number, taskId: string) => void
+  removeTask: (ticketId: number, taskId: string) => void
+}
+
+export const useUiStore = create<UiState>()(
+  persist(
+    (set) => ({
+      selectedAssigneeId: null,
+      setSelectedAssigneeId: (selectedAssigneeId) => set({ selectedAssigneeId }),
+
+      tasks: {},
+      addTask: (ticketId, label) =>
+        set((state) => ({
+          tasks: {
+            ...state.tasks,
+            [ticketId]: [
+              ...(state.tasks[ticketId] ?? []),
+              { id: crypto.randomUUID(), label, done: false },
+            ],
+          },
+        })),
+      toggleTask: (ticketId, taskId) =>
+        set((state) => ({
+          tasks: {
+            ...state.tasks,
+            [ticketId]: (state.tasks[ticketId] ?? []).map((task) =>
+              task.id === taskId ? { ...task, done: !task.done } : task,
+            ),
+          },
+        })),
+      removeTask: (ticketId, taskId) =>
+        set((state) => ({
+          tasks: {
+            ...state.tasks,
+            [ticketId]: (state.tasks[ticketId] ?? []).filter((task) => task.id !== taskId),
+          },
+        })),
+    }),
+    { name: 'glpi-ticket-manager.ui' },
+  ),
+)

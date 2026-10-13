@@ -1,0 +1,4 @@
+# pnpm 12 reads its settings from this file (the "pnpm" field in package.json is ignored).
+# esbuild needs its install script to materialise the platform binary.
+allowBuilds:
+  esbuild: true

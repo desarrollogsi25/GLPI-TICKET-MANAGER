@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+.user-secrets/
+
+# Secrets (NUNCA versionar)
+.env
+.env.local
+.env.*.local
+config/.env
+appsettings.*.Local.json
+*.secrets.json
+secrets.json
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/*.local

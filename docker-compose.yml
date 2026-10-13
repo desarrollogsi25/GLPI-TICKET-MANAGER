@@ -1,0 +1,45 @@
+services:
+  glpi:
+    image: glpi/glpi:11.0
+    container_name: glpi
+    restart: unless-stopped
+    volumes:
+      # The official glpi/glpi:11.0 image declares ONE volume at /var/glpi
+      # (config, files, logs and marketplace all live under it), exactly like the
+      # official docker-compose.example.yml. Mounting it as a single named volume
+      # lets Docker initialise it from the image (owned by www-data) and avoids
+      # the "Permission denied" on startup.
+      # Do NOT mount /var/glpi/config, /var/glpi/files, ... individually: those
+      # paths do not exist in the image, so Docker creates the mountpoints as
+      # root:root and the www-data entrypoint cannot write to them.
+      - glpi-data:/var/glpi
+      - glpi-plugins:/var/www/glpi/plugins
+    ports:
+      - 127.0.0.1:8081:80
+    depends_on:
+      glpi-db:
+        condition: service_healthy
+
+  glpi-db:
+    image: mariadb:10.11
+    container_name: glpi-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_DATABASE}
+      MARIADB_USER: ${MARIADB_USER}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+    volumes:
+      - glpi-db-data:/var/lib/mysql
+    ports:
+      - 127.0.0.1:3306:3306
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  glpi-db-data:
+  glpi-data:
+  glpi-plugins:
