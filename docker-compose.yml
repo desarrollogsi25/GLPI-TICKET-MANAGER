@@ -39,6 +39,51 @@ services:
       timeout: 5s
       retries: 5
 
+  # .NET 9 API. Reads MariaDB directly (Dapper) and writes through GLPI's REST API.
+  # Inside the compose network it reaches GLPI by its service name (`glpi`, port 80)
+  # and the database by `glpi-db:3306` — never via the host loopback ports.
+  api:
+    build:
+      context: .
+      dockerfile: src/GlpiTicketManager.Api/Dockerfile
+    container_name: glpi-api
+    restart: unless-stopped
+    depends_on:
+      glpi-db:
+        condition: service_healthy
+      glpi:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: "Server=glpi-db;Port=3306;Database=${MARIADB_DATABASE};User=${MARIADB_USER};Password=${MARIADB_PASSWORD};"
+      GlpiApi__BaseUrl: "http://glpi/apirest.php/"
+      GlpiApi__AppToken: "${GLPI_APP_TOKEN}"
+      GlpiApi__UserToken: "${GLPI_USER_TOKEN}"
+      Jwt__Key: "${JWT_SECRET}"
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  # React 19 + Vite dev server (hot reload). The container talks to the API by its
+  # service name too: the browser calls same-origin `/api`, Vite proxies to api:8080.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: glpi-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: "/api"
+      VITE_PROXY_TARGET: "http://api:8080"
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      # Bind-mount the sources for hot reload; keep the container's node_modules
+      # (installed at build time) from being shadowed by the host directory.
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
 volumes:
   glpi-db-data:
   glpi-data:

@@ -1,0 +1,25 @@
+# Build artifacts
+**/bin
+**/obj
+**/dist
+**/.vite
+**/*.tsbuildinfo
+
+# VCS / IDE
+**/.git
+**/.gitignore
+**/.vs
+**/.idea
+
+# Local secrets and local-only config (never bake into an image)
+**/.env
+**/.env.local
+**/*.user
+**/appsettings.*.Local.json
+
+# Node dependencies
+**/node_modules
+
+# Not needed to build images
+docs/
+README.md

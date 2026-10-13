@@ -23,27 +23,51 @@ SLA rules and plugins keep working. Authentication is the API's own JWT.
 
 ## Getting started
 
+### Option A — the whole stack in Docker (single command)
+
 ```powershell
 # 1. Clone
 git clone https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER.git
 cd GLPI-TICKET-MANAGER
 
-# 2. Provide the database passwords for the Docker stack (git-ignored)
-Copy-Item .env.example .env      # then edit .env and fill MARIADB_* values
+# 2. Create the environment file and fill in the secrets (git-ignored).
+#    Set the MARIADB_* passwords, the GLPI_* tokens and JWT_SECRET.
+Copy-Item .env.example .env
 
-# 3. Start GLPI + MariaDB (first boot initialises the GLPI volumes)
+# 3. Build and start the whole stack: MariaDB + GLPI + API + frontend.
+docker compose up -d --build
+#    frontend        -> http://localhost:5173
+#    API             -> http://localhost:8080   (/health, /openapi/v1.json, /scalar)
+#    GLPI web UI     -> http://localhost:8081
+#    MariaDB         -> 127.0.0.1:3306
+
+# Subsequent starts reuse the built images (no recompilation, ~17 s):
 docker compose up -d
-#    GLPI UI  -> http://localhost:8081
+```
 
-# 4. Configure the API secrets (see next section)
+`docker compose down` stops everything but keeps the named volumes (GLPI install and
+database survive); `docker compose down -v` wipes them. See
+[`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) for the service map,
+the network diagram and the log commands.
+
+### Option B — API + frontend on the host, only GLPI in Docker
+
+Useful for debugging with a local toolchain. Start only the GLPI services, then run the
+API and Vite directly:
+
+```powershell
+# 1. Start GLPI + MariaDB
+docker compose up -d glpi glpi-db      # GLPI UI -> http://localhost:8081
+
+# 2. Configure the API secrets (see next section)
 dotnet user-secrets set "GlpiApi:AppToken"  "<GLPI_APP_TOKEN>"  --project src/GlpiTicketManager.Api
 dotnet user-secrets set "GlpiApi:UserToken" "<GLPI_USER_TOKEN>" --project src/GlpiTicketManager.Api
 dotnet user-secrets set "Database:ConnectionString" "Server=127.0.0.1;Port=3306;Database=glpi;User ID=glpi;Password=<MARIADB_PASSWORD>;Allow User Variables=true;UseAffectedRows=false" --project src/GlpiTicketManager.Api
 
-# 5. Run the API (Development profile -> http://localhost:5280)
+# 3. Run the API (Development profile -> http://localhost:5280)
 dotnet run --project src/GlpiTicketManager.Api
 
-# 6. Run the frontend (http://localhost:5173)
+# 4. Run the frontend (http://localhost:5173)
 cd frontend
 Copy-Item .env.example .env.local   # VITE_PROXY_TARGET defaults to http://localhost:5280
 pnpm install
@@ -84,14 +108,16 @@ full variable list, rotation steps and verification commands.
 
 ```
 .
-├── docker-compose.yml            # GLPI 11.0 + MariaDB 10.11 (loopback ports, named volumes)
-├── .env.example                  # template for the Docker/MariaDB passwords
+├── docker-compose.yml            # MariaDB + GLPI + API + frontend (loopback ports, named volumes)
+├── .dockerignore                 # keeps build contexts small and secrets out of the images
+├── .env.example                  # template for the Docker/MariaDB/GLPI/JWT values
 ├── GlpiTicketManager.sln
 ├── src/
 │   ├── GlpiTicketManager.Domain/         # entities, enums (no dependencies)
 │   ├── GlpiTicketManager.Application/    # DTOs, services, abstractions
 │   ├── GlpiTicketManager.Infrastructure/ # Dapper queries, GLPI REST client, JWT
 │   └── GlpiTicketManager.Api/            # Minimal API endpoints, auth, rate limiting, Serilog
+│       ├── Dockerfile                    # multi-stage build (sdk:9.0 -> aspnet:9.0, non-root)
 │       ├── Program.cs
 │       ├── appsettings.json              # empty placeholders only
 │       └── appsettings.Development.json  # empty token placeholders (+ tripwire DB password)
@@ -103,12 +129,15 @@ full variable list, rotation steps and verification commands.
 │   │   ├── lib/                          # axios client, API wrappers, helpers
 │   │   └── store/                        # zustand stores (auth, ui, toast)
 │   ├── vite.config.ts                    # /api proxy -> VITE_PROXY_TARGET
+│   ├── Dockerfile.dev                    # Vite dev server image (hot reload)
 │   └── package.json
 └── docs/
     ├── 01-architecture/                  # ADRs (integration strategy, create DTO)
     ├── 02-modules/tickets/               # module overview + endpoints + write flows
     ├── 04-database/queries/
-    ├── 06-infrastructure/docker.md
+    ├── 06-infrastructure/
+    │   ├── docker.md                     # service map, network diagram, commands
+    │   └── environment-variables.md      # variable table (consumer, location, purpose)
     └── 12-security/secrets.md
 ```
 
@@ -120,4 +149,5 @@ Start at [`docs/`](docs/):
 - [`docs/01-architecture/ADR-002-api-glpi-integration.md`](docs/01-architecture/ADR-002-api-glpi-integration.md) — why Dapper reads + REST writes
 - [`docs/01-architecture/decisions/ADR-003-ticket-create-dto.md`](docs/01-architecture/decisions/ADR-003-ticket-create-dto.md) — create-ticket contract
 - [`docs/12-security/secrets.md`](docs/12-security/secrets.md) — secret storage, rotation, verification
-- [`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) — container layout
+- [`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) — 4-service stack, network diagram, start/stop/log commands
+- [`docs/06-infrastructure/environment-variables.md`](docs/06-infrastructure/environment-variables.md) — every variable, its consumer and where it lives
