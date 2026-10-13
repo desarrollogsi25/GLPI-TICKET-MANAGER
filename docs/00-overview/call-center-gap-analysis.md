@@ -2,8 +2,12 @@
 
 ISO Header: Business Scope
 
-**Status:** Draft — awaiting business answers (see
-[`call-center-questions.md`](call-center-questions.md))
+**Status:** Decided — business answers received 2026-10-13. Mechanics recorded in
+[ADR-004](../01-architecture/decisions/ADR-004-call-center-scope.md) (scope),
+[ADR-005](../01-architecture/decisions/ADR-005-external-requester-model.md)
+(external requesters) and
+[ADR-006](../01-architecture/decisions/ADR-006-self-assign-and-solution-required.md)
+(self-assign + mandatory solution).
 
 Scope: a **call centre service desk**. No shifts, no N1/N2/N3 tiers (flat groups only),
 SLAs not yet defined, internal (GLPI users) **and** external (non-GLPI callers)
@@ -13,32 +17,41 @@ reporting (BI is external). The product is **actionable, not analytical**.
 Every statement below was verified against the running GLPI 11.0 test instance
 (`glpi-db` / `glpi` containers) via SQL and the GLPI web UI.
 
-## Business answers → proposed action
+## Business answers → action
 
-Proposed action ∈ {**Exponer**, **Configurar en GLPI UI**, **Construir**, **Fuera de alcance**}.
+Action ∈ {**Exponer**, **Configurar en GLPI UI**, **Construir**, **Fuera de alcance**, **Decidido**}.
 
-| Topic | Business answer | GLPI capability today | Proposed action | Evidence |
+| Topic | Business answer | GLPI capability today | Action | Evidence |
 |---|---|---|---|---|
 | Shifts / rosters | Out of scope | GLPI has no shift model; only groups | **Fuera de alcance** | — |
 | N1 / N2 / N3 tiers | Out of scope — flat groups only | `glpi_groups` is flat (nesting exists but unused) | **Fuera de alcance** (keep groups flat) | PASO 2: `glpi_groups` = 0 rows |
-| SLA | Pending definition | GLPI SLA engine exists but is unconfigured | **Fuera de alcance** until defined | Do not build yet |
+| SLA | Out of scope (not defined) | GLPI SLA engine exists but is unconfigured | **Fuera de alcance** (revisit if defined) | Do not build now |
 | Requesters — internal | GLPI users | `glpi_tickets_users.type = 1` with `users_id` | **Exponer** (create DTO already has `requesterId`) | PASO 3-A → ticket #9 |
-| Requesters — external | Non-GLPI callers | (B) `alternative_email` **or** (C) generic user + data in `content` | **Decisión pendiente** (trade-offs below) | PASO 3-B/#10, 3-C/#11 |
+| Requesters — external | Per call, **no** recurring caller | (A) account/caller, (B) `alternative_email`, (C) generic user | **Decidido** → **Option D** (ADR-005): `alternative_email` + caller name/phone in structured `content` | PASO 3-B/#10, 3-C/#11 |
+| Entry channels (in person / phone / chat) | Dynamic, per `glpi_requesttypes` (`is_active=1`) | `glpi_requesttypes` has 6 rows | **Decidido** — read dynamically at runtime; **Configurar en GLPI UI** | PASO 2 |
+| Groups | Dynamic, per `glpi_groups` | `glpi_groups` (flat) | **Decidido** — read dynamically at runtime; never hardcode names | PASO 2 |
+| Agent view | Only request list + detail, **no** full history | Ticket list + ticket detail | **Exponer** (list + detail; no history view) | — |
+| Self-assign | Technician claims the ticket (already in group + entity) | `glpi_groups_users` + `glpi_groups_tickets` + `glpi_tickets_users.type=2` | **Construir** (ADR-006) | — |
+| Closure | Mandatory written solution — cannot close without one | `glpi_itilsolutions` | **Construir** (ADR-006) | `glpi_itilsolutions` = 0 rows |
 | CTI | Out of scope | — | **Fuera de alcance** | Manual capture only |
 | Email (collector/notifications) | Out of scope | GLPI mail collector exists but unused | **Fuera de alcance** | — |
-| Entry channels (in person / phone / chat) | Manual | `glpi_requesttypes` has 6 rows | **Configurar en GLPI UI** + **Exponer** in the form | PASO 2 |
 | Reporting | Out of scope — external BI | GLPI reports exist | **Fuera de alcance** | BI reads the DB separately |
 | Group ownership of tickets | Groups own the work | `glpi_groups_tickets.type = 2` = assigned | **Exponer / Construir** (assign-by-group) | PASO 4 verified |
 
-## External requester options — trade-offs (decision left open)
+No **Pendiente** rows remain: every item is either decided or out of scope.
 
-The call centre must represent **non-GLPI callers**. GLPI supports two viable mechanisms.
-Both were inserted and observed live; **no option is chosen here** — the business decides.
+## External requester — decision (Option D)
+
+The business confirmed (ADR-004, answer 1) that external callers arrive **per call
+with no recurring-caller grouping**. Based on that, the options below were
+evaluated live and the decision is **Option D** — full reasoning in
+[ADR-005](../01-architecture/decisions/ADR-005-external-requester-model.md).
 
 ### Option A — existing GLPI user as requester
 - **SQL:** ticket + `glpi_tickets_users(type=1, users_id=9)`.
 - **UI:** the list shows `Usuario Uno`; filterable by `users_id` (structured).
-- **When:** the caller is a known internal user (has a GLPI account).
+- **Rejected for externals:** requires an account per caller; no aggregatable
+  recurrence to justify the overhead. (Still correct for **internal** requesters.)
 
 ### Option B — `alternative_email` (no account)
 - **SQL:** `glpi_tickets_users(type=1, users_id=0, alternative_email='juan@ext.com')`
@@ -46,8 +59,7 @@ Both were inserted and observed live; **no option is chosen here** — the busin
 - **UI:** the list shows `juan@ext.com`; the ticket detail shows `Solicitante: ×juan@ext.com`.
   **It renders, lists and filters correctly.**
 - **Queryable:** yes, structured — `WHERE alternative_email = ?`.
-- **Cost:** requires an **email**, which a phone call may not collect. No name/phone field.
-- **Verified:** ticket #10.
+- **Cost:** requires an **email**, which a phone call may not collect. **No name/phone field.**
 
 ### Option C — generic "External Caller" user + caller data in `content`
 - **SQL:** create user `external-caller` (id 10); ticket requester = that user; the real
@@ -55,14 +67,21 @@ Both were inserted and observed live; **no option is chosen here** — the busin
 - **UI:** the list shows `External Caller`; the detail shows the generic actor; the caller
   identity lives in the description. **It renders fine.**
 - **Queryable:** only by free text — `WHERE content LIKE '%Juan Perez%'`. **Not a structured field.**
-- **Cost:** every external caller collapses onto one requester, so you cannot segment or
-  de-duplicate **recurring** callers, and you cannot filter per caller structurally.
-- **Verified:** ticket #11.
+- **Cost:** every external caller collapses onto one requester — identity is lost.
 
-> Note: the two mechanisms are not mutually exclusive (a placeholder account *and* an
-> `alternative_email` can coexist), but that doubles the bookkeeping. Choose based on how
-> the business answers the questions in
-> [`call-center-questions.md`](call-center-questions.md).
+### Option D — chosen
+`glpi_tickets_users(type=1, users_id=0, alternative_email)` **plus** a structured
+caller block in `content`:
+
+```
+Llamante: <nombre> · Tel: <teléfono> · Empresa: <empresa opcional>
+
+<descripción del problema>
+```
+
+Keeps B's native, renderable actor and recovers the identity that B and C drop.
+Caller search is free-text (`content LIKE`). If recurring callers are ever needed,
+migrate to Option A. See ADR-005.
 
 ## Data model inventory (PASO 1)
 

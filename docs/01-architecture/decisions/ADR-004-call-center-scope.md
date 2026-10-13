@@ -1,9 +1,10 @@
-# ADR-004: Call centre scope — reduced scope and open decisions
+# ADR-004: Call centre scope
 
-- **Status:** Proposed (draft — awaiting business answers)
+- **Status:** Accepted
 - **Date:** 2026-10-13
 - **Supersedes:** —
 - **Related:** ADR-002 (API ↔ GLPI integration), ADR-003 (ticket create DTO),
+  ADR-005 (external requester model), ADR-006 (self-assign and solution required),
   `docs/00-overview/call-center-gap-analysis.md`,
   `docs/00-overview/call-center-questions.md`
 
@@ -30,68 +31,87 @@ GLPI 11 data model was carried out against the running test instance
 (`glpi-db` / `glpi`). Details and raw evidence:
 [`../../00-overview/call-center-gap-analysis.md`](../../00-overview/call-center-gap-analysis.md).
 
-## Decision (reduced scope)
+## Decision (scope)
 
-Adopt the following scope now. Items marked *Pendiente* are **not** decided and
-must not be built until the business answers.
+The business has answered the open questions. The scope below is now **decided**
+and references the ADR that details each flow.
 
 | Area | Decision |
 |---|---|
 | Shifts / rosters | **Out of scope.** |
 | N1/N2/N3 tiers | **Out of scope.** Use **flat groups** (`glpi_groups`) as the only organisational unit. |
-| SLA | **Pendiente.** Do not build until the business defines targets. |
+| SLA | **Out of scope** (for now). Revisit explicitly if the business defines targets. |
 | Requester — internal | In scope. `glpi_tickets_users.type = 1` with a real `users_id`. Already exposed via the create DTO (`requesterId`). |
-| Requester — external | **Pendiente** (mechanism TBD). Two verified mechanisms exist (see below); the business must choose. |
-| Entry channels | In scope. Map to `glpi_requesttypes` and let the agent pick (`Phone`, `Direct`, etc.). Configuration, not code. |
-| Group assignment | In scope. `glpi_groups_tickets.type = 2` = *assigned*. Our API should be able to read/filter by group. |
+| Requester — external | **Decided** → **Option D** (ADR-005): `glpi_tickets_users(type=1, users_id=0, alternative_email)` **plus** caller name/phone/company in a structured `content` block. |
+| Entry channels | In scope. Channels are **dynamic**: read `glpi_requesttypes WHERE is_active = 1`. Configuration, not code. |
+| Groups | In scope. Groups are **dynamic**: read `glpi_groups`; never hardcode names. `glpi_groups_tickets.type = 2` = *assigned*. |
+| Agent view | In scope. The agent sees **only the request list + ticket detail**; no full-history view. |
+| Self-assign | In scope (ADR-006). A technician already in the ticket's group/entity can **claim** the ticket. |
+| Closure | In scope (ADR-006). Closing (status → 5) **requires a written solution** in `glpi_itilsolutions`. |
 | CTI | **Out of scope.** |
 | Email (collector/notifications) | **Out of scope.** |
 | Reporting | **Out of scope.** BI is external. |
 
-### External requester — mechanism left open
+## Decisiones tomadas
 
-Two GLPI-native mechanisms were inserted and observed live. **This ADR does not
-choose between them.**
+Literal answers from the business, with their technical interpretation.
 
-- **Option B — `alternative_email`.** `glpi_tickets_users(type=1, users_id=0,
-  alternative_email='…')`. Structured and filterable; renders and lists
-  correctly. **Requires an email**, which a phone call may not collect.
-- **Option C — generic user + data in `content`.** A placeholder GLPI user
-  (`external-caller`) is the requester; the real caller's name/phone/company go
-  into the ticket description. Anonymous-friendly; but every external caller
-  collapses onto one account, so callers cannot be segmented or de-duplicated.
+1. **Solicitantes externos: cada uno llega individual por llamada, no hay
+   agrupación por llamante recurrente.**
+   → There is no recurring-caller model. Each external caller is represented
+   **per ticket**; identity travels with the ticket, not with a shared account.
+   This rules out a single generic account and points to **Option D** (ADR-005).
 
-The choice depends on how the caller is identified (a question for the
-business, not engineering). See
-[`call-center-questions.md`](../../00-overview/call-center-questions.md) §1.
+2. **Grupos: dinámicos, variarán según lo registrado en `glpi_groups`.**
+   → Group lists are read at runtime from `glpi_groups`; group names are never
+   hardcoded. A group can be renamed/added/removed without a code change.
+
+3. **Canales: dinámicos, según `glpi_requesttypes` (`is_active=1`).**
+   → Entry-channel lists are read at runtime from `glpi_requesttypes` filtered by
+   `is_active = 1`; the active set can change without a code change.
+
+4. **Vista del agente: solo ticket de solicitud + detalle. No histórico completo.**
+   → The agent UI is limited to the request list and a single-ticket detail view.
+   No global/history browsing is built.
+
+5. **Self-assign: el técnico se auto-asigna. Ya pertenece a grupo y entidad.**
+   → A technician claims a ticket themselves. The eligibility check is
+   "authenticated user ∈ `glpi_groups_users` of the ticket's assigned group
+   (same entity)". Detail and endpoint: **ADR-006**.
+
+6. **Cierre: OBLIGATORIO con solución escrita. No se puede cerrar sin solución.**
+   → Status transition to *Solved* (5) is rejected unless a solution row exists in
+   `glpi_itilsolutions`. Enforced in the service, not only in the frontend.
+   Detail and endpoint: **ADR-006**.
 
 ### Consequences
 
 Positive:
 
 - Small, honest surface: we only expose what the business confirmed.
+- Groups and channels are **data-driven**, so the business can evolve them in the
+  GLPI UI without a release.
 - Group ownership works natively via `glpi_groups_tickets`; no schema changes.
-- Channels need configuration in the GLPI UI, not code.
+- External callers are individually identified without creating GLPI accounts.
 
 Negative / accepted:
 
 - No escalation tiers means routing quality depends entirely on group hygiene.
-- `alternative_email` carries **no phone or company field**; if Option C is
-  chosen, caller search is free-text only.
-- Deferring SLA keeps the system simple but must be revisited explicitly.
+- The caller's name is **not** a structured column (see ADR-005); caller search is
+  free-text (`content LIKE`). If recurring callers ever matter, migrate to a real
+  account per caller.
+- Mandatory solution means an agent cannot close a ticket as a shortcut; this is
+  intentional (ADR-006).
 
-### Open decisions (blocking)
+### Follow-ups
 
-- External requester mechanism (B vs C vs both) — **Pendiente**.
-- Whether a ticket can be assigned to a group **and** a technician, or group only.
-- Who may re-assign across groups, and whether authorisation is required.
-- Final list of entry channels exposed in the form.
-- The definitive list of business groups (none exist yet: `glpi_groups` = 0 rows).
-
-These are tracked as questions, not as tasks, until answered:
-[`../../00-overview/call-center-questions.md`](../../00-overview/call-center-questions.md).
+- External requester mechanism: **decided** → ADR-005.
+- Self-assign + mandatory solution: **decided** → ADR-006.
+- Rolling business data (groups, channels): no code coupling — configured in the
+  GLPI UI.
 
 ## Status of this document
 
-**Draft.** It records the reduced scope and the open points. It must not be
-promoted to *Accepted* until the business answers the blocking questions above.
+**Accepted.** The business answered the blocking questions on 2026-10-13. The
+mechanics are detailed in ADR-005 and ADR-006; remaining questions are closed in
+[`../../00-overview/call-center-questions.md`](../../00-overview/call-center-questions.md).

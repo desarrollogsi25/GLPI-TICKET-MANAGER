@@ -1,70 +1,94 @@
-# Call Centre — Open Questions for the Business
+# Call Centre — Business Questions (Resolved)
 
 ISO Header: Business Scope
 
-These questions block concrete design decisions (see
-[`call-center-gap-analysis.md`](call-center-gap-analysis.md) and
-[`../01-architecture/decisions/ADR-004-call-center-scope.md`](../01-architecture/decisions/ADR-004-call-center-scope.md)).
-They are grouped by the decision they unblock. Nothing here is answered yet.
+**Status:** All questions resolved by the business on **2026-10-13**. No question
+remains pending.
 
-## 1. External caller identity
+The decisions are recorded in
+[ADR-004](../01-architecture/decisions/ADR-004-call-center-scope.md) (scope),
+[ADR-005](../01-architecture/decisions/ADR-005-external-requester-model.md)
+(external requesters) and
+[ADR-006](../01-architecture/decisions/ADR-006-self-assign-and-solution-required.md)
+(self-assign + mandatory solution). The consolidated view is
+[`call-center-gap-analysis.md`](call-center-gap-analysis.md).
 
-1. **How must an agent identify an external caller?** Which fields are mandatory vs
-   optional, and in what format:
-   - name (single field or first/last?)
-   - phone
-   - email
-   - company / organisation
-   - any reference number / extension?
-2. **Are external callers recurring or anonymous per call?**
-   - Recurring → we need to recognise the same caller across tickets (today: impossible
-     with the generic-user pattern, which collapses everyone onto one account).
-   - Anonymous per call → a generic "External Caller" account is enough.
-3. **If recurring: what is the reliable match key?** (email? phone? a case number?)
-   The choice determines whether `alternative_email` is sufficient or we need a real
-   account/contact per caller.
-4. **Is an email always available for an external caller?** If not,
-   `alternative_email` (which requires one) is not a universal mechanism and the
-   generic-user pattern must be used for the rest.
+The six business answers (referenced below as **answer 1–6**):
 
-> This is the question that decides PASO 3-B vs 3-C. We deliberately do **not** choose.
+1. External requesters arrive **per call**; no recurring-caller grouping.
+2. Groups are **dynamic**, per `glpi_groups`.
+3. Channels are **dynamic**, per `glpi_requesttypes` (`is_active = 1`).
+4. The agent view is **only** the request list + detail; no full history.
+5. **Self-assign**: the technician claims the ticket (already in group + entity).
+6. Closing **requires a written solution** — no closing without a solution.
 
-## 2. Entry channels
+## 1. External caller identity — resolved
 
-5. **Which channels must the ticket form offer?** GLPI ships
-   `Helpdesk(1)`, `E-Mail(2)`, `Phone(3)`, `Direct(4)`, `Written(5)`, `Other(6)`.
-   The call centre only uses manual channels; confirm the final list — e.g. keep
-   `Phone`, `Direct` (in person), `Other` (chat), and drop `E-Mail`.
-6. **Is there a default channel** when the agent does not pick one?
+1. **How must an agent identify an external caller?**
+   **Resolved (answer 1, ADR-005):** identify by **name + phone**, recorded in the
+   ticket `content` header (`Llamante: <nombre> · Tel: <teléfono> · Empresa: <opcional>`).
+   **Email is optional** and goes in `alternative_email`. Company is optional in the
+   same header. No reference-number field is required.
+2. **Recurring or anonymous per call?**
+   **Resolved (answer 1):** **per call** — there is no recurring-caller grouping.
+   Each external caller is represented on the ticket, not as a shared identity.
+3. **If recurring, reliable match key?**
+   **Resolved (answer 1):** **N/A — not recurring.** If the business ever needs
+   cross-ticket caller identity, migrate to a real account per caller (ADR-005,
+   Option A).
+4. **Is an email always available?**
+   **Resolved (answers 1 + ADR-005):** no. Hence Option D keeps the email optional
+   (`alternative_email`) and carries the mandatory identity (name/phone) in
+   `content`.
 
-## 3. Groups and assignment
+## 2. Entry channels — resolved
 
-7. **Are the groups already defined by the business?** If yes, list them (name +
-   what each one covers). Today the database has **0** groups.
-8. **Can a ticket be assigned to a group *and* a technician at the same time, or only
-   to a group?**
-   - Group only → the whole team picks from the group queue.
-   - Group + technician → one person owns it inside the group.
-9. **Can an agent re-assign a ticket between groups?** If so, **who authorises** it and
-   is a reason/comment required?
-10. **Can a ticket be assigned to more than one group** (multi-group), or exactly one?
-11. **Are group members explicitly notified** on assignment (GLPI `is_notify`)?
+5. **Which channels must the form offer?**
+   **Resolved (answer 3):** the list is **dynamic** — read `glpi_requesttypes`
+   `WHERE is_active = 1`. The business curates the active set in the GLPI UI; no
+   channels are hardcoded.
+6. **Is there a default channel?**
+   **Resolved (answer 3):** no fixed default is required; the active catalogue is
+   the source of truth. The agent picks from the active list.
 
-## 4. Ticket lifecycle (light touch)
+## 3. Groups and assignment — resolved
 
-12. **What statuses are used in practice?** GLPI defaults are New(1), Assigned(2),
-    Planned(3), Pending(4), Solved(5), Closed(6). Are `Planned`/`Pending` in use, or is
-    the flow simply New → Assigned → Solved?
-13. **When is a ticket considered "done"** for the call centre (agent sets Solved, or a
-    supervisor closes it)?
+7. **Are the groups already defined?**
+   **Resolved (answer 2):** groups are **dynamic**, per `glpi_groups` — the business
+   registers and maintains them in the GLPI UI. The code never hardcodes names.
+   (At investigation time the table had 0 rows; that is data, not a blocker.)
+8. **Group *and* technician, or group only?**
+   **Resolved (answer 5, ADR-006):** the ticket is owned by a **group**, and a
+   technician in that group **self-assigns** (`claim`), which assigns it to them
+   (`glpi_tickets_users.type = 2`). So: group first, then a technician via
+   self-assign.
+9. **Can an agent re-assign between groups? Who authorises?**
+   **Resolved (scope):** re-assignment **between groups** is **not** in this phase
+   (ADR-006, *Out of scope*). No cross-group re-assignment flow is built, so no
+   authorisation rule is defined.
+10. **Multi-group, or exactly one?**
+    **Resolved (scope, ADR-006):** **one** assigned group per ticket.
+11. **Are group members notified on assignment?**
+    **Resolved (scope):** notifications are **out of scope** (no email integration),
+    so GLPI `is_notify` is not configured.
 
-## 5. Out of scope (confirm to keep them out)
+## 4. Ticket lifecycle — resolved
 
-14. **Shifts / rosters** — confirm definitively out of scope.
-15. **N1/N2/N3 escalation tiers** — confirm the call centre uses flat groups only, with
-    no escalation level.
-16. **SLA** — beyond "pending", is there a target date for the business to define it?
-    (We will not build it until then.)
-17. **CTI / telephony integration and email collection** — confirm out of scope.
-18. **Reporting/dashboards** — confirm the system stays actionable only and BI reads the
-    database externally.
+12. **What statuses are used in practice?**
+    **Resolved (answers 5–6, ADR-006):** the flow is **New(1) → Assigned(2) →
+    Solved(5)**. A solution is mandatory to leave Assigned for Solved.
+13. **When is a ticket "done"?**
+    **Resolved (answer 6, ADR-006):** when a **written solution** exists
+    (`glpi_itilsolutions`) and the ticket is set to Solved. The API refuses
+    `status = 5` without a solution row (**422**).
+
+## 5. Out of scope — confirmed
+
+14. **Shifts / rosters** — **confirmed out of scope.**
+15. **N1/N2/N3 escalation tiers** — **confirmed out of scope**; **flat groups only.**
+16. **SLA** — **out of scope.** No target date committed; revisit explicitly if the
+    business defines targets.
+17. **CTI / telephony integration and email collection** — **confirmed out of scope.**
+    Channels are entered manually.
+18. **Reporting/dashboards** — **confirmed out of scope.** The system stays
+    actionable only; BI reads the database externally.
