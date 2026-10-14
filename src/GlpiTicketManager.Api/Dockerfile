@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # ---------------------------------------------------------------------------
-# Build stage: SDK image (fixed 9.0 tag, never "latest").
+# Build stage: SDK image (fixed 10.0 tag, never "latest").
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Restore layer: copy only the solution, the SDK pin and the four csproj files
@@ -27,9 +27,9 @@ RUN dotnet publish src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj \
 # ---------------------------------------------------------------------------
 # Runtime stage: ASP.NET runtime image, unprivileged user.
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
-# Least privilege: the .NET 9 runtime image already ships an unprivileged
+# Least privilege: the .NET 10 runtime image already ships an unprivileged
 # `app` user/group (uid/gid 1654), so we reuse it instead of creating another.
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080 \

@@ -1,6 +1,6 @@
 # GLPI Ticket Manager
 
-A custom ticket-management stack on top of [GLPI](https://glpi-project.org/): a .NET 9
+A custom ticket-management stack on top of [GLPI](https://glpi-project.org/): a .NET 10
 Minimal API and a React 19 single-page app that let a support team view and drive GLPI
 tickets from a purpose-built interface without reimplementing GLPI's workflow. **Reads**
 come straight from the GLPI MariaDB database through Dapper (fast, SQL-shaped), while
@@ -11,13 +11,13 @@ SLA rules and plugins keep working. Authentication is the API's own JWT.
 
 | Layer | Technology |
 |---|---|
-| API | .NET 9 Minimal API, Dapper (reads), typed `HttpClient` (GLPI writes), Serilog, Scalar, native rate limiting, own JWT |
+| API | .NET 10 Minimal API, Dapper (reads), typed `HttpClient` (GLPI writes), Serilog, Scalar, native rate limiting, own JWT |
 | Frontend | React 19 + Vite + pnpm, TanStack Query/Table, zustand, @dnd-kit/core, react-router-dom 7, React Hook Form + zod, axios, Tailwind CSS v4 |
 | Platform | GLPI 11.0 + MariaDB 10.11 (Docker Compose) |
 
 ## Prerequisites
 
-- [.NET SDK 9](https://dotnet.microsoft.com/download/dotnet/9.0) (see `global.json`)
+- [.NET SDK 10](https://dotnet.microsoft.com/download/dotnet/10.0) (see `global.json`)
 - [Node.js 22](https://nodejs.org/) and [pnpm](https://pnpm.io/) (`corepack enable pnpm`)
 - [Docker](https://www.docker.com/) with the Compose plugin
 
@@ -140,7 +140,7 @@ The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephem
 │   ├── GlpiTicketManager.Application/    # DTOs, services, abstractions
 │   ├── GlpiTicketManager.Infrastructure/ # Dapper queries, GLPI REST client, JWT
 │   └── GlpiTicketManager.Api/            # Minimal API endpoints, auth, rate limiting, Serilog
-│       ├── Dockerfile                    # multi-stage build (sdk:9.0 -> aspnet:9.0, non-root)
+│       ├── Dockerfile                    # multi-stage build (sdk:10.0 -> aspnet:10.0, non-root)
 │       ├── Program.cs
 │       ├── appsettings.json              # empty placeholders only
 │       └── appsettings.Development.json  # empty token placeholders (+ tripwire DB password)
