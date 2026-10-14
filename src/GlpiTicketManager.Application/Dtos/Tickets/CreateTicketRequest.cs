@@ -27,4 +27,17 @@ public sealed record CreateTicketRequest
 
     /// <summary>GLPI user id of the assigned technician.</summary>
     public int? AssigneeId { get; init; }
+
+    /// <summary>GLPI requesttype id (channel). Null means GLPI default.</summary>
+    public int? RequestTypeId { get; init; }
+
+    /// <summary>When set, the ticket is created for an external requester
+    /// (users_id=0 with alternative_email) instead of an internal GLPI user.</summary>
+    public string? ExternalRequesterEmail { get; init; }
+
+    public string? ExternalRequesterName { get; init; }
+
+    public string? ExternalRequesterPhone { get; init; }
+
+    public string? ExternalRequesterCompany { get; init; }
 }

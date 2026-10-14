@@ -95,6 +95,11 @@ export interface CreateTicketInput {
   categoryId?: number
   requesterId?: number
   assigneeId?: number
+  requestTypeId?: number
+  externalRequesterEmail?: string
+  externalRequesterName?: string
+  externalRequesterPhone?: string
+  externalRequesterCompany?: string
 }
 
 export interface CreatedTicket {

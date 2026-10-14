@@ -56,12 +56,18 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 ["impact"] = request.Impact
             };
 
+            if (request.RequestTypeId is > 0)
+            {
+                input["requesttypes_id"] = request.RequestTypeId.Value;
+            }
+
             if (request.CategoryId is > 0)
             {
                 input["itilcategories_id"] = request.CategoryId;
             }
 
-            if (request.RequesterId is > 0)
+            // Internal requester: GLPI creates the users_id=... link itself.
+            if (request.RequesterId is > 0 && string.IsNullOrWhiteSpace(request.ExternalRequesterEmail))
             {
                 input["_users_id_requester"] = request.RequesterId;
             }
@@ -84,6 +90,37 @@ public sealed class GlpiApiClient : IGlpiApiClient
             if (created is null || created.Id <= 0)
             {
                 throw new GlpiApiException((int)response.StatusCode, "GLPI did not return a ticket id.");
+            }
+
+            // External requester (ADR-005 option D): create a requester link with
+            // users_id=0 and alternative_email via the GLPI REST Ticket_User endpoint.
+            if (!string.IsNullOrWhiteSpace(request.ExternalRequesterEmail))
+            {
+                try
+                {
+                    var content = request.Content ?? string.Empty;
+                    var externalInput = new Dictionary<string, object?>
+                    {
+                        ["tickets_id"] = created.Id,
+                        ["users_id"] = 0,
+                        ["type"] = 1,
+                        ["alternative_email"] = request.ExternalRequesterEmail,
+                        ["use_notification"] = 1,
+                    };
+
+                    using var tuResponse = await SendAsync(
+                        HttpMethod.Post,
+                        "Ticket_User",
+                        sessionToken,
+                        new { input = externalInput },
+                        cancellationToken);
+
+                    _logger.LogInformation("Created external requester link for ticket {TicketId}", created.Id);
+                }
+                catch (GlpiApiException ex)
+                {
+                    _logger.LogWarning(ex, "Could not create external requester link for ticket {TicketId}", created.Id);
+                }
             }
 
             _logger.LogInformation("Created GLPI ticket {TicketId}", created.Id);
