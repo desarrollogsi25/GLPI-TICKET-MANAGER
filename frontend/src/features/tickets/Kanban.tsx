@@ -10,7 +10,6 @@ import {
 } from '@dnd-kit/core'
 import { useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTicketsQuery, useUpdateTicketStatusMutation } from '@/hooks/useTickets'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
@@ -19,6 +18,7 @@ import type { TicketSummary } from '@/lib/api/types'
 import { useToastStore } from '@/store/toastStore'
 
 import { TICKET_STATUSES } from './labels'
+import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
 
@@ -66,6 +66,7 @@ export function Kanban() {
   const updateStatus = useUpdateTicketStatusMutation()
   const pushToast = useToastStore((state) => state.push)
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
 
   // A small activation distance keeps clicks (opening the ticket) working.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -90,6 +91,11 @@ export function Kanban() {
     const ticket = tickets.find((item) => item.id === ticketId)
 
     if (!ticket || ticket.status === newStatus) {
+      return
+    }
+
+    if (newStatus === 5) {
+      setResolveTicketId(ticketId)
       return
     }
 
@@ -164,9 +170,13 @@ export function Kanban() {
         </DndContext>
       )}
 
-      {updateStatus.isPending ? (
-        <Badge variant="secondary">Guardando cambios…</Badge>
-      ) : null}
+      <ResolveTicketDialog
+        ticketId={resolveTicketId ?? 0}
+        open={resolveTicketId !== null}
+        onOpenChange={(v) => {
+          if (!v) setResolveTicketId(null)
+        }}
+      />
     </div>
   )
 }

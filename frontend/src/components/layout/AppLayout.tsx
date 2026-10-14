@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 const navItems = [
   { to: '/kanban', label: 'Kanban' },
   { to: '/tickets', label: 'Tickets' },
+  { to: '/queue', label: 'Cola del grupo' },
   { to: '/dashboard', label: 'Dashboard' },
 ]
 

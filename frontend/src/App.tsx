@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { Toaster } from '@/components/ui/toast'
 import { Login } from '@/features/auth/Login'
 import { Dashboard } from '@/features/dashboard/Dashboard'
+import { GroupQueuePage } from '@/features/tickets/GroupQueuePage'
 import { Detail } from '@/features/tickets/Detail'
 import { Kanban } from '@/features/tickets/Kanban'
 import { List } from '@/features/tickets/List'
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/kanban" element={<Kanban />} />
           <Route path="/tickets" element={<List />} />
           <Route path="/tickets/:id" element={<Detail />} />
+          <Route path="/queue" element={<GroupQueuePage />} />
           <Route path="/dashboard" element={<Dashboard />} />
         </Route>
 

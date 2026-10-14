@@ -6,6 +6,11 @@ import {
   getTicket,
   listTickets,
   updateTicketStatus,
+  listGroups,
+  listChannels,
+  listGroupQueue,
+  claimTicket,
+  createSolution,
 } from '@/lib/api/tickets'
 import type { CreateTicketInput } from '@/lib/api/types'
 
@@ -56,6 +61,57 @@ export function useUpdateTicketStatusMutation() {
     onSuccess: async (_data, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
+      ])
+    },
+  })
+}
+
+export function useGroupsQuery() {
+  return useQuery({
+    queryKey: queryKeys.groups.all,
+    queryFn: listGroups,
+  })
+}
+
+export function useChannelsQuery() {
+  return useQuery({
+    queryKey: queryKeys.channels.all,
+    queryFn: listChannels,
+  })
+}
+
+export function useGroupQueueQuery(groupId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.tickets.byGroupQueue(groupId ?? 0),
+    queryFn: () => listGroupQueue(groupId as number),
+    enabled: groupId != null && groupId > 0,
+  })
+}
+
+export function useClaimTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketId: number) => claimTicket(ticketId),
+    onSuccess: async (_data, ticketId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(ticketId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
+      ])
+    },
+  })
+}
+
+export function useCreateSolutionMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, content }: { ticketId: number; content: string }) =>
+      createSolution(ticketId, content),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
       ])

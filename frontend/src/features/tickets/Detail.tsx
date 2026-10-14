@@ -14,6 +14,7 @@ import { useToastStore } from '@/store/toastStore'
 import { useUiStore } from '@/store/uiStore'
 
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
+import { ResolveTicketDialog } from './ResolveTicketDialog'
 
 function TicketTasksPanel({ ticketId }: { ticketId: number }) {
   const tasks = useUiStore((state) => state.tasks[ticketId] ?? [])
@@ -90,6 +91,7 @@ export function Detail() {
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const updateStatus = useUpdateTicketStatusMutation()
   const pushToast = useToastStore((state) => state.push)
+  const [resolveOpen, setResolveOpen] = useState(false)
 
   const changeStatus = (status: number) => {
     updateStatus.mutate(
@@ -170,13 +172,27 @@ export function Detail() {
               <CardTitle>Cambiar estado</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                disabled={ticket.status === 5 || updateStatus.isPending}
+                onClick={() => setResolveOpen(true)}
+              >
+                Resolver
+              </Button>
               {TICKET_STATUSES.map((option) => (
                 <Button
                   key={option.value}
                   variant={option.value === ticket.status ? 'default' : 'outline'}
                   size="sm"
                   disabled={option.value === ticket.status || updateStatus.isPending}
-                  onClick={() => changeStatus(option.value)}
+                  onClick={() => {
+                    if (option.value === 5) {
+                      setResolveOpen(true)
+                    } else {
+                      changeStatus(option.value)
+                    }
+                  }}
                 >
                   {option.label}
                 </Button>
@@ -243,6 +259,7 @@ export function Detail() {
           <TicketTasksPanel ticketId={ticket.id} />
         </div>
       </div>
+      <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />
     </div>
   )
 }

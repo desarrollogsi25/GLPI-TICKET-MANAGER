@@ -45,6 +45,7 @@ export interface TicketSummary {
   createdAt: string
   updatedAt: string
   solvedAt: string | null
+  hasSolution: boolean
   assigneeIds: number[]
   requesterIds: number[]
 }
@@ -124,3 +125,7 @@ export interface DashboardStats {
   byStatus: StatusCount[]
   byTechnician: TechnicianWorkload[]
 }
+
+export interface Group { id: number; name: string }
+export interface Channel { id: number; name: string }
+export interface SolutionResponse { id: number }
