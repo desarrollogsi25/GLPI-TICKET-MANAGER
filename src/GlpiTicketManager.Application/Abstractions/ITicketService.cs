@@ -1,4 +1,7 @@
+using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Dtos.Dashboard;
+using GlpiTicketManager.Application.Dtos.Groups;
 using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Models;
 
@@ -22,4 +25,18 @@ public interface ITicketService
     Task<int> CreateAsync(CreateTicketRequest request, CancellationToken cancellationToken);
 
     Task<bool> UpdateStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
+
+    Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
+        int groupId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
+    Task<bool> ClaimAsync(int ticketId, int userId, int updatedBy, CancellationToken cancellationToken);
+
+    Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken);
+
+    Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken);
+
+    Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 }

@@ -1,5 +1,9 @@
 using Dapper;
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Dtos.Channels;
+using GlpiTicketManager.Application.Dtos.Groups;
+using GlpiTicketManager.Application.Dtos.Tickets;
+using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Infrastructure.Persistence;
 using GlpiTicketManager.Infrastructure.Persistence.Queries;
@@ -123,5 +127,108 @@ public sealed class TicketRepository : ITicketRepository
         stats.ByTechnician = (await reader.ReadAsync<TechnicianWorkload>()).AsList();
 
         return stats;
+    }
+
+    public async Task<PagedResult<Ticket>> GetUnassignedByGroupAsync(
+        int groupId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var countCommand = new CommandDefinition(
+            "SELECT COUNT(*) FROM glpi_tickets t INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id WHERE gt.groups_id = @GroupId AND gt.type = 2 AND t.status = 1 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2)",
+            new { GroupId = groupId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var total = await connection.ExecuteScalarAsync<int>(countCommand);
+
+        var command = new CommandDefinition(
+            TicketQueries.UnassignedByGroup,
+            new { GroupId = groupId, Limit = limit, Offset = offset },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var rows = await connection.QueryAsync<Ticket>(command);
+        return new PagedResult<Ticket>(rows.ToList(), total, limit, offset);
+    }
+
+    public async Task<bool> ClaimAsync(int ticketId, int userId, int updatedBy, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        try
+        {
+            var claimCommand = new CommandDefinition(
+                TicketUserQueries.Claim,
+                new { TicketId = ticketId, UserId = userId, UpdatedBy = updatedBy },
+                commandTimeout: _options.CommandTimeoutSeconds,
+                cancellationToken: cancellationToken);
+
+            await connection.ExecuteAsync(claimCommand);
+
+            var updateCommand = new CommandDefinition(
+                TicketQueries.UpdateStatus,
+                new { NewStatus = 2, UpdatedBy = updatedBy, TicketId = ticketId },
+                commandTimeout: _options.CommandTimeoutSeconds,
+                cancellationToken: cancellationToken);
+
+            await connection.ExecuteAsync(updateCommand);
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            SolutionQueries.Exists,
+            new { TicketId = ticketId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
+        return result;
+    }
+
+    public async Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            SolutionQueries.Insert,
+            new { TicketId = ticketId, Content = content, UserId = userId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.ExecuteScalarAsync<int>(command);
+        return result;
+    }
+
+    public async Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            @"SELECT COUNT(*) > 0 AS IsMember
+              FROM glpi_groups_tickets gt
+              INNER JOIN glpi_groups_users gu ON gu.groups_id = gt.groups_id
+              WHERE gt.tickets_id = @TicketId
+                AND gt.type = 2
+                AND gu.users_id = @UserId",
+            new { TicketId = ticketId, UserId = userId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
+        return result;
     }
 }

@@ -22,7 +22,11 @@ public static class TicketQueries
             t.date_mod          AS UpdatedAt,
             t.solvedate         AS SolvedAt,
             t.closedate         AS ClosedAt,
-            t.is_deleted        AS IsDeleted
+            t.is_deleted        AS IsDeleted,
+            (SELECT COUNT(*) > 0
+             FROM glpi_itilsolutions s
+             WHERE s.itemtype = 'Ticket'
+               AND s.items_id = t.id) AS HasSolution
         FROM glpi_tickets t
         """ + "\n";
 
@@ -41,13 +45,37 @@ public static class TicketQueries
         LIMIT @Limit OFFSET @Offset;
         """;
 
-    public const string CountByAssignee = """
-        SELECT COUNT(*)
+    public const string UnassignedByGroup = """
+        SELECT
+            t.id                AS Id,
+            t.name              AS Name,
+            t.content           AS Content,
+            t.status            AS Status,
+            t.type              AS Type,
+            t.priority          AS Priority,
+            t.urgency           AS Urgency,
+            t.impact            AS Impact,
+            t.itilcategories_id AS CategoryId,
+            t.date              AS CreatedAt,
+            t.date_mod          AS UpdatedAt,
+            t.solvedate         AS SolvedAt,
+            t.closedate         AS ClosedAt,
+            t.is_deleted        AS IsDeleted,
+            (SELECT COUNT(*) > 0
+             FROM glpi_itilsolutions s
+             WHERE s.itemtype = 'Ticket'
+               AND s.items_id = t.id) AS HasSolution
         FROM glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON tu.tickets_id = t.id
-        WHERE tu.users_id = @AssigneeId
-          AND tu.type = 2
-          AND t.is_deleted = 0;
+        INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id
+        WHERE gt.groups_id = @GroupId
+          AND gt.type = 2
+          AND t.status = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM glpi_tickets_users tu
+            WHERE tu.tickets_id = t.id AND tu.type = 2
+          )
+        ORDER BY t.status ASC, t.priority DESC, t.date DESC
+        LIMIT @Limit OFFSET @Offset;
         """;
 
     public const string ById = BaseProjection + """
@@ -131,6 +159,22 @@ public static class TicketQueries
         GROUP BY tu.users_id
         ORDER BY OpenTickets DESC
         LIMIT 10;
+        """;
+
+    public const string CountByAssignee = """
+        SELECT COUNT(*)
+        FROM glpi_tickets t
+        INNER JOIN glpi_tickets_users tu ON tu.tickets_id = t.id
+        WHERE tu.users_id = @AssigneeId
+          AND tu.type = 2
+          AND t.is_deleted = 0;
+        """;
+
+    public const string UpdateStatus = """
+        UPDATE glpi_tickets
+        SET status = @NewStatus,
+            users_id_lastupdater = @UpdatedBy
+        WHERE id = @TicketId;
         """;
 
     /// <summary>Dashboard batch: aggregate + status breakdown + technician workload.</summary>

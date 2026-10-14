@@ -18,5 +18,6 @@ public sealed record TicketSummaryDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? SolvedAt,
+    bool HasSolution,
     IReadOnlyList<int> AssigneeIds,
     IReadOnlyList<int> RequesterIds);

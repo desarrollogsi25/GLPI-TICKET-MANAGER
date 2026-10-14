@@ -23,6 +23,7 @@ public static class TicketMapper
         ticket.CreatedAt,
         ticket.UpdatedAt,
         ticket.SolvedAt,
+        ticket.HasSolution,
         ticket.AssigneeIds,
         ticket.RequesterIds);
 

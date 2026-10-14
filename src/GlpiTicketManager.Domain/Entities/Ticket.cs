@@ -33,6 +33,12 @@ public sealed class Ticket
 
     public bool IsDeleted { get; init; }
 
+    /// <summary>
+    /// True when at least one row exists in <c>glpi_itilsolutions</c> for this ticket.
+    /// Required to allow the transition to Solved (ADR-006).
+    /// </summary>
+    public bool HasSolution { get; set; }
+
     public IReadOnlyList<int> AssigneeIds { get; set; } = [];
 
     public IReadOnlyList<int> RequesterIds { get; set; } = [];

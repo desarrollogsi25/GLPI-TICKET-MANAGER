@@ -123,6 +123,64 @@ public sealed class TicketService : ITicketService
         }
     }
 
+    public async Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
+        int groupId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        var effectiveLimit = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
+        var effectiveOffset = Math.Max(offset, 0);
+
+        var paged = await _tickets.GetUnassignedByGroupAsync(groupId, effectiveLimit, effectiveOffset, cancellationToken);
+
+        if (paged.Items.Count > 0)
+        {
+            var links = await _tickets.GetUsersForTicketsAsync(
+                paged.Items.Select(row => row.Id).ToArray(),
+                cancellationToken);
+
+            foreach (var ticket in paged.Items)
+            {
+                var ticketLinks = links.Where(link => link.TicketId == ticket.Id).ToArray();
+
+                ticket.AssigneeIds = ticketLinks
+                    .Where(link => link.Type == (int)Domain.Enums.TicketUserType.Assigned)
+                    .Select(link => link.UserId)
+                    .ToArray();
+
+                ticket.RequesterIds = ticketLinks
+                    .Where(link => link.Type == (int)Domain.Enums.TicketUserType.Requester)
+                    .Select(link => link.UserId)
+                    .ToArray();
+            }
+        }
+
+        var items = paged.Items.Select(TicketMapper.ToSummary).ToArray();
+
+        return new PagedResult<TicketSummaryDto>(items, paged.Total, effectiveLimit, effectiveOffset);
+    }
+
+    public async Task<bool> ClaimAsync(int ticketId, int userId, int updatedBy, CancellationToken cancellationToken)
+    {
+        return await _tickets.ClaimAsync(ticketId, userId, updatedBy, cancellationToken);
+    }
+
+    public async Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        return await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
+    }
+
+    public async Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken)
+    {
+        return await _tickets.SolutionInsertAsync(ticketId, content, userId, cancellationToken);
+    }
+
+    public async Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken)
+    {
+        return await _tickets.IsUserInTicketGroupAsync(ticketId, userId, cancellationToken);
+    }
+
     private static void AttachUsers(IReadOnlyList<Ticket> tickets, IReadOnlyList<TicketUser> links)
     {
         foreach (var ticket in tickets)

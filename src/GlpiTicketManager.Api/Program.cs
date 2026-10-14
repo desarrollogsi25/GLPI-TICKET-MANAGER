@@ -99,6 +99,8 @@ app.MapScalarApiReference();
 app.MapAuthEndpoints();
 app.MapTicketEndpoints();
 app.MapDashboardEndpoints();
+app.MapGroupEndpoints();
+app.MapChannelEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .WithTags("Health")
