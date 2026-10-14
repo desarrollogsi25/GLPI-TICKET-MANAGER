@@ -58,7 +58,7 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Validate required secrets
         run: |
-          for v in MARIADB_ROOT_PASSWORD MARIADB_PASSWORD GLPI_APP_TOKEN GLPI_USER_TOKEN JWT_SECRET; do
+          for v in MARIADB_ROOT_PASSWORD MARIADB_PASSWORD GLPI_APP_TOKEN GLPI_USER_TOKEN JWT_SECRET APP_DB_PASSWORD; do
             if [ -z "${!v}" ]; then
               echo "ERROR: Missing required secret: $v"
               exit 1
@@ -70,6 +70,7 @@ jobs:
           GLPI_APP_TOKEN: ${{ secrets.GLPI_APP_TOKEN }}
           GLPI_USER_TOKEN: ${{ secrets.GLPI_USER_TOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
       - name: Create .env for compose
         run: |
           cat > .env <<EOF
@@ -80,9 +81,10 @@ jobs:
           GLPI_APP_TOKEN=${{ secrets.GLPI_APP_TOKEN }}
           GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
+          APP_DB_PASSWORD=${{ secrets.APP_DB_PASSWORD }}
           EOF
       - name: Start database
-        run: docker compose up -d glpi-db
+        run: docker compose up -d glpi-db app-db
       - name: Wait for database healthy
         run: |
           for i in {1..30}; do
@@ -94,12 +96,35 @@ jobs:
           done
           echo "Database failed to become healthy"
           exit 1
+      - name: Wait for app-db healthy
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T app-db pg_isready -U app -d glpi_ticket_manager > /dev/null 2>&1; then
+              echo "app-db is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "app-db did not become healthy"
+          docker compose logs app-db
+          exit 1
       - name: Apply GLPI base schema (CI bootstrap)
         run: |
           MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
           echo "Applying schema for glpi_events and glpi_logs (excluded from base dump)"
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-schema-events-logs.sql
+      - name: Verify app-db migrations
+        run: |
+          TABLES=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('app_settings','user_preferences','audit_log','revoked_tokens');")
+          echo "Tables found: ${TABLES} / 4"
+          if [ "${TABLES}" != "4" ]; then
+            echo "ERROR: Expected 4 tables, found ${TABLES}"
+            docker compose logs app-db --tail=50
+            exit 1
+          fi
+          echo "app-db migrations verified: 4 tables present."
       - name: Start full stack
         run: docker compose up -d --build
       - name: Copy GLPI configuration and encryption key
@@ -187,6 +212,9 @@ jobs:
           echo ""
           echo "===== GLPI logs (last 100 lines) ====="
           docker compose logs glpi --tail=100
+          echo ""
+          echo "===== app-db logs (last 100 lines) ====="
+          docker compose logs app-db --tail=100
           echo ""
           echo "===== Container status ====="
           docker compose ps

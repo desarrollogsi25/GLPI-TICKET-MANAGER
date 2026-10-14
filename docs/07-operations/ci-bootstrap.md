@@ -28,23 +28,37 @@ Para garantizar un entorno reproducible, rápido y determinista:
    - `scripts/config_db.php`: Configuración de conexión para que el contenedor GLPI se enlace a `glpi-db`. Durante el flujo de CI, la contraseña se sincroniza dinámicamente con `MARIADB_PASSWORD`.
 
 3. **Flujo de Ejecución en CI (`.github/workflows/ci.yml`):**
-   1. Levanta `glpi-db` de forma aislada.
-   2. Espera a que el healthcheck de MariaDB confirme disponibilidad.
-   3. Restaura `scripts/glpi-base.sql` y `scripts/glpi-schema-events-logs.sql` en la base de datos `glpi`.
-   4. Levanta el stack completo (`docker compose up -d --build`).
-   5. Copia `glpicrypt.key` y `config_db.php` a `/var/glpi/config/` y reinicia el servicio `glpi`.
-   6. Espera disponibilidad de API (`/health`) y Frontend (`:5173`).
-   7. Instala dependencias y navegador Chromium para Playwright.
-   8. Ejecuta Smoke test de API (`PATCH /api/tickets/11/status` con status=2).
-   9. Ejecuta `./scripts/seed-e2e.sh` para crear usuarios y restaurar el estado prístino de las fixtures.
-   10. Ejecuta la suite E2E de Playwright.
+   1. Valida que los 6 secretos requeridos estén presentes.
+   2. Levanta las bases de datos `glpi-db` y `app-db` de forma aislada (`docker compose up -d glpi-db app-db`).
+   3. Espera a que los healthchecks de MariaDB y PostgreSQL (`pg_isready`) confirmen disponibilidad.
+   4. Restaura `scripts/glpi-base.sql` y `scripts/glpi-schema-events-logs.sql` en MariaDB.
+   5. Verifica la presencia de las 4 tablas propias en PostgreSQL (`app-db`) de forma fail-fast.
+   6. Levanta el stack completo (`docker compose up -d --build`).
+   7. Copia `glpicrypt.key` y `config_db.php` a `/var/glpi/config/` y reinicia el servicio `glpi`.
+   8. Espera disponibilidad de API (`/health`) y Frontend (`:5173`).
+   9. Instala dependencias y navegador Chromium para Playwright.
+   10. Ejecuta Smoke test de API (`PATCH /api/tickets/11/status` con status=2).
+   11. Ejecuta `./scripts/seed-e2e.sh` para crear usuarios y restaurar el estado prístino de las fixtures.
+   12. Ejecuta la suite E2E de Playwright.
 
 > [!NOTE]
 > El step 'Seed E2E state' corre después del smoke test del API y antes de Playwright. Razón: el smoke test muta el ticket #11 (PATCH status=2), y `self-assign-flow.spec.ts` requiere el ticket en status=1. El seed garantiza el estado prístino para la suite E2E.
 
 ---
 
-## 3. Sembrado Idempotente (`scripts/seed-e2e.sh`)
+## 3. Base de Datos de Aplicación (`app-db` / PostgreSQL)
+
+Para almacenar estado propio desacoplado de GLPI (preferencias, auditoría interna, revocación de tokens JWT y settings), el stack incluye una instancia PostgreSQL 16 (`app-db`):
+
+- **Arranque anticipado:** Se levanta en el mismo paso inicial que `glpi-db`, antes de compilar y levantar la API y el frontend.
+- **Migraciones automáticas:** En entornos limpios/CI, las migraciones ubicadas en `db/migrations/` se montan como volumen de solo lectura en `/docker-entrypoint-initdb.d`, ejecutándose automáticamente por orden lexicográfico al inicializar el cluster.
+- **Script de migración idempotente:** Para entornos existentes o ejecución manual, se dispone del script `scripts/migrate-app-db.sh`.
+- **Verificación fail-fast:** El workflow ejecuta una consulta a `information_schema.tables` verificando que existan exactamente las 4 tablas esperadas (`app_settings`, `user_preferences`, `audit_log`, `revoked_tokens`). Si faltan tablas, el workflow aborta de inmediato mostrando los logs de `app-db`.
+- **Secreto obligatorio:** La variable `APP_DB_PASSWORD` es obligatoria en CI; su ausencia detiene el workflow antes de iniciar cualquier contenedor.
+
+---
+
+## 4. Sembrado Idempotente (`scripts/seed-e2e.sh`)
 
 El script `seed-e2e.sh` garantiza que cada ejecución de pruebas arranque con datos idénticos:
 - Inserta los usuarios de prueba (`tech1`, `tech2`, `user1`) con sus hashes y perfiles mediante `INSERT IGNORE`.
@@ -53,18 +67,18 @@ El script `seed-e2e.sh` garantiza que cada ejecución de pruebas arranque con da
 
 ---
 
-## 4. Consideraciones de Seguridad
+## 5. Consideraciones de Seguridad
 
 - **Entorno de Pruebas Aislado:** El dump y las claves versionadas corresponden exclusivamente a datos de desarrollo y testing, sin ninguna información confidencial de producción.
-- **Fail Fast sin Placeholders:** El workflow de CI no utiliza placeholders con valores genéricos que silencien errores de autenticación; valida explícitamente la presencia de los 5 secretos requeridos antes de iniciar los servicios.
+- **Fail Fast sin Placeholders:** El workflow de CI no utiliza placeholders con valores genéricos que silencien errores de autenticación; valida explícitamente la presencia de los 6 secretos requeridos antes de iniciar los servicios.
 
 ---
 
-## 5. GitHub Secrets
+## 6. GitHub Secrets
 
 ### Secretos Requeridos en el Repositorio
 
-El job `e2e` del workflow de GitHub Actions requiere los siguientes 5 secretos de repositorio:
+El job `e2e` del workflow de GitHub Actions requiere los siguientes 6 secretos de repositorio:
 
 | Secreto | Descripción | Componente que lo consume |
 |---|---|---|
@@ -73,6 +87,7 @@ El job `e2e` del workflow de GitHub Actions requiere los siguientes 5 secretos d
 | `GLPI_APP_TOKEN` | Token de aplicación para el cliente API de GLPI | Cliente HTTP REST del backend .NET |
 | `GLPI_USER_TOKEN` | Token de autenticación del usuario servicio GLPI | Cliente HTTP REST del backend .NET |
 | `JWT_SECRET` | Clave secreta para firmar tokens JWT propios (≥32 caracteres) | Autenticación del backend .NET |
+| `APP_DB_PASSWORD` | Contraseña del usuario `app` en PostgreSQL (`app-db`) | PostgreSQL inicialización y credenciales API |
 
 ### Por qué se necesitan
 
@@ -100,9 +115,13 @@ Si se requiere cambiar o rotar alguno de estos secretos:
    - Generar una cadena criptográfica de al menos 32 caracteres (por ejemplo, con `openssl rand -base64 32`).
    - Actualizar `JWT_SECRET` tanto en `.env` local como en GitHub Secrets.
 
+4. **Contraseña PostgreSQL (`APP_DB_PASSWORD`):**
+   - Actualizar la variable en el `.env` local.
+   - Actualizar el valor en los secretos del repositorio en GitHub (**Settings > Secrets and variables > Actions**).
+
 ---
 
-## 6. Tablas excluidas del dump principal
+## 7. Tablas excluidas del dump principal
 
 El dump `scripts/glpi-base.sql` excluye `glpi_logs` y `glpi_events` por tamaño (acumulan millones de filas). Sin embargo, GLPI las requiere para operar (auditoría de login en `initSession`). 
 

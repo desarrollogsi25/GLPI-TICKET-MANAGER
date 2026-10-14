@@ -106,7 +106,7 @@ full variable list, rotation steps and verification commands.
 
 ## Configuring CI secrets
 
-The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephemeral Docker Compose environment bootstrapped with GLPI fixtures (`scripts/glpi-base.sql`). The E2E job requires 5 repository secrets configured in GitHub Actions to authenticate against the MariaDB database and GLPI REST API.
+The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephemeral Docker Compose environment bootstrapped with GLPI fixtures (`scripts/glpi-base.sql`). The E2E job requires 6 repository secrets configured in GitHub Actions to authenticate against the databases, GLPI REST API, and JWT tokens.
 
 > **Note:** These credentials belong to the local development/testing GLPI instance bootstrapped from `scripts/glpi-base.sql`, **not** a production environment.
 
@@ -119,6 +119,7 @@ The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephem
 | `GLPI_APP_TOKEN` | GLPI API client application token | `GLPI_APP_TOKEN` |
 | `GLPI_USER_TOKEN` | API token of the GLPI service/admin user | `GLPI_USER_TOKEN` |
 | `JWT_SECRET` | Secret key for signing backend JWT tokens (≥32 chars) | `JWT_SECRET` |
+| `APP_DB_PASSWORD` | PostgreSQL password for application database (`app-db`) | `APP_DB_PASSWORD` |
 
 ### How to configure in GitHub UI
 
