@@ -32,6 +32,7 @@ Configuración global de la aplicación gestionada por administradores.
 | `key` | `VARCHAR(100)` | NO | — | Clave única de configuración (PK natural) |
 | `value` | `TEXT` | NO | — | Valor de la configuración (texto o JSON serializado) |
 | `updated_at` | `TIMESTAMPTZ` | NO | `NOW()` | Timestamp de última actualización |
+| `updated_by` | `INT` | SÍ | — | ID del usuario que actualizó el ajuste (ref. lógica a `glpi_users.id`) |
 
 - **Índices:**
   - `app_settings_pkey`: `PRIMARY KEY (key)`

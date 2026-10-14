@@ -30,6 +30,10 @@ public static class DependencyInjection
 
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IAppSettingsRepository, AppSettingsRepository>();
+        services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
+        services.AddScoped<IAuditRepository, AuditRepository>();
+        services.AddScoped<IRevokedTokenRepository, RevokedTokenRepository>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 
         services.Configure<GlpiOptions>(configuration.GetSection(GlpiOptions.SectionName));

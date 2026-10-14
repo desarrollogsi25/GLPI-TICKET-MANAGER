@@ -80,6 +80,7 @@ Definición real implementada en `db/migrations/001_init.sql`:
 - `key`: `VARCHAR(100) PRIMARY KEY`
 - `value`: `TEXT NOT NULL`
 - `updated_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_by`: `INT` (nullable, referencia lógica a `glpi_users.id`, añadido en migración 002)
 
 #### `revoked_tokens`
 - `jti`: `VARCHAR(64) PRIMARY KEY`
