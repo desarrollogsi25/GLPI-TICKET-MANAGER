@@ -12,12 +12,16 @@ import { formatDateTime, formatRelative, toPlainText } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
 import { useUiStore } from '@/store/uiStore'
+import type { TicketTask } from '@/store/uiStore'
+
+const EMPTY_TASKS: TicketTask[] = []
 
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
 function TicketTasksPanel({ ticketId }: { ticketId: number }) {
-  const tasks = useUiStore((state) => state.tasks[ticketId] ?? [])
+  const taskMap = useUiStore((state) => state.tasks)
+const tasks = taskMap[ticketId] ?? (EMPTY_TASKS as TicketTask[])
   const addTask = useUiStore((state) => state.addTask)
   const toggleTask = useUiStore((state) => state.toggleTask)
   const removeTask = useUiStore((state) => state.removeTask)
