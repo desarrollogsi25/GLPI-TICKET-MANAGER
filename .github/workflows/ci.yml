@@ -112,12 +112,12 @@ jobs:
           exit 1
       - name: Seed E2E state
         run: ./scripts/seed-e2e.sh
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Run E2E
-        working-directory: frontend
-        run: pnpm exec playwright test --reporter=list
+      - name: Install Playwright browser in container
+        run: |
+          docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
+          docker compose exec -T frontend pnpm exec playwright install chromium
+      - name: Run E2E inside container
+        run: docker compose exec -T frontend pnpm exec playwright test --reporter=list
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
