@@ -132,11 +132,6 @@ export function Dashboard() {
           value={stats.data?.openTickets ?? 0}
           subtitle="Reporte global"
         />
-        <StatCard
-          title="Vencidos (SLA)"
-          value={stats.data?.overdueTickets ?? 0}
-          subtitle="Reporte global"
-        />
       </div>
 
       <section className="space-y-3">
