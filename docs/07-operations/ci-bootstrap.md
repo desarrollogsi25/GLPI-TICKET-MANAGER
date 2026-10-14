@@ -51,4 +51,46 @@ El script `seed-e2e.sh` garantiza que cada ejecución de pruebas arranque con da
 ## 4. Consideraciones de Seguridad
 
 - **Entorno de Pruebas Aislado:** El dump y las claves versionadas corresponden exclusivamente a datos de desarrollo y testing, sin ninguna información confidencial de producción.
-- **Sin Secretos Reales en el Workflow:** El workflow utiliza GitHub Secrets (`secrets.MARIADB_PASSWORD`, etc.) con valores por defecto de fallback solo para la ejecución de pipelines en pull requests y forks seguros.
+- **Fail Fast sin Placeholders:** El workflow de CI no utiliza placeholders con valores genéricos que silencien errores de autenticación; valida explícitamente la presencia de los 5 secretos requeridos antes de iniciar los servicios.
+
+---
+
+## 5. GitHub Secrets
+
+### Secretos Requeridos en el Repositorio
+
+El job `e2e` del workflow de GitHub Actions requiere los siguientes 5 secretos de repositorio:
+
+| Secreto | Descripción | Componente que lo consume |
+|---|---|---|
+| `MARIADB_ROOT_PASSWORD` | Contraseña administrativa del contenedor MariaDB | MariaDB inicialización y healthcheck |
+| `MARIADB_PASSWORD` | Contraseña del usuario de base de datos `glpi` | MariaDB + GLPI `config_db.php` + .NET API |
+| `GLPI_APP_TOKEN` | Token de aplicación para el cliente API de GLPI | Cliente HTTP REST del backend .NET |
+| `GLPI_USER_TOKEN` | Token de autenticación del usuario servicio GLPI | Cliente HTTP REST del backend .NET |
+| `JWT_SECRET` | Clave secreta para firmar tokens JWT propios (≥32 caracteres) | Autenticación del backend .NET |
+
+### Por qué se necesitan
+
+En el bootstrap de CI, el archivo `scripts/glpi-base.sql` contiene la configuración de GLPI y las credenciales cifradas (mediante `scripts/glpicrypt.key`). Para que la API de .NET pueda invocar los endpoints REST de GLPI (`/apirest.php/initSession`, `/apirest.php/Ticket`), GLPI compara los tokens recibidos en las cabeceras HTTP con los tokens descifrados en la base de datos MariaDB. Si los tokens pasados al contenedor de la API no coinciden exactamente con los de la base de datos restaurada, GLPI rechaza la autenticación (`ERROR_GLPI_LOGIN_USER_TOKEN`) y las pruebas E2E fallan por timeout al no completarse las operaciones.
+
+### Procedimiento de Rotación
+
+Si se requiere cambiar o rotar alguno de estos secretos:
+
+1. **Tokens de GLPI (`GLPI_APP_TOKEN`, `GLPI_USER_TOKEN`):**
+   - Iniciar GLPI en local (`docker compose up -d`).
+   - Ir a la interfaz web de GLPI (`http://localhost:8081`).
+   - En *Configuración > General > API*, regenerar el token del cliente de API (`GLPI_APP_TOKEN`).
+   - En *Administración > Usuarios*, seleccionar el usuario de servicio y regenerar su `api_token` (`GLPI_USER_TOKEN`).
+   - Actualizar el archivo `.env` local con los nuevos valores.
+   - Generar un nuevo dump de base de datos (`scripts/glpi-base.sql`) para capturar los nuevos tokens cifrados.
+   - Actualizar los secretos en GitHub: **Settings > Secrets and variables > Actions**.
+
+2. **Contraseñas de MariaDB (`MARIADB_ROOT_PASSWORD`, `MARIADB_PASSWORD`):**
+   - Actualizar las variables en el `.env` local.
+   - En `scripts/config_db.php`, la contraseña se sincroniza automáticamente durante el workflow en base a `MARIADB_PASSWORD`.
+   - Actualizar los valores en los secretos del repositorio en GitHub.
+
+3. **Firma JWT (`JWT_SECRET`):**
+   - Generar una cadena criptográfica de al menos 32 caracteres (por ejemplo, con `openssl rand -base64 32`).
+   - Actualizar `JWT_SECRET` tanto en `.env` local como en GitHub Secrets.

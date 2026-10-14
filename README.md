@@ -104,6 +104,29 @@ checkout can boot; **override it outside local development** with `JWT_SECRET` (
 or user-secrets. See [`docs/12-security/secrets.md`](docs/12-security/secrets.md) for the
 full variable list, rotation steps and verification commands.
 
+## Configuring CI secrets
+
+The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephemeral Docker Compose environment bootstrapped with GLPI fixtures (`scripts/glpi-base.sql`). The E2E job requires 5 repository secrets configured in GitHub Actions to authenticate against the MariaDB database and GLPI REST API.
+
+> **Note:** These credentials belong to the local development/testing GLPI instance bootstrapped from `scripts/glpi-base.sql`, **not** a production environment.
+
+### Required Secrets
+
+| Secret | Description | Source in local `.env` |
+|---|---|---|
+| `MARIADB_ROOT_PASSWORD` | MariaDB root administrative password | `MARIADB_ROOT_PASSWORD` |
+| `MARIADB_PASSWORD` | Password for the `glpi` database user | `MARIADB_PASSWORD` |
+| `GLPI_APP_TOKEN` | GLPI API client application token | `GLPI_APP_TOKEN` |
+| `GLPI_USER_TOKEN` | API token of the GLPI service/admin user | `GLPI_USER_TOKEN` |
+| `JWT_SECRET` | Secret key for signing backend JWT tokens (≥32 chars) | `JWT_SECRET` |
+
+### How to configure in GitHub UI
+
+1. In GitHub, go to repository **Settings** &rarr; **Secrets and variables** &rarr; **Actions**.
+2. Click **New repository secret**.
+3. Add each secret with the corresponding value from your local `.env` file.
+4. The workflow validates these secrets in the `Validate required secrets` step and fails fast if any secret is missing.
+
 ## Project structure
 
 ```

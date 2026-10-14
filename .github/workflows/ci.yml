@@ -56,16 +56,30 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Validate required secrets
+        run: |
+          for v in MARIADB_ROOT_PASSWORD MARIADB_PASSWORD GLPI_APP_TOKEN GLPI_USER_TOKEN JWT_SECRET; do
+            if [ -z "${!v}" ]; then
+              echo "ERROR: Missing required secret: $v"
+              exit 1
+            fi
+          done
+        env:
+          MARIADB_ROOT_PASSWORD: ${{ secrets.MARIADB_ROOT_PASSWORD }}
+          MARIADB_PASSWORD: ${{ secrets.MARIADB_PASSWORD }}
+          GLPI_APP_TOKEN: ${{ secrets.GLPI_APP_TOKEN }}
+          GLPI_USER_TOKEN: ${{ secrets.GLPI_USER_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
       - name: Create .env for compose
         run: |
           cat > .env <<EOF
-          MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD || 'ci-root-password' }}
+          MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD }}
           MARIADB_DATABASE=glpi
           MARIADB_USER=glpi
-          MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD || 'ci-glpi-password' }}
-          GLPI_APP_TOKEN=${{ secrets.GLPI_APP_TOKEN || 'ci-app-token-placeholder-40-chars-long-xxxx' }}
-          GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN || 'ci-user-token-placeholder-40-chars-long-xxx' }}
-          JWT_SECRET=${{ secrets.JWT_SECRET || 'ci-jwt-secret-placeholder-32-chars-min-x' }}
+          MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD }}
+          GLPI_APP_TOKEN=${{ secrets.GLPI_APP_TOKEN }}
+          GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
           EOF
       - name: Start database
         run: docker compose up -d glpi-db
