@@ -54,6 +54,43 @@ El tipo de columna para `user_preferences.user_id` (y cualquier campo de referen
 > No existe replicación de datos, sincronización en segundo plano ni ETL entre MariaDB y PostgreSQL.
 > Las referencias cruzadas (como `user_id` o `ticket_id` en `audit_log` o `user_preferences`) son **referencias lógicas** a las claves primarias de MariaDB (`glpi_users.id`, `glpi_tickets.id`). No existen Foreign Keys a nivel de motor entre bases de datos.
 
+### Schema final (2026-10-14)
+
+Definición real implementada en `db/migrations/001_init.sql`:
+
+#### `audit_log`
+- `id`: `BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
+- `user_id`: `INT NOT NULL` (referencia lógica a `glpi_users.id`)
+- `action`: `VARCHAR(100) NOT NULL` — limitado porque los valores corresponden a un enum corto de acciones operativas
+- `ticket_id`: `INT` (nullable, referencia lógica a `glpi_tickets.id`)
+- `details`: `JSONB` (flexible, permite agregar contexto sin requerir migraciones DDL por cada campo nuevo)
+- `created_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- **Índices:** `(user_id, created_at)`, `(ticket_id)` parcial donde no es nulo, `(action)`.
+
+*Notas de diseño:*
+- La columna `ip inet` fue diferida al backlog (no es crítica para la funcionalidad inicial del MVP).
+- El campo `metadata` se renombró a `details` por consistencia con la terminología del equipo.
+
+#### `user_preferences`
+- `user_id`: `INT PRIMARY KEY` (referencia lógica a `glpi_users.id` — mismo tipo entero para evitar conversiones implícitas)
+- `prefs`: `JSONB NOT NULL DEFAULT '{}'::jsonb`
+- `updated_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+#### `app_settings`
+- `key`: `VARCHAR(100) PRIMARY KEY`
+- `value`: `TEXT NOT NULL`
+- `updated_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+#### `revoked_tokens`
+- `jti`: `VARCHAR(64) PRIMARY KEY`
+- `user_id`: `INT NOT NULL`
+- `revoked_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `expires_at`: `TIMESTAMPTZ NOT NULL`
+- **Índices:** `(expires_at)`.
+
+> [!NOTE]
+> **Desviaciones respecto al diseño inicial:** `action` se limitó a `varchar(100)`, `metadata` se renombró a `details`, `ip` se difirió al backlog. Todas son decisiones de diseño deliberadas que mejoran la coherencia o reducen la superficie inicial del MVP.
+
 ### Stack técnico
 
 - **Acceso a datos**: Dapper + `Npgsql` para PostgreSQL; Dapper + `MySqlConnector` para MariaDB.
