@@ -1,4 +1,4 @@
-﻿# .NET
+# .NET
 bin/
 obj/
 *.user
@@ -18,6 +18,9 @@ secrets.json
 token.txt
 login_body.json
 body.json
+test-output.txt
+*-output.txt
+
 
 # Node
 node_modules/

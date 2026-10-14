@@ -112,6 +112,15 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
+        if (status == (int)TicketStatus.Solved)
+        {
+            var solutionExists = await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
+            if (!solutionExists)
+            {
+                throw new UnprocessableEntityException("Ticket no puede marcarse como resuelto sin solución escrita.");
+            }
+        }
+
         try
         {
             await _glpi.UpdateTicketStatusAsync(ticketId, status, cancellationToken);
@@ -161,9 +170,58 @@ public sealed class TicketService : ITicketService
         return new PagedResult<TicketSummaryDto>(items, paged.Total, effectiveLimit, effectiveOffset);
     }
 
-    public async Task<bool> ClaimAsync(int ticketId, int userId, int updatedBy, CancellationToken cancellationToken)
+    public async Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, CancellationToken cancellationToken)
     {
-        return await _tickets.ClaimAsync(ticketId, userId, updatedBy, cancellationToken);
+        if (ticketId <= 0)
+        {
+            throw Invalid("id", "id must be a positive integer.");
+        }
+
+        if (userId <= 0)
+        {
+            throw Invalid("userId", "userId must be a positive integer.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        if (ticket.Status != (int)TicketStatus.New)
+        {
+            throw new ConflictException("El ticket debe estar en estado 'Nuevo' (1) y sin asignar.");
+        }
+
+        var links = await _tickets.GetUsersForTicketsAsync(
+            new[] { ticketId },
+            cancellationToken);
+
+        if (links.Any(l => l.Type == (int)TicketUserType.Assigned))
+        {
+            throw new ConflictException("El ticket ya está asignado a un técnico.");
+        }
+
+        var isMember = await _tickets.IsUserInTicketGroupAsync(ticketId, userId, cancellationToken);
+        if (!isMember)
+        {
+            throw new ConflictException("El usuario no pertenece al grupo del ticket.");
+        }
+
+        var claimed = await _tickets.ClaimAsync(ticketId, userId, userId, cancellationToken);
+
+        if (!claimed)
+        {
+            throw new ConflictException("No se pudo reclamar el ticket.");
+        }
+
+        var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (updated is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        return updated.ToDetail();
     }
 
     public async Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken)

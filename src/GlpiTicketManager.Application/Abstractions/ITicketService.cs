@@ -32,7 +32,7 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
-    Task<bool> ClaimAsync(int ticketId, int userId, int updatedBy, CancellationToken cancellationToken);
+    Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
     Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken);
 

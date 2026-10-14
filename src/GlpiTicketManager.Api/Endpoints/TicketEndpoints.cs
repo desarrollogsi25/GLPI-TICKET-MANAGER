@@ -175,21 +175,6 @@ public static class TicketEndpoints
         ITicketService ticketService,
         CancellationToken cancellationToken)
     {
-        // Validacion ADR-006: si se quiere Solved (5), verificar que existe solucion escrita
-        if (request.Status == 5)
-        {
-            var solutionExists = await ticketService.SolutionExistsAsync(
-                id, cancellationToken);
-
-            if (!solutionExists)
-            {
-                return Results.Problem(
-                    statusCode: StatusCodes.Status422UnprocessableEntity,
-                    title: "Ticket no puede marcarse como resuelto sin solucion escrita.",
-                    detail: "No hay ninguna entrada en glpi_itilsolutions para este ticket.");
-            }
-        }
-
         var updated = await ticketService.UpdateStatusAsync(id, request.Status, cancellationToken);
         return updated ? Results.NoContent() : Results.NotFound();
     }
@@ -209,54 +194,8 @@ public static class TicketEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
-        // Validar que el usuario pertenece al grupo del ticket
-        var ticket = await ticketService.GetByIdAsync(id, cancellationToken);
-        if (ticket is null)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Ticket no encontrado",
-                detail: "El ticket solicitado no existe.");
-        }
-
-        // El ticket debe estar en estado New (1) y sin assignee
-        if (ticket.Status != 1)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "No se puede reclamar el ticket",
-                detail: "El ticket debe estar en estado 'Nuevo' (1) y sin asignar.");
-        }
-
-        // Verificar membresia en el grupo del ticket
-        // El ticket's group se obtiene de glpi_groups_tickets (type=2)
-        // El usuario debe estar en glpi_groups_users del mismo groupId
-        bool isMember = await ticketService.IsUserInTicketGroupAsync(
-            id, userId.Value, cancellationToken);
-
-        if (!isMember)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "No pertenece al grupo del ticket",
-                detail: "El usuario autenticado no es miembro del grupo al que pertenece este ticket.");
-        }
-
-        // Ejecutar claim (INSERT glpi_tickets_users + UPDATE status)
-        bool claimed = await ticketService.ClaimAsync(
-            id, userId.Value, userId.Value, cancellationToken);
-
-        if (!claimed)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: "No se pudo reclamar el ticket",
-                detail: "Ocurrio un error al reclamar el ticket. Intentelo de nuevo.");
-        }
-
-        // Devolver el ticket actualizado
-        var result = await ticketService.GetByIdAsync(id, cancellationToken);
-        return result is not null ? Results.Ok(result) : Results.NotFound();
+        var result = await ticketService.ClaimAsync(id, userId.Value, cancellationToken);
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> CreateSolution(

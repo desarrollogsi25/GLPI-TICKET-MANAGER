@@ -29,10 +29,28 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
         switch (exception)
         {
-            case ValidationException validation:
+            case Application.Exceptions.ValidationException validation:
                 statusCode = StatusCodes.Status400BadRequest;
                 title = "Validation failed";
                 errors = validation.Errors;
+                break;
+
+            case Application.Exceptions.UnprocessableEntityException:
+                statusCode = StatusCodes.Status422UnprocessableEntity;
+                title = "Solution required";
+                detail = exception.Message;
+                break;
+
+            case Application.Exceptions.ConflictException:
+                statusCode = StatusCodes.Status409Conflict;
+                title = "Conflict";
+                detail = exception.Message;
+                break;
+
+            case Application.Exceptions.NotFoundException:
+                statusCode = StatusCodes.Status404NotFound;
+                title = "Not found";
+                detail = exception.Message;
                 break;
 
             case GlpiApiException glpi when glpi.StatusCode == StatusCodes.Status404NotFound:

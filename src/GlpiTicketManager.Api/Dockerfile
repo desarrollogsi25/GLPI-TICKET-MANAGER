@@ -13,7 +13,8 @@ COPY --link src/GlpiTicketManager.Domain/GlpiTicketManager.Domain.csproj src/Glp
 COPY --link src/GlpiTicketManager.Application/GlpiTicketManager.Application.csproj src/GlpiTicketManager.Application/
 COPY --link src/GlpiTicketManager.Infrastructure/GlpiTicketManager.Infrastructure.csproj src/GlpiTicketManager.Infrastructure/
 COPY --link src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj src/GlpiTicketManager.Api/
-RUN dotnet restore GlpiTicketManager.sln
+RUN dotnet restore src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj
+
 
 # Build layer: copy the sources and publish a framework-dependent output.
 COPY --link src/ src/
