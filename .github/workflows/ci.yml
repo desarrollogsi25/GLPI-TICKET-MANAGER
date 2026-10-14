@@ -130,6 +130,44 @@ jobs:
         run: |
           docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
           docker compose exec -T frontend pnpm exec playwright install chromium
+      - name: Smoke test - API can create ticket
+        run: |
+          echo "===== Login as tech1 ====="
+          LOGIN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"tech1","password":"Tech1Pass!"}' || echo "LOGIN_FAILED")
+          echo "$LOGIN" | head -c 300
+          echo ""
+          
+          if [ "$LOGIN" = "LOGIN_FAILED" ]; then
+            echo "ERROR: Login failed. Checking API logs..."
+            docker compose logs api --tail=100
+            exit 1
+          fi
+          
+          TOKEN=$(echo "$LOGIN" | python3 -c "import sys, json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null || echo "")
+          
+          if [ -z "$TOKEN" ]; then
+            echo "ERROR: Could not extract token"
+            exit 1
+          fi
+          
+          echo "===== POST /api/tickets ====="
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://localhost:8080/api/tickets \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"title":"smoke test CI","content":"diagnostic from CI","type":1,"urgency":3,"impact":3}')
+          echo "$RESPONSE"
+          
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          if [ "$HTTP_CODE" != "201" ]; then
+            echo "ERROR: POST /api/tickets returned $HTTP_CODE"
+            echo "===== API logs ====="
+            docker compose logs api --tail=200
+            exit 1
+          fi
+          
+          echo "Smoke test PASSED - API can create tickets"
       - name: Run E2E inside container
         run: docker compose exec -T frontend pnpm exec playwright test --reporter=list
       - name: Upload Playwright report on failure
@@ -139,6 +177,17 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "===== API logs (last 300 lines) ====="
+          docker compose logs api --tail=300
+          echo ""
+          echo "===== GLPI logs (last 100 lines) ====="
+          docker compose logs glpi --tail=100
+          echo ""
+          echo "===== Container status ====="
+          docker compose ps
       - name: Tear down stack
         if: always()
         run: docker compose down -v
