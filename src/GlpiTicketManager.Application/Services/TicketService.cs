@@ -181,6 +181,11 @@ public sealed class TicketService : ITicketService
         return await _tickets.IsUserInTicketGroupAsync(ticketId, userId, cancellationToken);
     }
 
+    public Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken)
+    {
+        return _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
+    }
+
     private static void AttachUsers(IReadOnlyList<Ticket> tickets, IReadOnlyList<TicketUser> links)
     {
         foreach (var ticket in tickets)
@@ -232,3 +237,4 @@ public sealed class TicketService : ITicketService
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
 }
+

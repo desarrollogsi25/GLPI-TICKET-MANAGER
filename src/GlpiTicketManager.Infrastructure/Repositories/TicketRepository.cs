@@ -231,4 +231,17 @@ public sealed class TicketRepository : ITicketRepository
         var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
         return result;
     }
+    public async Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            "SELECT groups_id FROM glpi_groups_users WHERE users_id = @UserId",
+            new { UserId = userId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.QueryAsync<int>(command);
+        return result.AsList();
+    }
 }

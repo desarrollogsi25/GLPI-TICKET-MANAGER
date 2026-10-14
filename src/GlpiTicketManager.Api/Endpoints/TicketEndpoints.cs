@@ -125,9 +125,47 @@ public static class TicketEndpoints
     private static async Task<IResult> Create(
         CreateTicketRequest request,
         ITicketService ticketService,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
-        var id = await ticketService.CreateAsync(request, cancellationToken);
+        var userId = principal.GetUserId();
+
+        // Prepare request with automatic group routing when no assigneeId is set.
+        var effectiveGroupId = request.GroupId;
+        if (request.AssigneeId is null or <= 0 && (effectiveGroupId is null or <= 0))
+        {
+            if (userId is null)
+            {
+                return Results.Problem(
+                    statusCode: StatusCodes.Status401Unauthorized,
+                    title: "Usuario no autenticado",
+                    detail: "No se pudo resolver el userId.");
+            }
+
+            var groups = await ticketService.GetGroupIdsForUserAsync(userId.Value, cancellationToken);
+
+            if (groups.Count == 0)
+            {
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Sin grupo asignable",
+                    detail: "El usuario no pertenece a ningun grupo; no puede crear ticket sin asignarlo.");
+            }
+
+            if (groups.Count > 1)
+            {
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Grupo requerido",
+                    detail: "Debe seleccionar un grupo cuando no se auto-asigna.");
+            }
+
+            effectiveGroupId = groups[0];
+        }
+
+        var effectiveRequest = request with { GroupId = effectiveGroupId };
+
+        var id = await ticketService.CreateAsync(effectiveRequest, cancellationToken);
         return Results.Created($"/api/tickets/{id}", new CreatedTicketResponse(id));
     }
 

@@ -92,7 +92,42 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 throw new GlpiApiException((int)response.StatusCode, "GLPI did not return a ticket id.");
             }
 
-            // External requester (ADR-005 option D): create a requester link with
+                        // Route unassigned ticket to its group queue (call-center model):
+            // creates a group link (type=2) so the ticket shows in that group's queue.
+            if (request.GroupId is > 0)
+            {
+                try
+                {
+                    var groupInput = new Dictionary<string, object?>
+                    {
+                        ["tickets_id"] = created.Id,
+                        ["groups_id"] = request.GroupId.Value,
+                        ["type"] = 2,
+                    };
+
+                    using var gResponse = await SendAsync(
+                        HttpMethod.Post,
+                        "Group_Ticket",
+                        sessionToken,
+                        new { input = groupInput },
+                        cancellationToken);
+
+                    _logger.LogInformation("Created group link for ticket {TicketId} in group {GroupId}", created.Id, request.GroupId);
+                    // Group_Ticket creation bumps the ticket to status 2 (assigned to a group);
+                    // keep it unstarted (status 1) so the claim flow (which requires New) works.
+                    using var statusResponse = await SendAsync(
+                        HttpMethod.Put,
+                        $"Ticket/{created.Id}",
+                        sessionToken,
+                        new { input = new { status = 1 } },
+                        cancellationToken);
+                }
+                catch (GlpiApiException ex)
+                {
+                    _logger.LogWarning(ex, "Could not create group link for ticket {TicketId}", created.Id);
+                }
+            }
+// External requester (ADR-005 option D): create a requester link with
             // users_id=0 and alternative_email via the GLPI REST Ticket_User endpoint.
             if (!string.IsNullOrWhiteSpace(request.ExternalRequesterEmail))
             {

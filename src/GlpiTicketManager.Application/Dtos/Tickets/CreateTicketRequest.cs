@@ -28,6 +28,13 @@ public sealed record CreateTicketRequest
     /// <summary>GLPI user id of the assigned technician.</summary>
     public int? AssigneeId { get; init; }
 
+    /// <summary>
+    /// GLPI group id to which the ticket is routed when no assignee is set
+    /// (queue flow). When null and the ticket is unassigned, the backend
+    /// resolves the author's single group or fails if ambiguous.
+    /// </summary>
+    public int? GroupId { get; init; }
+
     /// <summary>GLPI requesttype id (channel). Null means GLPI default.</summary>
     public int? RequestTypeId { get; init; }
 

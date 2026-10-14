@@ -39,4 +39,6 @@ public interface ITicketService
     Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken);
 
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);
 }
