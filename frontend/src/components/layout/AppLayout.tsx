@@ -10,6 +10,7 @@ const navItems = [
   { to: '/tickets', label: 'Tickets' },
   { to: '/queue', label: 'Cola del grupo' },
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/ayuda', label: 'Ayuda' },
 ]
 
 export function AppLayout() {
