@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Índice de Flujogramas y Arquitectura | GLPI Ticket Manager</title>
+  <style>
+    :root {
+      --accent: #6D59E8;
+      --accent-hover: #5844D4;
+      --accent-light: #F4F2FF;
+      --accent-border: #D8D2FB;
+      --green: #0D9E74;
+      --green-light: #EBF8F4;
+      --green-border: #99E2CE;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-border: #BFDBFE;
+      --amber: #D97706;
+      --amber-light: #FEF3C7;
+      --amber-border: #FDE68A;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --shadow-hover: 0 10px 25px rgba(109, 89, 232, 0.12);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: #F8FAFC;
+      color: var(--gray-800);
+      line-height: 1.5;
+      padding: 32px 24px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Header / Cover */
+    .hero-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 36px 40px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--green) 50%, var(--blue) 100%);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      margin-bottom: 14px;
+    }
+    .title {
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 10px;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: var(--gray-600);
+      max-width: 800px;
+      margin-bottom: 20px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-size: 13px;
+      color: var(--gray-600);
+      padding-top: 18px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .meta-item strong { color: var(--gray-800); }
+
+    /* Cards Grid */
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 768px) {
+      .flow-grid { grid-template-columns: 1fr; }
+    }
+
+    .flow-card {
+      background: white;
+      border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .flow-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--accent-border);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .flow-number {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--gray-100);
+      color: var(--gray-700);
+    }
+    .flow-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-1 { background: #FEF3C7; color: #D97706; }
+    .icon-2 { background: var(--accent-light); color: var(--accent); }
+    .icon-3 { background: var(--green-light); color: var(--green); }
+    .icon-4 { background: var(--blue-light); color: var(--blue); }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--gray-600);
+      margin-bottom: 18px;
+      flex-grow: 1;
+      line-height: 1.5;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .card-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      color: var(--gray-700);
+    }
+
+    .card-action {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-100);
+    }
+    .flow-card:hover .card-action {
+      color: var(--accent-hover);
+    }
+
+    /* Print Info Box */
+    .print-box {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      border: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .print-info h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 4px;
+    }
+    .print-info p {
+      font-size: 13px;
+      color: var(--gray-600);
+    }
+    .print-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .print-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; padding: 0 !important; font-size: 10pt; }
+      .print-box, .print-btn { display: none !important; }
+      .hero-card, .flow-card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Hero Card -->
+  <div class="hero-card">
+    <span class="badge">Documentación Visual Ejecutiva</span>
+    <h1 class="title">Flujogramas del Sistema</h1>
+    <p class="subtitle">
+      Mapa visual integral del nuevo alcance: GLPI como única fuente de creación y catálogo ITIL, 
+      el sistema propio como gestor operativo ágil, y arquitectura dual MariaDB + PostgreSQL.
+    </p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Proyecto:</strong> GLPI Ticket Manager</div>
+      <div class="meta-item"><strong>Fecha:</strong> 2026-10-14</div>
+      <div class="meta-item"><strong>Estado:</strong> Aprobado para revisión ejecutiva</div>
+      <div class="meta-item"><strong>ADRs de Referencia:</strong> ADR-009, ADR-010, ADR-011, ADR-012, ADR-013</div>
+    </div>
+  </div>
+
+  <!-- Flowcards Grid -->
+  <div class="flow-grid">
+
+    <!-- Card 1 -->
+    <a href="glpi-ticket-lifecycle.html" class="flow-card">
+      <div class="card-top">
+        <span class="flow-number">FLUJOGRAMA 01</span>
+        <div class="flow-icon icon-1">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        </div>
+      </div>
+      <h2 class="card-title">Ciclo de Vida del Ticket en GLPI</h2>
+      <p class="card-desc">
+        Recorrido del ticket desde su ingreso por el cliente o Service Desk, selección de categoría ITIL y canal, hasta su persistencia como estado Nuevo en la cola del grupo.
+      </p>
+      <div class="card-tags">
+        <span class="card-tag">glpi_tickets</span>
+        <span class="card-tag">glpi_itilcategories</span>
+        <span class="card-tag">glpi_requesttypes</span>
+        <span class="card-tag">status=1 (Nuevo)</span>
+      </div>
+      <div class="card-action">
+        Ver Flujograma 1 <span>→</span>
+      </div>
+    </a>
+
+    <!-- Card 2 -->
+    <a href="system-architecture.html" class="flow-card">
+      <div class="card-top">
+        <span class="flow-number">FLUJOGRAMA 02</span>
+        <div class="flow-icon icon-2">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+        </div>
+      </div>
+      <h2 class="card-title">Arquitectura del Sistema Propio</h2>
+      <p class="card-desc">
+        Estructura de capas (React 19 + API .NET 10), doble persistencia (MariaDB para GLPI y PostgreSQL para datos propios) y paneles de lectura, escritura y límites de dominio.
+      </p>
+      <div class="card-tags">
+        <span class="card-tag">React :5173</span>
+        <span class="card-tag">.NET 10 :8080</span>
+        <span class="card-tag">MariaDB :3306</span>
+        <span class="card-tag">PostgreSQL :5432</span>
+      </div>
+      <div class="card-action">
+        Ver Flujograma 2 <span>→</span>
+      </div>
+    </a>
+
+    <!-- Card 3 -->
+    <a href="unified-flow.html" class="flow-card">
+      <div class="card-top">
+        <span class="flow-number">FLUJOGRAMA 03</span>
+        <div class="flow-icon icon-3">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        </div>
+      </div>
+      <h2 class="card-title">Flujo Unificado: GLPI + Sistema Propio</h2>
+      <p class="card-desc">
+        Diagrama de secuencia en carriles (Cliente, GLPI, Técnico, Sistema Propio) con trazabilidad paso a paso de lecturas y escrituras en MariaDB y PostgreSQL.
+      </p>
+      <div class="card-tags">
+        <span class="card-tag">4 Carriles</span>
+        <span class="card-tag">Claim</span>
+        <span class="card-tag">Resolve</span>
+        <span class="card-tag">audit_log</span>
+      </div>
+      <div class="card-action">
+        Ver Flujograma 3 <span>→</span>
+      </div>
+    </a>
+
+    <!-- Card 4 -->
+    <a href="database-diagram.html" class="flow-card">
+      <div class="card-top">
+        <span class="flow-number">FLUJOGRAMA 04</span>
+        <div class="flow-icon icon-4">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+        </div>
+      </div>
+      <h2 class="card-title">Modelo de Datos (MariaDB + PostgreSQL)</h2>
+      <p class="card-desc">
+        Diagrama Entidad-Relación de las 9 tablas nativas de GLPI y las 4 tablas exclusivas de PostgreSQL, detallando claves y el principio de referencias lógicas cross-DB.
+      </p>
+      <div class="card-tags">
+        <span class="card-tag">9 Tablas MariaDB</span>
+        <span class="card-tag">4 Tablas Postgres</span>
+        <span class="card-tag">Sin FK cross-database</span>
+      </div>
+      <div class="card-action">
+        Ver Flujograma 4 <span>→</span>
+      </div>
+    </a>
+
+  </div>
+
+  <!-- Print Info Box -->
+  <div class="print-box">
+    <div class="print-info">
+      <h4>Documentación Autocontenida</h4>
+      <p>Todos los diagramas son HTML estáticos, sin dependencias externas ni JavaScript obligatorio, optimizados para impresión (PDF o papel).</p>
+    </div>
+    <button class="print-btn" onclick="window.print()">
+      🖨️ Imprimir Índice
+    </button>
+  </div>
+</div>
+
+</body>
+</html>

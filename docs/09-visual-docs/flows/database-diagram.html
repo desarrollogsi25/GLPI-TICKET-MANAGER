@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flujograma 4: Modelo de Datos (MariaDB + PostgreSQL) | GLPI Ticket Manager</title>
+  <style>
+    :root {
+      --accent: #6D59E8;
+      --accent-hover: #5844D4;
+      --accent-light: #F4F2FF;
+      --accent-border: #D8D2FB;
+      --green: #0D9E74;
+      --green-light: #EBF8F4;
+      --green-border: #99E2CE;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-border: #BFDBFE;
+      --amber: #D97706;
+      --amber-light: #FEF3C7;
+      --amber-border: #FDE68A;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+      --mariadb-color: #0284C7;
+      --mariadb-bg: #F0F9FF;
+      --mariadb-border: #BAE6FD;
+      --mariadb-header: #0369A1;
+      --postgres-color: #6D28D9;
+      --postgres-bg: #F5F3FF;
+      --postgres-border: #DDD6FE;
+      --postgres-header: #4F46E5;
+      --radius: 10px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: #F8FAFC;
+      color: var(--gray-800);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+    }
+    .nav-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-bar a:hover { color: var(--accent-hover); }
+    .print-btn {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--gray-700);
+    }
+
+    /* Header / Cover */
+    .header-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--gray-600);
+      margin-bottom: 16px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--gray-600);
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .meta-item strong { color: var(--gray-800); }
+
+    /* Cross DB Banner */
+    .cross-db-alert {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-left: 5px solid #F59E0B;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      font-size: 13px;
+      color: #92400E;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cross-db-alert strong { color: #78350F; font-size: 14px; }
+
+    /* Sections */
+    .db-section {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 28px;
+    }
+    .db-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid var(--gray-200);
+    }
+    .db-section-title {
+      font-size: 20px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mariadb-header-text { color: var(--mariadb-header); }
+    .postgres-header-text { color: var(--postgres-header); }
+
+    .db-badge-count {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .badge-mariadb { background: var(--mariadb-bg); color: var(--mariadb-color); border: 1px solid var(--mariadb-border); }
+    .badge-postgres { background: var(--postgres-bg); color: var(--postgres-color); border: 1px solid var(--postgres-border); }
+
+    /* ER Tables Grid */
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    /* Table Card */
+    .er-card {
+      border-radius: 8px;
+      border: 1px solid;
+      background: white;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+    }
+    .er-card.mariadb { border-color: var(--mariadb-border); }
+    .er-card.postgres { border-color: var(--postgres-border); }
+
+    .er-head {
+      padding: 10px 14px;
+      color: white;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .er-card.mariadb .er-head { background: var(--mariadb-header); }
+    .er-card.postgres .er-head { background: var(--postgres-header); }
+
+    .er-engine {
+      font-size: 10px;
+      font-family: var(--font-sans);
+      background: rgba(255,255,255,0.2);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .er-cols {
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .er-col {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .er-col:last-child { border-bottom: none; }
+    .col-name { color: var(--gray-800); }
+    .col-key {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+      margin-right: 4px;
+    }
+    .pk { background: #FEF3C7; color: #B45309; border: 1px solid #FCD34D; }
+    .fk { background: #E0E7FF; color: #4338CA; border: 1px solid #C7D2FE; }
+    .rel-note {
+      font-size: 10px;
+      color: var(--gray-600);
+      font-family: var(--font-sans);
+    }
+
+    .er-foot {
+      background: var(--gray-50);
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--gray-600);
+      border-top: 1px solid var(--gray-200);
+      margin-top: auto;
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; padding: 0 !important; font-size: 9pt; }
+      .nav-bar, .print-btn { display: none !important; }
+      .header-card, .db-section, .cross-db-alert {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        page-break-inside: avoid;
+      }
+      .tables-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 12px !important; }
+      .er-card { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <a href="index.html">← Volver al Índice de Flujogramas</a>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimir Documento</button>
+  </div>
+
+  <!-- Header Card -->
+  <div class="header-card">
+    <span class="badge">Flujograma 04 · Modelo de Datos Relacional</span>
+    <h1 class="title">Modelo de Datos: MariaDB (GLPI) + PostgreSQL (Sistema Propio)</h1>
+    <p class="subtitle">Diagrama entidad-relación de las 9 tablas nativas de GLPI y las 4 tablas exclusivas del sistema propio.</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Versión:</strong> 1.0</div>
+      <div class="meta-item"><strong>Fecha:</strong> 2026-10-14</div>
+      <div class="meta-item"><strong>Motor GLPI:</strong> MariaDB 11.4 (Base <code>glpi</code>)</div>
+      <div class="meta-item"><strong>Motor Propio:</strong> PostgreSQL 16 (Base <code>glpi_ticket_manager</code>)</div>
+    </div>
+  </div>
+
+  <!-- Golden Rule Banner -->
+  <div class="cross-db-alert">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <div>
+      <strong>Principio de Integridad Cross-Database (ADR-012):</strong>
+      Las claves foráneas entre bases de datos no existen a nivel físico de motor relacional. 
+      Los campos <code>user_id</code> y <code>ticket_id</code> en PostgreSQL representan <strong>referencias lógicas</strong> a <code>glpi_users.id</code> y <code>glpi_tickets.id</code> en MariaDB. No hay ETL ni replicación redundante de datos.
+    </div>
+  </div>
+
+  <!-- SECTION 1: MariaDB (GLPI) -->
+  <div class="db-section">
+    <div class="db-section-header">
+      <div class="db-section-title mariadb-header-text">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+        MariaDB · Entidades Nativas de GLPI (9 Tablas)
+      </div>
+      <span class="db-badge-count badge-mariadb">Core GLPI 11 Schema</span>
+    </div>
+
+    <div class="tables-grid">
+
+      <!-- Table 1: glpi_tickets -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_tickets</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span class="col-name">name</span><span class="rel-note">varchar(255)</span></div>
+          <div class="er-col"><span class="col-name">content</span><span class="rel-note">longtext</span></div>
+          <div class="er-col"><span class="col-name">status</span><span class="rel-note">int (1=Nuevo, 5=Sol)</span></div>
+          <div class="er-col"><span class="col-name">urgency / impact</span><span class="rel-note">int (1..5)</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>itilcategories_id</span><span class="rel-note">→ itilcat</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>requesttypes_id</span><span class="rel-note">→ reqtype</span></div>
+          <div class="er-col"><span class="col-name">date / date_mod</span><span class="rel-note">datetime</span></div>
+        </div>
+        <div class="er-foot">Ticket maestro. Creado en GLPI; gestionado por el sistema propio.</div>
+      </div>
+
+      <!-- Table 2: glpi_tickets_users -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_tickets_users</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>tickets_id</span><span class="rel-note">→ tickets.id</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>users_id</span><span class="rel-note">→ users.id</span></div>
+          <div class="er-col"><span class="col-name">type</span><span class="rel-note">1=Req, 2=Assign</span></div>
+          <div class="er-col"><span class="col-name">alternative_email</span><span class="rel-note">varchar(255)</span></div>
+        </div>
+        <div class="er-foot">Vínculo de actores. El claim técnico inserta type=2 con el id del técnico.</div>
+      </div>
+
+      <!-- Table 3: glpi_groups_tickets -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_groups_tickets</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>tickets_id</span><span class="rel-note">→ tickets.id</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>groups_id</span><span class="rel-note">→ groups.id</span></div>
+          <div class="er-col"><span class="col-name">type</span><span class="rel-note">2=Asignado</span></div>
+        </div>
+        <div class="er-foot">Define a qué grupo de Service Desk pertenece el ticket para la cola.</div>
+      </div>
+
+      <!-- Table 4: glpi_itilsolutions -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_itilsolutions</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>items_id</span><span class="rel-note">tickets_id</span></div>
+          <div class="er-col"><span class="col-name">itemtype</span><span class="rel-note">'Ticket'</span></div>
+          <div class="er-col"><span class="col-name">content</span><span class="rel-note">longtext</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>users_id</span><span class="rel-note">resolutor</span></div>
+          <div class="er-col"><span class="col-name">status</span><span class="rel-note">2=Aprobada</span></div>
+          <div class="er-col"><span class="col-name">date_creation</span><span class="rel-note">datetime</span></div>
+        </div>
+        <div class="er-foot">Solución formal del caso registrada al resolver desde el sistema.</div>
+      </div>
+
+      <!-- Table 5: glpi_itilfollowups -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_itilfollowups</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>items_id</span><span class="rel-note">tickets_id</span></div>
+          <div class="er-col"><span class="col-name">itemtype</span><span class="rel-note">'Ticket'</span></div>
+          <div class="er-col"><span class="col-name">content</span><span class="rel-note">longtext</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>users_id</span><span class="rel-note">autor</span></div>
+          <div class="er-col"><span class="col-name">is_private</span><span class="rel-note">tinyint(1)</span></div>
+        </div>
+        <div class="er-foot">Historial de comentarios y notas de seguimiento técnico.</div>
+      </div>
+
+      <!-- Table 6: glpi_users -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_users</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span class="col-name">name</span><span class="rel-note">varchar(255) login</span></div>
+          <div class="er-col"><span class="col-name">password</span><span class="rel-note">bcrypt hash</span></div>
+          <div class="er-col"><span class="col-name">realname / firstname</span><span class="rel-note">varchar</span></div>
+          <div class="er-col"><span class="col-name">phone / mobile</span><span class="rel-note">varchar</span></div>
+          <div class="er-col"><span class="col-name">is_active</span><span class="rel-note">tinyint(1)</span></div>
+        </div>
+        <div class="er-foot">Usuarios GLPI (técnicos, solicitantes internos y externos creados por Service Desk).</div>
+      </div>
+
+      <!-- Table 7: glpi_groups -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_groups</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span class="col-name">name</span><span class="rel-note">varchar(255)</span></div>
+          <div class="er-col"><span class="col-name">completename</span><span class="rel-note">text</span></div>
+          <div class="er-col"><span class="col-name">is_assign</span><span class="rel-note">1=Habilitado</span></div>
+        </div>
+        <div class="er-foot">Grupos de Service Desk (ej. Soporte N1, Infraestructura, Redes).</div>
+      </div>
+
+      <!-- Table 8: glpi_groups_users -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_groups_users</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>users_id</span><span class="rel-note">→ users.id</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>groups_id</span><span class="rel-note">→ groups.id</span></div>
+        </div>
+        <div class="er-foot">Pertenencia de los técnicos a sus respectivos grupos resolutores.</div>
+      </div>
+
+      <!-- Table 9: glpi_itilcategories -->
+      <div class="er-card mariadb">
+        <div class="er-head">
+          <span>glpi_itilcategories</span>
+          <span class="er-engine">MariaDB</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">int(11)</span></div>
+          <div class="er-col"><span class="col-name">name</span><span class="rel-note">varchar(255)</span></div>
+          <div class="er-col"><span class="col-name">completename</span><span class="rel-note">text</span></div>
+          <div class="er-col"><span><span class="col-key fk">FK</span>itilcategories_id</span><span class="rel-note">→ self (padre)</span></div>
+          <div class="er-col"><span class="col-name">level</span><span class="rel-note">int (profundidad)</span></div>
+        </div>
+        <div class="er-foot">Catálogo de Servicios ITIL jerárquico auto-referencial (ADR-011).</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SECTION 2: PostgreSQL (Sistema Propio) -->
+  <div class="db-section">
+    <div class="db-section-header">
+      <div class="db-section-title postgres-header-text">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5h-2v-2h2zm0-4h-2V7h2z"></path></svg>
+        PostgreSQL · Datos Propios del Sistema (4 Tablas - ADR-012)
+      </div>
+      <span class="db-badge-count badge-postgres">App DB Schema</span>
+    </div>
+
+    <div class="tables-grid">
+
+      <!-- Table 1: app_settings -->
+      <div class="er-card postgres">
+        <div class="er-head">
+          <span>app_settings</span>
+          <span class="er-engine">PostgreSQL</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>key</span><span class="rel-note">varchar(100)</span></div>
+          <div class="er-col"><span class="col-name">value</span><span class="rel-note">text (JSON)</span></div>
+          <div class="er-col"><span class="col-name">description</span><span class="rel-note">varchar(255)</span></div>
+          <div class="er-col"><span class="col-name">updated_at</span><span class="rel-note">timestamptz</span></div>
+          <div class="er-col"><span class="col-name">updated_by</span><span class="rel-note">int (ref glpi_users)</span></div>
+        </div>
+        <div class="er-foot">Parámetros globales del sistema, switches de funcionalidad y configuración de SLA.</div>
+      </div>
+
+      <!-- Table 2: user_preferences -->
+      <div class="er-card postgres">
+        <div class="er-head">
+          <span>user_preferences</span>
+          <span class="er-engine">PostgreSQL</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">serial</span></div>
+          <div class="er-col"><span><span class="col-key fk">LOGICAL</span>user_id</span><span class="rel-note">int (ref glpi_users)</span></div>
+          <div class="er-col"><span class="col-name">theme</span><span class="rel-note">varchar(20)</span></div>
+          <div class="er-col"><span class="col-name">columns_config</span><span class="rel-note">jsonb</span></div>
+          <div class="er-col"><span class="col-name">default_filter</span><span class="rel-note">varchar(50)</span></div>
+          <div class="er-col"><span class="col-name">updated_at</span><span class="rel-note">timestamptz</span></div>
+        </div>
+        <div class="er-foot">Preferencias de interfaz personalizadas para cada técnico (filtros, columnas y tema).</div>
+      </div>
+
+      <!-- Table 3: audit_log -->
+      <div class="er-card postgres">
+        <div class="er-head">
+          <span>audit_log</span>
+          <span class="er-engine">PostgreSQL</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>id</span><span class="rel-note">BIGINT IDENTITY</span></div>
+          <div class="er-col"><span class="col-name">timestamp</span><span class="rel-note">timestamptz</span></div>
+          <div class="er-col"><span><span class="col-key fk">LOGICAL</span>user_id</span><span class="rel-note">int (ref glpi_users)</span></div>
+          <div class="er-col"><span><span class="col-key fk">LOGICAL</span>ticket_id</span><span class="rel-note">int (ref glpi_tickets)</span></div>
+          <div class="er-col"><span class="col-name">action</span><span class="rel-note">'claim', 'resolve'</span></div>
+          <div class="er-col"><span class="col-name">metadata</span><span class="rel-note">jsonb</span></div>
+          <div class="er-col"><span class="col-name">ip_address</span><span class="rel-note">inet / varchar(45)</span></div>
+        </div>
+        <div class="er-foot">Trazabilidad inmutable de quién tomó o resolvió cada caso y cuándo.</div>
+      </div>
+
+      <!-- Table 4: revoked_tokens -->
+      <div class="er-card postgres">
+        <div class="er-head">
+          <span>revoked_tokens</span>
+          <span class="er-engine">PostgreSQL</span>
+        </div>
+        <div class="er-cols">
+          <div class="er-col"><span><span class="col-key pk">PK</span>jti</span><span class="rel-note">varchar(64)</span></div>
+          <div class="er-col"><span><span class="col-key fk">LOGICAL</span>user_id</span><span class="rel-note">int (ref glpi_users)</span></div>
+          <div class="er-col"><span class="col-name">revoked_at</span><span class="rel-note">timestamptz</span></div>
+          <div class="er-col"><span class="col-name">expires_at</span><span class="rel-note">timestamptz</span></div>
+        </div>
+        <div class="er-foot">Lista negra de JWTs revocados para implementar logout efectivo e inmediato.</div>
+      </div>
+
+    </div>
+
+    <!-- Nota técnica IDENTITY y Tipos -->
+    <div style="margin-top: 24px; background: #F5F3FF; border: 1px solid #DDD6FE; border-left: 4px solid #6D28D9; border-radius: 8px; padding: 14px 18px; font-size: 13px; color: #4C1D95;">
+      <strong>Nota técnica de persistencia (ADR-012):</strong>
+      Las tablas del sistema propio usan <code>BIGINT GENERATED ALWAYS AS IDENTITY</code> para PKs auto-incrementales (<code>audit_log.id</code>). No se usa <code>SERIAL/BIGSERIAL</code> (legacy, no estándar SQL). Asimismo, <code>user_preferences.user_id</code> se define como <code>INT</code> para garantizar paridad exacta de tipos con <code>glpi_users.id</code>, evitando conversiones implícitas en cruces lógicos.
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

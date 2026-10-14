@@ -1,6 +1,8 @@
 # ADR-005: External requester model
 
-- **Status:** Accepted
+> ⚠️ **Superseded by ADR-010 (2026-10-14)**
+
+- **Status:** Superseded by ADR-010
 - **Date:** 2026-10-13
 - **Supersedes:** —
 - **Related:** ADR-002 (API ↔ GLPI integration), ADR-004 (call centre scope),

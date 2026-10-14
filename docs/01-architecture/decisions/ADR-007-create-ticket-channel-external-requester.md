@@ -1,7 +1,9 @@
-# ADR-007 - Canal y solicitante interno/externo en creaciÃ³n de tickets
+# ADR-007 - Canal y solicitante interno/externo en creación de tickets
+
+> ⚠️ **Superseded by ADR-009 (2026-10-14)**
 
 ## Estado
-Aceptado.
+Superseded by ADR-009 (2026-10-14). Anteriormente Aceptado.
 
 ## Decisiones
 - El DTO `CreateTicketRequest` incorpora `RequestTypeId`, `ExternalRequesterEmail`, `ExternalRequesterName`,

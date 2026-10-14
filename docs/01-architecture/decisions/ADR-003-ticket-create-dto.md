@@ -1,6 +1,8 @@
 # ADR-003: Ticket creation DTO — urgency/impact/assigneeId/requesterId (singular)
 
-- **Status:** Accepted
+> ⚠️ **Superseded by ADR-009 (2026-10-14)**
+
+- **Status:** Superseded by ADR-009
 - **Date:** 2026-10-13
 - **Supersedes:** —
 - **Related:** ADR-002 (API ↔ GLPI integration), `docs/02-modules/tickets/overview.md`,

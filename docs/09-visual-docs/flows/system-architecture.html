@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flujograma 2: Arquitectura del Sistema Propio | GLPI Ticket Manager</title>
+  <style>
+    :root {
+      --accent: #6D59E8;
+      --accent-hover: #5844D4;
+      --accent-light: #F4F2FF;
+      --accent-border: #D8D2FB;
+      --green: #0D9E74;
+      --green-light: #EBF8F4;
+      --green-border: #99E2CE;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-border: #BFDBFE;
+      --amber: #D97706;
+      --amber-light: #FEF3C7;
+      --amber-border: #FDE68A;
+      --red: #DC2626;
+      --red-light: #FEF2F2;
+      --red-border: #FECACA;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+      --mariadb-color: #00758F;
+      --mariadb-bg: #E6F7FA;
+      --postgres-color: #336791;
+      --postgres-bg: #EBF3F9;
+      --radius: 10px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: #F8FAFC;
+      color: var(--gray-800);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+    }
+    .nav-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-bar a:hover { color: var(--accent-hover); }
+    .print-btn {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--gray-700);
+    }
+
+    /* Header / Cover */
+    .header-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--gray-600);
+      margin-bottom: 16px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--gray-600);
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .meta-item strong { color: var(--gray-800); }
+
+    /* Architecture Diagram Card */
+    .arch-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* SVG Diagram Wrapper */
+    .svg-wrapper {
+      width: 100%;
+      background: #FAFAFC;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+    }
+    svg.arch-svg {
+      max-width: 100%;
+      height: auto;
+      font-family: var(--font-sans);
+    }
+
+    /* Responsibilities Tri-Panel Grid */
+    .panels-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .panels-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      border-radius: var(--radius);
+      padding: 22px;
+      border: 1px solid;
+    }
+    .panel-read {
+      background: #F0FDF4;
+      border-color: #BBF7D0;
+    }
+    .panel-write {
+      background: #EFF6FF;
+      border-color: #BFDBFE;
+    }
+    .panel-no {
+      background: #FEF2F2;
+      border-color: #FECACA;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .panel-read .panel-header { color: #166534; }
+    .panel-write .panel-header { color: #1E40AF; }
+    .panel-no .panel-header { color: #991B1B; }
+
+    .panel-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .panel-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--gray-800);
+      line-height: 1.4;
+    }
+    .panel-list .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+    .panel-read .dot { background: #16A34A; }
+    .panel-write .dot { background: #2563EB; }
+    .panel-no .dot { background: #DC2626; }
+
+    .chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .chip-mariadb {
+      background: #E0F2FE;
+      color: #0369A1;
+      border: 1px solid #BAE6FD;
+    }
+    .chip-postgres {
+      background: #EDE9FE;
+      color: #6D28D9;
+      border: 1px solid #DDD6FE;
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; padding: 0 !important; font-size: 10pt; }
+      .nav-bar, .print-btn { display: none !important; }
+      .header-card, .arch-card, .panel {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        page-break-inside: avoid;
+      }
+      .panels-grid { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <a href="index.html">← Volver al Índice de Flujogramas</a>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimir Documento</button>
+  </div>
+
+  <!-- Header Card -->
+  <div class="header-card">
+    <span class="badge">Flujograma 02 · Arquitectura Técnica</span>
+    <h1 class="title">Arquitectura del Sistema Propio</h1>
+    <p class="subtitle">Estructura de capas, integración dual de bases de datos (MariaDB + PostgreSQL) y límites del dominio.</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Versión:</strong> 1.0</div>
+      <div class="meta-item"><strong>Fecha:</strong> 2026-10-14</div>
+      <div class="meta-item"><strong>Base de Datos GLPI:</strong> MariaDB (puerto 3306)</div>
+      <div class="meta-item"><strong>Base de Datos Propia:</strong> PostgreSQL (puerto 5432 - ADR-012)</div>
+    </div>
+  </div>
+
+  <!-- Architecture Diagram Card -->
+  <div class="arch-card">
+    <h2 class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+      Diagrama de Bloques y Conectividad
+    </h2>
+
+    <div class="svg-wrapper">
+      <svg class="arch-svg" width="940" height="420" viewBox="0 0 940 420" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="gradAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#7C69EE" />
+            <stop offset="100%" stop-color="#5B45DC" />
+          </linearGradient>
+          <linearGradient id="gradMaria" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0284C7" />
+            <stop offset="100%" stop-color="#0369A1" />
+          </linearGradient>
+          <linearGradient id="gradPostgres" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4F46E5" />
+            <stop offset="100%" stop-color="#3730A3" />
+          </linearGradient>
+          <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.08" />
+          </filter>
+          <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748B" />
+          </marker>
+          <marker id="arrow-accent" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#6D59E8" />
+          </marker>
+        </defs>
+
+        <!-- Navegador / Técnico -->
+        <g transform="translate(40, 160)" filter="url(#shadow)">
+          <rect width="140" height="90" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" />
+          <text x="70" y="38" text-anchor="middle" font-size="14" font-weight="700" fill="#0F172A">Navegador Web</text>
+          <text x="70" y="58" text-anchor="middle" font-size="12" fill="#64748B">Técnico / Soporte</text>
+          <rect x="35" y="66" width="70" height="16" rx="4" fill="#F1F5F9" />
+          <text x="70" y="78" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">HTTPS Client</text>
+        </g>
+
+        <!-- Arrow: Browser -> Frontend -->
+        <path d="M 180 205 L 240 205" fill="none" stroke="#6D59E8" stroke-width="2" marker-end="url(#arrow-accent)" />
+        <text x="210" y="195" text-anchor="middle" font-size="10" font-weight="600" fill="#6D59E8">HTTPS</text>
+
+        <!-- Frontend React 19 -->
+        <g transform="translate(245, 155)" filter="url(#shadow)">
+          <rect width="165" height="100" rx="8" fill="#FFFFFF" stroke="#6D59E8" stroke-width="2" />
+          <rect x="0" y="0" width="165" height="6" rx="3" fill="#6D59E8" />
+          <text x="82" y="35" text-anchor="middle" font-size="14" font-weight="700" fill="#0F172A">Frontend React 19</text>
+          <text x="82" y="54" text-anchor="middle" font-size="12" fill="#64748B">Vite + TailwindCSS</text>
+          <rect x="42" y="68" width="80" height="20" rx="4" fill="#F4F2FF" stroke="#D8D2FB" />
+          <text x="82" y="82" text-anchor="middle" font-size="11" font-weight="600" fill="#6D59E8">Puerto :5173</text>
+        </g>
+
+        <!-- Arrow: Frontend -> API -->
+        <path d="M 410 205 L 470 205" fill="none" stroke="#6D59E8" stroke-width="2" marker-end="url(#arrow-accent)" />
+        <text x="440" y="195" text-anchor="middle" font-size="10" font-weight="600" fill="#6D59E8">REST /api</text>
+
+        <!-- Backend .NET 10 API -->
+        <g transform="translate(475, 140)" filter="url(#shadow)">
+          <rect width="175" height="130" rx="8" fill="#FFFFFF" stroke="#0D9E74" stroke-width="2" />
+          <rect x="0" y="0" width="175" height="6" rx="3" fill="#0D9E74" />
+          <text x="87" y="32" text-anchor="middle" font-size="14" font-weight="700" fill="#0F172A">API .NET 10</text>
+          <text x="87" y="50" text-anchor="middle" font-size="12" fill="#64748B">Dapper + Minimal APIs</text>
+          <rect x="47" y="60" width="80" height="18" rx="4" fill="#EBF8F4" stroke="#99E2CE" />
+          <text x="87" y="73" text-anchor="middle" font-size="11" font-weight="600" fill="#0D9E74">Puerto :8080</text>
+          <!-- Internal Handlers note -->
+          <text x="87" y="100" text-anchor="middle" font-size="10" fill="#475569">MySqlConnector (GLPI)</text>
+          <text x="87" y="115" text-anchor="middle" font-size="10" fill="#475569">Npgsql (App Data)</text>
+        </g>
+
+        <!-- Arrow: API -> MariaDB (curved top) -->
+        <path d="M 650 185 C 690 185, 700 115, 730 115" fill="none" stroke="#0284C7" stroke-width="2" marker-end="url(#arrow)" />
+        <text x="690" y="140" text-anchor="middle" font-size="10" font-weight="600" fill="#0284C7">Dapper / TCP</text>
+
+        <!-- Arrow: API -> PostgreSQL (curved bottom) -->
+        <path d="M 650 225 C 690 225, 700 295, 730 295" fill="none" stroke="#4F46E5" stroke-width="2" marker-end="url(#arrow)" />
+        <text x="690" y="270" text-anchor="middle" font-size="10" font-weight="600" fill="#4F46E5">Npgsql / TCP</text>
+
+        <!-- Database 1: MariaDB -->
+        <g transform="translate(735, 60)" filter="url(#shadow)">
+          <rect width="165" height="110" rx="8" fill="#F0F9FF" stroke="#0284C7" stroke-width="1.5" />
+          <rect x="0" y="0" width="165" height="5" rx="2" fill="#0284C7" />
+          <text x="82" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#0369A1">MariaDB (GLPI)</text>
+          <text x="82" y="46" text-anchor="middle" font-size="11" fill="#475569">Base 'glpi' (puerto 3306)</text>
+          <line x1="15" y1="56" x2="150" y2="56" stroke="#BAE6FD" stroke-width="1" />
+          <text x="82" y="73" text-anchor="middle" font-size="10" font-weight="600" fill="#0C4A6E">glpi_tickets · glpi_users</text>
+          <text x="82" y="88" text-anchor="middle" font-size="10" font-weight="600" fill="#0C4A6E">glpi_itilsolutions · groups</text>
+          <text x="82" y="101" text-anchor="middle" font-size="9" fill="#0284C7">Datos del core GLPI</text>
+        </g>
+
+        <!-- Database 2: PostgreSQL -->
+        <g transform="translate(735, 240)" filter="url(#shadow)">
+          <rect width="165" height="110" rx="8" fill="#F5F3FF" stroke="#4F46E5" stroke-width="1.5" />
+          <rect x="0" y="0" width="165" height="5" rx="2" fill="#4F46E5" />
+          <text x="82" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#3730A3">PostgreSQL (Propio)</text>
+          <text x="82" y="46" text-anchor="middle" font-size="11" fill="#475569">Base 'app_db' (puerto 5432)</text>
+          <line x1="15" y1="56" x2="150" y2="56" stroke="#DDD6FE" stroke-width="1" />
+          <text x="82" y="73" text-anchor="middle" font-size="10" font-weight="600" fill="#312E81">audit_log · app_settings</text>
+          <text x="82" y="88" text-anchor="middle" font-size="10" font-weight="600" fill="#312E81">user_preferences · tokens</text>
+          <text x="82" y="101" text-anchor="middle" font-size="9" fill="#4F46E5">4 tablas exclusivas del sistema</text>
+        </g>
+
+        <!-- GLPI 11 Container (independent, admin side) -->
+        <g transform="translate(475, 20)" filter="url(#shadow)">
+          <rect width="175" height="80" rx="8" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 2" />
+          <text x="87" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">GLPI 11 (Apache/PHP)</text>
+          <text x="87" y="44" text-anchor="middle" font-size="11" fill="#64748B">Admin UI :8081 / Portal</text>
+          <rect x="47" y="52" width="80" height="18" rx="4" fill="#F1F5F9" />
+          <text x="87" y="65" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">Solo crea tickets/users</text>
+        </g>
+        <path d="M 650 60 L 730 85" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrow)" />
+        <text x="685" y="68" text-anchor="middle" font-size="9" fill="#64748B">PHP PDO</text>
+
+        <!-- Golden Rule Banner Bottom -->
+        <g transform="translate(180, 375)">
+          <rect width="580" height="30" rx="6" fill="#F8FAFC" stroke="#E2E8F0" />
+          <text x="290" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="#475569">
+            ⚖️ Regla de Oro: Un dato vive en una BD, no en dos. Cero replicación. Sin FK cross-database.
+          </text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Responsibilities Tri-Panel Grid -->
+  <div class="panels-grid">
+    <!-- Panel 1: Qué LEE el sistema -->
+    <div class="panel panel-read">
+      <div class="panel-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        Qué LEE el sistema
+      </div>
+      <ul class="panel-list">
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Tickets y Estado:</strong> Colas, prioridades y solicitantes desde <span class="chip chip-mariadb">glpi_tickets</span> y <span class="chip chip-mariadb">glpi_tickets_users</span>.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Usuarios y Grupos:</strong> Técnicos y grupos resolutores desde <span class="chip chip-mariadb">glpi_users</span> y <span class="chip chip-mariadb">glpi_groups</span>.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Catálogo de Servicios:</strong> Árbol de categorías ITIL para agrupación y filtros desde <span class="chip chip-mariadb">glpi_itilcategories</span> (ADR-011).
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Soluciones y Seguimiento:</strong> Historial de resoluciones previas en <span class="chip chip-mariadb">glpi_itilsolutions</span>.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Configuración Propia:</strong> Ajustes globales y preferencias en <span class="chip chip-postgres">PostgreSQL</span>.
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Panel 2: Qué ESCRIBE el sistema -->
+    <div class="panel panel-write">
+      <div class="panel-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        Qué ESCRIBE el sistema
+      </div>
+      <ul class="panel-list">
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Asignación Rápida ("Claim"):</strong> Asocia al técnico actual al ticket vía <span class="chip chip-mariadb">glpi_tickets_users(type=2)</span>.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Resolución de Tickets:</strong> Registra la solución formal en <span class="chip chip-mariadb">glpi_itilsolutions</span> y actualiza <span class="chip chip-mariadb">glpi_tickets.status=5</span> (Solucionado).
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Log de Auditoría:</strong> Inserta cada acción técnica (claim, resolve) con timestamp y user_id en <span class="chip chip-postgres">audit_log</span>.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Preferencias de Usuario:</strong> Guarda tema, columnas visibles y filtros de cola en <span class="chip chip-postgres">user_preferences</span>.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>Control de Sesión:</strong> Revoca tokens en logout efectivo dentro de <span class="chip chip-postgres">revoked_tokens</span>.
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Panel 3: Qué NO hace el sistema -->
+    <div class="panel panel-no">
+      <div class="panel-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+        Qué NO hace el sistema
+      </div>
+      <ul class="panel-list">
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>NO crea tickets:</strong> La creación está reservada al portal de autoservicio o a Service Desk en GLPI (ADR-009).
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>NO crea ni administra usuarios:</strong> Las cuentas (incluso usuarios externos) se gestionan desde GLPI UI (ADR-010).
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>NO administra categorías:</strong> El catálogo de servicios lo gestiona el administrador en GLPI (ADR-011).
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>NO gestiona grupos ni permisos:</strong> La pertenencia de usuarios a grupos service desk reside en GLPI nativo.
+          </div>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <div>
+            <strong>NO altera la BD de GLPI:</strong> Ninguna tabla ajena ni columna custom se agrega a MariaDB.
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

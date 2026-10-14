@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flujograma 3: Flujo Unificado (GLPI + Sistema Propio) | GLPI Ticket Manager</title>
+  <style>
+    :root {
+      --accent: #6D59E8;
+      --accent-hover: #5844D4;
+      --accent-light: #F4F2FF;
+      --accent-border: #D8D2FB;
+      --green: #0D9E74;
+      --green-light: #EBF8F4;
+      --green-border: #99E2CE;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-border: #BFDBFE;
+      --amber: #D97706;
+      --amber-light: #FEF3C7;
+      --amber-border: #FDE68A;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+      --mariadb-color: #00758F;
+      --mariadb-bg: #E6F7FA;
+      --mariadb-border: #92DCE5;
+      --postgres-color: #336791;
+      --postgres-bg: #EBF3F9;
+      --postgres-border: #A8C8E4;
+      --radius: 10px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: #F8FAFC;
+      color: var(--gray-800);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+    }
+    .nav-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-bar a:hover { color: var(--accent-hover); }
+    .print-btn {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--gray-700);
+    }
+
+    /* Header / Cover */
+    .header-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--gray-600);
+      margin-bottom: 16px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--gray-600);
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .meta-item strong { color: var(--gray-800); }
+
+    /* Swimlanes Container */
+    .swimlanes-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+
+    .lanes-header {
+      display: grid;
+      grid-template-columns: 200px 240px 200px 1fr;
+      gap: 16px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--gray-200);
+      margin-bottom: 20px;
+    }
+    @media (max-width: 900px) {
+      .lanes-header { display: none; }
+    }
+
+    .lane-title {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .lane-client { background: #F1F5F9; color: var(--gray-800); border: 1px solid var(--gray-300); }
+    .lane-glpi { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+    .lane-tech { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
+    .lane-system { background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent-border); }
+
+    /* Sequence Steps List */
+    .sequence-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .seq-step {
+      display: grid;
+      grid-template-columns: 50px 180px 1fr 280px;
+      gap: 16px;
+      align-items: center;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 12px 16px;
+      transition: background 0.15s;
+    }
+    .seq-step:hover {
+      background: white;
+      border-color: var(--accent-border);
+      box-shadow: var(--shadow-sm);
+    }
+    @media (max-width: 900px) {
+      .seq-step {
+        grid-template-columns: 40px 1fr;
+        gap: 10px;
+      }
+      .seq-db { grid-column: 1 / -1; }
+      .seq-actors { grid-column: 2 / -1; }
+    }
+
+    .seq-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--gray-800);
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .seq-step.highlight .seq-num {
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    .seq-step.success .seq-num {
+      background: var(--green);
+      box-shadow: 0 0 0 3px var(--green-light);
+    }
+
+    .seq-actors {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-700);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .actor-tag {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .arrow-icon { color: var(--gray-400); font-weight: bold; }
+
+    .seq-action {
+      font-size: 13px;
+      color: var(--gray-800);
+    }
+    .seq-action strong {
+      color: var(--gray-900);
+    }
+
+    /* DB Touched Box */
+    .seq-db {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+    }
+    @media (max-width: 900px) {
+      .seq-db { align-items: flex-start; }
+    }
+
+    .db-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .db-badge.mariadb {
+      background: var(--mariadb-bg);
+      color: var(--mariadb-color);
+      border: 1px solid var(--mariadb-border);
+    }
+    .db-badge.postgres {
+      background: var(--postgres-bg);
+      color: var(--postgres-color);
+      border: 1px solid var(--postgres-border);
+    }
+    .db-badge.nodb {
+      background: var(--gray-100);
+      color: var(--gray-600);
+      border: 1px solid var(--gray-300);
+    }
+
+    .db-op {
+      font-weight: 800;
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .op-insert { background: #DCFCE7; color: #15803D; }
+    .op-select { background: #E0E7FF; color: #3730A3; }
+    .op-update { background: #FEF3C7; color: #B45309; }
+
+    /* Summary Card */
+    .summary-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .summary-card { grid-template-columns: 1fr; }
+    }
+    .sum-box {
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--gray-200);
+      background: var(--gray-50);
+    }
+    .sum-box h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sum-box p {
+      font-size: 12px;
+      color: var(--gray-600);
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; padding: 0 !important; font-size: 10pt; }
+      .nav-bar, .print-btn { display: none !important; }
+      .header-card, .swimlanes-card, .summary-card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+      }
+      .seq-step { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <a href="index.html">← Volver al Índice de Flujogramas</a>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimir Documento</button>
+  </div>
+
+  <!-- Header Card -->
+  <div class="header-card">
+    <span class="badge">Flujograma 03 · Flujo Unificado End-to-End</span>
+    <h1 class="title">Flujo Unificado: GLPI + Sistema Propio</h1>
+    <p class="subtitle">Diagrama de secuencia con 4 carriles (Cliente, GLPI, Técnico, Sistema Propio) y detalle explícito de operaciones en BD.</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Versión:</strong> 1.0</div>
+      <div class="meta-item"><strong>Fecha:</strong> 2026-10-14</div>
+      <div class="meta-item"><strong>Carriles:</strong> 4 actores / componentes</div>
+      <div class="meta-item"><strong>Bases de Datos:</strong> MariaDB (GLPI) + PostgreSQL (Auditoría/Preferencias)</div>
+    </div>
+  </div>
+
+  <!-- Swimlanes Card -->
+  <div class="swimlanes-card">
+    <!-- Header of Swimlanes -->
+    <div class="lanes-header">
+      <div class="lane-title lane-client">👤 Cliente / Solicitante</div>
+      <div class="lane-title lane-glpi">⚙️ GLPI / Service Desk</div>
+      <div class="lane-title lane-tech">👨‍💻 Técnico (Resolutor)</div>
+      <div class="lane-title lane-system">🚀 Sistema Propio (React + .NET 10)</div>
+    </div>
+
+    <!-- Sequence List -->
+    <div class="sequence-list">
+
+      <!-- Paso 1 -->
+      <div class="seq-step">
+        <div class="seq-num">1</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-glpi">Service Desk</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-glpi">GLPI</span>
+        </div>
+        <div class="seq-action">
+          <strong>Service Desk crea la cuenta del usuario</strong> en la interfaz administrativa de GLPI. El service desk <em>solo crea cuentas, no tickets</em>.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-insert">INSERT</span> glpi_users (is_active=1)</span>
+        </div>
+      </div>
+
+      <!-- Paso 2 -->
+      <div class="seq-step">
+        <div class="seq-num">2</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-client">Cliente</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-glpi">GLPI</span>
+        </div>
+        <div class="seq-action">
+          El cliente autenticado entra al portal de autoservicio GLPI y <strong>crea su propio ticket</strong> con su categoría ITIL y canal.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge nodb">Portal /helpdesk.public.php</span>
+        </div>
+      </div>
+
+      <!-- Paso 3 -->
+      <div class="seq-step">
+        <div class="seq-num">3</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-glpi">GLPI</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#E0F2FE; color:#0369A1;">MariaDB</span>
+        </div>
+        <div class="seq-action">
+          Persistencia del ticket en estado <strong>1 (Nuevo)</strong> con categoría ITIL, canal de entrada y prioridad.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-insert">INSERT</span> glpi_tickets (status=1)</span>
+        </div>
+      </div>
+
+      <!-- Paso 4 -->
+      <div class="seq-step">
+        <div class="seq-num">4</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-glpi">GLPI</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#E0F2FE; color:#0369A1;">MariaDB</span>
+        </div>
+        <div class="seq-action">
+          Vinculación del ticket al grupo resolutor correspondiente según regla de negocio o categoría.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-insert">INSERT</span> glpi_groups_tickets (type=2)</span>
+        </div>
+      </div>
+
+      <!-- Paso 5 -->
+      <div class="seq-step highlight">
+        <div class="seq-num">5</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-tech">Técnico</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-system">Sistema</span>
+        </div>
+        <div class="seq-action">
+          El técnico ingresa a su panel de trabajo y navega a la vista de cola: <strong>/queue</strong>.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge nodb">HTTP GET /queue (React 19)</span>
+        </div>
+      </div>
+
+      <!-- Paso 6 -->
+      <div class="seq-step highlight">
+        <div class="seq-num">6</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-system">Sistema</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#E0F2FE; color:#0369A1;">MariaDB</span>
+        </div>
+        <div class="seq-action">
+          La API .NET 10 consulta con Dapper los tickets pendientes del grupo técnico que aún no tienen asignado un resolutor.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-select">SELECT</span> glpi_tickets + groups</span>
+        </div>
+      </div>
+
+      <!-- Paso 7 -->
+      <div class="seq-step highlight">
+        <div class="seq-num">7</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-system">Sistema</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-tech">Técnico</span>
+        </div>
+        <div class="seq-action">
+          La interfaz muestra la tabla optimizada con filtros rápidos, categoría ITIL y botón destacado de autotoma.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge nodb">Render React 19 UI</span>
+        </div>
+      </div>
+
+      <!-- Paso 8 -->
+      <div class="seq-step highlight">
+        <div class="seq-num">8</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-tech">Técnico</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-system">Sistema</span>
+        </div>
+        <div class="seq-action">
+          El técnico hace clic en <strong>"Asignarme"</strong> sobre el ticket seleccionado.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge nodb">POST /api/tickets/{id}/assign-me</span>
+        </div>
+      </div>
+
+      <!-- Paso 9 -->
+      <div class="seq-step highlight">
+        <div class="seq-num">9</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-system">Sistema</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#E0F2FE; color:#0369A1;">MariaDB</span>
+        </div>
+        <div class="seq-action">
+          El backend vincula al usuario logueado como técnico asignado (<code>type=2</code>) y actualiza estado a En Curso (<code>status=2</code>).
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-insert">INSERT</span> glpi_tickets_users (type=2)</span>
+        </div>
+      </div>
+
+      <!-- Paso 10 -->
+      <div class="seq-step highlight">
+        <div class="seq-num">10</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-system">Sistema</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#EDE9FE; color:#6D28D9;">PostgreSQL</span>
+        </div>
+        <div class="seq-action">
+          El backend registra el evento en auditoría (PK: <code>BIGINT GENERATED ALWAYS AS IDENTITY</code>) para métricas y trazabilidad.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge postgres"><span class="db-op op-insert">INSERT</span> audit_log (action='claim')</span>
+        </div>
+      </div>
+
+      <!-- Paso 11 -->
+      <div class="seq-step">
+        <div class="seq-num">11</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-tech">Técnico</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-system">Sistema</span>
+        </div>
+        <div class="seq-action">
+          El técnico realiza el diagnóstico, redacta la solución técnica en el diálogo y hace clic en <strong>"Resolver Ticket"</strong>.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge nodb">POST /api/tickets/{id}/solution</span>
+        </div>
+      </div>
+
+      <!-- Paso 12 -->
+      <div class="seq-step success">
+        <div class="seq-num">12</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-system">Sistema</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#E0F2FE; color:#0369A1;">MariaDB</span>
+        </div>
+        <div class="seq-action">
+          Se guarda la solución en GLPI y se pasa el ticket a estado <strong>5 (Solucionado)</strong> según ADR-006.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-insert">INSERT</span> glpi_itilsolutions + <span class="db-op op-update">UPDATE</span> status=5</span>
+        </div>
+      </div>
+
+      <!-- Paso 13 -->
+      <div class="seq-step success">
+        <div class="seq-num">13</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-system">Sistema</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag" style="background:#EDE9FE; color:#6D28D9;">PostgreSQL</span>
+        </div>
+        <div class="seq-action">
+          Se registra el evento de resolución con el tiempo de atención y metadata en el log de auditoría propio.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge postgres"><span class="db-op op-insert">INSERT</span> audit_log (action='resolve')</span>
+        </div>
+      </div>
+
+      <!-- Paso 14 -->
+      <div class="seq-step">
+        <div class="seq-num">14</div>
+        <div class="seq-actors">
+          <span class="actor-tag lane-client">Cliente</span>
+          <span class="arrow-icon">→</span>
+          <span class="actor-tag lane-glpi">GLPI</span>
+        </div>
+        <div class="seq-action">
+          El cliente consulta su portal GLPI o recibe la notificación automática de que su ticket ha sido <strong>Solucionado</strong>.
+        </div>
+        <div class="seq-db">
+          <span class="db-badge mariadb"><span class="db-op op-select">SELECT</span> glpi_tickets (status=5)</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Summary Card -->
+  <div class="summary-card">
+    <div class="sum-box">
+      <h4>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00758F" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+        Operaciones en MariaDB (GLPI)
+      </h4>
+      <p>Modificaciones controladas estrictamente en tablas nativas de GLPI: asignaciones (<code>glpi_tickets_users</code>) y soluciones (<code>glpi_itilsolutions</code>). No se tocan tablas estructurales ni configuraciones de GLPI.</p>
+    </div>
+    <div class="sum-box">
+      <h4>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#336791" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5h-2v-2h2zm0-4h-2V7h2z"></path></svg>
+        Operaciones en PostgreSQL (Sistema Propio)
+      </h4>
+      <p>Persistencia inmutable de eventos en <code>audit_log</code> (claim, resolve) y persistencia de preferencias del técnico. Protegida con transacciones locales sin impacto en el rendimiento de GLPI.</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

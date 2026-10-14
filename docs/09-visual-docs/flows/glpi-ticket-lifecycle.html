@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flujograma 1: Ciclo de Vida del Ticket en GLPI | GLPI Ticket Manager</title>
+  <style>
+    :root {
+      --accent: #6D59E8;
+      --accent-hover: #5844D4;
+      --accent-light: #F4F2FF;
+      --accent-border: #D8D2FB;
+      --green: #0D9E74;
+      --green-light: #EBF8F4;
+      --green-border: #99E2CE;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-border: #BFDBFE;
+      --amber: #D97706;
+      --amber-light: #FEF3C7;
+      --amber-border: #FDE68A;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+      --radius: 10px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: #F8FAFC;
+      color: var(--gray-800);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+    }
+    .nav-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-bar a:hover { color: var(--accent-hover); }
+    .print-btn {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--gray-700);
+    }
+
+    /* Header / Cover */
+    .header-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--gray-600);
+      margin-bottom: 16px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--gray-600);
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .meta-item strong { color: var(--gray-800); }
+
+    /* Layout Grid */
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 992px) {
+      .layout-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Flow Section */
+    .flow-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Steps list */
+    .steps-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+    }
+    .step-item {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      position: relative;
+    }
+    .step-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 36px;
+      left: 17px;
+      bottom: -16px;
+      width: 2px;
+      background: var(--gray-200);
+      z-index: 1;
+    }
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      z-index: 2;
+      box-shadow: 0 0 0 4px var(--accent-light);
+    }
+    .step-content {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 16px 20px;
+      flex-grow: 1;
+    }
+    .step-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 4px;
+    }
+    .step-desc {
+      font-size: 13px;
+      color: var(--gray-600);
+      margin-bottom: 8px;
+    }
+    .db-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: white;
+      border: 1px solid var(--gray-300);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: var(--gray-700);
+    }
+    .db-tag.action {
+      background: var(--green-light);
+      border-color: var(--green-border);
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    /* Lateral Tables Card */
+    .tables-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      height: fit-content;
+    }
+    .table-spec {
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .table-spec:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .table-name {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: #00758F; /* MariaDB teal */
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .table-desc {
+      font-size: 12px;
+      color: var(--gray-600);
+      margin-bottom: 6px;
+    }
+    .cols-list {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--gray-700);
+      background: var(--gray-50);
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--gray-200);
+    }
+
+    /* Hand-off Notice */
+    .handoff-box {
+      margin-top: 24px;
+      background: linear-gradient(135deg, var(--accent-light) 0%, #FFFFFF 100%);
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .handoff-icon {
+      font-size: 28px;
+    }
+    .handoff-text h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .handoff-text p {
+      font-size: 13px;
+      color: var(--gray-700);
+    }
+    .handoff-text a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; padding: 0 !important; font-size: 10pt; }
+      .nav-bar, .print-btn { display: none !important; }
+      .header-card, .flow-card, .tables-card, .handoff-box {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+      }
+      .layout-grid { display: block !important; }
+      .tables-card { margin-top: 20px; page-break-inside: avoid; }
+      .step-item { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <a href="index.html">← Volver al Índice de Flujogramas</a>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimir Documento</button>
+  </div>
+
+  <!-- Header Card -->
+  <div class="header-card">
+    <span class="badge">Flujograma 01 · Proceso GLPI Nativo</span>
+    <h1 class="title">Ciclo de Vida del Ticket en GLPI</h1>
+    <p class="subtitle">Creación, catalogación ITIL y asignación de grupo bajo el modelo estándar de GLPI 11.</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Versión:</strong> 1.0 (Nuevo Scope)</div>
+      <div class="meta-item"><strong>Fecha:</strong> 2026-10-14</div>
+      <div class="meta-item"><strong>Autor:</strong> Arquitectura GLPI Ticket Manager</div>
+      <div class="meta-item"><strong>Regla:</strong> Sistema propio NO crea tickets (ADR-009)</div>
+    </div>
+  </div>
+
+  <!-- Content Grid -->
+  <div class="layout-grid">
+    <!-- Flow Column -->
+    <div class="flow-card">
+      <h2 class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        Secuencia de Operación Nativa en GLPI
+      </h2>
+
+      <div class="steps-timeline">
+        <!-- Paso 1 -->
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3 class="step-title">Usuario entra al portal GLPI</h3>
+            <p class="step-desc">El usuario (interno o externo con cuenta previamente creada por Service Desk) ingresa con sus credenciales a <code>/helpdesk.public.php</code>.</p>
+            <span class="db-tag">Actor: Usuario autenticado</span>
+            <span class="db-tag">glpi_users (id > 0)</span>
+          </div>
+        </div>
+
+        <!-- Paso 2 -->
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3 class="step-title">Usuario crea su propio ticket</h3>
+            <p class="step-desc">El usuario redacta el asunto y la descripción de su incidente o solicitud directamente en el formulario nativo de GLPI. El Service Desk <strong>NO</strong> crea tickets a nombre de terceros.</p>
+            <span class="db-tag">Canal: Autoservicio GLPI</span>
+            <span class="db-tag" style="background:#FEF2F2; color:#991B1B; border-color:#FECACA;">Regla: Usuario autónomo</span>
+          </div>
+        </div>
+
+        <!-- Paso 3 -->
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3 class="step-title">Elige categoría ITIL (= Catálogo de Servicios)</h3>
+            <p class="step-desc">Se clasifica el caso en el árbol jerárquico nativo: Requerimiento, Aplicaciones, Infraestructura, etc. (ADR-011).</p>
+            <span class="db-tag action">SELECT</span>
+            <span class="db-tag">glpi_itilcategories.completename</span>
+          </div>
+        </div>
+
+        <!-- Paso 4 -->
+        <div class="step-item">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h3 class="step-title">Elige canal de atención</h3>
+            <p class="step-desc">Se especifica el origen del requerimiento: Web, Portal Autoservicio, etc.</p>
+            <span class="db-tag">glpi_requesttypes (id, name)</span>
+          </div>
+        </div>
+
+        <!-- Paso 5 -->
+        <div class="step-item">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <h3 class="step-title">Ticket nace en glpi_tickets (status=1 Nuevo)</h3>
+            <p class="step-desc">GLPI crea el registro en la base de datos con <code>status = 1</code> (Nuevo), urgencia, impacto y fecha de creación.</p>
+            <span class="db-tag action">INSERT</span>
+            <span class="db-tag">glpi_tickets (status=1)</span>
+            <span class="db-tag">glpi_tickets_users (type=1: requester)</span>
+          </div>
+        </div>
+
+        <!-- Paso 6 -->
+        <div class="step-item">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <h3 class="step-title">Se asigna al grupo técnico</h3>
+            <p class="step-desc">Mediante reglas de negocio nativas de GLPI o selección de la categoría, el ticket se asigna al grupo resolutor responsable.</p>
+            <span class="db-tag action">INSERT</span>
+            <span class="db-tag">glpi_groups_tickets (type=2: assigned group)</span>
+          </div>
+        </div>
+
+        <!-- Paso 7 -->
+        <div class="step-item">
+          <div class="step-num">7</div>
+          <div class="step-content">
+            <h3 class="step-title">Ticket en cola del grupo</h3>
+            <p class="step-desc">El ticket permanece en estado Nuevo sin técnico asignado (<code>glpi_tickets_users type=2</code> ausente), visible en la cola del grupo para ser tomado.</p>
+            <span class="db-tag" style="background:#FEF3C7; color:#B45309; border-color:#FDE68A;">Pendiente de asignación</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px; background: #FFFBEB; border: 1px solid #FDE68A; border-left: 4px solid #F59E0B; border-radius: 6px; padding: 12px 16px; font-size: 13px; color: #92400E;">
+        <strong>Nota operativa:</strong> El service desk crea las cuentas de usuario en GLPI UI, pero <strong>NO crea tickets</strong>. Todos los tickets son creados por los propios usuarios desde el portal GLPI.
+      </div>
+
+      <!-- Hand-off Notice -->
+      <div class="handoff-box">
+        <div class="handoff-icon">⚡</div>
+        <div class="handoff-text">
+          <h4>Intervención del Sistema Propio</h4>
+          <p>A partir de este punto, el técnico utiliza el <strong>GLPI Ticket Manager</strong> para visualizar la cola, asignarse el ticket con un clic y documentar la solución formal. Ver <a href="unified-flow.html">Flujograma 3: Flujo Unificado</a>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side Panel: Tables Involucradas -->
+    <div class="tables-card">
+      <h2 class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:#00758F"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+        Tablas MariaDB (GLPI)
+      </h2>
+
+      <!-- glpi_tickets -->
+      <div class="table-spec">
+        <div class="table-name">📄 glpi_tickets</div>
+        <p class="table-desc">Entidad central del caso. Almacena título, contenido, status (1=Nuevo), prioridad, categoría y fechas.</p>
+        <div class="cols-list">id, name, content, status, itilcategories_id, requesttypes_id, date, date_mod</div>
+      </div>
+
+      <!-- glpi_tickets_users -->
+      <div class="table-spec">
+        <div class="table-name">👥 glpi_tickets_users</div>
+        <p class="table-desc">Vínculos de actores. En creación: type=1 (solicitante). Posteriormente: type=2 (técnico asignado).</p>
+        <div class="cols-list">id, tickets_id, users_id, type, use_notification, alternative_email</div>
+      </div>
+
+      <!-- glpi_groups_tickets -->
+      <div class="table-spec">
+        <div class="table-name">🏢 glpi_groups_tickets</div>
+        <p class="table-desc">Asociación del ticket con el grupo resolutor responsable (type=2).</p>
+        <div class="cols-list">id, tickets_id, groups_id, type</div>
+      </div>
+
+      <!-- glpi_users -->
+      <div class="table-spec">
+        <div class="table-name">👤 glpi_users</div>
+        <p class="table-desc">Catálogo de usuarios con cuenta (solicitantes internos, externos creados por Service Desk y técnicos).</p>
+        <div class="cols-list">id, name, realname, firstname, phone, mobile, is_active</div>
+      </div>
+
+      <!-- glpi_itilcategories -->
+      <div class="table-spec">
+        <div class="table-name">🌳 glpi_itilcategories</div>
+        <p class="table-desc">Catálogo de servicios jerárquico. Árbol nativo de GLPI (ADR-011).</p>
+        <div class="cols-list">id, name, completename, itilcategories_id, level</div>
+      </div>
+
+      <!-- glpi_requesttypes -->
+      <div class="table-spec">
+        <div class="table-name">📞 glpi_requesttypes</div>
+        <p class="table-desc">Canales de entrada del caso (Teléfono, Presencial, Correo, Web).</p>
+        <div class="cols-list">id, name, comment, is_active</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
