@@ -126,8 +126,6 @@ jobs:
             sleep 2
           done
           exit 1
-      - name: Seed E2E state
-        run: ./scripts/seed-e2e.sh
       - name: Install Playwright browser in container
         run: |
           docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
@@ -170,6 +168,8 @@ jobs:
           fi
           
           echo "Smoke test PASSED - API can update ticket status"
+      - name: Seed E2E state
+        run: ./scripts/seed-e2e.sh
       - name: Run E2E inside container
         run: docker compose exec -T frontend pnpm exec playwright test --reporter=list
       - name: Upload Playwright report on failure

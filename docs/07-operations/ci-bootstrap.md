@@ -30,12 +30,17 @@ Para garantizar un entorno reproducible, rápido y determinista:
 3. **Flujo de Ejecución en CI (`.github/workflows/ci.yml`):**
    1. Levanta `glpi-db` de forma aislada.
    2. Espera a que el healthcheck de MariaDB confirme disponibilidad.
-   3. Restaura `scripts/glpi-base.sql` en la base de datos `glpi`.
+   3. Restaura `scripts/glpi-base.sql` y `scripts/glpi-schema-events-logs.sql` en la base de datos `glpi`.
    4. Levanta el stack completo (`docker compose up -d --build`).
    5. Copia `glpicrypt.key` y `config_db.php` a `/var/glpi/config/` y reinicia el servicio `glpi`.
    6. Espera disponibilidad de API (`/health`) y Frontend (`:5173`).
-   7. Ejecuta `./scripts/seed-e2e.sh` para crear usuarios y asegurar estado determinista.
-   8. Ejecuta la suite E2E de Playwright.
+   7. Instala dependencias y navegador Chromium para Playwright.
+   8. Ejecuta Smoke test de API (`PATCH /api/tickets/11/status` con status=2).
+   9. Ejecuta `./scripts/seed-e2e.sh` para crear usuarios y restaurar el estado prístino de las fixtures.
+   10. Ejecuta la suite E2E de Playwright.
+
+> [!NOTE]
+> El step 'Seed E2E state' corre después del smoke test del API y antes de Playwright. Razón: el smoke test muta el ticket #11 (PATCH status=2), y `self-assign-flow.spec.ts` requiere el ticket en status=1. El seed garantiza el estado prístino para la suite E2E.
 
 ---
 
