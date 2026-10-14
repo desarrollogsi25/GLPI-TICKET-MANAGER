@@ -84,7 +84,28 @@ services:
     depends_on:
       - api
 
+  # PostgreSQL for own data (ADR-012). Isolated from GLPI's MariaDB.
+  app-db:
+    image: postgres:16-alpine
+    container_name: glpi-app-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: glpi_ticket_manager
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - app-db-data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "app", "-d", "glpi_ticket_manager"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   glpi-db-data:
   glpi-data:
   glpi-plugins:
+  app-db-data:

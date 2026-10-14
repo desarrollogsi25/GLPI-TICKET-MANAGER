@@ -23,18 +23,24 @@ Every service runs with `restart: unless-stopped` and an explicit `container_nam
 | `glpi` | `glpi/glpi:11.0` | `glpi` | `127.0.0.1:8081` | `glpi-db` (healthy) |
 | `api` | build `src/GlpiTicketManager.Api/Dockerfile` | `glpi-api` | `127.0.0.1:8080` | `glpi-db` (healthy), `glpi` (started) |
 | `frontend` | build `frontend/Dockerfile.dev` | `glpi-frontend` | `127.0.0.1:5173` | `api` |
+| `app-db` | `postgres:16-alpine` | `glpi-app-db` | `127.0.0.1:5432` | — |
 
 - **glpi-db** — MariaDB 10.11. Healthcheck: `healthcheck.sh --connect --innodb_initialized`
   (waits for the server to accept connections *and* for InnoDB to be ready).
 - **glpi** — GLPI 11.0 web UI. Starts only once `glpi-db` is healthy.
-- **api** — .NET 9 Minimal API. Multi-stage build: `sdk:9.0` restore/publish stage →
-  `aspnet:9.0` runtime stage. The restore layer copies only the `.sln`, `global.json` and
+- **api** — .NET 10 Minimal API. Multi-stage build: `sdk:10.0` restore/publish stage →
+  `aspnet:10.0` runtime stage. The restore layer copies only the `.sln`, `global.json` and
   the four `.csproj` files (with `--link`) so a source change does not invalidate NuGet.
   Runs as the non-root `app` user (uid/gid 1654, already present in the runtime image).
 - **frontend** — Vite dev server on `node:22-alpine` with `pnpm` pinned to the lockfile
   version and `--frozen-lockfile`. The sources are bind-mounted for hot reload; the
   container's `node_modules` live in an anonymous volume so they are not shadowed by the
   host directory.
+- **app-db** — PostgreSQL 16 (Alpine). Persistencia para datos propios del sistema (ADR-012:
+  `app_settings`, `user_preferences`, `audit_log`, `revoked_tokens`). Healthcheck:
+  `pg_isready -U app -d glpi_ticket_manager`. Aplica automáticamente las migraciones
+  desde `./db/migrations` montado como read-only en `/docker-entrypoint-initdb.d`.
+  Para resetear sus datos: `docker compose down -v` o eliminar el volumen `app-db-data`.
 
 ## Network — how the containers reach each other
 
@@ -77,6 +83,7 @@ See `docs/01-architecture/decisions/ADR-001-glpi-docker-setup.md`.
 | `glpi-data` | `/var/glpi` | GLPI config, files, logs, marketplace |
 | `glpi-plugins` | `/var/www/glpi/plugins` | Custom plugins |
 | `glpi-db-data` | `/var/lib/mysql` | MariaDB data (tickets, users, tokens) |
+| `app-db-data` | `/var/lib/postgresql/data` | PostgreSQL data (app_settings, preferences, audit, tokens) |
 
 `docker compose down` **keeps** these volumes, so the GLPI install, the database and the
 API tokens survive a stop/start cycle. `docker compose down -v` removes them (destructive).
@@ -88,7 +95,8 @@ All ports are bound to `127.0.0.1` only — nothing is exposed to the LAN.
 - **5173**: frontend (Vite dev server).
 - **8080**: API (`/health`, `/openapi/v1.json`, `/scalar`).
 - **8081**: GLPI web UI.
-- **3306**: MariaDB.
+- **3306**: MariaDB (GLPI).
+- **5432**: PostgreSQL (datos propios).
 
 ## Commands
 
@@ -107,6 +115,7 @@ docker compose logs -f api
 docker compose logs -f frontend
 docker compose logs --tail 50 glpi
 docker compose logs --tail 50 glpi-db
+docker compose logs --tail 50 app-db
 
 # Stop (keeps named volumes, so data survives)
 docker compose down
