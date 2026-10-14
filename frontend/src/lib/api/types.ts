@@ -86,26 +86,6 @@ export interface TicketListParams {
   offset?: number
 }
 
-export interface CreateTicketInput {
-  title: string
-  content?: string
-  type: number
-  urgency: number
-  impact: number
-  categoryId?: number
-  requesterId?: number
-  assigneeId?: number
-  requestTypeId?: number
-  externalRequesterEmail?: string
-  externalRequesterName?: string
-  externalRequesterPhone?: string
-  externalRequesterCompany?: string
-}
-
-export interface CreatedTicket {
-  id: number
-}
-
 export interface StatusCount {
   status: number
   statusLabel: string

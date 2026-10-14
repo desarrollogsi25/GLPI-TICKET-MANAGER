@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GlpiTicketManager.Application.Abstractions;
-using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -38,132 +37,6 @@ public sealed class GlpiApiClient : IGlpiApiClient
             Uri.TryCreate(_options.BaseUrl, UriKind.Absolute, out var baseUri))
         {
             _httpClient.BaseAddress = baseUri;
-        }
-    }
-
-    public async Task<int> CreateTicketAsync(CreateTicketRequest request, CancellationToken cancellationToken)
-    {
-        var sessionToken = await InitSessionAsync(cancellationToken);
-
-        try
-        {
-            var input = new Dictionary<string, object?>
-            {
-                ["name"] = request.Title,
-                ["content"] = request.Content,
-                ["type"] = request.Type,
-                ["urgency"] = request.Urgency,
-                ["impact"] = request.Impact
-            };
-
-            if (request.RequestTypeId is > 0)
-            {
-                input["requesttypes_id"] = request.RequestTypeId.Value;
-            }
-
-            if (request.CategoryId is > 0)
-            {
-                input["itilcategories_id"] = request.CategoryId;
-            }
-
-            // Internal requester: GLPI creates the users_id=... link itself.
-            if (request.RequesterId is > 0 && string.IsNullOrWhiteSpace(request.ExternalRequesterEmail))
-            {
-                input["_users_id_requester"] = request.RequesterId;
-            }
-
-            if (request.AssigneeId is > 0)
-            {
-                input["_users_id_assign"] = request.AssigneeId;
-            }
-
-            using var response = await SendAsync(
-                HttpMethod.Post,
-                "Ticket",
-                sessionToken,
-                new { input },
-                cancellationToken);
-
-            var created = await response.Content
-                .ReadFromJsonAsync<CreatedTicketResponse>(SerializerOptions, cancellationToken);
-
-            if (created is null || created.Id <= 0)
-            {
-                throw new GlpiApiException((int)response.StatusCode, "GLPI did not return a ticket id.");
-            }
-
-                        // Route unassigned ticket to its group queue (call-center model):
-            // creates a group link (type=2) so the ticket shows in that group's queue.
-            if (request.GroupId is > 0)
-            {
-                try
-                {
-                    var groupInput = new Dictionary<string, object?>
-                    {
-                        ["tickets_id"] = created.Id,
-                        ["groups_id"] = request.GroupId.Value,
-                        ["type"] = 2,
-                    };
-
-                    using var gResponse = await SendAsync(
-                        HttpMethod.Post,
-                        "Group_Ticket",
-                        sessionToken,
-                        new { input = groupInput },
-                        cancellationToken);
-
-                    _logger.LogInformation("Created group link for ticket {TicketId} in group {GroupId}", created.Id, request.GroupId);
-                    // Group_Ticket creation bumps the ticket to status 2 (assigned to a group);
-                    // keep it unstarted (status 1) so the claim flow (which requires New) works.
-                    using var statusResponse = await SendAsync(
-                        HttpMethod.Put,
-                        $"Ticket/{created.Id}",
-                        sessionToken,
-                        new { input = new { status = 1 } },
-                        cancellationToken);
-                }
-                catch (GlpiApiException ex)
-                {
-                    _logger.LogWarning(ex, "Could not create group link for ticket {TicketId}", created.Id);
-                }
-            }
-// External requester (ADR-005 option D): create a requester link with
-            // users_id=0 and alternative_email via the GLPI REST Ticket_User endpoint.
-            if (!string.IsNullOrWhiteSpace(request.ExternalRequesterEmail))
-            {
-                try
-                {
-                    var content = request.Content ?? string.Empty;
-                    var externalInput = new Dictionary<string, object?>
-                    {
-                        ["tickets_id"] = created.Id,
-                        ["users_id"] = 0,
-                        ["type"] = 1,
-                        ["alternative_email"] = request.ExternalRequesterEmail,
-                        ["use_notification"] = 1,
-                    };
-
-                    using var tuResponse = await SendAsync(
-                        HttpMethod.Post,
-                        "Ticket_User",
-                        sessionToken,
-                        new { input = externalInput },
-                        cancellationToken);
-
-                    _logger.LogInformation("Created external requester link for ticket {TicketId}", created.Id);
-                }
-                catch (GlpiApiException ex)
-                {
-                    _logger.LogWarning(ex, "Could not create external requester link for ticket {TicketId}", created.Id);
-                }
-            }
-
-            _logger.LogInformation("Created GLPI ticket {TicketId}", created.Id);
-            return created.Id;
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
         }
     }
 
@@ -279,6 +152,4 @@ public sealed class GlpiApiClient : IGlpiApiClient
 
     private sealed record InitSessionResponse(
         [property: JsonPropertyName("session_token")] string SessionToken);
-
-    private sealed record CreatedTicketResponse(int Id);
 }

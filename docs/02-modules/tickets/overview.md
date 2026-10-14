@@ -17,7 +17,6 @@ through the GLPI REST API so notifications, logs, SLAs and plugins keep working.
 |---|---|---|---|
 | `GET` | `/api/tickets?assigneeId={id}&limit=&offset=` | JWT | Tickets assigned to a technician (`glpi_tickets_users.type = 2`) |
 | `GET` | `/api/tickets/{id}` | JWT | Full detail: description, follow-ups and user links |
-| `POST` | `/api/tickets` | JWT | Create a ticket through GLPI |
 | `PATCH` | `/api/tickets/{id}/status` | JWT | Change ticket status through GLPI |
 | `GET` | `/api/dashboard/stats` | JWT | Aggregated metrics |
 | `POST` | `/api/auth/login` | anonymous, rate-limited | Exchange credentials for a JWT |
@@ -60,40 +59,8 @@ GET  {GlpiApi:BaseUrl}killSession   headers: App-Token + Session-Token      (alw
 `session_token` returned by GLPI is used only as the `Session-Token` header and is
 never exposed to clients of this API.
 
-### Create a ticket
-
-```
-Frontend ──POST /api/tickets──► TicketService.CreateAsync
-                                   │ validates (title, type, urgency, impact)
-                                   ▼
-                              IGlpiApiClient.CreateTicketAsync
-                                   │ GET  initSession  (App-Token + user_token)
-                                   │ POST Ticket       (Session-Token)  → { "id": N }
-                                   │ GET  killSession  (finally)
-                                   ▼
-                              201 Created { "id": N }
-```
-
-Request body (note: `urgency`/`impact`, singular `requesterId`/`assigneeId`):
-
-```json
-{
-  "title": "TEST escritura desde API",
-  "content": "Ticket creado para validar integración de escritura.",
-  "type": 1,
-  "urgency": 3,
-  "impact": 3,
-  "requesterId": 9,
-  "assigneeId": 7
-}
-```
-
-GLPI derives `priority` from `urgency × impact`. `requesterId` maps to
-`_users_id_requester` (requester, `glpi_tickets_users.type = 1`) and `assigneeId`
-maps to `_users_id_assign` (assigned technician, `type = 2`), so the created ticket
-appears under `/api/tickets?assigneeId={assigneeId}`.
-
-Validation failures never reach GLPI and return `400` with an `errors` dictionary.
+> [!NOTE]
+> La creación de tickets se hace 100% en GLPI. Este sistema NO crea tickets (ADR-009).
 
 ### Change status
 
@@ -111,34 +78,10 @@ GlpiApiClient.UpdateTicketStatusAsync
 
 ### Frontend write flows
 
-The React app consumes the two write endpoints above. There is no direct database
+The React app consumes mutation endpoints through the API. There is no direct database
 access from the browser; the axios instance (`frontend/src/lib/apiClient.ts`) always
 posts to same-origin `/api`, which Vite proxies to the API in development and Nginx in
 production.
-
-**Create a ticket**
-
-| Step | Location |
-|---|---|
-| "Nuevo ticket" button opens the dialog | `frontend/src/features/tickets/List.tsx` (`<CreateTicketDialog />`) |
-| Form + payload | `frontend/src/features/tickets/CreateTicketDialog.tsx` |
-| Mutation + invalidation | `frontend/src/hooks/useTickets.ts` → `useCreateTicketMutation` |
-| HTTP call | `frontend/src/lib/api/tickets.ts` → `createTicket` |
-
-Payload sent (matches the DTO in `frontend/src/lib/api/types.ts` → `CreateTicketInput`):
-
-```json
-{ "title": "…", "content": "…", "type": 1, "urgency": 3, "impact": 3, "assigneeId": 7, "requesterId": 7 }
-```
-
-The dialog has a **"Asignarme este ticket"** checkbox (checked by default). When checked
-the payload includes `"assigneeId": <authenticated user id>`; when unchecked `assigneeId`
-is omitted and GLPI leaves the ticket in status `1` (New, unassigned). `requesterId` is
-always the authenticated user's id.
-
-On success the mutation invalidates `['tickets']` and `['dashboard','stats']`, the
-dialog shows a toast, closes, and the app navigates to `/tickets/{id}` (the new
-detail page).
 
 **Change status (Kanban drag & drop and detail buttons)**
 
@@ -157,22 +100,10 @@ the request is sent.
 
 **Error surfacing**
 
-Both mutations pass the error to `getApiErrorMessage`
-(`frontend/src/lib/api/errors.ts`), which reads `ProblemDetails.detail`. The API puts
-the GLPI error message (`GlpiApiException.Message`) there, so the real GLPI text
-appears in the toast for a `502` (and `404` for a ticket GLPI no longer has).
-
-### Notes on the create form
-
-- **"Asignarme este ticket"** (checked by default) controls `assigneeId`. GLPI assigns
-  status `2` (Assigned) automatically when a ticket is created with an assignee
-  (`_users_id_assign`); with the checkbox unchecked no assignee is sent and the ticket
-  is created in status `1` (New).
-- `priority` is never sent by the frontend (ADR-003); it is computed by GLPI from
-  `urgency × impact` and only read back.
-- **Known limitation:** `requesterId` is always the authenticated user. There is no
-  requester picker yet (pending for a next iteration), so a technician creating a ticket
-  on behalf of someone else cannot set that person as the requester.
+Mutations pass the error to `getApiErrorMessage` (`frontend/src/lib/api/errors.ts`),
+which reads `ProblemDetails.detail`. The API puts the GLPI error message
+(`GlpiApiException.Message`) there, so the real GLPI text appears in the toast for a
+`502` (and `404` for a ticket GLPI no longer has).
 
 ### GLPI connection settings
 

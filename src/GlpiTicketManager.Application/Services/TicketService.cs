@@ -91,12 +91,6 @@ public sealed class TicketService : ITicketService
                 .ToArray());
     }
 
-    public Task<int> CreateAsync(CreateTicketRequest request, CancellationToken cancellationToken)
-    {
-        ValidateCreate(request);
-        return _glpi.CreateTicketAsync(request, cancellationToken);
-    }
-
     public async Task<bool> UpdateStatusAsync(
         int ticketId,
         int status,
@@ -259,36 +253,6 @@ public sealed class TicketService : ITicketService
                 .Where(link => link.Type == (int)TicketUserType.Requester)
                 .Select(link => link.UserId)
                 .ToArray();
-        }
-    }
-
-    private static void ValidateCreate(CreateTicketRequest request)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            errors["title"] = ["title is required."];
-        }
-
-        if (!Enum.IsDefined((TicketType)request.Type))
-        {
-            errors["type"] = ["type must be 1 (Incident) or 2 (Request)."];
-        }
-
-        if (!Enum.IsDefined((TicketPriority)request.Urgency))
-        {
-            errors["urgency"] = ["urgency must be between 1 and 6."];
-        }
-
-        if (!Enum.IsDefined((TicketPriority)request.Impact))
-        {
-            errors["impact"] = ["impact must be between 1 and 6."];
-        }
-
-        if (errors.Count > 0)
-        {
-            throw new ValidationException(errors);
         }
     }
 

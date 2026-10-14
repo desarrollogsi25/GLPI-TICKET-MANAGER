@@ -1,6 +1,5 @@
 using System.Threading;
 using GlpiTicketManager.Application.Abstractions;
-using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Services;
 using GlpiTicketManager.Domain.Entities;
@@ -22,34 +21,6 @@ public class TicketServiceTests
         _svc = new TicketService(_repo.Object, _glpi.Object);
     }
 
-    private static CreateTicketRequest ValidCreate() => new()
-    {
-        Title = "Prueba",
-        Content = "Desc",
-        Type = 1,
-        Urgency = 3,
-        Impact = 3,
-    };
-
-    [Fact]
-    public async Task CreateAsync_ValidatesTitle()
-    {
-        var req = new CreateTicketRequest { Title = "   " };
-        var act = async () => await _svc.CreateAsync(req, CancellationToken.None);
-        await act.Should().ThrowAsync<ValidationException>();
-    }
-
-    [Fact]
-    public async Task CreateAsync_DelegatesToGlpiClient_AndReturnsId()
-    {
-        var req = ValidCreate();
-        _glpi.Setup(g => g.CreateTicketAsync(req, It.IsAny<CancellationToken>())).ReturnsAsync(42);
-
-        var id = await _svc.CreateAsync(req, CancellationToken.None);
-
-        id.Should().Be(42);
-        _glpi.Verify(g => g.CreateTicketAsync(req, It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task UpdateStatusAsync_WhenTicketIdInvalid_Throws()

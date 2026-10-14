@@ -41,15 +41,6 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapPost(string.Empty, Create)
-            .WithName("CreateTicket")
-            .WithSummary("Create a ticket through the GLPI REST API")
-            .Accepts<CreateTicketRequest>("application/json")
-            .Produces<CreatedTicketResponse>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .Produces(StatusCodes.Status401Unauthorized);
-
         group.MapPatch("/{id:int}/status", UpdateStatus)
             .WithName("UpdateTicketStatus")
             .WithSummary("Change the status of a ticket through the GLPI REST API")
@@ -122,53 +113,6 @@ public static class TicketEndpoints
         return ticket is null ? Results.NotFound() : Results.Ok(ticket);
     }
 
-    private static async Task<IResult> Create(
-        CreateTicketRequest request,
-        ITicketService ticketService,
-        ClaimsPrincipal principal,
-        CancellationToken cancellationToken)
-    {
-        var userId = principal.GetUserId();
-
-        // Prepare request with automatic group routing when no assigneeId is set.
-        var effectiveGroupId = request.GroupId;
-        if (request.AssigneeId is null or <= 0 && (effectiveGroupId is null or <= 0))
-        {
-            if (userId is null)
-            {
-                return Results.Problem(
-                    statusCode: StatusCodes.Status401Unauthorized,
-                    title: "Usuario no autenticado",
-                    detail: "No se pudo resolver el userId.");
-            }
-
-            var groups = await ticketService.GetGroupIdsForUserAsync(userId.Value, cancellationToken);
-
-            if (groups.Count == 0)
-            {
-                return Results.Problem(
-                    statusCode: StatusCodes.Status400BadRequest,
-                    title: "Sin grupo asignable",
-                    detail: "El usuario no pertenece a ningun grupo; no puede crear ticket sin asignarlo.");
-            }
-
-            if (groups.Count > 1)
-            {
-                return Results.Problem(
-                    statusCode: StatusCodes.Status400BadRequest,
-                    title: "Grupo requerido",
-                    detail: "Debe seleccionar un grupo cuando no se auto-asigna.");
-            }
-
-            effectiveGroupId = groups[0];
-        }
-
-        var effectiveRequest = request with { GroupId = effectiveGroupId };
-
-        var id = await ticketService.CreateAsync(effectiveRequest, cancellationToken);
-        return Results.Created($"/api/tickets/{id}", new CreatedTicketResponse(id));
-    }
-
     private static async Task<IResult> UpdateStatus(
         int id,
         UpdateTicketStatusRequest request,
@@ -231,6 +175,3 @@ public static class TicketEndpoints
         return Results.Created($"/api/tickets/{id}/solutions/{solutionId}", new SolutionResponse(solutionId));
     }
 }
-
-/// <summary>Minimal response returned after creating a ticket.</summary>
-public sealed record CreatedTicketResponse(int Id);

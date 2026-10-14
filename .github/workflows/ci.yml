@@ -132,7 +132,7 @@ jobs:
         run: |
           docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
           docker compose exec -T frontend pnpm exec playwright install chromium
-      - name: Smoke test - API can create ticket
+      - name: Smoke test - API can update ticket status
         run: |
           echo "===== Login as tech1 ====="
           LOGIN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
@@ -154,22 +154,22 @@ jobs:
             exit 1
           fi
           
-          echo "===== POST /api/tickets ====="
-          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://localhost:8080/api/tickets \
+          echo "===== PATCH /api/tickets/11/status ====="
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PATCH http://localhost:8080/api/tickets/11/status \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"title":"smoke test CI","content":"diagnostic from CI","type":1,"urgency":3,"impact":3}')
+            -d '{"status":2}')
           echo "$RESPONSE"
           
           HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
-          if [ "$HTTP_CODE" != "201" ]; then
-            echo "ERROR: POST /api/tickets returned $HTTP_CODE"
+          if [ "$HTTP_CODE" != "204" ]; then
+            echo "ERROR: PATCH /api/tickets/11/status returned $HTTP_CODE"
             echo "===== API logs ====="
             docker compose logs api --tail=200
             exit 1
           fi
           
-          echo "Smoke test PASSED - API can create tickets"
+          echo "Smoke test PASSED - API can update ticket status"
       - name: Run E2E inside container
         run: docker compose exec -T frontend pnpm exec playwright test --reporter=list
       - name: Upload Playwright report on failure

@@ -22,8 +22,6 @@ public interface ITicketService
 
     Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken);
 
-    Task<int> CreateAsync(CreateTicketRequest request, CancellationToken cancellationToken);
-
     Task<bool> UpdateStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
 
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(

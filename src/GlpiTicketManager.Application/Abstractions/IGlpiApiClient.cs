@@ -1,5 +1,3 @@
-using GlpiTicketManager.Application.Dtos.Tickets;
-
 namespace GlpiTicketManager.Application.Abstractions;
 
 /// <summary>
@@ -8,7 +6,5 @@ namespace GlpiTicketManager.Application.Abstractions;
 /// </summary>
 public interface IGlpiApiClient
 {
-    Task<int> CreateTicketAsync(CreateTicketRequest request, CancellationToken cancellationToken);
-
     Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
 }

@@ -20,11 +20,6 @@ export async function getTicket(id: number): Promise<import('@/lib/api/types').T
   return data
 }
 
-export async function createTicket(input: import('@/lib/api/types').CreateTicketInput): Promise<{ id: number }> {
-  const { data } = await apiClient.post('/tickets', input)
-  return data
-}
-
 export async function updateTicketStatus(id: number, status: number): Promise<void> {
   await apiClient.patch(`/tickets/${id}/status`, { status })
 }

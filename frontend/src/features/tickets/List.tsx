@@ -31,7 +31,6 @@ import { getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
 
-import { CreateTicketDialog } from './CreateTicketDialog'
 import { priorityMeta, statusMeta, TICKET_PRIORITIES, TICKET_STATUSES } from './labels'
 import { TechnicianFilter } from './TechnicianFilter'
 
@@ -106,7 +105,6 @@ export function List() {
   const assigneeId = useSelectedAssignee()
   const { data, isLoading, isError, error } = useTicketsQuery(assigneeId)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const tickets = data?.items ?? []
 
@@ -146,7 +144,6 @@ export function List() {
         </div>
         <div className="flex items-end gap-2">
           <TechnicianFilter />
-          <Button onClick={() => setIsCreateOpen(true)}>Nuevo ticket</Button>
         </div>
       </div>
 
@@ -285,8 +282,6 @@ export function List() {
           </div>
         </>
       )}
-
-      <CreateTicketDialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
     </div>
   )
 }

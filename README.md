@@ -147,7 +147,7 @@ The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephem
 ├── frontend/
 │   ├── src/
 │   │   ├── components/                   # layout + shadcn/ui primitives
-│   │   ├── features/                     # auth, dashboard, tickets (List/Kanban/Detail/dialog)
+│   │   ├── features/                     # auth, dashboard, tickets (List/Kanban/Detail)
 │   │   ├── hooks/                        # TanStack Query hooks
 │   │   ├── lib/                          # axios client, API wrappers, helpers
 │   │   └── store/                        # zustand stores (auth, ui, toast)
@@ -155,7 +155,7 @@ The GitHub Actions CI workflow runs full-stack End-to-End tests against an ephem
 │   ├── Dockerfile.dev                    # Vite dev server image (hot reload)
 │   └── package.json
 └── docs/
-    ├── 01-architecture/                  # ADRs (integration strategy, create DTO)
+    ├── 01-architecture/                  # ADRs (integration strategy, decisions)
     ├── 02-modules/tickets/               # module overview + endpoints + write flows
     ├── 04-database/queries/
     ├── 06-infrastructure/
@@ -196,7 +196,7 @@ Start at [`docs/`](docs/):
 
 - [`docs/02-modules/tickets/overview.md`](docs/02-modules/tickets/overview.md) — endpoints, GLPI write chain, frontend write flows
 - [`docs/01-architecture/ADR-002-api-glpi-integration.md`](docs/01-architecture/ADR-002-api-glpi-integration.md) — why Dapper reads + REST writes
-- [`docs/01-architecture/decisions/ADR-003-ticket-create-dto.md`](docs/01-architecture/decisions/ADR-003-ticket-create-dto.md) — create-ticket contract
+- [`docs/01-architecture/decisions/ADR-009-system-is-ticket-manager-only.md`](docs/01-architecture/decisions/ADR-009-system-is-ticket-manager-only.md) — el sistema es gestor, no creador de tickets (ADR-009)
 - [`docs/12-security/secrets.md`](docs/12-security/secrets.md) — secret storage, rotation, verification
 - [`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) — 4-service stack, network diagram, start/stop/log commands
 - [`docs/06-infrastructure/environment-variables.md`](docs/06-infrastructure/environment-variables.md) — every variable, its consumer and where it lives
