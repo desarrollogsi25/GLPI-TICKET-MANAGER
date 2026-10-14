@@ -1,4 +1,4 @@
-# .NET
+﻿# .NET
 bin/
 obj/
 *.user
@@ -13,6 +13,11 @@ config/.env
 appsettings.*.Local.json
 *.secrets.json
 secrets.json
+
+# Local test artifacts (NO versionar)
+token.txt
+login_body.json
+body.json
 
 # Node
 node_modules/
