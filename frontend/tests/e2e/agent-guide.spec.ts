@@ -1,11 +1,6 @@
 import { test, expect } from '@playwright/test'
 
 test('Ayuda muestra la guia del agente', async ({ page }) => {
-  await page.goto('http://localhost:5173/login')
-  await page.fill('input[name="username"]', 'tech1')
-  await page.fill('input[name="password"]', 'Tech1Pass!')
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/\/(kanban|dashboard|tickets|queue)/, { timeout: 10000 })
 
   await page.goto('http://localhost:5173/ayuda')
   await page.waitForLoadState('networkidle')

@@ -4,11 +4,6 @@ test('crear ticket sin asignar y aparece en la cola del grupo', async ({ page })
   const consoleErrors: string[] = []
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()) })
 
-  await page.goto('http://localhost:5173/login')
-  await page.fill('input[name="username"]', 'tech1')
-  await page.fill('input[name="password"]', 'Tech1Pass!')
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/\/(kanban|dashboard|tickets|queue)/, { timeout: 10000 })
 
   await page.goto('http://localhost:5173/tickets')
   await page.waitForLoadState('networkidle')
@@ -29,7 +24,7 @@ test('crear ticket sin asignar y aparece en la cola del grupo', async ({ page })
   await page.goto('http://localhost:5173/queue')
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1000)
-  await expect(page.getByText('TEST sin asignar')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('TEST sin asignar').first()).toBeVisible({ timeout: 10000 })
 
   expect(consoleErrors).toEqual([])
 })

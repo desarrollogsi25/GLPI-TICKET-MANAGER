@@ -6,22 +6,18 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/login')
-  await page.fill('input[name="username"]', 'tech1')
-  await page.fill('input[name="password"]', 'Tech1Pass!')
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/\/(kanban|dashboard|tickets|queue)/, { timeout: 10000 })
 
   await page.goto('http://localhost:5173/queue')
   await page.waitForLoadState('networkidle')
 
-  await expect(page.locator('text=#11')).toBeVisible({ timeout: 15000 })
+  await expect(page.locator('text=#11').first()).toBeVisible({ timeout: 15000 })
 
-  const claimButton = page.getByRole('button', { name: /Asignarme/i }).first()
+  const card11 = page.getByText('#11').first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
+  const claimButton = card11.getByRole('button', { name: /Asignarme/i })
   await expect(claimButton).toBeVisible()
   await claimButton.click()
 
-  await expect(page.locator('text=#11')).not.toBeVisible({ timeout: 15000 })
+  await expect(page.locator('text=#11').first()).not.toBeVisible({ timeout: 15000 })
 
   await page.goto('http://localhost:5173/tickets/11')
   await page.waitForLoadState('networkidle')

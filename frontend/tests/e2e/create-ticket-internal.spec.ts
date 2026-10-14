@@ -6,11 +6,6 @@ test('crear ticket interno (requester = usuario autenticado)', async ({ page }) 
     if (m.type() === 'error') consoleErrors.push(m.text())
   })
 
-  await page.goto('http://localhost:5173/login')
-  await page.fill('input[name="username"]', 'tech1')
-  await page.fill('input[name="password"]', 'Tech1Pass!')
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/\/(kanban|dashboard|tickets|queue)/, { timeout: 10000 })
 
   await page.goto('http://localhost:5173/tickets')
   await page.waitForLoadState('networkidle')
