@@ -21,7 +21,7 @@ Every service runs with `restart: unless-stopped` and an explicit `container_nam
 |---|---|---|---|---|
 | `glpi-db` | `mariadb:10.11` | `glpi-db` | `127.0.0.1:3306` | — |
 | `glpi` | `glpi/glpi:11.0` | `glpi` | `127.0.0.1:8081` | `glpi-db` (healthy) |
-| `api` | build `src/GlpiTicketManager.Api/Dockerfile` | `glpi-api` | `127.0.0.1:8080` | `glpi-db` (healthy), `glpi` (started) |
+| `api` | build `src/GlpiTicketManager.Api/Dockerfile` | `glpi-api` | `127.0.0.1:8080` | `glpi-db` (healthy), `glpi` (started), `app-db` (healthy) |
 | `frontend` | build `frontend/Dockerfile.dev` | `glpi-frontend` | `127.0.0.1:5173` | `api` |
 | `app-db` | `postgres:16-alpine` | `glpi-app-db` | `127.0.0.1:5432` | — |
 
@@ -48,6 +48,7 @@ Inside the compose network services resolve each other by **service name**, neve
 host loopback ports:
 
 - API → database: `Server=glpi-db;Port=3306;…` (TCP).
+- API → app-db: `Host=app-db;Port=5432;Database=glpi_ticket_manager;…` (TCP).
 - API → GLPI: `GlpiApi__BaseUrl=http://glpi/apirest.php/` (HTTP port 80 inside the network).
 - Browser → frontend → API: the browser calls same-origin `/api` on `:5173`; Vite proxies
   it to `http://api:8080` via `VITE_PROXY_TARGET`. Same-origin means **no CORS** is needed.
@@ -56,8 +57,9 @@ host loopback ports:
 browser
   │ http://localhost:5173
   ▼
-frontend (Vite dev) ──/api (Vite proxy)──► api (.NET 9)
+frontend (Vite dev) ──/api (Vite proxy)──► api (.NET 10)
                                              │  Dapper / TCP 3306
+                                             ├────────────────────────► app-db (PostgreSQL 16)
                                              ▼
                                           glpi-db (MariaDB 10.11)
                                              ▲

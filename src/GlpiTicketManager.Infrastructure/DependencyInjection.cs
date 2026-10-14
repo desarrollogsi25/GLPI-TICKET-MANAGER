@@ -21,6 +21,13 @@ public static class DependencyInjection
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.AddSingleton<IDbConnectionFactory, MySqlConnectionFactory>();
 
+        services.Configure<AppDbOptions>(configuration.GetSection(AppDbOptions.SectionName));
+        services.AddSingleton<IAppDbConnectionFactory>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AppDbOptions>>().Value;
+            return new AppDbConnectionFactory(options);
+        });
+
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();

@@ -8,8 +8,11 @@ using GlpiTicketManager.Api.OpenApi;
 using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application;
 using GlpiTicketManager.Infrastructure;
+using GlpiTicketManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using MySqlConnector;
+using Npgsql;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
@@ -105,6 +108,50 @@ app.MapChannelEndpoints();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .WithTags("Health")
     .AllowAnonymous();
+
+app.MapGet("/health/ready", async (
+    IDbConnectionFactory mariaDbFactory,
+    IAppDbConnectionFactory appDbFactory,
+    CancellationToken ct) =>
+{
+    var checks = new Dictionary<string, string>();
+    var allOk = true;
+
+    // MariaDB check
+    try
+    {
+        await using var conn = (MySqlConnection)mariaDbFactory.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = new MySqlCommand("SELECT 1", conn);
+        await cmd.ExecuteScalarAsync(ct);
+        checks["mariadb"] = "ok";
+    }
+    catch (Exception ex)
+    {
+        checks["mariadb"] = $"error: {ex.Message}";
+        allOk = false;
+    }
+
+    // PostgreSQL check
+    try
+    {
+        await using var conn = (NpgsqlConnection)await appDbFactory.CreateAsync(ct);
+        await using var cmd = new NpgsqlCommand("SELECT 1", conn);
+        await cmd.ExecuteScalarAsync(ct);
+        checks["postgresql"] = "ok";
+    }
+    catch (Exception ex)
+    {
+        checks["postgresql"] = $"error: {ex.Message}";
+        allOk = false;
+    }
+
+    return allOk
+        ? Results.Ok(new { status = "ready", checks })
+        : Results.Json(new { status = "not ready", checks }, statusCode: 503);
+})
+.WithTags("Health")
+.AllowAnonymous();
 
 app.Run();
 

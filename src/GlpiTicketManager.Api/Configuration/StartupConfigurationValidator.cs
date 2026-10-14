@@ -18,6 +18,8 @@ public static class StartupConfigurationValidator
     /// <summary>Default/placeholder DB passwords that must never reach production.</summary>
     private static readonly string[] ForbiddenDbPasswords = { "Password=glpi", "Password=changeme" };
 
+    private static readonly string[] ForbiddenAppDbPasswords = { "Password=placeholder", "Password=changeme" };
+
     public static void Validate(IConfiguration configuration)
     {
         var invalid = new List<string>();
@@ -34,6 +36,28 @@ public static class StartupConfigurationValidator
         else if (ForbiddenDbPasswords.Any(p => connectionString.Contains(p, StringComparison.OrdinalIgnoreCase)))
         {
             invalid.Add($"{DatabaseOptions.SectionName}:ConnectionString (contraseña por defecto)");
+        }
+
+        // (a2) AppDb (PostgreSQL) connection string validation.
+        var appDbConnectionString =
+            configuration[$"{AppDbOptions.SectionName}:{nameof(AppDbOptions.ConnectionString)}"]
+            ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(appDbConnectionString))
+        {
+            invalid.Add($"{AppDbOptions.SectionName}:ConnectionString (vacío)");
+        }
+        else
+        {
+            if (ForbiddenAppDbPasswords.Any(p => appDbConnectionString.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                invalid.Add($"{AppDbOptions.SectionName}:ConnectionString (contraseña placeholder)");
+            }
+
+            if (!appDbConnectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+            {
+                invalid.Add($"{AppDbOptions.SectionName}:ConnectionString (formato inválido, falta Host=)");
+            }
         }
 
         // (b) GLPI application token.

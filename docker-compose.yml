@@ -53,9 +53,12 @@ services:
         condition: service_healthy
       glpi:
         condition: service_started
+      app-db:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Database__ConnectionString: "Server=glpi-db;Port=3306;Database=${MARIADB_DATABASE};User=${MARIADB_USER};Password=${MARIADB_PASSWORD};"
+      AppDb__ConnectionString: "Host=app-db;Port=5432;Database=glpi_ticket_manager;Username=app;Password=${APP_DB_PASSWORD}"
       GlpiApi__BaseUrl: "http://glpi/apirest.php/"
       GlpiApi__AppToken: "${GLPI_APP_TOKEN}"
       GlpiApi__UserToken: "${GLPI_USER_TOKEN}"

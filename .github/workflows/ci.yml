@@ -144,6 +144,23 @@ jobs:
           echo "API did not become healthy"
           docker compose logs api
           exit 1
+      - name: Wait for API ready (checks MariaDB + PostgreSQL)
+        run: |
+          for i in {1..30}; do
+            RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8080/health/ready)
+            CODE=$(echo "$RESPONSE" | tail -n1)
+            if [ "$CODE" = "200" ]; then
+              echo "$RESPONSE" | head -n-1
+              echo "API is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready"
+          echo "Last response:"
+          echo "$RESPONSE"
+          docker compose logs api --tail=100
+          exit 1
       - name: Wait for frontend
         run: |
           for i in {1..30}; do
