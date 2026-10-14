@@ -94,3 +94,13 @@ Si se requiere cambiar o rotar alguno de estos secretos:
 3. **Firma JWT (`JWT_SECRET`):**
    - Generar una cadena criptográfica de al menos 32 caracteres (por ejemplo, con `openssl rand -base64 32`).
    - Actualizar `JWT_SECRET` tanto en `.env` local como en GitHub Secrets.
+
+---
+
+## 6. Tablas excluidas del dump principal
+
+El dump `scripts/glpi-base.sql` excluye `glpi_logs` y `glpi_events` por tamaño (acumulan millones de filas). Sin embargo, GLPI las requiere para operar (auditoría de login en `initSession`). 
+
+Solución: `scripts/glpi-schema-events-logs.sql` contiene el schema (`CREATE TABLE`) sin datos. Se aplica después del dump principal.
+
+Si en el futuro se excluyen más tablas del dump, verificar que no sean necesarias para el funcionamiento básico de GLPI.

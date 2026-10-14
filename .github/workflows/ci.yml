@@ -98,6 +98,8 @@ jobs:
         run: |
           MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
+          echo "Applying schema for glpi_events and glpi_logs (excluded from base dump)"
+          docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-schema-events-logs.sql
       - name: Start full stack
         run: docker compose up -d --build
       - name: Copy GLPI configuration and encryption key
