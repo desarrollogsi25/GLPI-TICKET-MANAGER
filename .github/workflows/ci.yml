@@ -67,8 +67,33 @@ jobs:
           GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN || 'ci-user-token-placeholder-40-chars-long-xxx' }}
           JWT_SECRET=${{ secrets.JWT_SECRET || 'ci-jwt-secret-placeholder-32-chars-min-x' }}
           EOF
-      - name: Start stack
+      - name: Start database
+        run: docker compose up -d glpi-db
+      - name: Wait for database healthy
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T glpi-db healthcheck.sh --connect --innodb_initialized > /dev/null 2>&1; then
+              echo "Database is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Database failed to become healthy"
+          exit 1
+      - name: Apply GLPI base schema (CI bootstrap)
+        run: |
+          MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
+          docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
+      - name: Start full stack
         run: docker compose up -d --build
+      - name: Copy GLPI configuration and encryption key
+        run: |
+          MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
+          sed -i "s/public \$dbpassword = '.*';/public \$dbpassword = '${MARIADB_PASSWORD}';/" scripts/config_db.php
+          docker compose cp scripts/glpicrypt.key glpi:/var/glpi/config/glpicrypt.key
+          docker compose cp scripts/config_db.php glpi:/var/glpi/config/config_db.php
+          docker compose restart glpi
+          sleep 5
       - name: Wait for API healthy
         run: |
           for i in {1..30}; do

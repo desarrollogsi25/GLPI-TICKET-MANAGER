@@ -141,6 +141,32 @@ full variable list, rotation steps and verification commands.
     └── 12-security/secrets.md
 ```
 
+## Running tests locally
+
+### Unit tests (Backend)
+```powershell
+dotnet test tests/GlpiTicketManager.Application.Tests
+```
+
+### Typecheck & Build (Frontend)
+```powershell
+cd frontend
+pnpm install
+pnpm typecheck
+pnpm build
+```
+
+### End-to-End tests (Playwright)
+Prerequisites: The Docker stack must be running (`docker compose up -d`).
+```powershell
+# Reset state / seed fixtures
+./scripts/seed-e2e.sh
+
+# Run Playwright tests
+cd frontend
+pnpm exec playwright test --reporter=list
+```
+
 ## Documentation
 
 Start at [`docs/`](docs/):

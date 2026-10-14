@@ -6,11 +6,48 @@ if [ -z "${MARIADB_PASSWORD:-}" ] && [ -f .env ]; then
   MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
 fi
 
-# Resetea el ticket #11 al estado "listo para claim"
-docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi <<SQL
+# 1. Aplicar dump base si la BD está vacía (fallback de bootstrap)
+if ! docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e "SELECT 1 FROM glpi_tickets LIMIT 1" >/dev/null 2>&1; then
+  echo "BD vacía, aplicando bootstrap desde scripts/glpi-base.sql..."
+  docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
+fi
+
+# 2. Crear/actualizar fixtures (idempotente)
+docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi <<'SQL'
+INSERT IGNORE INTO glpi_users (id, name, password, is_active, profiles_id, entities_id)
+VALUES 
+  (7, 'tech1', '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', 1, 0, 0),
+  (8, 'tech2', '$2y$12$3G7IE3WmAXFBOUJwnIC4aOfG.wq6kFscRmgcRrpXwHZpyql9ohU1u', 1, 0, 0),
+  (9, 'user1', '$2y$12$IQ1owWOfVxbcjByiKsmGf.mJqEFeFVXRNdDtVmqA5kyoTEZUNFxAC', 1, 0, 0);
+
+INSERT IGNORE INTO glpi_profiles_users (id, users_id, profiles_id, entities_id, is_recursive, is_dynamic, is_default_profile)
+VALUES
+  (6, 7, 6, 0, 0, 0, 1),
+  (7, 8, 6, 0, 0, 0, 1),
+  (8, 9, 1, 0, 0, 0, 1);
+
+INSERT IGNORE INTO glpi_groups (id, name, entities_id, completename)
+VALUES
+  (1, 'Call Center', 0, 'Call Center'),
+  (2, 'Soporte Nivel 1', 0, 'Soporte Nivel 1');
+
+INSERT IGNORE INTO glpi_groups_users (id, users_id, groups_id, is_dynamic, is_manager, is_userdelegate)
+VALUES
+  (1, 7, 1, 0, 0, 0),
+  (2, 8, 2, 0, 0, 0);
+
+INSERT IGNORE INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation)
+VALUES
+  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1);
+
+INSERT IGNORE INTO glpi_groups_tickets (tickets_id, groups_id, type)
+VALUES
+  (11, 1, 2);
+
+-- 3. Resetear ticket #11 al estado "listo para claim"
 UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=11;
 DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 SQL
 
-echo "E2E state seeded (ticket #11 reset)."
+echo "E2E state seeded (fixtures created, ticket #11 reset)."
