@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Threading.RateLimiting;
 using GlpiTicketManager.Api.Auth;
@@ -7,6 +8,7 @@ using GlpiTicketManager.Api.Exceptions;
 using GlpiTicketManager.Api.OpenApi;
 using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application;
+using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Infrastructure;
 using GlpiTicketManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -59,6 +61,29 @@ builder.Services
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
             ClockSkew = TimeSpan.FromSeconds(30)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+                       ?? context.Principal?.FindFirst("jti")?.Value;
+
+                if (string.IsNullOrEmpty(jti))
+                {
+                    context.Fail("Token has no jti claim.");
+                    return;
+                }
+
+                var revokedRepo = context.HttpContext.RequestServices
+                    .GetRequiredService<IRevokedTokenRepository>();
+
+                if (await revokedRepo.IsRevokedAsync(jti, context.HttpContext.RequestAborted))
+                {
+                    context.Fail("Token has been revoked.");
+                }
+            }
         };
     });
 

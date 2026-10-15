@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
 using GlpiTicketManager.Api.RateLimiting;
@@ -26,6 +27,13 @@ public static class AuthEndpoints
             .WithSummary("Return the profile encoded in the current JWT")
             .RequireAuthorization()
             .Produces<UserProfileDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/logout", Logout)
+            .WithName("Logout")
+            .WithSummary("Revoke the current JWT token")
+            .RequireAuthorization()
+            .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized);
 
         return group;
@@ -60,4 +68,45 @@ public static class AuthEndpoints
     }
 
     private static IResult Me(ClaimsPrincipal principal) => Results.Ok(principal.ToUserProfile());
+
+    private static async Task<IResult> Logout(
+        IRevokedTokenRepository revokedRepo,
+        ClaimsPrincipal principal,
+        ILogger<Program> logger,
+        CancellationToken ct)
+    {
+        // Extraer jti del JWT
+        var jti = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+               ?? principal.FindFirst("jti")?.Value;
+        if (string.IsNullOrEmpty(jti))
+        {
+            logger.LogWarning("Logout: token has no jti claim");
+            return Results.Unauthorized();
+        }
+
+        // Extraer sub (userId)
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            logger.LogWarning("Logout: invalid sub claim");
+            return Results.Unauthorized();
+        }
+
+        // Extraer exp
+        var expStr = principal.FindFirst(JwtRegisteredClaimNames.Exp)?.Value
+                  ?? principal.FindFirst("exp")?.Value;
+        if (!long.TryParse(expStr, out var expUnix))
+        {
+            logger.LogWarning("Logout: invalid exp claim");
+            return Results.Unauthorized();
+        }
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(expUnix).UtcDateTime;
+
+        await revokedRepo.RevokeAsync(jti, userId.Value, expiresAt, ct);
+        logger.LogInformation("Token revoked. jti={Jti}, userId={UserId}", jti, userId);
+
+        return Results.NoContent();
+    }
 }
+

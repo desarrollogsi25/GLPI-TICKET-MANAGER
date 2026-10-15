@@ -74,7 +74,7 @@ Registro inmutable de auditoría para acciones operativas (cambios de estado, as
 ---
 
 ### `revoked_tokens`
-Lista negra de identificadores de tokens JWT revocados antes de su expiración natural.
+Lista negra de identificadores de tokens JWT revocados antes de su expiración natural. Utilizada activamente por el endpoint `POST /api/auth/logout` y validada en `JwtBearerEvents.OnTokenValidated`.
 
 | Columna | Tipo | Nulo | Default | Descripción |
 |---|---|---|---|---|
@@ -86,6 +86,7 @@ Lista negra de identificadores de tokens JWT revocados antes de su expiración n
 - **Índices:**
   - `revoked_tokens_pkey`: `PRIMARY KEY (jti)`
   - `idx_revoked_tokens_expires_at`: `(expires_at)`
+- **Mantenimiento:** El servicio en segundo plano `RevokedTokenCleanupService` ejecuta `PurgeExpiredAsync()` cada hora eliminando registros con `expires_at < NOW()`.
 
 ---
 

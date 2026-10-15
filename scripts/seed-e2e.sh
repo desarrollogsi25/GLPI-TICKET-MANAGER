@@ -55,4 +55,9 @@ SQL
 docker compose exec -T app-db psql -U app -d glpi_ticket_manager -c \
   "DELETE FROM user_preferences WHERE user_id = 7;" >/dev/null 2>&1 || true
 
-echo "E2E state seeded (fixtures created, ticket #11 reset, preferences cleaned)."
+# 5. Limpiar tokens revocados para que cada run empiece limpio
+echo "Cleaning revoked_tokens..."
+docker compose exec -T app-db psql -U app -d glpi_ticket_manager -c \
+  "DELETE FROM revoked_tokens WHERE user_id = 7;" > /dev/null 2>&1 || true
+
+echo "E2E state seeded (fixtures created, ticket #11 reset, preferences cleaned, revoked tokens cleaned)."
