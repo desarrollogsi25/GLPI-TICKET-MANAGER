@@ -19,6 +19,14 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Skip to main content link for keyboard / screen-reader accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:font-medium focus:text-sm"
+      >
+        Saltar al contenido
+      </a>
+
       {/* 1. Desktop Sidebar (md:+) */}
       <AppSidebar />
 
@@ -71,7 +79,7 @@ export function AppLayout() {
       </header>
 
       {/* 3. Main Content Area */}
-      <main className="md:ml-60 min-h-screen">
+      <main id="main-content" tabIndex={-1} className="md:ml-60 min-h-screen focus:outline-none">
         <div className="mx-auto max-w-7xl px-4 md:px-8 py-4 md:py-6 pb-20 md:pb-6">
           <PageTransition>
             <Outlet />

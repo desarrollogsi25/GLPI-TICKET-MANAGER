@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -31,14 +31,40 @@ export function TicketFiltersSheet({
   activeFiltersCount,
 }: TicketFiltersSheetProps) {
   const prefersReduced = useReducedMotion()
+  const sheetRef = useRef<HTMLDivElement>(null)
 
-  // Cerrar al pulsar Escape
+  // Cerrar al pulsar Escape y atrapar el foco con Tab
   useEffect(() => {
     if (!open) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
+        return
+      }
+
+      if (e.key === 'Tab' && sheetRef.current) {
+        const focusables = Array.from(
+          sheetRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+        if (focusables.length === 0) return
+
+        const firstElement = focusables[0]
+        const lastElement = focusables[focusables.length - 1]
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault()
+            lastElement.focus()
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault()
+            firstElement.focus()
+          }
+        }
       }
     }
 
@@ -75,6 +101,7 @@ export function TicketFiltersSheet({
 
           {/* Bottom Sheet */}
           <motion.div
+            ref={sheetRef}
             data-testid="filters-sheet"
             role="dialog"
             aria-modal="true"

@@ -191,10 +191,21 @@ cd frontend
 pnpm exec playwright test --reporter=list
 ```
 
+## Accessibility (WCAG 2.1 AA)
+
+The web application is audited and verified against **WCAG 2.1 Level AA** standards:
+- **Zero violations** verified with automated `@axe-core/playwright` audits across all 8 core views (`/kanban`, `/tickets`, `/tickets/:id`, `/queue`, `/services`, `/dashboard`, `/preferences`, `/ayuda`).
+- **Contrast ratios**: Color contrast &ge; 4.5:1 across both light and dark themes.
+- **Focus visible**: Consistent high-visibility focus rings on all interactive elements.
+- **Keyboard navigation**: Full keyboard operability, modal/sheet focus trapping, Escape dismiss, and top-level skip links (`#main-content`).
+- **Multi-viewport responsive QA**: Audited across mobile (375px), tablet (768px), and desktop (1280px).
+- See detailed report in [`docs/09-visual-docs/accessibility.md`](docs/09-visual-docs/accessibility.md).
+
 ## Documentation
 
 Start at [`docs/`](docs/):
 
+- [`docs/09-visual-docs/accessibility.md`](docs/09-visual-docs/accessibility.md) — WCAG 2.1 AA audit, fixes, and multi-viewport QA
 - [`docs/02-modules/tickets/overview.md`](docs/02-modules/tickets/overview.md) — endpoints, GLPI write chain, frontend write flows
 - [`docs/01-architecture/ADR-002-api-glpi-integration.md`](docs/01-architecture/ADR-002-api-glpi-integration.md) — why Dapper reads + REST writes
 - [`docs/01-architecture/decisions/ADR-009-system-is-ticket-manager-only.md`](docs/01-architecture/decisions/ADR-009-system-is-ticket-manager-only.md) — el sistema es gestor, no creador de tickets (ADR-009)

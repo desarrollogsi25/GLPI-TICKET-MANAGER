@@ -88,12 +88,13 @@ export function TicketCard({
       ref={setNodeRef}
       style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
       className={cn(
-        'rounded-lg border border-border bg-card p-3 shadow-xs hover:shadow-md hover:border-primary/40 transition-shadow duration-150 ease-out',
+        'rounded-lg border border-border bg-card p-3 shadow-xs hover:shadow-md hover:border-primary/40 transition-shadow duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-60 shadow-lg',
       )}
       {...attributes}
       {...listeners}
+      role="article"
     >
       <Link
         to={`/tickets/${ticket.id}`}

@@ -208,7 +208,7 @@ export function AppSidebar() {
             data-testid={`sidebar-nav-${item.id}`}
             className={({ isActive }) =>
               cn(
-                'group relative flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-r-lg text-sm font-medium transition-colors border-l-4',
+                'group relative flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-r-lg text-sm font-medium transition-colors border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                 isActive
                   ? 'border-primary text-primary font-semibold'
                   : 'border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground',
@@ -267,14 +267,14 @@ export function AppSidebar() {
       {/* 2. Navegación Principal y Secundaria */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         <div>
-          <p className="px-3.5 pb-2 text-[11px] font-semibold tracking-wider uppercase text-muted-foreground/70">
+          <p className="px-3.5 pb-2 text-[11px] font-semibold tracking-wider uppercase text-muted-foreground">
             Principal
           </p>
           {renderNavList(primaryNav)}
         </div>
 
         <div className="border-t border-border/60 pt-4">
-          <p className="px-3.5 pb-2 text-[11px] font-semibold tracking-wider uppercase text-muted-foreground/70">
+          <p className="px-3.5 pb-2 text-[11px] font-semibold tracking-wider uppercase text-muted-foreground">
             Ajustes
           </p>
           {renderNavList(secondaryNav)}

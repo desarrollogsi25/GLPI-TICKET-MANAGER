@@ -35,7 +35,7 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
           data-testid="mobile-tab-kanban"
           aria-current={isKanbanActive && !isDrawerOpen ? 'page' : undefined}
           className={cn(
-            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs',
+            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
             isKanbanActive && !isDrawerOpen
               ? 'text-primary font-semibold'
               : 'text-muted-foreground hover:text-foreground',
@@ -76,7 +76,7 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
           data-testid="mobile-tab-tickets"
           aria-current={isTicketsActive && !isDrawerOpen ? 'page' : undefined}
           className={cn(
-            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs',
+            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
             isTicketsActive && !isDrawerOpen
               ? 'text-primary font-semibold'
               : 'text-muted-foreground hover:text-foreground',
@@ -120,7 +120,7 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
           data-testid="mobile-tab-queue"
           aria-current={isQueueActive && !isDrawerOpen ? 'page' : undefined}
           className={cn(
-            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs',
+            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
             isQueueActive && !isDrawerOpen
               ? 'text-primary font-semibold'
               : 'text-muted-foreground hover:text-foreground',
@@ -172,7 +172,7 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
           aria-expanded={isDrawerOpen}
           aria-current={isDrawerOpen ? 'page' : undefined}
           className={cn(
-            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs cursor-pointer',
+            'relative flex flex-col items-center justify-center min-h-[56px] min-w-[44px] gap-1 transition-colors active:scale-95 text-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
             isDrawerOpen
               ? 'text-primary font-semibold'
               : 'text-muted-foreground hover:text-foreground',

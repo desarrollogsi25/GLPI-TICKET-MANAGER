@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -14,24 +14,64 @@ interface DialogProps {
 
 /**
  * Animated modal dialog respecting motion curves and reduced-motion preferences.
- * Closes on Escape and on backdrop click.
+ * Includes accessible focus trap, closes on Escape and on backdrop click.
  */
 export function Dialog({ open, onClose, title, description, children, className }: DialogProps) {
   const prefersReduced = useReducedMotion()
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) {
       return
     }
 
+    const timeout = setTimeout(() => {
+      if (dialogRef.current) {
+        const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )
+        if (focusables.length > 0) {
+          focusables[0].focus()
+        }
+      }
+    }, 50)
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose()
+        return
+      }
+
+      if (event.key === 'Tab' && dialogRef.current) {
+        const focusables = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+        if (focusables.length === 0) return
+
+        const firstElement = focusables[0]
+        const lastElement = focusables[focusables.length - 1]
+
+        if (event.shiftKey) {
+          if (document.activeElement === firstElement) {
+            event.preventDefault()
+            lastElement.focus()
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            event.preventDefault()
+            firstElement.focus()
+          }
+        }
       }
     }
 
     document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    return () => {
+      clearTimeout(timeout)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [open, onClose])
 
   return (
@@ -49,8 +89,9 @@ export function Dialog({ open, onClose, title, description, children, className 
             onClick={onClose}
           />
 
-          {/* Modal card with spring physics */}
+          {/* Modal card with spring physics and focus trap */}
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={title}

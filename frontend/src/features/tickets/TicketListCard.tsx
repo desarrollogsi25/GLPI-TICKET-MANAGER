@@ -18,7 +18,7 @@ export function TicketListCard({ ticket }: TicketListCardProps) {
   return (
     <Link
       to={`/tickets/${ticket.id}`}
-      className="block text-inherit no-underline"
+      className="block text-inherit no-underline rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       data-testid="ticket-card"
     >
       <article className="rounded-xl border border-border bg-card p-4 min-h-[88px] active:scale-[0.98] transition-all duration-150 ease-out shadow-xs hover:border-primary/40 will-change-transform">

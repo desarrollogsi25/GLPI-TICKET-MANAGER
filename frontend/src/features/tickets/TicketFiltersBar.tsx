@@ -81,6 +81,7 @@ export function TicketFiltersBar({
         <div className="relative flex-1">
           <Input
             id="mobile-search"
+            aria-label="Buscar tickets por título o ID"
             className="w-full h-11 pl-9 pr-3 text-sm bg-card"
             placeholder="Buscar por título o #ID..."
             value={search}

@@ -73,6 +73,7 @@ export function GroupQueuePage() {
         actions={
           groups.data && groups.data.length > 1 ? (
             <Select
+              aria-label="Seleccionar grupo de soporte"
               value={effectiveGroupId ? String(effectiveGroupId) : undefined}
               onChange={(e) => setSelectedGroupId(Number(e.target.value))}
               className="w-56"
