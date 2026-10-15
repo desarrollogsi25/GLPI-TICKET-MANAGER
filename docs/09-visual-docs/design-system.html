@@ -1290,6 +1290,85 @@
       </tbody>
     </table>
   </section>
+
+  <!-- Section 9: Kanban Móvil (Segmented Tabs & Touch UX) -->
+  <section class="section-card">
+    <div class="section-header">
+      <h2 class="section-title">
+        <span>📱</span> 9. Kanban Móvil (Segmented Tabs & Touch UX)
+      </h2>
+      <span class="section-tag">Viewport &lt; 768px</span>
+    </div>
+    <p class="section-desc">
+      El rediseño mobile-first transforma el tablero horizontal de 1440px en un contenedor vertical por pestaña segmentada. Cada tab cuenta con su propio contador, smart default y soporte para gestos táctiles de swipe horizontal.
+    </p>
+
+    <div class="component-sandbox" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+      <!-- Wireframe: Segmented Tabs -->
+      <div class="preview-box">
+        <div class="preview-title">Wireframe: Segmented Tabs Bar</div>
+        <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px; display: flex; gap: 6px; overflow-x: auto;">
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; min-height: 44px; box-shadow: var(--shadow-sm);">
+            <span>Cola del grupo</span>
+            <span style="background: var(--primary); color: #fff; font-size: 11px; padding: 2px 7px; border-radius: var(--radius-full); font-weight: 700;">4</span>
+          </div>
+          <div style="border-radius: var(--radius-sm); padding: 8px 12px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); min-height: 44px;">
+            <span>Mis tickets</span>
+            <span style="background: var(--border); color: var(--text-subtle); font-size: 11px; padding: 2px 7px; border-radius: var(--radius-full);">17</span>
+          </div>
+          <div style="border-radius: var(--radius-sm); padding: 8px 12px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); min-height: 44px;">
+            <span>En progreso</span>
+            <span style="background: var(--border); color: var(--text-subtle); font-size: 11px; padding: 2px 7px; border-radius: var(--radius-full);">0</span>
+          </div>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+          Tabs horizontales con snap táctil y transición elástica (Motion layoutId="activeKanbanTabBg"). Altura táctil &ge; 44px.
+        </p>
+      </div>
+
+      <!-- Wireframe: Mobile Card -->
+      <div class="preview-box">
+        <div class="preview-title">Wireframe: Ticket Card Compacta</div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 8px;">
+          <!-- Line 1: ID, Priority, Type -->
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">#65</span>
+              <span style="background: rgba(37,99,235,0.12); color: #2563eb; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: var(--radius-xs);">Media</span>
+            </div>
+            <span style="font-size: 11px; color: var(--text-subtle);">Incident</span>
+          </div>
+          <!-- Line 2: Title (2-line clamp) -->
+          <div style="font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.35;">
+            Fallo de autenticación en portal de autoservicio para usuarios externos
+          </div>
+          <!-- Line 3: Timestamp + Inline Action -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 4px;">
+            <span style="font-size: 11px; color: var(--text-subtle);">hace 1 hora</span>
+            <button style="background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; min-height: 36px;">
+              Asignarme
+            </button>
+          </div>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+          Acción inline contextual diferenciada por tab: [Asignarme] en Cola, [Empezar] en Mis tickets, [Resolver] en En progreso.
+        </p>
+      </div>
+    </div>
+
+    <!-- Swipe Patterns -->
+    <div class="callout" style="margin-top: 16px;">
+      <div class="callout-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Patrones de Swipe Horizontal (Motion Drag Gestures)
+      </div>
+      <ul style="margin: 6px 0 0 16px; font-size: 12px; line-height: 1.6; color: var(--text-muted);">
+        <li><strong>Swipe Left (deslizar hacia la izquierda)</strong>: Cambia a la siguiente columna (ej. Cola &rarr; Mis tickets &rarr; En progreso).</li>
+        <li><strong>Swipe Right (deslizar hacia la derecha)</strong>: Retrocede a la columna previa.</li>
+        <li><strong>Elasticity & Snap</strong>: <code>drag="x"</code> con constraints elásticos que devuelven la tarjeta a su lugar si el desplazamiento no supera el umbral de activación (60px o 300px/s).</li>
+      </ul>
+    </div>
+  </section>
 </div>
 
 <script>

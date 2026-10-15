@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
+import { useGroupQueueQuery, useGroupsQuery } from '@/hooks/useTickets'
 import { cn } from '@/lib/utils'
 
 interface BottomTabBarProps {
@@ -9,6 +10,12 @@ interface BottomTabBarProps {
 export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) {
   const location = useLocation()
   const path = location.pathname
+
+  const groupsQuery = useGroupsQuery()
+  const currentGroupId =
+    groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
+  const queueQuery = useGroupQueueQuery(currentGroupId)
+  const queueCount = queueQuery.data?.total ?? queueQuery.data?.items?.length ?? 0
 
   const isKanbanActive = path === '/kanban' || path === '/'
   const isTicketsActive = path.startsWith('/tickets') && path !== '/tickets/group-queue'
@@ -100,21 +107,31 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={isQueueActive && !isDrawerOpen ? '2.5' : '2'}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-            <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-          </svg>
+          <div className="relative">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={isQueueActive && !isDrawerOpen ? '2.5' : '2'}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+            </svg>
+            {queueCount > 0 && (
+              <span
+                data-testid="bottom-tab-queue-badge"
+                className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground leading-none"
+              >
+                {queueCount}
+              </span>
+            )}
+          </div>
           <span>Cola</span>
         </NavLink>
 

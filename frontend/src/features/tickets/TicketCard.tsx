@@ -12,15 +12,76 @@ interface TicketCardProps {
   ticket: TicketSummary
   draggable?: boolean
   actionButton?: React.ReactNode
+  compact?: boolean
 }
 
-export function TicketCard({ ticket, draggable = true, actionButton }: TicketCardProps) {
+export function TicketCard({
+  ticket,
+  draggable = true,
+  actionButton,
+  compact = false,
+}: TicketCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
     disabled: !draggable,
   })
 
   const priority = priorityMeta(ticket.priority)
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          'relative flex flex-col justify-between gap-2 rounded-xl border border-border bg-card p-3 shadow-xs hover:border-primary/40 transition-all min-h-[80px]',
+          isDragging && 'opacity-60',
+        )}
+      >
+        {/* Línea 1: #ID · Badge prioridad · Tipo */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-xs font-semibold text-muted-foreground">#{ticket.id}</span>
+            <Badge className={cn('text-[10px] px-1.5 py-0 font-medium', priority.badgeClass)}>
+              {priority.label}
+            </Badge>
+          </div>
+          <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">{ticket.typeLabel}</span>
+        </div>
+
+        {/* Línea 2: Título con truncate a 2 líneas */}
+        <Link
+          to={`/tickets/${ticket.id}`}
+          className="line-clamp-2 text-sm font-semibold text-foreground leading-snug hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {ticket.title}
+        </Link>
+
+        {/* Línea 3: Timestamp relativo + Acción inline */}
+        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/50">
+          <span className="text-[11px] text-muted-foreground">
+            {formatRelative(ticket.updatedAt)}
+          </span>
+          {actionButton ? (
+            <div
+              className="shrink-0"
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {actionButton}
+            </div>
+          ) : (
+            <Link
+              to={`/tickets/${ticket.id}`}
+              className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+            >
+              Ver detalle →
+            </Link>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

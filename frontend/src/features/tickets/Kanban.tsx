@@ -8,7 +8,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { useMemo, useState } from 'react'
+import { motion } from 'motion/react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
+import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
@@ -79,12 +81,42 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
+const COLUMN_IDS: ColumnId[] = ['queue', 'mine', 'in_progress', 'pending', 'resolved']
+
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
   mine: ['in_progress'],
   in_progress: ['pending', 'resolved'],
   pending: ['in_progress'],
   resolved: [],
+}
+
+const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: string }> = {
+  queue: {
+    title: 'No hay tickets en cola 🎉',
+    subtitle: 'Todos los tickets del grupo han sido asignados.',
+    icon: '📭',
+  },
+  mine: {
+    title: 'No tienes tickets asignados',
+    subtitle: 'Revisa la cola para tomar nuevos tickets y empezar.',
+    icon: '📋',
+  },
+  in_progress: {
+    title: 'No estás trabajando en ningún ticket',
+    subtitle: 'Elige un ticket de "Mis tickets" y pulsa "Empezar".',
+    icon: '⚡',
+  },
+  pending: {
+    title: 'No hay tickets en espera',
+    subtitle: 'Ningún ticket se encuentra bloqueado por terceros o proveedores.',
+    icon: '⏳',
+  },
+  resolved: {
+    title: 'No hay tickets resueltos',
+    subtitle: 'Los tickets que soluciones aparecerán listados aquí.',
+    icon: '✅',
+  },
 }
 
 function KanbanColumn({
@@ -222,6 +254,60 @@ export function Kanban() {
     [queueTickets, myTicketsByColumn],
   )
 
+  // Smart default tab para móvil: in_progress si se está trabajando en alguno; si no, queue
+  const defaultTab = useMemo<ColumnId>(() => {
+    if (myTicketsByColumn.in_progress.length > 0) return 'in_progress'
+    if (queueTickets.length > 0) return 'queue'
+    if (myTicketsByColumn.mine.length > 0) return 'mine'
+    if (myTicketsByColumn.pending.length > 0) return 'pending'
+    return 'queue'
+  }, [queueTickets.length, myTicketsByColumn])
+
+  const [userSelectedTab, setUserSelectedTab] = useState<ColumnId | null>(null)
+  const activeTab: ColumnId = userSelectedTab ?? defaultTab
+
+  // Auto-refresh en cola cada 30 segundos si la tab activa es 'queue'
+  useEffect(() => {
+    if (activeTab !== 'queue') return
+    const interval = setInterval(() => {
+      void queueQuery.refetch()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [activeTab, queueQuery])
+
+  // Badge pulsante: detectar nuevos tickets en la cola
+  const [lastSeenQueueCount, setLastSeenQueueCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('glpi_last_seen_queue_count')
+      return saved != null ? Number(saved) : 0
+    } catch {
+      return 0
+    }
+  })
+
+  useEffect(() => {
+    if (activeTab === 'queue' && queueTickets.length !== lastSeenQueueCount) {
+      setLastSeenQueueCount(queueTickets.length)
+      try {
+        localStorage.setItem('glpi_last_seen_queue_count', String(queueTickets.length))
+      } catch {
+        // ignore
+      }
+    }
+  }, [activeTab, queueTickets.length, lastSeenQueueCount])
+
+  const hasNewQueueTickets = queueTickets.length > lastSeenQueueCount
+
+  // Swipe entre tabs
+  const handleSwipe = (direction: 'left' | 'right') => {
+    const currentIndex = COLUMN_IDS.indexOf(activeTab)
+    if (direction === 'left' && currentIndex < COLUMN_IDS.length - 1) {
+      setUserSelectedTab(COLUMN_IDS[currentIndex + 1])
+    } else if (direction === 'right' && currentIndex > 0) {
+      setUserSelectedTab(COLUMN_IDS[currentIndex - 1])
+    }
+  }
+
   const allActiveTickets = useMemo(() => {
     const allMine = myTicketsQuery.data?.items ?? []
     return [...queueTickets, ...allMine]
@@ -246,6 +332,46 @@ export function Kanban() {
         })
       },
     })
+  }
+
+  const handleStart = (ticketId: number) => {
+    updateStatus.mutate(
+      { ticketId, status: 3 },
+      {
+        onSuccess: () =>
+          pushToast({
+            title: `Ticket #${ticketId} en progreso`,
+            description: 'Se cambió el estado a Planificado / En progreso.',
+            variant: 'success',
+          }),
+        onError: (err) =>
+          pushToast({
+            title: 'No se pudo cambiar el estado',
+            description: getApiErrorMessage(err),
+            variant: 'destructive',
+          }),
+      },
+    )
+  }
+
+  const handleResume = (ticketId: number) => {
+    updateStatus.mutate(
+      { ticketId, status: 3 },
+      {
+        onSuccess: () =>
+          pushToast({
+            title: `Ticket #${ticketId} retomado`,
+            description: 'Se reanudó el trabajo en progreso.',
+            variant: 'success',
+          }),
+        onError: (err) =>
+          pushToast({
+            title: 'No se pudo cambiar el estado',
+            description: getApiErrorMessage(err),
+            variant: 'destructive',
+          }),
+      },
+    )
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -279,7 +405,6 @@ export function Kanban() {
     // Check if transition is allowed
     const allowedTargets = VALID_TRANSITIONS[sourceId] ?? []
     if (!allowedTargets.includes(targetId)) {
-      // Revert silently
       return
     }
 
@@ -290,23 +415,7 @@ export function Kanban() {
     }
 
     if (sourceId === 'mine' && targetId === 'in_progress') {
-      updateStatus.mutate(
-        { ticketId, status: 3 },
-        {
-          onSuccess: () =>
-            pushToast({
-              title: `Ticket #${ticketId} en progreso`,
-              description: 'Se cambió el estado a Planificado / En progreso.',
-              variant: 'success',
-            }),
-          onError: (err) =>
-            pushToast({
-              title: 'No se pudo cambiar el estado',
-              description: getApiErrorMessage(err),
-              variant: 'destructive',
-            }),
-        },
-      )
+      handleStart(ticketId)
       return
     }
 
@@ -332,23 +441,7 @@ export function Kanban() {
     }
 
     if (sourceId === 'pending' && targetId === 'in_progress') {
-      updateStatus.mutate(
-        { ticketId, status: 3 },
-        {
-          onSuccess: () =>
-            pushToast({
-              title: `Ticket #${ticketId} retomado`,
-              description: 'Se reanudó el trabajo en progreso.',
-              variant: 'success',
-            }),
-          onError: (err) =>
-            pushToast({
-              title: 'No se pudo cambiar el estado',
-              description: getApiErrorMessage(err),
-              variant: 'destructive',
-            }),
-        },
-      )
+      handleResume(ticketId)
       return
     }
 
@@ -361,16 +454,99 @@ export function Kanban() {
   const hasGeneralError = myTicketsQuery.isError || queueQuery.isError
   const generalErrorMessage = getApiErrorMessage(myTicketsQuery.error ?? queueQuery.error)
 
+  const segmentedTabColumns: KanbanColumnTab[] = COLUMNS.map((col) => ({
+    id: col.id,
+    title: col.title,
+    count: ticketsByColumn[col.id].length,
+    hasNew: col.id === 'queue' && hasNewQueueTickets,
+  }))
+
+  const activeMobileTickets = ticketsByColumn[activeTab]
+  const isMobileLoading =
+    activeTab === 'queue'
+      ? queueQuery.isLoading || groupsQuery.isLoading
+      : myTicketsQuery.isLoading
+
+  const getMobileActionButton = (colId: ColumnId, ticket: TicketSummary) => {
+    switch (colId) {
+      case 'queue':
+        return (
+          <Button
+            size="sm"
+            variant="default"
+            className="h-8 px-3 text-xs"
+            disabled={claimMutation.isPending}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleClaim(ticket.id)
+            }}
+          >
+            Asignarme
+          </Button>
+        )
+      case 'mine':
+        return (
+          <Button
+            size="sm"
+            variant="default"
+            className="h-8 px-3 text-xs"
+            disabled={updateStatus.isPending}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleStart(ticket.id)
+            }}
+          >
+            Empezar
+          </Button>
+        )
+      case 'in_progress':
+        return (
+          <Button
+            size="sm"
+            variant="default"
+            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={(e) => {
+              e.stopPropagation()
+              setResolveTicketId(ticket.id)
+            }}
+          >
+            Resolver
+          </Button>
+        )
+      case 'pending':
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-3 text-xs"
+            disabled={updateStatus.isPending}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleResume(ticket.id)
+            }}
+          >
+            Retomar
+          </Button>
+        )
+      case 'resolved':
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* Header General: Desktop completo / Móvil simplificado */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Kanban</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="hidden md:block text-sm text-muted-foreground">
             Arrastra un ticket entre columnas para cambiar su estado según el flujo operativo.
           </p>
         </div>
-        <TechnicianFilter />
+        <div className="hidden md:block">
+          <TechnicianFilter />
+        </div>
       </div>
 
       {hasGeneralError ? (
@@ -389,41 +565,144 @@ export function Kanban() {
         </div>
       ) : null}
 
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {COLUMNS.map((column) => {
-            const isLoading =
-              column.id === 'queue'
-                ? queueQuery.isLoading || groupsQuery.isLoading
-                : myTicketsQuery.isLoading
+      {/* =========================================================================
+          VISTA MÓVIL (< md): Segmented Tabs + Lista Vertical + Gestos Swipe
+         ========================================================================= */}
+      <div className="md:hidden space-y-3">
+        {/* Segmented Tabs Bar */}
+        <KanbanSegmentedTabs
+          columns={segmentedTabColumns}
+          activeId={activeTab}
+          onSelect={(id) => setUserSelectedTab(id as ColumnId)}
+        />
 
-            const emptyMessage =
-              column.id === 'queue' && currentGroupId == null
-                ? 'Sin grupo asignado'
-                : 'No hay tickets aquí'
-
-            return (
-              <KanbanColumn
-                key={column.id}
-                column={column}
-                tickets={ticketsByColumn[column.id]}
-                isLoading={isLoading}
-                emptyMessage={emptyMessage}
-                onClaim={handleClaim}
-                isClaiming={claimMutation.isPending}
-              />
-            )
-          })}
+        {/* Encabezado contextual de la columna activa + botón refrescar */}
+        <div className="flex items-center justify-between px-1 pt-0.5">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">
+              {COLUMNS.find((c) => c.id === activeTab)?.title}
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              {activeMobileTickets.length} {activeMobileTickets.length === 1 ? 'ticket' : 'tickets'}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            onClick={() => {
+              void queueQuery.refetch()
+              void myTicketsQuery.refetch()
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={cn(queueQuery.isFetching || myTicketsQuery.isFetching ? 'animate-spin' : '')}
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            <span className="ml-1">Recargar</span>
+          </Button>
         </div>
 
-        <DragOverlay>
-          {activeTicket ? (
-            <div className="w-72">
-              <TicketCard ticket={activeTicket} draggable={false} />
+        {/* Lista Vertical con soporte Swipe Horizontal */}
+        <motion.div
+          key={activeTab}
+          data-testid="kanban-mobile-list"
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.15}
+          onDragEnd={(_e, info) => {
+            if (info.offset.x < -60 || info.velocity.x < -300) {
+              handleSwipe('left')
+            } else if (info.offset.x > 60 || info.velocity.x > 300) {
+              handleSwipe('right')
+            }
+          }}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="flex flex-col gap-2.5 touch-pan-y"
+        >
+          {isMobileLoading ? (
+            <div className="space-y-3 p-1">
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          ) : activeMobileTickets.length > 0 ? (
+            activeMobileTickets.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                draggable={false}
+                compact={true}
+                actionButton={getMobileActionButton(activeTab, ticket)}
+              />
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2">
+              <span className="text-3xl mb-2">{EMPTY_MESSAGES[activeTab].icon}</span>
+              <p className="text-sm font-semibold text-foreground">
+                {EMPTY_MESSAGES[activeTab].title}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
+                {EMPTY_MESSAGES[activeTab].subtitle}
+              </p>
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* =========================================================================
+          VISTA DESKTOP (md:+): 5 Columnas en paralelo + Drag & Drop @dnd-kit
+         ========================================================================= */}
+      <div className="hidden md:block">
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {COLUMNS.map((column) => {
+              const isLoading =
+                column.id === 'queue'
+                  ? queueQuery.isLoading || groupsQuery.isLoading
+                  : myTicketsQuery.isLoading
+
+              const emptyMessage =
+                column.id === 'queue' && currentGroupId == null
+                  ? 'Sin grupo asignado'
+                  : 'No hay tickets aquí'
+
+              return (
+                <KanbanColumn
+                  key={column.id}
+                  column={column}
+                  tickets={ticketsByColumn[column.id]}
+                  isLoading={isLoading}
+                  emptyMessage={emptyMessage}
+                  onClaim={handleClaim}
+                  isClaiming={claimMutation.isPending}
+                />
+              )
+            })}
+          </div>
+
+          <DragOverlay>
+            {activeTicket ? (
+              <div className="w-72">
+                <TicketCard ticket={activeTicket} draggable={false} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
 
       <ResolveTicketDialog
         ticketId={resolveTicketId ?? 0}

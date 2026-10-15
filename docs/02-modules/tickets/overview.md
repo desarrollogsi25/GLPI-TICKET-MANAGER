@@ -187,4 +187,20 @@ El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 co
 
 Para consultar el diagrama visual completo, consultar el [Flujograma 5: Kanban del Técnico](../../09-visual-docs/flows/kanban-flow.html).
 
+### Kanban móvil (< 768px)
+
+En dispositivos móviles, el tablero Kanban sustituye el scroll horizontal de 5 columnas (1440px) por una experiencia nativa y adaptativa:
+- **Segmented Tabs**: Las 5 columnas se presentan como tabs horizontales con desplazamiento suave, targets táctiles mínimos de 44px (`min-h-[44px]`), badges con contador de tickets y animación de pestaña activa con Motion (`layoutId="activeKanbanTabBg"`).
+- **Lista vertical unificada**: Solo la columna seleccionada se renderiza a la vez, permitiendo navegación natural vertical con tarjetas compactas de tickets.
+- **Acciones inline contextuales**: Se evita el drag & drop táctil en favor de botones directos por columna:
+  - Cola: `[Asignarme]` (claim directo al usuario).
+  - Mis tickets: `[Empezar]` (cambio a estado 3 / En progreso).
+  - En progreso: `[Resolver]` (apertura de `ResolveTicketDialog`).
+  - Pendiente: `[Retomar]` (reanudación a estado 3 / En progreso).
+  - Resuelto: sin acción (enlace de detalle).
+- **Smart default tab**: Selección inteligente de la pestaña activa inicial en móvil: `in_progress` (si se está trabajando activamente) > `queue` (si hay tickets en cola) > `mine` > `pending`.
+- **Swipe horizontal entre tabs**: Gesto de arrastre horizontal (swipe) con Motion sobre la lista para alternar ágilmente entre columnas contiguas con retroalimentación elástica.
+- **Automatizaciones en cola**: Auto-refresco en segundo plano cada 30 segundos mientras la tab "Cola" está activa, indicador pulsante suave si ingresan nuevos tickets a la cola y badge en el Bottom Tab Bar.
+
+
 
