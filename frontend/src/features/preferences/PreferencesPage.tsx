@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -62,12 +63,11 @@ export function PreferencesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Preferencias</h1>
-        <p className="text-sm text-muted-foreground">
-          Configura tus preferencias visuales y de interfaz de usuario.
-        </p>
-      </div>
+      <PageHeader
+        title="Preferencias"
+        description="Configura tus preferencias visuales y de interfaz de usuario."
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Preferencias' }]}
+      />
 
       <Card className="max-w-xl">
         <CardHeader>

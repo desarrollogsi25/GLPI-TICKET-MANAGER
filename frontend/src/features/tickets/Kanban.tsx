@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
@@ -536,18 +537,16 @@ export function Kanban() {
 
   return (
     <div className="space-y-4">
-      {/* Header General: Desktop completo / Móvil simplificado */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Kanban</h1>
-          <p className="hidden md:block text-sm text-muted-foreground">
-            Arrastra un ticket entre columnas para cambiar su estado según el flujo operativo.
-          </p>
-        </div>
-        <div className="hidden md:block">
-          <TechnicianFilter />
-        </div>
-      </div>
+      <PageHeader
+        title="Kanban"
+        description="Arrastra un ticket entre columnas para cambiar su estado según el flujo operativo."
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
+        actions={
+          <div className="hidden md:block">
+            <TechnicianFilter />
+          </div>
+        }
+      />
 
       {hasGeneralError ? (
         <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">

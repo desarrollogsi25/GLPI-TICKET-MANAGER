@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -93,12 +94,11 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard del agente</h1>
-        <p className="text-sm text-muted-foreground">
-          Lo que requiere tu atencion ahora.
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard del agente"
+        description="Lo que requiere tu atención ahora."
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard

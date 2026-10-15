@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
@@ -64,27 +65,26 @@ export function GroupQueuePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Cola de mi grupo</h1>
-          <p className="text-sm text-muted-foreground">
-            Tickets sin asignar del grupo seleccionado.
-          </p>
-        </div>
-        {groups.data && groups.data.length > 1 ? (
-          <Select
-            value={effectiveGroupId ? String(effectiveGroupId) : undefined}
-            onChange={(e) => setSelectedGroupId(Number(e.target.value))}
-            className="w-56"
-          >
-            {groups.data.map((g) => (
-              <option key={g.id} value={String(g.id)}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Cola de mi grupo"
+        description="Tickets sin asignar del grupo seleccionado."
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Cola' }]}
+        actions={
+          groups.data && groups.data.length > 1 ? (
+            <Select
+              value={effectiveGroupId ? String(effectiveGroupId) : undefined}
+              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+              className="w-56"
+            >
+              {groups.data.map((g) => (
+                <option key={g.id} value={String(g.id)}>
+                  {g.name}
+                </option>
+              ))}
+            </Select>
+          ) : undefined
+        }
+      />
 
       {groups.isLoading || queue.isLoading ? (
         <div className="space-y-3">

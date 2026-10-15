@@ -20,6 +20,7 @@ import { getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { priorityMeta, statusMeta } from './labels'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketFiltersBar } from './TicketFiltersBar'
@@ -223,22 +224,18 @@ export function List() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Tickets</h1>
-          <p className="text-sm text-muted-foreground">
-            {serviceId
-              ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
-              : data
-                ? `${data.total} ticket(s) para el técnico seleccionado.`
-                : 'Listado de tickets'}
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          {serviceId == null && <TechnicianFilter />}
-        </div>
-      </div>
+      <PageHeader
+        title="Tickets"
+        description={
+          serviceId
+            ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
+            : data
+              ? `${data.total} ticket(s) para el técnico seleccionado.`
+              : 'Listado de tickets'
+        }
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Tickets' }]}
+        actions={serviceId == null ? <TechnicianFilter /> : undefined}
+      />
 
       {serviceId != null && (
         <div className="flex items-center gap-2 rounded-md bg-secondary/60 px-3 py-1.5 text-sm border border-border w-fit">

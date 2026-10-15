@@ -39,11 +39,14 @@ VALUES
 
 INSERT IGNORE INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
 VALUES
-  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1, 2);
+  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1, 2),
+  (61, 0, 'TEST sin asignar', NOW(), NOW(), 1, 3, 'Ticket de prueba para cola', 3, 3, 3, 1, 1, 2);
 
 INSERT IGNORE INTO glpi_groups_tickets (tickets_id, groups_id, type)
 VALUES
-  (11, 1, 2);
+  (11, 1, 2),
+  (57, 1, 2),
+  (61, 1, 2);
 
 INSERT IGNORE INTO glpi_itilcategories 
   (id, entities_id, name, itilcategories_id, completename, level) VALUES

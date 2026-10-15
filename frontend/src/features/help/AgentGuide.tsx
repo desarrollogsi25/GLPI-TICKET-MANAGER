@@ -1,14 +1,14 @@
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function AgentGuide() {
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Guía del agente</h1>
-        <p className="text-sm text-muted-foreground">
-          Cómo trabajar los tickets del call center.
-        </p>
-      </div>
+      <PageHeader
+        title="Guía del agente"
+        description="Cómo trabajar los tickets del call center."
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Ayuda' }]}
+      />
 
       <Card>
         <CardHeader>

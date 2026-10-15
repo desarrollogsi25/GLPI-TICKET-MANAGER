@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -160,25 +161,23 @@ export function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Catálogo de Servicios</h1>
-          <p className="text-sm text-muted-foreground">
-            Estructura jerárquica de categorías ITIL sincronizadas desde GLPI.
-          </p>
-        </div>
-
-        {services && services.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={expandAll}>
-              Expandir todo
-            </Button>
-            <Button variant="outline" size="sm" onClick={collapseAll}>
-              Colapsar todo
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Catálogo de Servicios"
+        description="Estructura jerárquica de categorías ITIL sincronizadas desde GLPI."
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Servicios' }]}
+        actions={
+          services && services.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={expandAll}>
+                Expandir todo
+              </Button>
+              <Button variant="outline" size="sm" onClick={collapseAll}>
+                Colapsar todo
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
 
       <Card>
         <CardHeader>

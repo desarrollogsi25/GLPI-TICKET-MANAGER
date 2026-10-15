@@ -16,6 +16,7 @@ import type { TicketTask } from '@/store/uiStore'
 
 const EMPTY_TASKS: TicketTask[] = []
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
@@ -142,21 +143,25 @@ export function Detail() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Link to="/tickets" className="text-xs text-muted-foreground hover:underline">
-            ← Volver al listado
-          </Link>
-          <h1 className="text-xl font-semibold tracking-tight">
-            <span className="text-muted-foreground">#{ticket.id}</span> {ticket.title}
-          </h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className={status.badgeClass}>{status.label}</Badge>
-            <Badge className={priority.badgeClass}>{priority.label}</Badge>
-            <Badge variant="outline">{type}</Badge>
+      <PageHeader
+        title={
+          <div className="space-y-1.5">
+            <h1 className="text-[clamp(1.5rem,3.5vw,2rem)] font-bold tracking-tight text-foreground leading-tight">
+              <span className="text-muted-foreground">#{ticket.id}</span> {ticket.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Badge className={status.badgeClass}>{status.label}</Badge>
+              <Badge className={priority.badgeClass}>{priority.label}</Badge>
+              <Badge variant="outline">{type}</Badge>
+            </div>
           </div>
-        </div>
-      </div>
+        }
+        breadcrumbs={[
+          { label: 'Inicio', href: '/' },
+          { label: 'Tickets', href: '/tickets' },
+          { label: `#${ticket.id}` },
+        ]}
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
