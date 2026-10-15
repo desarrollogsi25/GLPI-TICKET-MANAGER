@@ -22,12 +22,15 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
   const queueTab = page.getByTestId('kanban-tab-queue')
   await expect(queueTab).toHaveAttribute('aria-selected', 'true')
 
-  // 3. Ticket en cola (#11 si está disponible en cola o primer ticket de la cola)
+  // 3. Ticket en cola (#61 o #11 si está disponible en cola o primer ticket de la cola)
   const mobileList = page.locator('[data-testid="kanban-mobile-list"]')
+  const hasTicket61 = await mobileList.getByText('#61').first().isVisible()
   const hasTicket11 = await mobileList.getByText('#11').first().isVisible()
-  const ticketToClaim = hasTicket11
-    ? '#11'
-    : (await mobileList.locator('span:text-matches("^#\\\\d+$")').first().innerText()).trim()
+  const ticketToClaim = hasTicket61
+    ? '#61'
+    : hasTicket11
+      ? '#11'
+      : (await mobileList.locator('span:text-matches("^#\\\\d+$")').first().innerText()).trim()
 
   await expect(mobileList.getByText(ticketToClaim).first()).toBeVisible()
 

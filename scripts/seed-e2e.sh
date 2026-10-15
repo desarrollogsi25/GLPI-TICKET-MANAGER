@@ -61,6 +61,10 @@ DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=57;
 DELETE FROM glpi_tickets_users WHERE tickets_id=57 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=57;
+
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=61;
+DELETE FROM glpi_tickets_users WHERE tickets_id=61 AND type=2;
+DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=61;
 SQL
 
 # 4. Limpiar preferencias de usuario tech1 (id=7) en app-db para inicio limpio

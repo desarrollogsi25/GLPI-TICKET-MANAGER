@@ -1,5 +1,4 @@
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -7,24 +6,13 @@ import {
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table'
-import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useServicesQuery } from '@/hooks/useServices'
 import { useTicketsQuery } from '@/hooks/useTickets'
@@ -32,8 +20,12 @@ import { getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
 
-import { priorityMeta, statusMeta, TICKET_PRIORITIES, TICKET_STATUSES } from './labels'
+import { priorityMeta, statusMeta } from './labels'
 import { TechnicianFilter } from './TechnicianFilter'
+import { TicketFiltersBar } from './TicketFiltersBar'
+import { TicketFiltersSheet } from './TicketFiltersSheet'
+import { TicketListCard } from './TicketListCard'
+import { TicketTable } from './TicketTable'
 
 const columns: ColumnDef<TicketSummary>[] = [
   {
@@ -103,9 +95,24 @@ const columns: ColumnDef<TicketSummary>[] = [
 ]
 
 export function List() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
+  const isMobile = useIsMobile()
   const serviceIdParam = searchParams.get('serviceId')
   const serviceId = serviceIdParam ? parseInt(serviceIdParam, 10) : null
+
+  // Sincronización de filtros con URL
+  const initialSearch = searchParams.get('q') ?? ''
+  const initialStatus = searchParams.get('status') ?? 'all'
+  const initialPriority = searchParams.get('priority') ?? 'all'
+
+  const [globalFilter, setGlobalFilter] = useState(initialSearch)
+  const [statusFilter, setStatusFilter] = useState(initialStatus)
+  const [priorityFilter, setPriorityFilter] = useState(initialPriority)
+
+  // Draft filters para el Bottom Sheet móvil
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [draftStatus, setDraftStatus] = useState(statusFilter)
+  const [draftPriority, setDraftPriority] = useState(priorityFilter)
 
   const assigneeId = useSelectedAssignee()
   const { data: services } = useServicesQuery()
@@ -117,11 +124,66 @@ export function List() {
     assigneeId: serviceId ? null : assigneeId,
   })
 
-  const [globalFilter, setGlobalFilter] = useState('')
+  const navigate = useNavigate()
+
+  const applyCombinedFilters = (newStatus: string, newPriority: string) => {
+    setStatusFilter(newStatus)
+    setPriorityFilter(newPriority)
+    const sp = new URLSearchParams()
+    if (newStatus && newStatus !== 'all') sp.set('status', newStatus)
+    if (newPriority && newPriority !== 'all') sp.set('priority', newPriority)
+    if (serviceIdParam) sp.set('serviceId', String(serviceIdParam))
+    if (globalFilter.trim()) sp.set('q', globalFilter.trim())
+    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
+    navigate(`/tickets${searchStr}`, { replace: true })
+  }
+
+  const handleSearchChange = (value: string) => {
+    setGlobalFilter(value)
+    const sp = new URLSearchParams()
+    if (statusFilter !== 'all') sp.set('status', statusFilter)
+    if (priorityFilter !== 'all') sp.set('priority', priorityFilter)
+    if (serviceIdParam) sp.set('serviceId', String(serviceIdParam))
+    if (value.trim()) sp.set('q', value.trim())
+    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
+    navigate(`/tickets${searchStr}`, { replace: true })
+  }
+
+  const handleStatusChange = (value: string) => {
+    applyCombinedFilters(value, priorityFilter)
+  }
+
+  const handlePriorityChange = (value: string) => {
+    applyCombinedFilters(statusFilter, value)
+  }
 
   const handleClearServiceFilter = () => {
-    searchParams.delete('serviceId')
-    setSearchParams(searchParams, { replace: true })
+    const sp = new URLSearchParams()
+    if (statusFilter !== 'all') sp.set('status', statusFilter)
+    if (priorityFilter !== 'all') sp.set('priority', priorityFilter)
+    if (globalFilter.trim()) sp.set('q', globalFilter.trim())
+    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
+    navigate(`/tickets${searchStr}`, { replace: true })
+  }
+
+  const handleApplySheet = () => {
+    applyCombinedFilters(draftStatus, draftPriority)
+  }
+
+  const handleResetSheet = () => {
+    setDraftStatus('all')
+    setDraftPriority('all')
+    setStatusFilter('all')
+    setPriorityFilter('all')
+    const sp = new URLSearchParams()
+    if (globalFilter.trim()) sp.set('q', globalFilter.trim())
+    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
+    navigate(`/tickets${searchStr}`, { replace: true })
+  }
+  const handleOpenSheet = () => {
+    setDraftStatus(statusFilter)
+    setDraftPriority(priorityFilter)
+    setIsSheetOpen(true)
   }
 
   const tickets = data?.items ?? []
@@ -129,13 +191,20 @@ export function List() {
   const table = useReactTable({
     data: tickets,
     columns,
-    state: { globalFilter },
+    state: {
+      globalFilter,
+      columnFilters: useMemo(
+        () => [
+          ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
+          ...(priorityFilter !== 'all' ? [{ id: 'priority', value: priorityFilter }] : []),
+        ],
+        [statusFilter, priorityFilter],
+      ),
+    },
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: (row, _columnId, filterValue) => {
       const term = String(filterValue).trim().toLowerCase()
-      if (!term) {
-        return true
-      }
+      if (!term) return true
       return (
         String(row.original.id).includes(term) || row.original.title.toLowerCase().includes(term)
       )
@@ -147,12 +216,14 @@ export function List() {
     initialState: { pagination: { pageSize: 15 } },
   })
 
-  const statusFilter = (table.getColumn('status')?.getFilterValue() as string | undefined) ?? 'all'
-  const priorityFilter =
-    (table.getColumn('priority')?.getFilterValue() as string | undefined) ?? 'all'
+  const activeFiltersCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (priorityFilter !== 'all' ? 1 : 0) +
+    (serviceId != null ? 1 : 0)
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Tickets</h1>
@@ -191,118 +262,92 @@ export function List() {
         </p>
       ) : (
         <>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="search">Buscar</Label>
-              <Input
-                id="search"
-                className="w-56"
-                placeholder="Título o #ID"
-                value={globalFilter}
-                onChange={(event) => setGlobalFilter(event.target.value)}
-              />
-            </div>
+          {/* Barra de Filtros (Responsive: horizontal en desktop, input + botón sheet en móvil) */}
+          <TicketFiltersBar
+            search={globalFilter}
+            onSearchChange={handleSearchChange}
+            status={statusFilter}
+            onStatusChange={handleStatusChange}
+            priority={priorityFilter}
+            onPriorityChange={handlePriorityChange}
+            onOpenSheet={handleOpenSheet}
+            activeFiltersCount={activeFiltersCount}
+          />
 
-            <div className="space-y-1">
-              <Label htmlFor="status-filter">Estado</Label>
-              <Select
-                id="status-filter"
-                className="w-40"
-                value={statusFilter}
-                onChange={(event) => {
-                  const value = event.target.value
-                  table.getColumn('status')?.setFilterValue(value === 'all' ? undefined : value)
-                }}
-              >
-                <option value="all">Todos</option>
-                {TICKET_STATUSES.map((status) => (
-                  <option key={status.value} value={String(status.value)}>
-                    {status.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="priority-filter">Prioridad</Label>
-              <Select
-                id="priority-filter"
-                className="w-40"
-                value={priorityFilter}
-                onChange={(event) => {
-                  const value = event.target.value
-                  table.getColumn('priority')?.setFilterValue(value === 'all' ? undefined : value)
-                }}
-              >
-                <option value="all">Todas</option>
-                {TICKET_PRIORITIES.map((priority) => (
-                  <option key={priority.value} value={String(priority.value)}>
-                    {priority.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
+          {/* Bottom Sheet Móvil para Filtros */}
+          <TicketFiltersSheet
+            open={isSheetOpen}
+            onClose={() => setIsSheetOpen(false)}
+            status={draftStatus}
+            onStatusChange={setDraftStatus}
+            priority={draftPriority}
+            onPriorityChange={setDraftPriority}
+            onApply={handleApplySheet}
+            onReset={handleResetSheet}
+            activeFiltersCount={activeFiltersCount}
+          />
 
           {isError ? (
             <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
               {getApiErrorMessage(error)}
             </p>
           ) : (
-            <Card className="overflow-hidden">
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, index) => (
-                      <TableRow key={`skeleton-${index}`}>
-                        <TableCell colSpan={columns.length}>
-                          <Skeleton className="h-6 w-full" />
-                        </TableCell>
-                      </TableRow>
+            <>
+              {/* Vista Desktop (md:+): Tabla TanStack completa */}
+              <div className="hidden md:block">
+                {!isMobile && <TicketTable table={table} columns={columns} isLoading={isLoading} />}
+              </div>
+
+              {/* Vista Móvil (<md): Lista Vertical de Cards */}
+              <div className="md:hidden space-y-2.5">
+                {isMobile && (
+                  isLoading ? (
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <div
+                        key={`card-skel-${index}`}
+                        className="rounded-xl border border-border bg-card p-4 min-h-[88px] space-y-2.5"
+                      >
+                        <div className="flex justify-between items-center">
+                          <Skeleton className="h-4 w-1/4" />
+                          <Skeleton className="h-4 w-1/6" />
+                        </div>
+                        <Skeleton className="h-5 w-4/5" />
+                        <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                          <Skeleton className="h-4 w-1/3" />
+                          <Skeleton className="h-4 w-4" />
+                        </div>
+                      </div>
                     ))
                   ) : table.getRowModel().rows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={columns.length} className="py-8 text-center text-muted-foreground">
-                        No hay tickets que coincidan con los filtros.
-                      </TableCell>
-                    </TableRow>
+                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2">
+                      <span className="text-3xl mb-2">🎫</span>
+                      <p className="text-sm font-semibold text-foreground">
+                        No hay tickets que coincidan con los filtros
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
+                        Intenta cambiar o limpiar los filtros aplicados.
+                      </p>
+                    </div>
                   ) : (
                     table.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id}>
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        ))}
-                      </TableRow>
+                      <TicketListCard key={row.original.id} ticket={row.original} />
                     ))
-                  )}
-                </TableBody>
-              </Table>
-            </Card>
+                  )
+                )}
+              </div>
+            </>
           )}
 
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
+          {/* Paginación */}
+          <div className="flex items-center justify-between text-sm pt-1">
+            <span className="text-xs md:text-sm text-muted-foreground">
               Página {table.getState().pagination.pageIndex + 1} de {Math.max(1, table.getPageCount())}
             </span>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
+                className="min-h-[38px] md:min-h-[32px] px-3 text-xs"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
@@ -311,6 +356,7 @@ export function List() {
               <Button
                 variant="outline"
                 size="sm"
+                className="min-h-[38px] md:min-h-[32px] px-3 text-xs"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >

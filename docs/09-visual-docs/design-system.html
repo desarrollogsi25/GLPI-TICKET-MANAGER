@@ -1369,6 +1369,97 @@
       </ul>
     </div>
   </section>
+
+  <!-- Section 10: Tokens de Movimiento & Animación (Motion Tokens) -->
+  <section class="section-card">
+    <div class="section-header">
+      <h2 class="section-title">
+        <span>⚡</span> 10. Tokens de Movimiento & Animación (Motion Tokens)
+      </h2>
+      <span class="section-tag">Emil Kowalski / Apple HIG Spec</span>
+    </div>
+    <p class="section-desc">
+      Sistema de curvas físicas y duraciones estandarizadas para micro-interacciones, bottom-sheets y transiciones de pantalla con alto rendimiento GPU.
+    </p>
+
+    <div class="component-sandbox" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+      <!-- Curvas de Easing -->
+      <div class="preview-box">
+        <div class="preview-title">Curvas de Aceleración (Easing Curves)</div>
+        <table class="spec-table" style="margin-top: 4px;">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Curva CSS / Bézier</th>
+              <th>Propósito</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--ease-out</code></td>
+              <td><code>cubic-bezier(0.16, 1, 0.3, 1)</code></td>
+              <td>Apertura de modales, sheets, feedback de entrada</td>
+            </tr>
+            <tr>
+              <td><code>--ease-in-out</code></td>
+              <td><code>cubic-bezier(0.65, 0, 0.35, 1)</code></td>
+              <td>Desplazamientos y cambios de estado bidireccionales</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Duraciones Estandarizadas -->
+      <div class="preview-box">
+        <div class="preview-title">Escala de Duraciones (Durations)</div>
+        <table class="spec-table" style="margin-top: 4px;">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Duración</th>
+              <th>Uso en Sistema</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--duration-micro</code></td>
+              <td><strong>100ms</strong></td>
+              <td>Hover states, cambios sutiles de color y bordes</td>
+            </tr>
+            <tr>
+              <td><code>--duration-press</code></td>
+              <td><strong>160ms</strong></td>
+              <td>Feedback táctil al pulsar cards (<code>active:scale-[0.98]</code>)</td>
+            </tr>
+            <tr>
+              <td><code>--duration-enter</code></td>
+              <td><strong>200ms</strong></td>
+              <td>Aparición/desaparición de tooltips, dropdowns, fades</td>
+            </tr>
+            <tr>
+              <td><code>--duration-drawer</code></td>
+              <td><strong>280ms</strong></td>
+              <td>Slide-over de navegación móvil y Bottom Sheet de filtros</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Reglas de Rendimiento -->
+    <div class="callout" style="margin-top: 16px;">
+      <div class="callout-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+        Reglas de Rendimiento & Ergonomía (Skills: apple-design, animate)
+      </div>
+      <ul style="margin: 6px 0 0 16px; font-size: 12px; line-height: 1.6; color: var(--text-muted);">
+        <li><strong>Solo animar <code>transform</code> y <code>opacity</code></strong>: Nunca animar <code>width</code>, <code>height</code>, <code>top</code> o <code>margin</code> en tiempo real para evitar recálculos de layout (reflow).</li>
+        <li><strong>Límite de 300ms</strong>: Ninguna animación interactiva de interfaz debe exceder los 300ms para mantener una respuesta ágil de nivel operativo.</li>
+        <li><strong>Interrumpibilidad</strong>: Todos los gestos táctiles (drag, swipe) deben poder interrumpirse inmediatamente con el pulgar.</li>
+        <li><strong>Reduced Motion</strong>: Respetar <code>@media (prefers-reduced-motion: reduce)</code> eliminando traslaciones físicas y manteniendo fades instantáneos.</li>
+      </ul>
+    </div>
+  </section>
 </div>
 
 <script>
