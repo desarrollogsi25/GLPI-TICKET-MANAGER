@@ -166,15 +166,25 @@ Las operaciones operativas clave (`claim` al autoasignarse un ticket y `resolve`
 
 ## Kanban del técnico
 
-El tablero Kanban (`/kanban`) organiza la jornada operativa del técnico en 5 columnas de atención ágil:
-1. **Cola del grupo**: Tickets en estado Nuevo (`status = 1`) pertenecientes al grupo técnico sin resolutor asignado.
-2. **Mis tickets**: Tickets asignados al usuario en estado Nuevo o Asignado (`status = 1, 2`) listos para atender.
-3. **En progreso**: Incidencias bajo diagnóstico o resolución activa (`status = 2, 3`).
+El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 columnas de atención ágil:
+1. **Cola del grupo**: Tickets en estado Nuevo (`status = 1`) pertenecientes al grupo técnico del usuario y sin técnico asignado (`GET /api/tickets/by-group?groupId=X&unassigned=true`). Incluye botón directo "Asignarme".
+2. **Mis tickets**: Tickets asignados al resolutor en estado Nuevo o Asignado (`status = 1, 2`) listos para comenzar.
+3. **En progreso**: Incidencias bajo diagnóstico o resolución activa (`status = 3`).
 4. **Pendiente**: Tickets con atención pausada por espera externa (`status = 4`).
-5. **Resuelto**: Tickets solucionados con solución escrita obligatoria (`status = 5`, según ADR-006).
+5. **Resuelto**: Tickets solucionados con solución documentada obligatoria (`status = 5`, según ADR-006).
 
-Para el diagrama visual detallado de transiciones, endpoints, validaciones y mapeo de estados GLPI, consultar el [Flujograma 5: Kanban del Técnico](../../09-visual-docs/flows/kanban-flow.html).
+### Consultas y partición
+- **Cola del grupo**: Se obtiene mediante `useGroupQueueQuery(currentGroupId)`.
+- **Columnas personales**: Se obtienen con `useTicketsQuery(currentUserId)` y se particionan en memoria en el cliente según su `status`. Los tickets cerrados (`status = 6`) se omiten del tablero.
 
-> [!NOTE]
-> La implementación completa de la UI del tablero Kanban con soporte de las 5 columnas y modal de resolución corresponde al Bloque 8b.
+### Transiciones permitidas (Drag & Drop)
+- `queue → mine`: Dispara autoasignación (`POST /api/tickets/{id}/claim`).
+- `mine → in_progress`: Cambia el estado a planificado (`PATCH /api/tickets/{id}/status { status: 3 }`).
+- `in_progress → pending`: Pausa la incidencia (`PATCH /api/tickets/{id}/status { status: 4 }`).
+- `pending → in_progress`: Reanuda la incidencia (`PATCH /api/tickets/{id}/status { status: 3 }`).
+- `in_progress → resolved`: Abre el modal `ResolveTicketDialog` para ingreso mandatorio de solución escrita (`POST /api/tickets/{id}/solutions` y posterior cambio a `status = 5`).
+- Las transiciones no permitidas se revierten silenciosamente sin alterar el estado.
+
+Para consultar el diagrama visual completo, consultar el [Flujograma 5: Kanban del Técnico](../../09-visual-docs/flows/kanban-flow.html).
+
 

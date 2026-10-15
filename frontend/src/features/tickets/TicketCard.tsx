@@ -11,9 +11,10 @@ import { priorityMeta } from './labels'
 interface TicketCardProps {
   ticket: TicketSummary
   draggable?: boolean
+  actionButton?: React.ReactNode
 }
 
-export function TicketCard({ ticket, draggable = true }: TicketCardProps) {
+export function TicketCard({ ticket, draggable = true, actionButton }: TicketCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
     disabled: !draggable,
@@ -48,6 +49,16 @@ export function TicketCard({ ticket, draggable = true }: TicketCardProps) {
       <p className="mt-2 text-xs text-muted-foreground">
         Actualizado {formatRelative(ticket.updatedAt)}
       </p>
+
+      {actionButton ? (
+        <div
+          className="mt-3 pt-2 border-t border-border/50"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {actionButton}
+        </div>
+      ) : null}
     </div>
   )
 }

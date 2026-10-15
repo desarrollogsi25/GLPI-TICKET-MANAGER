@@ -6,20 +6,19 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-
   await page.goto('http://localhost:5173/queue')
   await page.waitForLoadState('networkidle')
 
-  await expect(page.locator('text=#11').first()).toBeVisible({ timeout: 15000 })
+  await expect(page.locator('text=#57').first()).toBeVisible({ timeout: 15000 })
 
-  const card11 = page.getByText('#11').first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
-  const claimButton = card11.getByRole('button', { name: /Asignarme/i })
+  const card57 = page.getByText('#57').first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
+  const claimButton = card57.getByRole('button', { name: /Asignarme/i })
   await expect(claimButton).toBeVisible()
   await claimButton.click()
 
-  await expect(page.locator('text=#11').first()).not.toBeVisible({ timeout: 15000 })
+  await expect(page.locator('text=#57').first()).not.toBeVisible({ timeout: 15000 })
 
-  await page.goto('http://localhost:5173/tickets/11')
+  await page.goto('http://localhost:5173/tickets/57')
   await page.waitForLoadState('networkidle')
 
   const resolveButton = page.getByRole('button', { name: /^Resolver$/ }).first()
