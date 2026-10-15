@@ -130,6 +130,7 @@ app.MapDashboardEndpoints();
 app.MapGroupEndpoints();
 app.MapChannelEndpoints();
 app.MapPreferencesEndpoints();
+app.MapServicesEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .WithTags("Health")

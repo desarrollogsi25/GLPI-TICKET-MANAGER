@@ -9,6 +9,7 @@ const navItems = [
   { to: '/kanban', label: 'Kanban' },
   { to: '/tickets', label: 'Tickets' },
   { to: '/queue', label: 'Cola del grupo' },
+  { to: '/services', label: 'Servicios' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/ayuda', label: 'Ayuda' },
 ]

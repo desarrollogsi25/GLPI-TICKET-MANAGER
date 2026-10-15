@@ -114,3 +114,11 @@ export interface DashboardStats {
 export interface Group { id: number; name: string }
 export interface Channel { id: number; name: string }
 export interface SolutionResponse { id: number }
+
+export interface Service {
+  id: number
+  name: string
+  parentId: number | null
+  completeName: string
+  level: number
+}

@@ -45,6 +45,14 @@ INSERT IGNORE INTO glpi_groups_tickets (tickets_id, groups_id, type)
 VALUES
   (11, 1, 2);
 
+INSERT IGNORE INTO glpi_itilcategories 
+  (id, entities_id, name, itilcategories_id, completename, level) VALUES
+  (2, 0, 'Requerimiento', 0, 'Requerimiento', 1),
+  (3, 0, 'Acceso a sistema', 2, 'Requerimiento > Acceso a sistema', 2),
+  (4, 0, 'Software', 2, 'Requerimiento > Software', 2),
+  (5, 0, 'Aplicaciones', 0, 'Aplicaciones', 1),
+  (6, 0, 'Sistema', 0, 'Sistema', 1);
+
 -- 3. Resetear ticket #11 al estado "listo para claim"
 UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=11;
 DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
