@@ -22,7 +22,13 @@ export function PreferencesPage() {
         const parsed = JSON.parse(data.prefs)
         if (parsed.theme === 'dark' || parsed.theme === 'light') {
           setTheme(parsed.theme)
-          document.documentElement.setAttribute('data-theme', parsed.theme)
+          if (parsed.theme === 'dark') {
+            document.documentElement.classList.add('dark')
+            document.documentElement.setAttribute('data-theme', 'dark')
+          } else {
+            document.documentElement.classList.remove('dark')
+            document.documentElement.setAttribute('data-theme', 'light')
+          }
         }
         if (parsed.density === 'compact' || parsed.density === 'comfortable') {
           setDensity(parsed.density)
@@ -41,7 +47,13 @@ export function PreferencesPage() {
       { theme, density },
       {
         onSuccess: () => {
-          document.documentElement.setAttribute('data-theme', theme)
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark')
+            document.documentElement.setAttribute('data-theme', 'dark')
+          } else {
+            document.documentElement.classList.remove('dark')
+            document.documentElement.setAttribute('data-theme', 'light')
+          }
           setSavedMessage(true)
         },
       },
@@ -95,7 +107,13 @@ export function PreferencesPage() {
                   onChange={(e) => {
                     const val = e.target.value as 'light' | 'dark'
                     setTheme(val)
-                    document.documentElement.setAttribute('data-theme', val)
+                    if (val === 'dark') {
+                      document.documentElement.classList.add('dark')
+                      document.documentElement.setAttribute('data-theme', 'dark')
+                    } else {
+                      document.documentElement.classList.remove('dark')
+                      document.documentElement.setAttribute('data-theme', 'light')
+                    }
                   }}
                 >
                   <option value="light">Claro</option>

@@ -22,14 +22,19 @@ function GlobalThemeSync() {
 
   useEffect(() => {
     if (!token) {
+      document.documentElement.classList.remove('dark')
       document.documentElement.removeAttribute('data-theme')
       return
     }
     if (data?.prefs) {
       try {
         const parsed = JSON.parse(data.prefs)
-        if (parsed?.theme) {
-          document.documentElement.setAttribute('data-theme', parsed.theme)
+        if (parsed?.theme === 'dark') {
+          document.documentElement.classList.add('dark')
+          document.documentElement.setAttribute('data-theme', 'dark')
+        } else if (parsed?.theme === 'light') {
+          document.documentElement.classList.remove('dark')
+          document.documentElement.setAttribute('data-theme', 'light')
         }
       } catch {
         // ignore
