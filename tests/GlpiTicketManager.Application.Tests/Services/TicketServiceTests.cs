@@ -8,31 +8,35 @@ using Moq;
 using FluentAssertions;
 using Xunit;
 
+using Microsoft.Extensions.Logging;
+
 namespace GlpiTicketManager.Application.Tests.Services;
 
 public class TicketServiceTests
 {
     private readonly Mock<ITicketRepository> _repo = new();
     private readonly Mock<IGlpiApiClient> _glpi = new();
+    private readonly Mock<IAuditRepository> _audit = new();
+    private readonly Mock<ILogger<TicketService>> _logger = new();
     private readonly TicketService _svc;
 
     public TicketServiceTests()
     {
-        _svc = new TicketService(_repo.Object, _glpi.Object);
+        _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _logger.Object);
     }
 
 
     [Fact]
     public async Task UpdateStatusAsync_WhenTicketIdInvalid_Throws()
     {
-        var act = async () => await _svc.UpdateStatusAsync(0, 2, CancellationToken.None);
+        var act = async () => await _svc.UpdateStatusAsync(0, 2, 7, CancellationToken.None);
         await act.Should().ThrowAsync<ValidationException>();
     }
 
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusInvalid_Throws400()
     {
-        var act = async () => await _svc.UpdateStatusAsync(1, 99, CancellationToken.None);
+        var act = async () => await _svc.UpdateStatusAsync(1, 99, 7, CancellationToken.None);
         await act.Should().ThrowAsync<ValidationException>();
     }
 
@@ -41,10 +45,11 @@ public class TicketServiceTests
     {
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
-        var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, CancellationToken.None);
+        var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
 
         await act.Should().ThrowAsync<UnprocessableEntityException>();
         _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        _audit.Verify(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -53,10 +58,11 @@ public class TicketServiceTests
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _glpi.Setup(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var result = await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, CancellationToken.None);
+        var result = await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
 
         result.Should().BeTrue();
         _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>()), Times.Once);
+        _audit.Verify(a => a.LogAsync(7, "resolve", 10, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -64,11 +70,12 @@ public class TicketServiceTests
     {
         _glpi.Setup(g => g.UpdateTicketStatusAsync(5, 2, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var result = await _svc.UpdateStatusAsync(5, 2, CancellationToken.None);
+        var result = await _svc.UpdateStatusAsync(5, 2, 7, CancellationToken.None);
 
         result.Should().BeTrue();
         _repo.Verify(r => r.SolutionExistsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         _glpi.Verify(g => g.UpdateTicketStatusAsync(5, 2, It.IsAny<CancellationToken>()), Times.Once);
+        _audit.Verify(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -135,6 +142,31 @@ public class TicketServiceTests
             .ReturnsAsync(Array.Empty<TicketUser>());
         _repo.Setup(r => r.IsUserInTicketGroupAsync(10, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var result = await _svc.ClaimAsync(10, 7, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result.Id.Should().Be(10);
+        result.Status.Should().Be((int)TicketStatus.Assigned);
+        _repo.Verify(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>()), Times.Once);
+        _audit.Verify(a => a.LogAsync(7, "claim", 10, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ClaimAsync_WhenAuditFails_StillSucceeds()
+    {
+        var ticketBefore = new Ticket { Id = 10, Name = "Ticket 10", Status = (int)TicketStatus.New };
+        var ticketAfter = new Ticket { Id = 10, Name = "Ticket 10", Status = (int)TicketStatus.Assigned };
+
+        _repo.SetupSequence(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ticketBefore)
+            .ReturnsAsync(ticketAfter);
+        _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TicketUser>());
+        _repo.Setup(r => r.IsUserInTicketGroupAsync(10, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repo.Setup(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _audit.Setup(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var result = await _svc.ClaimAsync(10, 7, CancellationToken.None);
 

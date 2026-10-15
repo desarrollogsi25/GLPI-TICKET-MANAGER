@@ -214,6 +214,9 @@ jobs:
         run: ./scripts/seed-e2e.sh
       - name: Run E2E inside container
         run: docker compose exec -T frontend pnpm exec playwright test --reporter=list
+      - name: Run audit smoke test
+        run: bash scripts/test-audit.sh
+        if: success()
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4

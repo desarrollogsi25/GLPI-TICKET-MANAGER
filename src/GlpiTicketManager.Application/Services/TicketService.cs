@@ -6,6 +6,7 @@ using GlpiTicketManager.Application.Mapping;
 using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace GlpiTicketManager.Application.Services;
 
@@ -20,11 +21,19 @@ public sealed class TicketService : ITicketService
 
     private readonly ITicketRepository _tickets;
     private readonly IGlpiApiClient _glpi;
+    private readonly IAuditRepository _audit;
+    private readonly ILogger<TicketService> _logger;
 
-    public TicketService(ITicketRepository tickets, IGlpiApiClient glpi)
+    public TicketService(
+        ITicketRepository tickets,
+        IGlpiApiClient glpi,
+        IAuditRepository audit,
+        ILogger<TicketService> logger)
     {
         _tickets = tickets;
         _glpi = glpi;
+        _audit = audit;
+        _logger = logger;
     }
 
     public async Task<PagedResult<TicketSummaryDto>> GetByAssigneeAsync(
@@ -94,6 +103,7 @@ public sealed class TicketService : ITicketService
     public async Task<bool> UpdateStatusAsync(
         int ticketId,
         int status,
+        int userId,
         CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
@@ -118,12 +128,25 @@ public sealed class TicketService : ITicketService
         try
         {
             await _glpi.UpdateTicketStatusAsync(ticketId, status, cancellationToken);
-            return true;
         }
         catch (GlpiApiException exception) when (exception.StatusCode == 404)
         {
             return false;
         }
+
+        if (status == (int)TicketStatus.Solved)
+        {
+            try
+            {
+                await _audit.LogAsync(userId, "resolve", ticketId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to record audit log for resolve on ticket {TicketId}", ticketId);
+            }
+        }
+
+        return true;
     }
 
     public async Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
@@ -207,6 +230,15 @@ public sealed class TicketService : ITicketService
         if (!claimed)
         {
             throw new ConflictException("No se pudo reclamar el ticket.");
+        }
+
+        try
+        {
+            await _audit.LogAsync(userId, "claim", ticketId, null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record audit log for claim on ticket {TicketId}", ticketId);
         }
 
         var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);

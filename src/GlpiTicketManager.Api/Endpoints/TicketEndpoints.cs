@@ -117,9 +117,16 @@ public static class TicketEndpoints
         int id,
         UpdateTicketStatusRequest request,
         ITicketService ticketService,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
-        var updated = await ticketService.UpdateStatusAsync(id, request.Status, cancellationToken);
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, cancellationToken);
         return updated ? Results.NoContent() : Results.NotFound();
     }
 

@@ -22,7 +22,7 @@ public interface ITicketService
 
     Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken);
 
-    Task<bool> UpdateStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
+    Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, CancellationToken cancellationToken);
 
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,

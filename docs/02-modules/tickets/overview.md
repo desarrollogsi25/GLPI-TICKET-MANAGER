@@ -150,3 +150,8 @@ RFC 7807 `ProblemDetails` for every failure:
 - Minimal API endpoints: `src/GlpiTicketManager.Api/Endpoints`
 - Assignee query reference: `docs/04-database/queries/tickets-by-assignee.md`
 - Preferences module: `docs/02-modules/preferences/overview.md`
+- Audit module: `docs/02-modules/audit/overview.md`
+
+## Auditoría automática
+
+Las operaciones operativas clave (`claim` al autoasignarse un ticket y `resolve` al cambiar a estado 5) se registran automáticamente de manera asíncrona y no bloqueante en la tabla `audit_log` de PostgreSQL (ver [Audit Overview](../audit/overview.md)).
