@@ -10,6 +10,7 @@ fi
 if ! docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e "SELECT 1 FROM glpi_tickets LIMIT 1" >/dev/null 2>&1; then
   echo "BD vacía, aplicando bootstrap desde scripts/glpi-base.sql..."
   docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
+  docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-schema-events-logs.sql
 fi
 
 # 2. Crear/actualizar fixtures (idempotente)
@@ -50,4 +51,8 @@ DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 SQL
 
-echo "E2E state seeded (fixtures created, ticket #11 reset)."
+# 4. Limpiar preferencias de usuario tech1 (id=7) en app-db para inicio limpio
+docker compose exec -T app-db psql -U app -d glpi_ticket_manager -c \
+  "DELETE FROM user_preferences WHERE user_id = 7;" >/dev/null 2>&1 || true
+
+echo "E2E state seeded (fixtures created, ticket #11 reset, preferences cleaned)."

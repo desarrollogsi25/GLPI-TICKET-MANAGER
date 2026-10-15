@@ -12,5 +12,10 @@ public sealed class ValidationException : Exception
         Errors = errors;
     }
 
+    public ValidationException(string propertyName, string errorMessage)
+        : this(new Dictionary<string, string[]> { [propertyName] = [errorMessage] })
+    {
+    }
+
     public IReadOnlyDictionary<string, string[]> Errors { get; }
 }

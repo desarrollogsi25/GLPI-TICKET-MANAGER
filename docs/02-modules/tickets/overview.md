@@ -149,3 +149,4 @@ RFC 7807 `ProblemDetails` for every failure:
 - Dapper queries/repositories + GLPI client: `src/GlpiTicketManager.Infrastructure`
 - Minimal API endpoints: `src/GlpiTicketManager.Api/Endpoints`
 - Assignee query reference: `docs/04-database/queries/tickets-by-assignee.md`
+- Preferences module: `docs/02-modules/preferences/overview.md`
