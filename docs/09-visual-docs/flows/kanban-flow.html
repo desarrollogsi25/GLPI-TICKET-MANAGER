@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flujograma 5: Kanban del Técnico | GLPI Ticket Manager</title>
+  <style>
+    :root {
+      --accent: #6D59E8;
+      --accent-hover: #5844D4;
+      --accent-light: #F4F2FF;
+      --accent-border: #D8D2FB;
+      --green: #0D9E74;
+      --green-light: #EBF8F4;
+      --green-border: #99E2CE;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --blue-border: #BFDBFE;
+      --amber: #B45309;
+      --amber-light: #FEF3C7;
+      --amber-border: #FDE68A;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-400: #94A3B8;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: #F8FAFC;
+      color: var(--gray-800);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+    }
+    .nav-bar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-bar a:hover { color: var(--accent-hover); }
+    .print-btn {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--gray-700);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .print-btn:hover {
+      background: var(--gray-200);
+      color: var(--gray-900);
+    }
+
+    /* Header / Cover */
+    .header-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #64748B 0%, #2563EB 25%, var(--accent) 50%, #B45309 75%, var(--green) 100%);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--gray-600);
+      margin-bottom: 16px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--gray-600);
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .meta-item strong { color: var(--gray-800); }
+
+    /* Section Wrapper */
+    .section-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-desc {
+      font-size: 14px;
+      color: var(--gray-600);
+      margin-bottom: 20px;
+    }
+
+    /* 5 Kanban Columns Diagram */
+    .kanban-board {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 1024px) {
+      .kanban-board {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .col-card {
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid;
+      position: relative;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .col-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .col-cola {
+      background: #F1F5F9;
+      border-color: #CBD5E1;
+    }
+    .col-mistickets {
+      background: #EFF6FF;
+      border-color: #BFDBFE;
+    }
+    .col-progreso {
+      background: #F4F2FF;
+      border-color: #D8D2FB;
+    }
+    .col-pendiente {
+      background: #FEF3C7;
+      border-color: #FDE68A;
+    }
+    .col-resuelto {
+      background: #EBF8F4;
+      border-color: #99E2CE;
+    }
+
+    .col-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .col-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .icon-cola { background: #E2E8F0; color: #475569; }
+    .icon-mistickets { background: #DBEAFE; color: #1D4ED8; }
+    .icon-progreso { background: #E0E7FF; color: #6D59E8; }
+    .icon-pendiente { background: #FDE68A; color: #B45309; }
+    .icon-resuelto { background: #A7F3D0; color: #0D9E74; }
+
+    .col-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--gray-900);
+    }
+    .col-badges {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .col-badge {
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+    .badge-cola { background: white; color: #475569; border: 1px solid #CBD5E1; }
+    .badge-mistickets { background: white; color: #1D4ED8; border: 1px solid #BFDBFE; }
+    .badge-progreso { background: white; color: #6D59E8; border: 1px solid #D8D2FB; }
+    .badge-pendiente { background: white; color: #B45309; border: 1px solid #FDE68A; }
+    .badge-resuelto { background: white; color: #0D9E74; border: 1px solid #99E2CE; }
+
+    .col-desc {
+      font-size: 12px;
+      color: var(--gray-700);
+      line-height: 1.4;
+      margin-bottom: 14px;
+      min-height: 34px;
+    }
+
+    .col-card-preview {
+      background: white;
+      border-radius: 6px;
+      padding: 10px;
+      border: 1px solid var(--gray-200);
+      font-size: 11px;
+      color: var(--gray-600);
+      margin-top: auto;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .col-card-preview strong {
+      display: block;
+      color: var(--gray-800);
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    /* Visual Transitions Flow Pipeline */
+    .pipeline-wrapper {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 10px;
+    }
+    .pipeline-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gray-600);
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .pipeline-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 900px) {
+      .pipeline-steps {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pipeline-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 12px 14px;
+      position: relative;
+    }
+    .pipeline-card::after {
+      content: '→';
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--accent);
+      z-index: 2;
+    }
+    .pipeline-card:last-child::after {
+      display: none;
+    }
+    @media (max-width: 900px) {
+      .pipeline-card::after {
+        content: '↓';
+        right: 50%;
+        top: auto;
+        bottom: -12px;
+        transform: translateX(50%);
+      }
+    }
+
+    .pipeline-action {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 4px;
+    }
+    .pipeline-endpoint {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .pipeline-sub {
+      font-size: 11px;
+      color: var(--gray-500);
+      margin-top: 4px;
+    }
+
+    /* Return Arrow for Retomar */
+    .pipeline-loop {
+      margin-top: 14px;
+      padding: 10px 14px;
+      background: #FEF3C7;
+      border: 1px dashed #B45309;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #92400E;
+    }
+    .pipeline-loop strong {
+      color: #78350F;
+    }
+
+    /* Tables */
+    .flow-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    .flow-table th {
+      background: var(--gray-100);
+      padding: 10px 14px;
+      font-weight: 700;
+      color: var(--gray-700);
+      border-bottom: 2px solid var(--gray-200);
+    }
+    .flow-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--gray-200);
+      color: var(--gray-800);
+      vertical-align: middle;
+    }
+    .flow-table tr:last-child td {
+      border-bottom: none;
+    }
+    .flow-table tr:hover td {
+      background: var(--gray-50);
+    }
+
+    .table-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .tag-post { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .tag-patch { background: #E0E7FF; color: #3730A3; border: 1px solid #C7D2FE; }
+
+    .tag-rule-strict {
+      background: #FEE2E2;
+      color: #991B1B;
+      border: 1px solid #FCA5A5;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      font-size: 11px;
+    }
+    .tag-rule-ok {
+      color: var(--gray-500);
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    /* Grid 2 Columns for Sections */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 860px) {
+      .grid-2col { grid-template-columns: 1fr; }
+    }
+
+    /* Outside Kanban Card */
+    .outside-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .outside-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+    }
+    .outside-icon {
+      color: #DC2626;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .outside-item strong {
+      display: block;
+      font-size: 13px;
+      color: var(--gray-900);
+      margin-bottom: 2px;
+    }
+    .outside-item p {
+      font-size: 12px;
+      color: var(--gray-600);
+    }
+
+    /* Callout Note ADR-006 */
+    .callout-adr {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-left: 5px solid #D97706;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 10px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .callout-icon {
+      color: #D97706;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .callout-body h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #92400E;
+      margin-bottom: 4px;
+    }
+    .callout-body p {
+      font-size: 13px;
+      color: #78350F;
+      line-height: 1.5;
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; padding: 0 !important; font-size: 9.5pt; }
+      .nav-bar, .print-btn { display: none !important; }
+      .header-card, .section-card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        margin-bottom: 16px !important;
+        padding: 18px !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .kanban-board {
+        grid-template-columns: repeat(5, 1fr) !important;
+        gap: 8px !important;
+      }
+      .col-card {
+        padding: 10px !important;
+      }
+      .pipeline-steps {
+        grid-template-columns: repeat(4, 1fr) !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <a href="index.html">← Volver al Índice de Flujogramas</a>
+    <button class="print-btn" onclick="window.print()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      Imprimir Flujograma (PDF)
+    </button>
+  </div>
+
+  <!-- Header Card (Portada) -->
+  <div class="header-card">
+    <span class="badge">Flujograma 05 · Flujo Operativo del Técnico</span>
+    <h1 class="title">Kanban del Técnico — Flujo de trabajo</h1>
+    <p class="subtitle">Cómo un técnico gestiona tickets en el sistema: ciclo visual ágil desde la cola compartida hasta la resolución documentada.</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Versión:</strong> 1.0</div>
+      <div class="meta-item"><strong>Fecha:</strong> 2026-10-15</div>
+      <div class="meta-item"><strong>Autor:</strong> NexusDev / NexusTV</div>
+      <div class="meta-item"><strong>Decisiones Arquitectónicas:</strong> ADR-006 (Solución Obligatoria), ADR-009 (Sistema Gestor)</div>
+    </div>
+  </div>
+
+  <!-- Diagrama de Columnas -->
+  <div class="section-card">
+    <h2 class="section-title">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="16" y2="21"/></svg>
+      Tablero Kanban: 5 Columnas de Atención
+    </h2>
+    <p class="section-desc">
+      El técnico visualiza únicamente los estados activos y pertinentes a su jornada de resolución. Cada columna define el estado de propiedad y el ciclo de vida del ticket:
+    </p>
+
+    <div class="kanban-board">
+
+      <!-- Columna 1: Cola del grupo -->
+      <div class="col-card col-cola">
+        <div class="col-header">
+          <div class="col-icon icon-cola">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          </div>
+          <div class="col-name">Cola del grupo</div>
+        </div>
+        <div class="col-badges">
+          <span class="col-badge badge-cola">Status 1 (Nuevo)</span>
+          <span class="col-badge badge-cola">Sin técnico asignado</span>
+        </div>
+        <p class="col-desc">Tickets recién ingresados al grupo técnico pendientes de que un resolutor tome posesión.</p>
+        <div class="col-card-preview">
+          <strong>#101 · Acceso VPN</strong>
+          <span>Grupo: Soporte N1</span>
+        </div>
+      </div>
+
+      <!-- Columna 2: Mis tickets -->
+      <div class="col-card col-mistickets">
+        <div class="col-header">
+          <div class="col-icon icon-mistickets">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="col-name">Mis tickets</div>
+        </div>
+        <div class="col-badges">
+          <span class="col-badge badge-mistickets">Status 1 ó 2</span>
+          <span class="col-badge badge-mistickets">Asignado a mí</span>
+        </div>
+        <p class="col-desc">Tickets bajo responsabilidad del técnico en bandeja personal, listos para iniciar trabajo activo.</p>
+        <div class="col-card-preview">
+          <strong>#98 · Configuración Outlook</strong>
+          <span>Técnico: tech1</span>
+        </div>
+      </div>
+
+      <!-- Columna 3: En progreso -->
+      <div class="col-card col-progreso">
+        <div class="col-header">
+          <div class="col-icon icon-progreso">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="col-name">En progreso</div>
+        </div>
+        <div class="col-badges">
+          <span class="col-badge badge-progreso">Status 2 ó 3</span>
+          <span class="col-badge badge-progreso">Assigned / Planned</span>
+        </div>
+        <p class="col-desc">Incidencias en diagnóstico, ejecución o planificación de intervención técnica inmediata.</p>
+        <div class="col-card-preview">
+          <strong>#85 · Falla en Impresora</strong>
+          <span>En ejecución activa</span>
+        </div>
+      </div>
+
+      <!-- Columna 4: Pendiente -->
+      <div class="col-card col-pendiente">
+        <div class="col-header">
+          <div class="col-icon icon-pendiente">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+          </div>
+          <div class="col-name">Pendiente</div>
+        </div>
+        <div class="col-badges">
+          <span class="col-badge badge-pendiente">Status 4 (Waiting)</span>
+          <span class="col-badge badge-pendiente">En espera externa</span>
+        </div>
+        <p class="col-desc">Atención pausada por espera de confirmación del usuario, repuestos de hardware o terceros.</p>
+        <div class="col-card-preview">
+          <strong>#74 · Cambio de Disco</strong>
+          <span>Esperando proveedor</span>
+        </div>
+      </div>
+
+      <!-- Columna 5: Resuelto -->
+      <div class="col-card col-resuelto">
+        <div class="col-header">
+          <div class="col-icon icon-resuelto">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="col-name">Resuelto</div>
+        </div>
+        <div class="col-badges">
+          <span class="col-badge badge-resuelto">Status 5 (Solved)</span>
+          <span class="col-badge badge-resuelto">Solución documentada</span>
+        </div>
+        <p class="col-desc">Problema resuelto satisfactoriamente. Requiere registro mandatorio de la solución técnica aplicada.</p>
+        <div class="col-card-preview">
+          <strong>#63 · Reseteo de Password</strong>
+          <span>Solución registrada</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Pipeline Visual de Transiciones -->
+    <div class="pipeline-wrapper">
+      <div class="pipeline-title">Flujo de Acciones y Transiciones entre Columnas</div>
+      <div class="pipeline-steps">
+
+        <!-- Paso 1 -->
+        <div class="pipeline-card">
+          <div class="pipeline-action">
+            <span>1. Asignarme</span>
+          </div>
+          <div class="pipeline-endpoint">POST /api/tickets/{id}/claim</div>
+          <div class="pipeline-sub">Cola → Mis tickets (autoasignación)</div>
+        </div>
+
+        <!-- Paso 2 -->
+        <div class="pipeline-card">
+          <div class="pipeline-action">
+            <span>2. Empezar</span>
+          </div>
+          <div class="pipeline-endpoint">PATCH /status { status: 3 }</div>
+          <div class="pipeline-sub">Mis tickets → En progreso (inicio)</div>
+        </div>
+
+        <!-- Paso 3 -->
+        <div class="pipeline-card">
+          <div class="pipeline-action">
+            <span>3. Pendiente</span>
+          </div>
+          <div class="pipeline-endpoint">PATCH /status { status: 4 }</div>
+          <div class="pipeline-sub">En progreso → Pendiente (pausa)</div>
+        </div>
+
+        <!-- Paso 4 -->
+        <div class="pipeline-card">
+          <div class="pipeline-action">
+            <span>4. Resolver</span>
+          </div>
+          <div class="pipeline-endpoint">POST solutions + PATCH { status: 5 }</div>
+          <div class="pipeline-sub">En progreso → Resuelto (solución obligatoria)</div>
+        </div>
+
+      </div>
+
+      <!-- Retorno desde Pendiente -->
+      <div class="pipeline-loop">
+        <span>🔄 <strong>Transición de retorno:</strong> Cuando se recibe la respuesta esperada, la acción <strong>"Retomar"</strong> (o drag & drop) envía <code>PATCH /status { status: 3 }</code> para devolver el ticket de <strong>Pendiente → En progreso</strong>.</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tabla de Transiciones Permitidas -->
+  <div class="section-card">
+    <h2 class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+      Transiciones Permitidas
+    </h2>
+
+    <table class="flow-table">
+      <thead>
+        <tr>
+          <th>Transición</th>
+          <th>Acción UI</th>
+          <th>Endpoint / Mutation</th>
+          <th>Regla de Validación</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cola del grupo → Mis tickets</strong></td>
+          <td>Botón "Asignarme" o Drag & Drop</td>
+          <td>
+            <span class="table-tag tag-post">POST</span> <code>/api/tickets/{id}/claim</code>
+          </td>
+          <td>El usuario debe pertenecer al grupo del ticket y el ticket debe estar sin técnico asignado (<code>status = 1</code>).</td>
+        </tr>
+        <tr>
+          <td><strong>Mis tickets → En progreso</strong></td>
+          <td>Botón "Empezar" o Drag & Drop</td>
+          <td>
+            <span class="table-tag tag-patch">PATCH</span> <code>/api/tickets/{id}/status { status: 3 }</code>
+          </td>
+          <td><span class="tag-rule-ok">Sin restricción adicional (permite inicio libre).</span></td>
+        </tr>
+        <tr>
+          <td><strong>En progreso → Pendiente</strong></td>
+          <td>Botón "Pendiente" o Drag & Drop</td>
+          <td>
+            <span class="table-tag tag-patch">PATCH</span> <code>/api/tickets/{id}/status { status: 4 }</code>
+          </td>
+          <td><span class="tag-rule-ok">Pausa de SLA en GLPI por espera externa.</span></td>
+        </tr>
+        <tr>
+          <td><strong>Pendiente → En progreso</strong></td>
+          <td>Botón "Retomar" o Drag & Drop</td>
+          <td>
+            <span class="table-tag tag-patch">PATCH</span> <code>/api/tickets/{id}/status { status: 3 }</code>
+          </td>
+          <td><span class="tag-rule-ok">Reactiva el trabajo sobre la incidencia.</span></td>
+        </tr>
+        <tr>
+          <td><strong>En progreso → Resuelto</strong></td>
+          <td>Botón "Resolver" o Drag & Drop a columna</td>
+          <td>
+            <span class="table-tag tag-post">POST</span> <code>/api/tickets/{id}/solutions</code><br>
+            <span class="table-tag tag-patch" style="margin-top: 4px;">PATCH</span> <code>/api/tickets/{id}/status { status: 5 }</code>
+          </td>
+          <td>
+            <span class="tag-rule-strict">SOLUCIÓN ESCRITA OBLIGATORIA (ADR-006)</span><br>
+            <span style="font-size: 11px; color: var(--gray-600); margin-top: 2px; display: inline-block;">
+              Validada estrictamente en el backend. Arrastrar a Resuelto sin solución abre el modal de resolución.
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Grid de Mapeo GLPI y Reglas Fuera de Kanban -->
+  <div class="grid-2col">
+
+    <!-- Mapeo estados GLPI -->
+    <div class="section-card">
+      <h2 class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Mapeo de Estados GLPI
+      </h2>
+
+      <table class="flow-table">
+        <thead>
+          <tr>
+            <th>Columna Kanban</th>
+            <th>Estados GLPI</th>
+            <th>Visibilidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Cola del grupo</strong></td>
+            <td><code>1 (New)</code> sin assignee</td>
+            <td>Siempre visible</td>
+          </tr>
+          <tr>
+            <td><strong>Mis tickets</strong></td>
+            <td><code>1, 2 (New / Assigned)</code> asignados a mí</td>
+            <td>Siempre visible</td>
+          </tr>
+          <tr>
+            <td><strong>En progreso</strong></td>
+            <td><code>2, 3 (Assigned / Planned)</code></td>
+            <td>Siempre visible</td>
+          </tr>
+          <tr>
+            <td><strong>Pendiente</strong></td>
+            <td><code>4 (Pending)</code></td>
+            <td>Siempre visible</td>
+          </tr>
+          <tr>
+            <td><strong>Resuelto</strong></td>
+            <td><code>5 (Solved)</code></td>
+            <td>Siempre visible</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size: 12px; color: var(--gray-500); margin-top: 12px; font-style: italic;">
+        * Nota: El estado Cerrado (6) de GLPI no aparece en el Kanban del técnico.
+      </p>
+    </div>
+
+    <!-- Fuera del Kanban -->
+    <div class="section-card">
+      <h2 class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        Operaciones Fuera del Kanban
+      </h2>
+
+      <div class="outside-list">
+        <div class="outside-item">
+          <div class="outside-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div>
+            <strong>Estado Cerrado (6) de GLPI:</strong>
+            <p>Los tickets cerrados definitivamente no se muestran en el tablero Kanban para evitar sobrecarga cognitiva. Permanecen accesibles y consultables mediante la vista tabular completa en <code>/tickets</code>.</p>
+          </div>
+        </div>
+
+        <div class="outside-item">
+          <div class="outside-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          </div>
+          <div>
+            <strong>Reapertura de Tickets Resueltos:</strong>
+            <p>La reapertura de un ticket con <code>status = 5</code> (hacia En progreso o Nuevo) no se permite por drag & drop en el Kanban. Debe ejecutarse exclusivamente desde la vista de detalle del ticket (<code>/tickets/{id}</code>) con justificación.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Callout ADR-006 -->
+      <div class="callout-adr">
+        <div class="callout-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="callout-body">
+          <h4>Regla Estricta ADR-006: Solución Obligatoria</h4>
+          <p>
+            El paso a <strong>Resuelto</strong> exige una solución escrita. El sistema lo valida en el backend (no solo en la UI). Intentar arrastrar una tarjeta a la columna "Resuelto" sin solución registrada abre inmediatamente el modal de solución obligatoria, impidiendo la mutación sin el texto correspondiente.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

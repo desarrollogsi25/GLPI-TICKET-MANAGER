@@ -163,3 +163,18 @@ RFC 7807 `ProblemDetails` for every failure:
 ## Auditoría automática
 
 Las operaciones operativas clave (`claim` al autoasignarse un ticket y `resolve` al cambiar a estado 5) se registran automáticamente de manera asíncrona y no bloqueante en la tabla `audit_log` de PostgreSQL (ver [Audit Overview](../audit/overview.md)).
+
+## Kanban del técnico
+
+El tablero Kanban (`/kanban`) organiza la jornada operativa del técnico en 5 columnas de atención ágil:
+1. **Cola del grupo**: Tickets en estado Nuevo (`status = 1`) pertenecientes al grupo técnico sin resolutor asignado.
+2. **Mis tickets**: Tickets asignados al usuario en estado Nuevo o Asignado (`status = 1, 2`) listos para atender.
+3. **En progreso**: Incidencias bajo diagnóstico o resolución activa (`status = 2, 3`).
+4. **Pendiente**: Tickets con atención pausada por espera externa (`status = 4`).
+5. **Resuelto**: Tickets solucionados con solución escrita obligatoria (`status = 5`, según ADR-006).
+
+Para el diagrama visual detallado de transiciones, endpoints, validaciones y mapeo de estados GLPI, consultar el [Flujograma 5: Kanban del Técnico](../../09-visual-docs/flows/kanban-flow.html).
+
+> [!NOTE]
+> La implementación completa de la UI del tablero Kanban con soporte de las 5 columnas y modal de resolución corresponde al Bloque 8b.
+

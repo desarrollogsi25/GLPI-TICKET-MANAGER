@@ -10,7 +10,8 @@ const files = [
   { name: 'glpi-ticket-lifecycle.html', pdf: 'glpi-ticket-lifecycle.pdf', landscape: false },
   { name: 'system-architecture.html', pdf: 'system-architecture.pdf', landscape: true },
   { name: 'unified-flow.html', pdf: 'unified-flow.pdf', landscape: false },
-  { name: 'database-diagram.html', pdf: 'database-diagram.pdf', landscape: true }
+  { name: 'database-diagram.html', pdf: 'database-diagram.pdf', landscape: true },
+  { name: 'kanban-flow.html', pdf: 'kanban-flow.pdf', landscape: true }
 ];
 
 (async () => {
