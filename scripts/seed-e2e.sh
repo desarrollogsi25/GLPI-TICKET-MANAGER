@@ -37,9 +37,9 @@ VALUES
   (1, 7, 1, 0, 0, 0),
   (2, 8, 2, 0, 0, 0);
 
-INSERT IGNORE INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation)
+INSERT IGNORE INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
 VALUES
-  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1);
+  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1, 2);
 
 INSERT IGNORE INTO glpi_groups_tickets (tickets_id, groups_id, type)
 VALUES
@@ -54,7 +54,7 @@ INSERT IGNORE INTO glpi_itilcategories
   (6, 0, 'Sistema', 0, 'Sistema', 1);
 
 -- 3. Resetear ticket #11 al estado "listo para claim"
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=11;
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, itilcategories_id=2 WHERE id=11;
 DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 SQL

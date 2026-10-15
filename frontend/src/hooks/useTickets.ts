@@ -15,16 +15,35 @@ import {
 /** The API caps `limit` at 100; the board and table filter client-side. */
 export const TICKETS_PAGE_LIMIT = 100
 
-export function useTicketsQuery(assigneeId: number | null) {
+export interface TicketFilters {
+  assigneeId?: number | null
+  serviceId?: number | null
+}
+
+export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilters) {
+  const filters: TicketFilters =
+    typeof filtersOrAssigneeId === 'object' && filtersOrAssigneeId !== null
+      ? filtersOrAssigneeId
+      : { assigneeId: filtersOrAssigneeId }
+
+  const { assigneeId, serviceId } = filters
+  const hasFilter = assigneeId != null || serviceId != null
+
+  const queryKey =
+    serviceId != null
+      ? queryKeys.tickets.list(filters)
+      : queryKeys.tickets.byAssignee(assigneeId ?? 0)
+
   return useQuery({
-    queryKey: queryKeys.tickets.byAssignee(assigneeId ?? 0),
+    queryKey,
     queryFn: () =>
       listTickets({
-        assigneeId: assigneeId as number,
+        assigneeId: assigneeId ?? undefined,
+        serviceId: serviceId ?? undefined,
         limit: TICKETS_PAGE_LIMIT,
         offset: 0,
       }),
-    enabled: assigneeId != null,
+    enabled: hasFilter,
   })
 }
 

@@ -8,7 +8,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
+import { useServicesQuery } from '@/hooks/useServices'
 import { useTicketsQuery } from '@/hooks/useTickets'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
@@ -102,9 +103,26 @@ const columns: ColumnDef<TicketSummary>[] = [
 ]
 
 export function List() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const serviceIdParam = searchParams.get('serviceId')
+  const serviceId = serviceIdParam ? parseInt(serviceIdParam, 10) : null
+
   const assigneeId = useSelectedAssignee()
-  const { data, isLoading, isError, error } = useTicketsQuery(assigneeId)
+  const { data: services } = useServicesQuery()
+  const activeService = services?.find((s) => s.id === serviceId)
+  const serviceName = activeService?.name ?? (serviceId ? `Servicio #${serviceId}` : '')
+
+  const { data, isLoading, isError, error } = useTicketsQuery({
+    serviceId: serviceId ?? undefined,
+    assigneeId: serviceId ? null : assigneeId,
+  })
+
   const [globalFilter, setGlobalFilter] = useState('')
+
+  const handleClearServiceFilter = () => {
+    searchParams.delete('serviceId')
+    setSearchParams(searchParams, { replace: true })
+  }
 
   const tickets = data?.items ?? []
 
@@ -139,17 +157,37 @@ export function List() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Tickets</h1>
           <p className="text-sm text-muted-foreground">
-            {data ? `${data.total} ticket(s) para el técnico seleccionado.` : 'Listado de tickets'}
+            {serviceId
+              ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
+              : data
+                ? `${data.total} ticket(s) para el técnico seleccionado.`
+                : 'Listado de tickets'}
           </p>
         </div>
         <div className="flex items-end gap-2">
-          <TechnicianFilter />
+          {serviceId == null && <TechnicianFilter />}
         </div>
       </div>
 
-      {assigneeId == null ? (
+      {serviceId != null && (
+        <div className="flex items-center gap-2 rounded-md bg-secondary/60 px-3 py-1.5 text-sm border border-border w-fit">
+          <span>
+            Filtrando por: <strong>{serviceName || 'Requerimiento'}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={handleClearServiceFilter}
+            className="ml-2 rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+            aria-label="Quitar filtro"
+          >
+            Quitar
+          </button>
+        </div>
+      )}
+
+      {assigneeId == null && serviceId == null ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-          Selecciona un técnico para ver sus tickets.
+          Selecciona un técnico o servicio para ver tickets.
         </p>
       ) : (
         <>

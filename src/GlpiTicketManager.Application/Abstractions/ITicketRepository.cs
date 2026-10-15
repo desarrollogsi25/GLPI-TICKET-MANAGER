@@ -20,6 +20,18 @@ public interface ITicketRepository
 
     Task<long> CountByAssigneeAsync(int assigneeId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
+    Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        CancellationToken cancellationToken);
+
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
     /// <summary>Loads the user links (requesters / assignees) for a set of tickets.</summary>

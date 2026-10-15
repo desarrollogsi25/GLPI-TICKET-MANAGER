@@ -18,6 +18,13 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken);

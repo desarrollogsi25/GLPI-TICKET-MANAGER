@@ -81,7 +81,8 @@ export interface TicketDetail {
 }
 
 export interface TicketListParams {
-  assigneeId: number
+  assigneeId?: number
+  serviceId?: number
   limit?: number
   offset?: number
 }

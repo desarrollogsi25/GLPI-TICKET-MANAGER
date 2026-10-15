@@ -5,7 +5,8 @@ import type {
 } from '@/lib/api/types'
 
 export interface TicketListParams {
-  assigneeId: number
+  assigneeId?: number
+  serviceId?: number
   limit?: number
   offset?: number
 }

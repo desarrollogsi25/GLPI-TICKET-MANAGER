@@ -7,7 +7,7 @@ namespace GlpiTicketManager.Infrastructure.Persistence.Queries;
 public static class TicketQueries
 {
     /// <summary>Shared projection over <c>glpi_tickets</c>, terminated by a newline.</summary>
-    private const string BaseProjection = """
+    public const string BaseProjection = """
         SELECT
             t.id                AS Id,
             t.name              AS Name,

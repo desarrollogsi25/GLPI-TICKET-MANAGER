@@ -8,6 +8,8 @@ export const queryKeys = {
   tickets: {
     all: ['tickets'] as const,
     byAssignee: (assigneeId: number) => ['tickets', 'assignee', assigneeId] as const,
+    list: (filters: { assigneeId?: number | null; serviceId?: number | null }) =>
+      ['tickets', 'list', filters] as const,
     detail: (id: number) => ['tickets', 'detail', id] as const,
     byGroupQueue: (groupId: number) => ['tickets', 'group-queue', groupId] as const,
   },

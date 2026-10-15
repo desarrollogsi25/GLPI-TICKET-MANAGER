@@ -51,7 +51,19 @@ La página `/services` (`ServicesPage.tsx`):
 
 ---
 
-## 4. Alcance y Extensiones Futuras
+## 4. Uso en filtrado de tickets
 
-- **Incluido en Bloque 7a:** Endpoint `GET /api/services`, página `/services`, seeding de fixtures y test E2E.
-- **Fuera de alcance:** Filtrado de tickets por categoría/servicio en Kanban y tabla de tickets (planificado para el Bloque 7c).
+- Cada nodo del catálogo de servicios en `/services` incluye un botón "Ver tickets".
+- Al hacer clic en un servicio, se navega a `/tickets?serviceId={id}`.
+- La vista de tickets lee el query param `serviceId`, muestra un chip de filtro activo con opción de removerlo, y consulta `GET /api/tickets?serviceId={id}`.
+- El backend resuelve el filtrado considerando el ID de la categoría y sus hijos directos (1 nivel de profundidad).
+- En nodos hoja se filtran los tickets de esa categoría específica; en nodos padre se incluyen los tickets del padre y de sus subcategorías inmediatas.
+
+---
+
+## 5. Alcance
+
+- **Bloque 7a:** Endpoint `GET /api/services`, página `/services`, seeding de fixtures y test E2E.
+- **Bloque 7c:** Filtro de tickets por servicio (`serviceId`) en backend y enlace desde `/services` hacia `/tickets` con chip de filtro activo.
+- **Fuera de alcance:** Filtrado de tickets en Kanban (reservado para Bloque 8).
+

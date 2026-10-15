@@ -36,22 +36,37 @@ public sealed class TicketService : ITicketService
         _logger = logger;
     }
 
-    public async Task<PagedResult<TicketSummaryDto>> GetByAssigneeAsync(
+    public Task<PagedResult<TicketSummaryDto>> GetByAssigneeAsync(
         int assigneeId,
         int limit,
         int offset,
         CancellationToken cancellationToken)
     {
-        if (assigneeId <= 0)
+        return GetFilteredAsync(assigneeId, null, limit, offset, cancellationToken);
+    }
+
+    public async Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        if (assigneeId.HasValue && assigneeId.Value <= 0)
         {
             throw Invalid("assigneeId", "assigneeId must be a positive integer.");
+        }
+
+        if (serviceId.HasValue && serviceId.Value <= 0)
+        {
+            throw Invalid("serviceId", "serviceId must be a positive integer.");
         }
 
         var effectiveLimit = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
         var effectiveOffset = Math.Max(offset, 0);
 
-        var rows = await _tickets.GetByAssigneeAsync(assigneeId, effectiveLimit, effectiveOffset, cancellationToken);
-        var total = await _tickets.CountByAssigneeAsync(assigneeId, cancellationToken);
+        var rows = await _tickets.GetFilteredAsync(assigneeId, serviceId, effectiveLimit, effectiveOffset, cancellationToken);
+        var total = await _tickets.CountFilteredAsync(assigneeId, serviceId, cancellationToken);
 
         if (rows.Count > 0)
         {

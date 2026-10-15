@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +41,7 @@ interface ServiceTreeNodeProps {
 }
 
 function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: ServiceTreeNodeProps) {
+  const navigate = useNavigate()
   const hasChildren = node.children.length > 0
   const isExpanded = expandedIds.has(node.id)
 
@@ -84,9 +86,20 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: Service
               </span>
             )}
           </div>
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            Nivel {node.level}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Nivel {node.level}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/tickets?serviceId=${node.id}`)}
+              className="h-7 px-2 text-xs"
+              title={`Ver tickets de ${node.name}`}
+            >
+              Ver tickets
+            </Button>
+          </div>
         </div>
       </div>
 

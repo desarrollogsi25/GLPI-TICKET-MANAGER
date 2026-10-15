@@ -1,3 +1,4 @@
+using System.Text;
 using Dapper;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Channels;
@@ -31,11 +32,33 @@ public sealed class TicketRepository : ITicketRepository
         int offset,
         CancellationToken cancellationToken)
     {
+        return await GetFilteredAsync(assigneeId, null, limit, offset, cancellationToken);
+    }
+
+    public async Task<long> CountByAssigneeAsync(int assigneeId, CancellationToken cancellationToken)
+    {
+        return await CountFilteredAsync(assigneeId, null, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
         using var connection = _connectionFactory.CreateConnection();
 
+        var (sql, parameters) = BuildFilterQuery(
+            TicketQueries.BaseProjection,
+            assigneeId,
+            serviceId,
+            limit,
+            offset);
+
         var command = new CommandDefinition(
-            TicketQueries.ByAssignee,
-            new { AssigneeId = assigneeId, Limit = limit, Offset = offset },
+            sql,
+            parameters,
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -43,17 +66,80 @@ public sealed class TicketRepository : ITicketRepository
         return rows.AsList();
     }
 
-    public async Task<long> CountByAssigneeAsync(int assigneeId, CancellationToken cancellationToken)
+    public async Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
 
+        var (sql, parameters) = BuildFilterQuery(
+            "SELECT COUNT(*) FROM glpi_tickets t\n",
+            assigneeId,
+            serviceId,
+            limit: null,
+            offset: null);
+
         var command = new CommandDefinition(
-            TicketQueries.CountByAssignee,
-            new { AssigneeId = assigneeId },
+            sql,
+            parameters,
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
         return await connection.ExecuteScalarAsync<long>(command);
+    }
+
+    private static (string Sql, DynamicParameters Parameters) BuildFilterQuery(
+        string baseSql,
+        int? assigneeId,
+        int? serviceId,
+        int? limit,
+        int? offset)
+    {
+        var parameters = new DynamicParameters();
+        var sql = new StringBuilder(baseSql);
+
+        if (assigneeId.HasValue)
+        {
+            sql.AppendLine("INNER JOIN glpi_tickets_users tu ON tu.tickets_id = t.id AND tu.type = 2");
+            parameters.Add("AssigneeId", assigneeId.Value);
+        }
+
+        var conditions = new List<string> { "t.is_deleted = 0" };
+
+        if (assigneeId.HasValue)
+        {
+            conditions.Add("tu.users_id = @AssigneeId");
+        }
+
+        if (serviceId.HasValue)
+        {
+            conditions.Add("""
+                (
+                    t.itilcategories_id = @ServiceId 
+                    OR t.itilcategories_id IN (
+                        SELECT id FROM glpi_itilcategories WHERE itilcategories_id = @ServiceId
+                    )
+                )
+                """);
+            parameters.Add("ServiceId", serviceId.Value);
+        }
+
+        sql.Append("WHERE ").AppendLine(string.Join(" AND ", conditions));
+
+        if (limit.HasValue && offset.HasValue)
+        {
+            sql.AppendLine("ORDER BY t.status ASC, t.priority DESC, t.date DESC");
+            sql.AppendLine("LIMIT @Limit OFFSET @Offset;");
+            parameters.Add("Limit", limit.Value);
+            parameters.Add("Offset", offset.Value);
+        }
+        else
+        {
+            sql.AppendLine(";");
+        }
+
+        return (sql.ToString(), parameters);
     }
 
     public async Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken)

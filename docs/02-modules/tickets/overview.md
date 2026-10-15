@@ -15,12 +15,20 @@ through the GLPI REST API so notifications, logs, SLAs and plugins keep working.
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/tickets?assigneeId={id}&limit=&offset=` | JWT | Tickets assigned to a technician (`glpi_tickets_users.type = 2`) |
+| `GET` | `/api/tickets?assigneeId={id}&serviceId={id}&limit=&offset=` | JWT | Tickets list with optional assignee and service filters |
 | `GET` | `/api/tickets/{id}` | JWT | Full detail: description, follow-ups and user links |
 | `PATCH` | `/api/tickets/{id}/status` | JWT | Change ticket status through GLPI |
 | `GET` | `/api/dashboard/stats` | JWT | Aggregated metrics |
 | `POST` | `/api/auth/login` | anonymous, rate-limited | Exchange credentials for a JWT |
 | `GET` | `/api/auth/me` | JWT | Profile encoded in the current token |
+
+### Filtros disponibles
+
+El endpoint `GET /api/tickets` admite los siguientes filtros opcionales (query parameters):
+- `assigneeId`: Filtra por técnico asignado (`glpi_tickets_users.type = 2`). Si no se proporciona ni `assigneeId` ni `serviceId`, por defecto se utiliza el ID del usuario autenticado.
+- `groupId`: Filtra por grupo asignado (`glpi_groups_tickets`).
+- `unassigned`: Filtra tickets sin técnico asignado.
+- `serviceId`: Filtra por categoría ITIL (`glpi_itilcategories`) incluyendo subcategorías directas (1 nivel de profundidad: `t.itilcategories_id = @ServiceId OR t.itilcategories_id IN (SELECT id FROM glpi_itilcategories WHERE itilcategories_id = @ServiceId)`).
 
 Interactive documentation: **Scalar** at `/scalar/v1`; the raw OpenAPI document is at
 `/openapi/v1.json`.

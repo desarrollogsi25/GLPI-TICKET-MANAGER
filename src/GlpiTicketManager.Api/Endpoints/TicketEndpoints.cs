@@ -17,10 +17,10 @@ public static class TicketEndpoints
             .WithTags("Tickets")
             .RequireAuthorization();
 
-        // GET /api/tickets (lista por assignee, con filtros opcionales)
-        group.MapGet(string.Empty, GetByAssignee)
-            .WithName("GetTicketsByAssignee")
-            .WithSummary("Tickets assigned to a technician (glpi_tickets_users.type = 2)")
+        // GET /api/tickets (lista con filtros: assigneeId, serviceId, limit, offset)
+        group.MapGet(string.Empty, GetTickets)
+            .WithName("GetTickets")
+            .WithSummary("Tickets list filtered by assignee and/or service (ITIL category)")
             .Produces<PagedResult<TicketSummaryDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized);
@@ -72,15 +72,20 @@ public static class TicketEndpoints
         return group;
     }
 
-    private static async Task<IResult> GetByAssignee(
-        int assigneeId,
+    private static async Task<IResult> GetTickets(
+        int? assigneeId,
+        int? serviceId,
         ITicketService ticketService,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken,
         int? limit = null,
         int? offset = null)
     {
-        var result = await ticketService.GetByAssigneeAsync(
-            assigneeId,
+        var effectiveAssigneeId = assigneeId ?? (serviceId is null ? principal.GetUserId() : null);
+
+        var result = await ticketService.GetFilteredAsync(
+            effectiveAssigneeId,
+            serviceId,
             limit ?? 0,
             offset ?? 0,
             cancellationToken);
