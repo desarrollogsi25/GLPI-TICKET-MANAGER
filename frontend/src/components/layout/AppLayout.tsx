@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 import { AppSidebar } from './AppSidebar'
 import { BottomTabBar } from './BottomTabBar'
 import { MobileDrawer } from './MobileDrawer'
+import { PageTransition } from './PageTransition'
 
 export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -72,7 +73,9 @@ export function AppLayout() {
       {/* 3. Main Content Area */}
       <main className="md:ml-60 min-h-screen">
         <div className="mx-auto max-w-7xl px-4 md:px-8 py-4 md:py-6 pb-20 md:pb-6">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </div>
       </main>
 

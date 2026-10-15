@@ -15,7 +15,7 @@ interface ToastState {
   dismiss: (id: string) => void
 }
 
-const AUTO_DISMISS_MS = 4500
+const AUTO_DISMISS_MS = 4000
 
 /** Minimal toast store: no extra dependency, rendered by <Toaster />. */
 export const useToastStore = create<ToastState>((set, get) => ({

@@ -1446,6 +1446,101 @@
       </div>
     </div>
 
+    <!-- Motion patterns aplicados en la app -->
+    <div class="preview-box" style="margin-top: 16px;">
+      <div class="preview-title">Motion Patterns Implementados (Patrones de Movimiento Transversal)</div>
+      <table class="spec-table" style="margin-top: 6px;">
+        <thead>
+          <tr>
+            <th>Elemento / Componente</th>
+            <th>Duración / Física</th>
+            <th>Curva / Spring</th>
+            <th>Propiedades</th>
+            <th>Fallback Reduced-Motion</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Botones (Global)</strong></td>
+            <td>150ms</td>
+            <td><code>ease-out</code></td>
+            <td><code>active:scale-[0.97]</code></td>
+            <td><code>disabled:active:scale-100</code></td>
+          </tr>
+          <tr>
+            <td><strong>Transición de Página</strong></td>
+            <td>200ms</td>
+            <td><code>[0.16, 1, 0.3, 1]</code></td>
+            <td><code>opacity: 0 &rarr; 1, y: 8 &rarr; 0</code></td>
+            <td>Instantáneo (<code>duration: 0</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>Indicador Sidebar (Desktop)</strong></td>
+            <td>Spring interactivo</td>
+            <td><code>stiffness: 350, damping: 30</code></td>
+            <td><code>layoutId="sidebar-active"</code></td>
+            <td>Cambio directo sin traslación</td>
+          </tr>
+          <tr>
+            <td><strong>Indicador Tabs Móvil</strong></td>
+            <td>Spring interactivo</td>
+            <td><code>stiffness: 350, damping: 30</code></td>
+            <td><code>layoutId="mobile-tab-active"</code></td>
+            <td>Cambio directo sin traslación</td>
+          </tr>
+          <tr>
+            <td><strong>Segmented Tabs (Kanban)</strong></td>
+            <td>Spring interactivo</td>
+            <td><code>stiffness: 350, damping: 30</code></td>
+            <td><code>layoutId="kanban-segment-active"</code></td>
+            <td>Cambio directo sin traslación</td>
+          </tr>
+          <tr>
+            <td><strong>Cards de Ticket</strong></td>
+            <td>150ms</td>
+            <td><code>ease-out</code></td>
+            <td>Mobile: <code>active:scale-[0.98]</code><br>Desktop: hover elevación <code>shadow-md</code></td>
+            <td>Sin escala dinámica</td>
+          </tr>
+          <tr>
+            <td><strong>Modales (Dialog)</strong></td>
+            <td>Backdrop &lt; 180ms<br>Card: Spring</td>
+            <td>Backdrop: <code>easeOut</code><br>Card: <code>stiffness: 350, damping: 30</code></td>
+            <td>Backdrop: <code>opacity</code><br>Card: <code>scale: 0.96 &rarr; 1, y: 8 &rarr; 0</code></td>
+            <td>Aparición sin escala ni traslación</td>
+          </tr>
+          <tr>
+            <td><strong>Bottom Sheet de Filtros</strong></td>
+            <td>Backdrop 180ms<br>Sheet: Spring</td>
+            <td>Backdrop: <code>easeOut</code><br>Sheet: <code>damping: 28, stiffness: 320</code></td>
+            <td><code>y: 100% &rarr; 0</code> + drag interactivo</td>
+            <td>Aparición directa sin deslizamiento</td>
+          </tr>
+          <tr>
+            <td><strong>Skeletons (Shimmer)</strong></td>
+            <td>1.8s loop</td>
+            <td>Linear infinito</td>
+            <td><code>transform: translateX(-100% &rarr; 100%)</code></td>
+            <td>Shimmer desactivado (gris estático)</td>
+          </tr>
+          <tr>
+            <td><strong>Notificaciones (Toasts)</strong></td>
+            <td>Spring entrada<br>4s auto-dismiss</td>
+            <td><code>stiffness: 400, damping: 28</code></td>
+            <td>Móvil: slide-in top + swipe vertical<br>Desktop: slide-in bottom-right + swipe horizontal</td>
+            <td>Aparición directa sin slide</td>
+          </tr>
+          <tr>
+            <td><strong>Estados Vacíos (Empty States)</strong></td>
+            <td>300ms (delay 100ms)</td>
+            <td><code>easeOut</code></td>
+            <td><code>opacity: 0 &rarr; 1, y: 8 &rarr; 0</code></td>
+            <td>Aparición inmediata</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <!-- Reglas de Rendimiento -->
     <div class="callout" style="margin-top: 16px;">
       <div class="callout-title">

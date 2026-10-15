@@ -21,7 +21,7 @@ export function TicketListCard({ ticket }: TicketListCardProps) {
       className="block text-inherit no-underline"
       data-testid="ticket-card"
     >
-      <article className="rounded-xl border border-border bg-card p-4 min-h-[88px] active:scale-[0.98] transition-all duration-150 ease-out shadow-xs hover:border-primary/40">
+      <article className="rounded-xl border border-border bg-card p-4 min-h-[88px] active:scale-[0.98] transition-all duration-150 ease-out shadow-xs hover:border-primary/40 will-change-transform">
         {/* Línea 1: ID + Badge prioridad + Tipo */}
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">

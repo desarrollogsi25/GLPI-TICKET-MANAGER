@@ -45,9 +45,9 @@ export function KanbanSegmentedTabs({
           >
             {isActive && (
               <motion.div
-                layoutId="activeKanbanTabBg"
+                layoutId="kanban-segment-active"
                 className="absolute inset-0 bg-card rounded-lg border border-border shadow-xs"
-                transition={{ type: 'spring', bounce: 0.15, duration: 0.3 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
               />
             )}
 

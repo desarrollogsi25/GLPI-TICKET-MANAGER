@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,8 @@ export function TicketFiltersSheet({
   onReset,
   activeFiltersCount,
 }: TicketFiltersSheetProps) {
+  const prefersReduced = useReducedMotion()
+
   // Cerrar al pulsar Escape
   useEffect(() => {
     if (!open) return
@@ -65,7 +67,7 @@ export function TicketFiltersSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={prefersReduced ? { duration: 0 } : { duration: 0.18 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-xs"
             onClick={onClose}
             aria-hidden="true"
@@ -77,10 +79,14 @@ export function TicketFiltersSheet({
             role="dialog"
             aria-modal="true"
             aria-label="Filtros de tickets"
-            initial={{ y: '100%' }}
+            initial={prefersReduced ? false : { y: '100%' }}
             animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            exit={prefersReduced ? undefined : { y: '100%' }}
+            transition={
+              prefersReduced
+                ? { duration: 0 }
+                : { type: 'spring', damping: 28, stiffness: 320 }
+            }
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.05, bottom: 0.5 }}

@@ -21,7 +21,7 @@ export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSecti
 export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr
-      className={cn('border-b border-border transition-colors hover:bg-muted/50', className)}
+      className={cn('border-b border-border transition-colors duration-150 ease-out hover:bg-muted/50', className)}
       {...props}
     />
   )

@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -190,10 +191,14 @@ export function ServicesPage() {
           {isLoading && (
             <div className="space-y-3 py-2">
               <Skeleton className="h-9 w-full" />
+              <div className="pl-6 space-y-2">
+                <Skeleton className="h-8 w-3/4" />
+                <Skeleton className="h-8 w-2/3" />
+              </div>
               <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
+              <div className="pl-6 space-y-2">
+                <Skeleton className="h-8 w-4/5" />
+              </div>
             </div>
           )}
 
@@ -209,9 +214,14 @@ export function ServicesPage() {
           )}
 
           {!isLoading && !isError && (!services || services.length === 0) && (
-            <div className="py-12 text-center text-sm text-muted-foreground">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="py-12 text-center text-sm text-muted-foreground"
+            >
               No hay servicios configurados
-            </div>
+            </motion.div>
           )}
 
           {!isLoading && !isError && tree.length > 0 && (

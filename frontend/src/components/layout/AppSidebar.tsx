@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import { NavLink } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -207,23 +208,30 @@ export function AppSidebar() {
             data-testid={`sidebar-nav-${item.id}`}
             className={({ isActive }) =>
               cn(
-                'group flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-r-lg text-sm font-medium transition-colors border-l-4',
+                'group relative flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-r-lg text-sm font-medium transition-colors border-l-4',
                 isActive
-                  ? 'border-primary bg-primary/10 text-primary font-semibold'
+                  ? 'border-primary text-primary font-semibold'
                   : 'border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground',
               )
             }
           >
             {({ isActive }) => (
               <>
-                <span className={cn('shrink-0 transition-colors', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')}>
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-active"
+                    className="absolute inset-0 bg-primary/10 rounded-r-lg"
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <span className={cn('relative z-10 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')}>
                   {item.icon(isActive)}
                 </span>
-                <span className="truncate">{item.label}</span>
+                <span className="relative z-10 truncate">{item.label}</span>
                 {item.isQueue && queueCount > 0 && (
                   <span
                     data-testid="sidebar-queue-badge"
-                    className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground leading-none"
+                    className="relative z-10 ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground leading-none"
                   >
                     {queueCount}
                   </span>

@@ -637,6 +637,7 @@ export function Kanban() {
             <div className="space-y-3 p-1">
               <Skeleton className="h-24 w-full rounded-xl" />
               <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
             </div>
           ) : activeMobileTickets.length > 0 ? (
             activeMobileTickets.map((ticket) => (
@@ -649,7 +650,12 @@ export function Kanban() {
               />
             ))
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
+            >
               <span className="text-3xl mb-2">{EMPTY_MESSAGES[activeTab].icon}</span>
               <p className="text-sm font-semibold text-foreground">
                 {EMPTY_MESSAGES[activeTab].title}
@@ -657,7 +663,7 @@ export function Kanban() {
               <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
                 {EMPTY_MESSAGES[activeTab].subtitle}
               </p>
-            </div>
+            </motion.div>
           )}
         </motion.div>
       </div>

@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import { useState } from 'react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -107,9 +108,14 @@ export function GroupQueuePage() {
           ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground"
+        >
           No hay tickets sin asignar en tu grupo.
-        </p>
+        </motion.p>
       )}
     </div>
   )

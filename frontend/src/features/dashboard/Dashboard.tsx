@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -147,9 +148,14 @@ export function Dashboard() {
           </Button>
         </div>
         {groupItems.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground"
+          >
             No hay tickets pendientes.
-          </div>
+          </motion.div>
         ) : (
           <div className="space-y-2">
             {groupItems.slice(0, 5).map((t) => {

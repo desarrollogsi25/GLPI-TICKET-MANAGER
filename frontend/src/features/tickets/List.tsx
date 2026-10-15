@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -316,7 +317,12 @@ export function List() {
                       </div>
                     ))
                   ) : table.getRowModel().rows.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2">
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: 0.1 }}
+                      className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
+                    >
                       <span className="text-3xl mb-2">🎫</span>
                       <p className="text-sm font-semibold text-foreground">
                         No hay tickets que coincidan con los filtros
@@ -324,7 +330,7 @@ export function List() {
                       <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
                         Intenta cambiar o limpiar los filtros aplicados.
                       </p>
-                    </div>
+                    </motion.div>
                   ) : (
                     table.getRowModel().rows.map((row) => (
                       <TicketListCard key={row.original.id} ticket={row.original} />
