@@ -1,7 +1,7 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
-import { useCurrentUserQuery } from '@/hooks/useAuth'
+import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 
@@ -10,22 +10,17 @@ const navItems = [
   { to: '/tickets', label: 'Tickets' },
   { to: '/queue', label: 'Cola del grupo' },
   { to: '/services', label: 'Servicios' },
+  { to: '/preferences', label: 'Preferencias' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/ayuda', label: 'Ayuda' },
 ]
 
 export function AppLayout() {
-  const clear = useAuthStore((state) => state.clear)
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
-  const navigate = useNavigate()
+  const logout = useLogout()
 
   const profile = currentUser ?? storedUser
-
-  const handleLogout = () => {
-    clear()
-    navigate('/login', { replace: true })
-  }
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -83,8 +78,32 @@ export function AppLayout() {
               </p>
               <p className="text-xs text-muted-foreground">{profile?.username}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              Salir
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={logout}
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              data-testid="logout-btn"
+              className="flex items-center gap-1.5"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Cerrar sesión</span>
             </Button>
           </div>
         </header>

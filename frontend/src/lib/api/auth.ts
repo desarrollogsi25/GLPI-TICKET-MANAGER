@@ -10,3 +10,7 @@ export async function fetchCurrentUser(): Promise<UserProfile> {
   const { data } = await apiClient.get<UserProfile>('/auth/me')
   return data
 }
+
+export async function logout(): Promise<void> {
+  await apiClient.post('/auth/logout')
+}

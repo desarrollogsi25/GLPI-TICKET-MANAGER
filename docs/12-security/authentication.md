@@ -52,3 +52,14 @@ Para evitar el crecimiento indefinido de la tabla `revoked_tokens`:
 - `RevokedTokenCleanupService` se ejecuta como un `BackgroundService` en el contenedor `glpi-api`.
 - Se ejecuta al arrancar y posteriormente en intervalos de **1 hora** (`TimeSpan.FromHours(1)`).
 - Ejecuta `IRevokedTokenRepository.PurgeExpiredAsync()`, eliminando los registros cuya fecha `expires_at < NOW()`, ya que dichos tokens ya han expirado naturalmente y serían rechazados por el validador estándar de JWT sin requerir chequeo en base de datos.
+
+## 6. Logout UI
+
+- **Ubicación:** Botón con icono de salida (`LogOut`) y tooltip/label "Cerrar sesión" en la cabecera superior derecha (`AppLayout.tsx`).
+- **Hook `useLogout` (`frontend/src/hooks/useAuth.ts`):**
+  1. Invoca `POST /api/auth/logout` para revocar el JWT en el backend. Los posibles errores de red o token ya revocado se ignoran en el cliente para garantizar el logout local.
+  2. Limpia el estado de autenticación en Zustand y `localStorage` (`useAuthStore.getState().clear()`).
+  3. Redirige al usuario a `/login` con reemplazo en el historial (`navigate('/login', { replace: true })`).
+- **Tests E2E:**
+  - `frontend/tests/e2e/logout.spec.ts` (revocación API directa y 401 subsiguiente).
+  - `frontend/tests/e2e/logout-ui.spec.ts` (login fresco en UI, click en botón, verificación de redirección a `/login`, 401 del token capturado y vaciado de `localStorage`).

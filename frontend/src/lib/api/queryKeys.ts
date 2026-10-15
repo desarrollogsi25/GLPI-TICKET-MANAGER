@@ -23,4 +23,7 @@ export const queryKeys = {
   services: {
     all: ['services'] as const,
   },
+  preferences: {
+    all: ['preferences'] as const,
+  },
 } as const

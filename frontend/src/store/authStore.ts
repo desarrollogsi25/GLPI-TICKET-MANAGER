@@ -5,9 +5,11 @@ import type { UserProfile } from '@/lib/api/types'
 
 interface AuthState {
   token: string | null
+  accessToken: string | null
   user: UserProfile | null
   setSession: (token: string, user: UserProfile) => void
   clear: () => void
+  logout: () => void
 }
 
 /**
@@ -18,9 +20,11 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: null,
+      accessToken: null,
       user: null,
-      setSession: (token, user) => set({ token, user }),
-      clear: () => set({ token: null, user: null }),
+      setSession: (token, user) => set({ token, accessToken: token, user }),
+      clear: () => set({ token: null, accessToken: null, user: null }),
+      logout: () => set({ token: null, accessToken: null, user: null }),
     }),
     { name: 'glpi-ticket-manager.auth' },
   ),

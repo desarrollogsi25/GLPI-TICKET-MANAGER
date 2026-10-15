@@ -64,6 +64,16 @@ Reglas de validación:
 3. **Sintaxis JSON válida**: `prefs` debe ser parseable como JSON (`System.Text.Json.JsonDocument.Parse`). Si no es válido, se lanza `ValidationException` (mapeada a HTTP 400 por `GlobalExceptionHandler`).
 4. **Respuesta**: HTTP `204 NoContent` en caso de éxito tras ejecutar un `UPSERT` atómico (`ON CONFLICT (user_id) DO UPDATE`).
 
+## UI
+
+- **Ruta:** `/preferences` (`PreferencesPage.tsx`)
+- **Navegación:** Enlace "Preferencias" en el menú de navegación (`AppLayout.tsx`).
+- **Campos configurables:**
+  1. **Tema (`theme`):** Claro (`light`) u Oscuro (`dark`). Default: `light`.
+  2. **Densidad (`density`):** Cómoda (`comfortable`) o Compacta (`compact`). Default: `comfortable`.
+- **Persistencia:** Al presionar "Guardar", se envían las opciones serializadas vía `PUT /api/preferences` con el hook `useUpdatePreferencesMutation`. Las preferencias se leen con `usePreferencesQuery`.
+- **Aplicación de atributo `data-theme`:** Se establece el atributo `data-theme` en el elemento raíz `<html>` (`document.documentElement.setAttribute('data-theme', theme)`). Nota: No altera reglas de CSS en esta versión (dark mode completo es una característica futura), pero el atributo está presente y activo tanto al guardar como al recargar la app.
+
 ## Archivos Relacionados
 
 - Entidad: `src/GlpiTicketManager.Domain/Entities/UserPreference.cs`
@@ -71,4 +81,8 @@ Reglas de validación:
 - Abstracción: `src/GlpiTicketManager.Application/Abstractions/IUserPreferencesRepository.cs`
 - Repositorio Dapper: `src/GlpiTicketManager.Infrastructure/Repositories/UserPreferencesRepository.cs`
 - Endpoints: `src/GlpiTicketManager.Api/Endpoints/PreferencesEndpoints.cs`
-- Tests E2E: `frontend/tests/e2e/preferences.spec.ts`
+- UI Page: `frontend/src/features/preferences/PreferencesPage.tsx`
+- Hooks: `frontend/src/hooks/usePreferences.ts`
+- Tests E2E:
+  - `frontend/tests/e2e/preferences.spec.ts` (API directa)
+  - `frontend/tests/e2e/preferences-ui.spec.ts` (flujo UI completo)

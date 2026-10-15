@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 
-import { fetchCurrentUser, login } from '@/lib/api/auth'
+import { fetchCurrentUser, login, logout } from '@/lib/api/auth'
 import { queryKeys } from '@/lib/api/queryKeys'
 import { useAuthStore } from '@/store/authStore'
 
@@ -25,4 +26,21 @@ export function useCurrentUserQuery() {
     queryFn: fetchCurrentUser,
     enabled: Boolean(token),
   })
+}
+
+export function useLogout() {
+  const navigate = useNavigate()
+  const clearAuth = useAuthStore((s) => s.clear)
+
+  return async () => {
+    try {
+      await logout()
+    } catch {
+      // Ignorar errores: si el token ya expiró o fue revocado, el logout
+      // local es lo importante.
+    } finally {
+      clearAuth()
+      navigate('/login', { replace: true })
+    }
+  }
 }
