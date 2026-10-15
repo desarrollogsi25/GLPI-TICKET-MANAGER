@@ -1,10 +1,40 @@
 #!/usr/bin/env bash
 # Smoke test: verifica que claim y resolve registran auditoría en audit_log.
-# Uso: ejecutar después de seed-e2e.sh (ticket #11 debe estar libre).
+# AUTOCONTENIDO: crea su propio ticket (id=98), no interfiere con otros tests.
+# Idempotente: se puede ejecutar N veces sin reset externo.
 
 set -euo pipefail
 
 API="http://localhost:8080"
+SMOKE_TICKET_ID=98
+SMOKE_USER_ID=7
+SMOKE_GROUP_ID=1
+
+# Leer password de MariaDB del .env
+MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
+
+psql_app() {
+  docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc "$1"
+}
+
+mariadb_glpi() {
+  docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e "$1"
+}
+
+cleanup() {
+  mariadb_glpi "
+    DELETE FROM glpi_tickets_users WHERE tickets_id=${SMOKE_TICKET_ID};
+    DELETE FROM glpi_groups_tickets WHERE tickets_id=${SMOKE_TICKET_ID};
+    DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=${SMOKE_TICKET_ID};
+    DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=${SMOKE_TICKET_ID};
+    DELETE FROM glpi_tickets WHERE id=${SMOKE_TICKET_ID};
+  " > /dev/null 2>&1 || true
+  
+  psql_app "DELETE FROM audit_log WHERE ticket_id=${SMOKE_TICKET_ID};" > /dev/null 2>&1 || true
+}
+
+echo "=== 0. Cleanup any previous smoke ticket ==="
+cleanup
 
 echo "=== 1. Login as tech1 ==="
 LOGIN=$(curl -sf -X POST "$API/api/auth/login" \
@@ -17,51 +47,75 @@ if [ -z "$TOKEN" ]; then
 fi
 echo "Login OK"
 
-# Limpiar audit_log para empezar desde cero
-echo "=== 2. Cleanup audit_log for user 7 ==="
-docker compose exec -T app-db psql -U app -d glpi_ticket_manager -c \
-  "DELETE FROM audit_log WHERE user_id = 7;" > /dev/null
+echo "=== 2. Create smoke ticket #${SMOKE_TICKET_ID} via SQL ==="
+mariadb_glpi "
+  INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, 
+    requesttypes_id, content, urgency, impact, priority, type, global_validation)
+  VALUES (${SMOKE_TICKET_ID}, 0, 'audit-smoke-test', NOW(), NOW(), 1, 3, 
+    'Audit smoke test ticket', 3, 3, 3, 1, 1);
+  INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) 
+  VALUES (${SMOKE_TICKET_ID}, ${SMOKE_GROUP_ID}, 2);
+"
+echo "Ticket #${SMOKE_TICKET_ID} created"
 
-echo "=== 3. Claim ticket #11 ==="
-CLAIM=$(curl -sf -X POST "$API/api/tickets/11/claim" \
+echo "=== 3. Verify ticket is available (status=1, no assignee) ==="
+STATUS=$(mariadb_glpi "SELECT status FROM glpi_tickets WHERE id=${SMOKE_TICKET_ID};" | tail -1 | tr -d ' ')
+if [ "$STATUS" != "1" ]; then
+  echo "ERROR: ticket status is $STATUS, expected 1"
+  exit 1
+fi
+
+echo "=== 4. Claim ticket #${SMOKE_TICKET_ID} ==="
+CLAIM_HTTP=$(curl -s -o /tmp/claim.json -w "%{http_code}" \
+  -X POST "$API/api/tickets/${SMOKE_TICKET_ID}/claim" \
   -H "Authorization: Bearer $TOKEN")
-echo "Claim OK: $(echo "$CLAIM" | head -c 100)"
+if [ "$CLAIM_HTTP" != "200" ]; then
+  echo "ERROR: claim returned $CLAIM_HTTP"
+  cat /tmp/claim.json
+  cleanup
+  exit 1
+fi
+echo "Claim OK (200)"
 
-# Verificar en BD
-CLAIM_COUNT=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
-  "SELECT COUNT(*) FROM audit_log WHERE user_id=7 AND action='claim' AND ticket_id=11;")
+CLAIM_COUNT=$(psql_app "SELECT COUNT(*) FROM audit_log WHERE user_id=${SMOKE_USER_ID} AND action='claim' AND ticket_id=${SMOKE_TICKET_ID};")
 if [ "$CLAIM_COUNT" != "1" ]; then
   echo "ERROR: expected 1 claim audit entry, found $CLAIM_COUNT"
+  cleanup
   exit 1
 fi
 echo "Audit 'claim' verified (1 entry)"
 
-echo "=== 4. Create solution ==="
-curl -sf -X POST "$API/api/tickets/11/solutions" \
+echo "=== 5. Create solution ==="
+curl -sf -X POST "$API/api/tickets/${SMOKE_TICKET_ID}/solutions" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"content":"Audit smoke test solution"}' > /dev/null
 echo "Solution created"
 
-echo "=== 5. Resolve ticket (PATCH status=5) ==="
-HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "$API/api/tickets/11/status" \
+echo "=== 6. Resolve ticket (PATCH status=5) ==="
+RESOLVE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X PATCH "$API/api/tickets/${SMOKE_TICKET_ID}/status" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"status":5}')
-if [ "$HTTP" != "204" ] && [ "$HTTP" != "200" ]; then
-  echo "ERROR: expected 204/200 on resolve, got $HTTP"
+if [ "$RESOLVE_HTTP" != "204" ] && [ "$RESOLVE_HTTP" != "200" ]; then
+  echo "ERROR: expected 204/200 on resolve, got $RESOLVE_HTTP"
+  cleanup
   exit 1
 fi
-echo "Resolve OK ($HTTP)"
+echo "Resolve OK ($RESOLVE_HTTP)"
 
-# Verificar en BD
-RESOLVE_COUNT=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
-  "SELECT COUNT(*) FROM audit_log WHERE user_id=7 AND action='resolve' AND ticket_id=11;")
+RESOLVE_COUNT=$(psql_app "SELECT COUNT(*) FROM audit_log WHERE user_id=${SMOKE_USER_ID} AND action='resolve' AND ticket_id=${SMOKE_TICKET_ID};")
 if [ "$RESOLVE_COUNT" != "1" ]; then
   echo "ERROR: expected 1 resolve audit entry, found $RESOLVE_COUNT"
+  cleanup
   exit 1
 fi
 echo "Audit 'resolve' verified (1 entry)"
+
+echo "=== 7. Cleanup ==="
+cleanup
+echo "Smoke ticket #${SMOKE_TICKET_ID} removed"
 
 echo ""
 echo "=== AUDIT SMOKE TEST PASSED ==="

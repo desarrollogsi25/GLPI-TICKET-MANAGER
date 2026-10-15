@@ -60,3 +60,13 @@ FROM audit_log
 WHERE ticket_id = 11
 ORDER BY created_at ASC;
 ```
+
+---
+
+## 5. Smoke Test Autocontenido
+
+El script `scripts/test-audit.sh` valida de extremo a extremo el registro de auditoría en la base de datos:
+- **Autocontenido:** Crea su propio ticket temporal (`id=98`) directamente en MariaDB, ejecuta `claim` y `resolve` mediante la API REST, valida que las filas existen en `audit_log`, y elimina el ticket y sus registros asociados al finalizar.
+- **Aislamiento total:** No depende ni altera el estado del ticket `#11` ni los datos utilizados por los tests de Playwright.
+- **Idempotente:** Puede ejecutarse múltiples veces consecutivas (antes o después de Playwright) sin requerir reinicio de la base de datos.
+
