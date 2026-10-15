@@ -37,16 +37,24 @@ VALUES
   (1, 7, 1, 0, 0, 0),
   (2, 8, 2, 0, 0, 0);
 
-INSERT IGNORE INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
+INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
 VALUES
-  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1, 2),
-  (61, 0, 'TEST sin asignar', NOW(), NOW(), 1, 3, 'Ticket de prueba para cola', 3, 3, 3, 1, 1, 2);
+  (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1, 2)
+ON DUPLICATE KEY UPDATE 
+  status = 1, solvedate = NULL, closedate = NULL, priority = 3, date_mod = NOW();
 
-INSERT IGNORE INTO glpi_groups_tickets (tickets_id, groups_id, type)
+INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
+VALUES
+  (61, 0, 'TEST sin asignar kanban-mobile', NOW(), NOW(), 1, 3, 'Ticket para test E2E kanban-mobile', 3, 3, 5, 1, 1, 2)
+ON DUPLICATE KEY UPDATE 
+  status = 1, solvedate = NULL, closedate = NULL, priority = 5, date = NOW(), date_mod = NOW();
+
+INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type)
 VALUES
   (11, 1, 2),
   (57, 1, 2),
-  (61, 1, 2);
+  (61, 1, 2)
+ON DUPLICATE KEY UPDATE groups_id = 1, type = 2;
 
 INSERT IGNORE INTO glpi_itilcategories 
   (id, entities_id, name, itilcategories_id, completename, level) VALUES
@@ -56,16 +64,16 @@ INSERT IGNORE INTO glpi_itilcategories
   (5, 0, 'Aplicaciones', 0, 'Aplicaciones', 1),
   (6, 0, 'Sistema', 0, 'Sistema', 1);
 
--- 3. Resetear tickets #11 y #57 al estado "listo para claim"
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, itilcategories_id=2 WHERE id=11;
+-- 3. Resetear tickets al estado "listo para claim"
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3, itilcategories_id=2 WHERE id=11;
 DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=57;
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3 WHERE id=57;
 DELETE FROM glpi_tickets_users WHERE tickets_id=57 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=57;
 
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL WHERE id=61;
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=5, date=NOW(), date_mod=NOW() WHERE id=61;
 DELETE FROM glpi_tickets_users WHERE tickets_id=61 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=61;
 SQL
