@@ -73,7 +73,32 @@ Emitido a todos los clientes (`Clients.All`):
 
 ---
 
-## Integración con Frontend (Plan Bloque 8b)
-- Cliente instalado: `@microsoft/signalr`.
-- Configuración de proxy en Vite: `/hubs` con `ws: true`.
-- En el Bloque 8b se implementará el hook `useTicketNotifications` para invalidar consultas de React Query (`queryKeys.tickets.all`, `queryKeys.tickets.byGroupQueue`) al recibir eventos.
+## Integración con Frontend (Bloque 8b)
+
+### 1. Hook `useRealtimeTicketHub`
+Ubicado en `frontend/src/hooks/useRealtimeTicketHub.ts`, gestiona el ciclo de vida de la conexión SignalR con el backend:
+- **Autenticación condicional**: Conecta únicamente si el usuario cuenta con un token JWT válido (`useAuthStore`).
+- **Reconexión con backoff exponencial**:
+  ```typescript
+  delays: [1000, 2000, 4000, 8000, 16000, 30000] // 1s a 30s max
+  ```
+- **Limpieza de recursos**: Al desmontar o cerrar sesión, cancela la conexión de forma segura (`connection.stop()`).
+
+### 2. Mapeo de Eventos a Invalidación de TanStack Query
+Cuando el hub recibe un evento del servidor, invalida selectivamente las claves de caché para desencadenar un refetch silencioso en la UI:
+
+| Evento | Queries Invalidadas | Efecto en la Interfaz |
+|---|---|---|
+| `TicketClaimed` | `queryKeys.tickets.byGroupQueue(groupId)`, `queryKeys.tickets.all`, `['dashboard']` | El ticket desaparece de la cola del grupo para otros técnicos sin refrescar la página. |
+| `TicketStatusChanged` | `queryKeys.tickets.detail(ticketId)`, `queryKeys.tickets.all`, `['dashboard']` | Actualiza la columna correspondiente en el Kanban y el detalle del ticket. |
+| `SolutionAdded` | `queryKeys.tickets.detail(ticketId)` | Carga la solución recién registrada en la vista del ticket. |
+
+### 3. Indicador Visual: `ConnectionIndicator`
+Ubicado en `frontend/src/components/layout/ConnectionIndicator.tsx`:
+- Renderizado en el footer del `AppSidebar` (desktop) y en el header móvil (`AppLayout`).
+- **Estados**:
+  - `connected`: Dot verde pulsante (`bg-emerald-500`) con tooltip *"Conectado en tiempo real"*.
+  - `connecting`: Dot ámbar (`bg-amber-500`) con tooltip *"Conectando al servidor..."*.
+  - `disconnected`: Dot rojo (`bg-rose-500`) con tooltip *"Desconectado de tiempo real"*.
+- **Atributos de accesibilidad y testing**: `data-testid="connection-indicator"` y `data-state="connected|connecting|disconnected"`.
+

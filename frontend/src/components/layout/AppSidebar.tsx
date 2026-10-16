@@ -10,6 +10,8 @@ import { queryKeys } from '@/lib/api/queryKeys'
 import type { PagedResult, TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { ConnectionIndicator } from './ConnectionIndicator'
+import type { ConnectionState } from '@/hooks/useRealtimeTicketHub'
 
 interface NavItemConfig {
   id: string
@@ -188,7 +190,11 @@ const secondaryNav: NavItemConfig[] = [
   },
 ]
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  connectionState?: ConnectionState
+}
+
+export function AppSidebar({ connectionState = 'disconnected' }: AppSidebarProps) {
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
   const logout = useLogout()
@@ -297,9 +303,12 @@ export function AppSidebar() {
             {initial}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium leading-tight text-foreground">
-              {displayName}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-medium leading-tight text-foreground">
+                {displayName}
+              </p>
+              <ConnectionIndicator state={connectionState} />
+            </div>
             {username && (
               <p className="truncate text-xs text-muted-foreground">
                 {username}
