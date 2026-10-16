@@ -1,0 +1,16 @@
+name: Branch protection audit
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # lunes 9am
+  workflow_dispatch:
+
+jobs:
+  check-protection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check branch protection
+        run: bash scripts/check-branch-protection.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

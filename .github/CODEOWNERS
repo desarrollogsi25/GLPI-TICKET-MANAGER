@@ -1,0 +1,17 @@
+# Todos los cambios a main requieren aprobación
+*       @desarrollogsi25
+
+# Backend específico
+/src/                          @desarrollogsi25
+/tests/                        @desarrollogsi25
+
+# Frontend específico
+/frontend/                     @desarrollogsi25
+
+# CI/CD crítico
+/.github/                      @desarrollogsi25
+
+# Seguridad y docs sensibles
+/docs/12-security/             @desarrollogsi25
+/db/migrations/                @desarrollogsi25
+/scripts/migrate-app-db.sh     @desarrollogsi25
