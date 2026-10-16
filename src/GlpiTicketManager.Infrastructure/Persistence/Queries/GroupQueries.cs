@@ -6,15 +6,15 @@ namespace GlpiTicketManager.Infrastructure.Persistence.Queries;
 public static class GroupQueries
 {
     /// <summary>
-    /// Obtiene los grupos de la entidad del usuario.
+    /// Obtiene los grupos de la entidad del usuario asignables a tickets.
     /// </summary>
-    public const string ByEntity = """
+    public const string GetByEntity = """
         SELECT
-            g.id                AS Id,
-            g.name              AS Name
+            CAST(g.id AS SIGNED) AS Id,
+            g.name               AS Name
         FROM glpi_groups g
         WHERE g.entities_id = @EntityId
-          AND g.is_deleted = 0
+          AND g.is_assign = 1
         ORDER BY g.name ASC;
         """;
 }

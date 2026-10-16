@@ -1,6 +1,5 @@
-﻿using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Groups;
-using GlpiTicketManager.Application.Services;
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
 
@@ -24,8 +23,8 @@ public static class GroupEndpoints
         return group;
     }
 
-    private static IResult GetActiveGroups(
-        ITicketService ticketService,
+    private static async Task<IResult> GetActiveGroups(
+        IGroupRepository repository,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
@@ -38,10 +37,8 @@ public static class GroupEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
-        return Results.Ok(new GroupDto[] 
-        { 
-            new GroupDto(1, "Call Center"), 
-            new GroupDto(2, "Soporte Nivel 1") 
-        });
+        var entityId = principal.GetEntityId() ?? 0;
+        var groups = await repository.GetByEntityAsync(entityId, cancellationToken);
+        return Results.Ok(groups);
     }
 }

@@ -1,8 +1,5 @@
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Channels;
-using GlpiTicketManager.Application.Dtos.Tickets;
-using GlpiTicketManager.Application.Models;
-using GlpiTicketManager.Application.Services;
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
 
@@ -26,7 +23,7 @@ public static class ChannelEndpoints
     }
 
     private static async Task<IResult> GetChannels(
-        ITicketService ticketService,
+        IChannelRepository repository,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
@@ -39,14 +36,7 @@ public static class ChannelEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
-        return Results.Ok(new ChannelDto[] 
-        { 
-            new ChannelDto(1, "Helpdesk"), 
-            new ChannelDto(2, "E-Mail"), 
-            new ChannelDto(3, "Phone"), 
-            new ChannelDto(4, "Direct"), 
-            new ChannelDto(5, "Written"), 
-            new ChannelDto(6, "Other") 
-        });
+        var channels = await repository.GetAllActiveAsync(cancellationToken);
+        return Results.Ok(channels);
     }
 }

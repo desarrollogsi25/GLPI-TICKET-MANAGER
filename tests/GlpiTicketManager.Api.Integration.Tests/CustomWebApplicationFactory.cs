@@ -1,6 +1,8 @@
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
+using GlpiTicketManager.Application.Dtos.Groups;
+using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Domain.Enums;
@@ -31,6 +33,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly object _stateLock = new();
     private readonly Dictionary<int, Ticket> _allTickets = new();
     private readonly List<TicketUser> _ticketUsers = new();
+    private readonly List<GroupDto> _groups = new();
+    private readonly List<ChannelDto> _channels = new();
 
     public CustomWebApplicationFactory()
     {
@@ -96,6 +100,51 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             _ticketUsers.Add(new TicketUser { TicketId = Ticket12Id, UserId = Tech1Id, Type = (int)TicketUserType.Assigned });
             _ticketUsers.Add(new TicketUser { TicketId = Ticket13Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
             _ticketUsers.Add(new TicketUser { TicketId = Ticket21Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
+
+            _groups.Clear();
+            _groups.Add(new GroupDto(1, "Call Center"));
+            _groups.Add(new GroupDto(2, "Soporte Nivel 1"));
+
+            _channels.Clear();
+            _channels.Add(new ChannelDto(1, "Helpdesk"));
+            _channels.Add(new ChannelDto(2, "E-Mail"));
+            _channels.Add(new ChannelDto(3, "Phone"));
+            _channels.Add(new ChannelDto(4, "Direct"));
+            _channels.Add(new ChannelDto(5, "Written"));
+            _channels.Add(new ChannelDto(6, "Other"));
+        }
+    }
+
+    public void AddGroup(GroupDto group)
+    {
+        lock (_stateLock)
+        {
+            _groups.Add(group);
+        }
+    }
+
+    public void RemoveGroup(int id)
+    {
+        lock (_stateLock)
+        {
+            _groups.RemoveAll(g => g.Id == id);
+        }
+    }
+
+    public void DeactivateChannel(int id)
+    {
+        lock (_stateLock)
+        {
+            _channels.RemoveAll(c => c.Id == id);
+        }
+    }
+
+    public void ActivateChannel(ChannelDto channel)
+    {
+        lock (_stateLock)
+        {
+            if (!_channels.Any(c => c.Id == channel.Id))
+                _channels.Add(channel);
         }
     }
 
@@ -155,6 +204,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IRevokedTokenRepository) ||
                 d.ServiceType == typeof(IGlpiApiClient) ||
                 d.ServiceType == typeof(IAuditRepository) ||
+                d.ServiceType == typeof(IGroupRepository) ||
+                d.ServiceType == typeof(IChannelRepository) ||
                 d.ServiceType == typeof(IUserRoleResolver)).ToList();
 
             foreach (var d in descriptors)
@@ -475,6 +526,26 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     };
                 });
 
+            var groupRepoMock = new Mock<IGroupRepository>();
+            groupRepoMock.Setup(g => g.GetByEntityAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int entityId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _groups.ToList();
+                    }
+                });
+
+            var channelRepoMock = new Mock<IChannelRepository>();
+            channelRepoMock.Setup(c => c.GetAllActiveAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync((CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _channels.ToList();
+                    }
+                });
+
             services.AddSingleton(roleResolverMock.Object);
             services.AddSingleton(userRepoMock.Object);
             services.AddSingleton(hasherMock.Object);
@@ -482,6 +553,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(auditMock.Object);
             services.AddSingleton(glpiMock.Object);
             services.AddSingleton(ticketRepoMock.Object);
+            services.AddSingleton(groupRepoMock.Object);
+            services.AddSingleton(channelRepoMock.Object);
         });
     }
 }

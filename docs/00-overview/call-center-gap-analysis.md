@@ -129,3 +129,8 @@ These live only in the local test database and are **not** part of any migration
 | Ticket | 11 | Pattern C — generic `external-caller` user + data in `content` |
 | User | 10 | `external-caller` (realname `External`, firstname `Caller`) |
 | Groups | 1, 2 | `Call Center`, `Soporte Nivel 1` |
+
+## Hallazgos de auditoría resueltos (H-05 / H-06)
+
+- **H-05 (Grupos dinámicos)**: `GroupEndpoints` devolvía grupos hardcodeados. Resuelto en Bloque 6: ahora consulta `glpi_groups` filtrando por la entidad del usuario y `is_assign = 1` vía `IGroupRepository`.
+- **H-06 (Canales dinámicos)**: `ChannelEndpoints` devolvía canales hardcodeados. Resuelto en Bloque 6: ahora consulta `glpi_requesttypes` con `is_active = 1` vía `IChannelRepository`.

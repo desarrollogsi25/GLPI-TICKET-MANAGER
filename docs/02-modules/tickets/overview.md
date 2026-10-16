@@ -243,3 +243,9 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 - Si el usuario no ha visitado `/queue` en la sesión, el badge permanece vacío (`queueCount = 0`).
 - Al navegar a `/queue`, `GroupQueuePage` dispara la consulta `useGroupQueueQuery`, poblando la caché.
 - El hook `useGroupQueueQuery` cuenta con `staleTime: 60_000`, evitando reconsultas redundantes mientras el usuario navega entre vistas de la aplicación.
+
+## Reglas de negocio de GLPI
+
+- **Contenido obligatorio en tickets para soluciones**: Un ticket debe tener `content` (descripción) no vacío en `glpi_tickets` para poder recibir soluciones vía GLPI REST (`/apirest.php/ITILSolution`). Un ticket sin descripción no es resoluble por API (GLPI rechaza la operación con `Mandatory fields are not filled`).
+- **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
+- **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
