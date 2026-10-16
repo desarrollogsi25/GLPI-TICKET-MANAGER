@@ -3,9 +3,11 @@ import { Outlet } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
+import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useAuthStore } from '@/store/authStore'
 import { AppSidebar } from './AppSidebar'
 import { BottomTabBar } from './BottomTabBar'
+import { ConnectionIndicator } from './ConnectionIndicator'
 import { MobileDrawer } from './MobileDrawer'
 import { PageTransition } from './PageTransition'
 
@@ -13,6 +15,7 @@ export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
+  const { connectionState } = useRealtimeTicketHub()
   const logout = useLogout()
 
   const profile = currentUser ?? storedUser
@@ -28,7 +31,7 @@ export function AppLayout() {
       </a>
 
       {/* 1. Desktop Sidebar (md:+) */}
-      <AppSidebar />
+      <AppSidebar connectionState={connectionState} />
 
       {/* 2. Mobile Header (<md) */}
       <header className="flex md:hidden items-center justify-between border-b border-border bg-card px-4 py-3 pt-[env(safe-area-inset-top)]">
@@ -38,6 +41,7 @@ export function AppLayout() {
             GL
           </div>
           <span className="text-sm font-semibold">GLPI Manager</span>
+          <ConnectionIndicator state={connectionState} />
         </div>
 
         {/* User profile & actions */}
