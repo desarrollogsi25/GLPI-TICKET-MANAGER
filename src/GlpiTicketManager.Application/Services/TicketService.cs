@@ -387,6 +387,21 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new ValidationException("content", "Solution content cannot be empty.");
+        }
+
+        if (content.Trim().Length < 10)
+        {
+            throw new ValidationException("content", "Solution content must be at least 10 characters.");
+        }
+
+        if (content.Length > 2000)
+        {
+            throw new ValidationException("content", "Solution content exceeds maximum length.");
+        }
+
         var solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
 
         try

@@ -7,12 +7,14 @@ public static class SolutionQueries
 {
 
     /// <summary>
-    /// Verifica que al menos exista una solución escrita para el ticket.
+    /// Verifica que al menos exista una solución escrita válida para el ticket.
     /// </summary>
     public const string Exists = """
         SELECT COUNT(*) > 0 AS HasSolution
         FROM glpi_itilsolutions
         WHERE itemtype = 'Ticket'
-          AND items_id = @TicketId;
+          AND items_id = @TicketId
+          AND TRIM(content) <> ''
+          AND CHAR_LENGTH(TRIM(content)) >= 10;
         """;
 }

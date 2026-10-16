@@ -35,6 +35,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<TicketUser> _ticketUsers = new();
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
+    private readonly Dictionary<int, string> _ticketSolutions = new();
+
+    public void SetTicketSolution(int ticketId, string content)
+    {
+        lock (_stateLock)
+        {
+            _ticketSolutions[ticketId] = content;
+        }
+    }
 
     public CustomWebApplicationFactory()
     {
@@ -46,6 +55,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         lock (_stateLock)
         {
             SimulateInsertFailure = false;
+            _ticketSolutions.Clear();
             _allTickets.Clear();
             _allTickets[Ticket11Id] = new Ticket
             {
@@ -305,7 +315,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
             glpiMock.Setup(g => g.CreateSolutionAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
+                .ReturnsAsync((int ticketId, string content, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        _ticketSolutions[ticketId] = content;
+                        return 1;
+                    }
+                });
 
             // Setup tickets
             var ticket11 = new Ticket
@@ -400,6 +417,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             ticketRepoMock.Setup(t => t.IsUserAssignedToTicketAsync(Tech2Id, Ticket21Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
+
+            ticketRepoMock.Setup(t => t.SolutionExistsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_ticketSolutions.TryGetValue(ticketId, out var content))
+                        {
+                            return !string.IsNullOrWhiteSpace(content) && content.Trim().Length >= 10;
+                        }
+                        return false;
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.HasAssigneeAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int id, CancellationToken _) =>

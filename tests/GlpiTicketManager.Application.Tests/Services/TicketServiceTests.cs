@@ -203,14 +203,15 @@ public class TicketServiceTests
     [Fact]
     public async Task SolutionInsertAsync_DelegatesToGlpiApiClient()
     {
+        const string validSolution = "solucion valida para prueba";
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(new Ticket { Id = 10 });
         _accessPolicy.Setup(a => a.CanAddSolutionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _glpi.Setup(g => g.CreateSolutionAsync(10, "sol", It.IsAny<CancellationToken>())).ReturnsAsync(99);
+        _glpi.Setup(g => g.CreateSolutionAsync(10, validSolution, It.IsAny<CancellationToken>())).ReturnsAsync(99);
 
-        var result = await _svc.SolutionInsertAsync(10, "sol", 7, CancellationToken.None);
+        var result = await _svc.SolutionInsertAsync(10, validSolution, 7, CancellationToken.None);
 
         result.Should().Be(99);
-        _glpi.Verify(g => g.CreateSolutionAsync(10, "sol", It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.CreateSolutionAsync(10, validSolution, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
