@@ -27,12 +27,21 @@ public interface ITicketService
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
+    Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken);
+
     Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken);
 
     Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, CancellationToken cancellationToken);
 
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
+    Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
+        int groupId,
+        int userId,
         int limit,
         int offset,
         CancellationToken cancellationToken);

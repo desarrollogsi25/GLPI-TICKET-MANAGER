@@ -2,6 +2,7 @@ using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Dtos.Groups;
 using GlpiTicketManager.Application.Dtos.Tickets;
+using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Application.Services;
 using System.Security.Claims;
@@ -31,6 +32,7 @@ public static class TicketEndpoints
             .WithSummary("Tickets sin asignar de un grupo concreto")
             .Produces<PagedResult<TicketSummaryDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapGet("/{id:int}", GetById)
@@ -38,6 +40,7 @@ public static class TicketEndpoints
             .WithSummary("Full ticket detail, including follow-ups")
             .Produces<TicketDetailDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
@@ -47,6 +50,7 @@ public static class TicketEndpoints
             .Accepts<UpdateTicketStatusRequest>("application/json")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .ProducesProblem(StatusCodes.Status502BadGateway)
             .Produces(StatusCodes.Status401Unauthorized);
@@ -56,6 +60,7 @@ public static class TicketEndpoints
             .WithName("ClaimTicket")
             .WithSummary("Technician claims a New ticket (status 1) from his group")
             .Produces<TicketSummaryDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status401Unauthorized);
 
@@ -67,6 +72,7 @@ public static class TicketEndpoints
             .Produces<SolutionResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
         return group;
@@ -81,7 +87,14 @@ public static class TicketEndpoints
         int? limit = null,
         int? offset = null)
     {
-        var effectiveAssigneeId = assigneeId ?? (serviceId is null ? principal.GetUserId() : null);
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        // BOLA fix: Client-provided assigneeId is ignored; always filter by authenticated user.
+        var effectiveAssigneeId = userId.Value;
 
         var result = await ticketService.GetFilteredAsync(
             effectiveAssigneeId,
@@ -96,26 +109,61 @@ public static class TicketEndpoints
     private static async Task<IResult> GetUnassignedByGroup(
         int groupId,
         ITicketService ticketService,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken,
         int? limit = null,
         int? offset = null)
     {
-        var result = await ticketService.GetUnassignedByGroupAsync(
-            groupId,
-            limit ?? 20,
-            offset ?? 0,
-            cancellationToken);
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
 
-        return Results.Ok(result);
+        try
+        {
+            var result = await ticketService.GetUnassignedByGroupAsync(
+                groupId,
+                userId.Value,
+                limit ?? 20,
+                offset ?? 0,
+                cancellationToken);
+
+            return Results.Ok(result);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Forbidden",
+                detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> GetById(
         int id,
         ITicketService ticketService,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
-        var ticket = await ticketService.GetByIdAsync(id, cancellationToken);
-        return ticket is null ? Results.NotFound() : Results.Ok(ticket);
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            var ticket = await ticketService.GetByIdAsync(id, userId.Value, cancellationToken);
+            return ticket is null ? Results.NotFound() : Results.Ok(ticket);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Forbidden",
+                detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> UpdateStatus(
@@ -131,8 +179,18 @@ public static class TicketEndpoints
             return Results.Unauthorized();
         }
 
-        var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, cancellationToken);
-        return updated ? Results.NoContent() : Results.NotFound();
+        try
+        {
+            var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, cancellationToken);
+            return updated ? Results.NoContent() : Results.NotFound();
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Forbidden",
+                detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> Claim(
@@ -150,8 +208,18 @@ public static class TicketEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
-        var result = await ticketService.ClaimAsync(id, userId.Value, cancellationToken);
-        return Results.Ok(result);
+        try
+        {
+            var result = await ticketService.ClaimAsync(id, userId.Value, cancellationToken);
+            return Results.Ok(result);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Forbidden",
+                detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> CreateSolution(
@@ -170,20 +238,26 @@ public static class TicketEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
-        // Cargar el ticket para verificar que existe
-        var ticket = await ticketService.GetByIdAsync(id, cancellationToken);
-        if (ticket is null)
+        try
+        {
+            var solutionId = await ticketService.SolutionInsertAsync(
+                id, request.Content, userId.Value, cancellationToken);
+
+            return Results.Created($"/api/tickets/{id}/solutions/{solutionId}", new SolutionResponse(solutionId));
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Forbidden",
+                detail: ex.Message);
+        }
+        catch (NotFoundException ex)
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Ticket no encontrado",
-                detail: "El ticket solicitado no existe.");
+                detail: ex.Message);
         }
-
-        // Ejecutar INSERT INTO glpi_itilsolutions
-        var solutionId = await ticketService.SolutionInsertAsync(
-            id, request.Content, userId.Value, cancellationToken);
-
-        return Results.Created($"/api/tickets/{id}/solutions/{solutionId}", new SolutionResponse(solutionId));
     }
 }

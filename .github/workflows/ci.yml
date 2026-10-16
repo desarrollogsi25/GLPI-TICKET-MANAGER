@@ -21,6 +21,8 @@ jobs:
         run: dotnet build GlpiTicketManager.sln --no-restore -c Release
       - name: Test
         run: dotnet test tests/GlpiTicketManager.Application.Tests --no-build -c Release --verbosity normal
+      - name: Run integration tests
+        run: dotnet test tests/GlpiTicketManager.Api.Integration.Tests -c Release
 
   frontend:
     name: Frontend (typecheck + build)

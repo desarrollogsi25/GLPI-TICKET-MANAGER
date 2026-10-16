@@ -1,5 +1,6 @@
 using System.Threading;
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Services;
 using GlpiTicketManager.Domain.Entities;
@@ -17,14 +18,14 @@ public class TicketServiceTests
     private readonly Mock<ITicketRepository> _repo = new();
     private readonly Mock<IGlpiApiClient> _glpi = new();
     private readonly Mock<IAuditRepository> _audit = new();
+    private readonly Mock<ITicketAccessPolicy> _accessPolicy = new();
     private readonly Mock<ILogger<TicketService>> _logger = new();
     private readonly TicketService _svc;
 
     public TicketServiceTests()
     {
-        _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _logger.Object);
+        _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _accessPolicy.Object, _logger.Object);
     }
-
 
     [Fact]
     public async Task UpdateStatusAsync_WhenTicketIdInvalid_Throws()
@@ -43,6 +44,7 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusSolvedAndNoSolution_Throws422()
     {
+        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
@@ -55,6 +57,7 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusSolvedAndHasSolution_Succeeds()
     {
+        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _glpi.Setup(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
@@ -68,6 +71,7 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusNotSolved_DoesNotCheckSolution()
     {
+        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, 5, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _glpi.Setup(g => g.UpdateTicketStatusAsync(5, 2, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var result = await _svc.UpdateStatusAsync(5, 2, 7, CancellationToken.None);
@@ -115,18 +119,17 @@ public class TicketServiceTests
     }
 
     [Fact]
-    public async Task ClaimAsync_WhenUserNotInGroup_Throws409()
+    public async Task ClaimAsync_WhenUserNotInGroup_ThrowsForbidden()
     {
         var ticket = new Ticket { Id = 10, Status = (int)TicketStatus.New };
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
         _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TicketUser>());
-        _repo.Setup(r => r.IsUserInTicketGroupAsync(10, 7, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, 10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("El usuario no pertenece al grupo del ticket.");
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]
@@ -140,7 +143,7 @@ public class TicketServiceTests
             .ReturnsAsync(ticketAfter);
         _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TicketUser>());
-        _repo.Setup(r => r.IsUserInTicketGroupAsync(10, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var result = await _svc.ClaimAsync(10, 7, CancellationToken.None);
@@ -163,7 +166,7 @@ public class TicketServiceTests
             .ReturnsAsync(ticketAfter);
         _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TicketUser>());
-        _repo.Setup(r => r.IsUserInTicketGroupAsync(10, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _audit.Setup(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
@@ -199,6 +202,8 @@ public class TicketServiceTests
     [Fact]
     public async Task SolutionInsertAsync_DelegatesToRepository()
     {
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(new Ticket { Id = 10 });
+        _accessPolicy.Setup(a => a.CanAddSolutionAsync(7, 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.SolutionInsertAsync(10, "sol", 7, It.IsAny<CancellationToken>())).ReturnsAsync(99);
 
         var result = await _svc.SolutionInsertAsync(10, "sol", 7, CancellationToken.None);

@@ -1,4 +1,5 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +12,7 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddScoped<ITicketAccessPolicy, TicketAccessPolicy>();
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IAuthService, AuthService>();
         return services;

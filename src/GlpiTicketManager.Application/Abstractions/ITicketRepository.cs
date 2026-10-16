@@ -56,4 +56,8 @@ public interface ITicketRepository
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<int>> GetGroupIdsForTicketAsync(int ticketId, CancellationToken cancellationToken);
+
+    Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
 }

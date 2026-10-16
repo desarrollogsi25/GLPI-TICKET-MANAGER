@@ -35,6 +35,13 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 errors = validation.Errors;
                 break;
 
+            case Application.Exceptions.ForbiddenException:
+            case UnauthorizedAccessException:
+                statusCode = StatusCodes.Status403Forbidden;
+                title = "Forbidden";
+                detail = exception.Message;
+                break;
+
             case Application.Exceptions.UnprocessableEntityException:
                 statusCode = StatusCodes.Status422UnprocessableEntity;
                 title = "Solution required";
