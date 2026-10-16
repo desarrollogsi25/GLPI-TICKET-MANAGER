@@ -249,3 +249,7 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 - **Contenido obligatorio en tickets para soluciones**: Un ticket debe tener `content` (descripción) no vacío en `glpi_tickets` para poder recibir soluciones vía GLPI REST (`/apirest.php/ITILSolution`). Un ticket sin descripción no es resoluble por API (GLPI rechaza la operación con `Mandatory fields are not filled`).
 - **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
+
+## Notificaciones en tiempo real (SignalR)
+
+Las operaciones de mutación sobre tickets (`ClaimAsync`, `UpdateStatusAsync`, `SolutionInsertAsync`) emiten eventos en tiempo real a través del hub `/hubs/tickets` (`ITicketNotificationService`) para notificar a clientes conectados sin depender del ciclo de auto-refresco. Véase [Módulo de Tiempo Real](../realtime/overview.md) y [ADR-018](../../01-architecture/decisions/ADR-018-signalr-realtime.md).

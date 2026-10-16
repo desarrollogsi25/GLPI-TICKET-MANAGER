@@ -39,6 +39,11 @@ export default defineConfig(({ mode }) => {
             })
           },
         },
+        '/hubs': {
+          target: proxyTarget,
+          changeOrigin: true,
+          ws: true,
+        },
       },
     },
     build: {

@@ -24,6 +24,7 @@ public sealed class TicketService : ITicketService
     private readonly IGlpiApiClient _glpi;
     private readonly IAuditRepository _audit;
     private readonly ITicketAccessPolicy _accessPolicy;
+    private readonly ITicketNotificationService _notifications;
     private readonly ILogger<TicketService> _logger;
 
     public TicketService(
@@ -31,12 +32,14 @@ public sealed class TicketService : ITicketService
         IGlpiApiClient glpi,
         IAuditRepository audit,
         ITicketAccessPolicy accessPolicy,
+        ITicketNotificationService notifications,
         ILogger<TicketService> logger)
     {
         _tickets = tickets;
         _glpi = glpi;
         _audit = audit;
         _accessPolicy = accessPolicy;
+        _notifications = notifications;
         _logger = logger;
     }
 
@@ -201,6 +204,17 @@ public sealed class TicketService : ITicketService
             }
         }
 
+        try
+        {
+            var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+            var assigneeId = ticket?.AssigneeIds?.FirstOrDefault();
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId, status, assigneeId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for ticket {TicketId}", ticketId);
+        }
+
         return true;
     }
 
@@ -322,6 +336,17 @@ public sealed class TicketService : ITicketService
             _logger.LogWarning(ex, "Failed to record audit log for claim on ticket {TicketId}", ticketId);
         }
 
+        try
+        {
+            var groupIds = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
+            var groupId = groupIds.FirstOrDefault();
+            await _notifications.NotifyTicketClaimedAsync(ticketId, userId, groupId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketClaimed notification for ticket {TicketId}", ticketId);
+        }
+
         var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
         if (updated is null)
         {
@@ -362,7 +387,18 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
-        return await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+        var solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+
+        try
+        {
+            await _notifications.NotifySolutionAddedAsync(ticketId, userId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit SolutionAdded notification for ticket {TicketId}", ticketId);
+        }
+
+        return solutionId;
     }
 
     public async Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken)
