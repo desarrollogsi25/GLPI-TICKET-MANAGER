@@ -5,6 +5,8 @@ using GlpiTicketManager.Api.Auth;
 using GlpiTicketManager.Api.Configuration;
 using GlpiTicketManager.Api.Endpoints;
 using GlpiTicketManager.Api.Exceptions;
+using GlpiTicketManager.Api.Hubs;
+using GlpiTicketManager.Api.Notifications;
 using GlpiTicketManager.Api.OpenApi;
 using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application;
@@ -65,6 +67,17 @@ builder.Services
 
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs/tickets"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
             OnTokenValidated = async context =>
             {
                 var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
@@ -88,6 +101,8 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ITicketNotificationService, TicketNotificationService>();
 
 // ---- Rate limiting (native .NET 9) --------------------------------------
 builder.Services.AddRateLimiter(options =>
@@ -162,6 +177,8 @@ app.MapGroupEndpoints();
 app.MapChannelEndpoints();
 app.MapPreferencesEndpoints();
 app.MapServicesEndpoints();
+
+app.MapHub<TicketHub>("/hubs/tickets").RequireAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .WithTags("Health")

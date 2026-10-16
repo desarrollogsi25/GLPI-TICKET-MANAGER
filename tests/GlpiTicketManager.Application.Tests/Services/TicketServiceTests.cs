@@ -19,12 +19,13 @@ public class TicketServiceTests
     private readonly Mock<IGlpiApiClient> _glpi = new();
     private readonly Mock<IAuditRepository> _audit = new();
     private readonly Mock<ITicketAccessPolicy> _accessPolicy = new();
+    private readonly Mock<ITicketNotificationService> _notifications = new();
     private readonly Mock<ILogger<TicketService>> _logger = new();
     private readonly TicketService _svc;
 
     public TicketServiceTests()
     {
-        _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _accessPolicy.Object, _logger.Object);
+        _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _accessPolicy.Object, _notifications.Object, _logger.Object);
     }
 
     [Fact]

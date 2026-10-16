@@ -206,6 +206,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IAuditRepository) ||
                 d.ServiceType == typeof(IGroupRepository) ||
                 d.ServiceType == typeof(IChannelRepository) ||
+                d.ServiceType == typeof(ITicketNotificationService) ||
                 d.ServiceType == typeof(IUserRoleResolver)).ToList();
 
             foreach (var d in descriptors)
@@ -545,6 +546,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                         return _channels.ToList();
                     }
                 });
+
+            var notificationMock = new Mock<ITicketNotificationService>();
+            services.AddSingleton(notificationMock.Object);
 
             services.AddSingleton(roleResolverMock.Object);
             services.AddSingleton(userRepoMock.Object);
