@@ -4,6 +4,7 @@ using GlpiTicketManager.Api.Auth;
 using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Auth;
+using GlpiTicketManager.Domain.Enums;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -62,7 +63,8 @@ public static class AuthEndpoints
             user.Username,
             user.DisplayName,
             user.ProfileId,
-            user.DefaultEntityId);
+            user.DefaultEntityId,
+            user.Role.ToClaimValue());
 
         return Results.Ok(new LoginResponse(token, "Bearer", expiresAt, profile));
     }

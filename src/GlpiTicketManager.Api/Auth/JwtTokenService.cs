@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using GlpiTicketManager.Application.Models;
+using GlpiTicketManager.Domain.Enums;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -10,6 +11,7 @@ namespace GlpiTicketManager.Api.Auth;
 public interface IJwtTokenService
 {
     (string Token, DateTime ExpiresAtUtc) CreateToken(AuthenticatedUser user);
+    (string Token, DateTime ExpiresAtUtc) CreateToken(int userId, string username, string displayName, int profileId, int entityId, AppRole role);
 }
 
 /// <summary>
@@ -29,6 +31,9 @@ public sealed class JwtTokenService : IJwtTokenService
         _signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
     }
 
+    public (string Token, DateTime ExpiresAtUtc) CreateToken(int userId, string username, string displayName, int profileId, int entityId, AppRole role) =>
+        CreateToken(new AuthenticatedUser(userId, username, displayName, profileId, entityId, role));
+
     public (string Token, DateTime ExpiresAtUtc) CreateToken(AuthenticatedUser user)
     {
         var issuedAt = DateTime.UtcNow;
@@ -40,7 +45,8 @@ public sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(JwtRegisteredClaimNames.UniqueName, user.Username),
             new(ClaimTypes.Name, user.Username),
-            new(JwtClaimNames.DisplayName, user.DisplayName)
+            new(JwtClaimNames.DisplayName, user.DisplayName),
+            new("role", user.Role.ToClaimValue())
         };
 
         if (user.ProfileId is int profileId)
@@ -71,4 +77,5 @@ public static class JwtClaimNames
     public const string DisplayName = "display_name";
     public const string ProfileId = "profile_id";
     public const string EntityId = "entity_id";
+    public const string Role = "role";
 }

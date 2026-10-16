@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using GlpiTicketManager.Application.Dtos.Auth;
+using GlpiTicketManager.Domain.Enums;
 
 namespace GlpiTicketManager.Api.Auth;
 
@@ -28,10 +29,18 @@ public static class ClaimsPrincipalExtensions
             ? entityId
             : null;
 
+    public static AppRole GetRole(this ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirst("role")?.Value
+            ?? principal.FindFirstValue(ClaimTypes.Role);
+        return AppRoleExtensions.FromClaimValue(value) ?? AppRole.Technician;
+    }
+
     public static UserProfileDto ToUserProfile(this ClaimsPrincipal principal) => new(
         principal.GetUserId() ?? 0,
         principal.GetUsername() ?? string.Empty,
         principal.FindFirstValue(JwtClaimNames.DisplayName) ?? string.Empty,
         principal.GetProfileId(),
-        principal.GetEntityId());
+        principal.GetEntityId(),
+        principal.GetRole().ToClaimValue());
 }

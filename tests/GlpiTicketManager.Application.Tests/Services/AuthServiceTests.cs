@@ -1,7 +1,9 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Auth;
 using GlpiTicketManager.Application.Services;
 using GlpiTicketManager.Domain.Entities;
+using GlpiTicketManager.Domain.Enums;
 using Moq;
 using FluentAssertions;
 using Xunit;
@@ -12,11 +14,12 @@ public class AuthServiceTests
 {
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<IPasswordHasher> _hasher = new();
+    private readonly Mock<IUserRoleResolver> _roles = new();
     private readonly AuthService _svc;
 
     public AuthServiceTests()
     {
-        _svc = new AuthService(_users.Object, _hasher.Object);
+        _svc = new AuthService(_users.Object, _hasher.Object, _roles.Object);
     }
 
     private static UserAccount User(string name, bool active, bool deleted, string hash) =>
@@ -39,12 +42,14 @@ public class AuthServiceTests
         var user = User("tech1", true, false, "$2y$hash");
         _users.Setup(u => u.GetByNameAsync("tech1", It.IsAny<CancellationToken>())).ReturnsAsync(user);
         _hasher.Setup(h => h.Verify("Pass1", "$2y$hash")).Returns(true);
+        _roles.Setup(r => r.ResolveAsync(7, It.IsAny<CancellationToken>())).ReturnsAsync(AppRole.Technician);
 
         var result = await _svc.AuthenticateAsync(new LoginRequest { Username = "tech1", Password = "Pass1" }, CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.UserId.Should().Be(7);
         result.Username.Should().Be("tech1");
+        result.Role.Should().Be(AppRole.Technician);
     }
 
     [Fact]

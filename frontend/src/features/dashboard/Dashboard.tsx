@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useGroupsQuery, useGroupQueueQuery, useTicketsQuery } from '@/hooks/useTickets'
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
 import { useAuthStore } from '@/store/authStore'
+import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -43,6 +44,7 @@ function StatCard({
 
 export function Dashboard() {
   const navigate = useNavigate()
+  const { isAdmin, isSupervisor } = useRole()
   const userId = useAuthStore((state) => state.user?.userId ?? null)
   const groups = useGroupsQuery()
   const effectiveGroupId =
@@ -121,19 +123,21 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <StatCard
-          title="Sin asignar en mi grupo"
-          value={queueCount}
-          subtitle={groups.data?.[0]?.name ?? 'Grupo'}
-          onClick={() => navigate('/queue')}
-        />
-        <StatCard
-          title="Total abiertos en el sistema"
-          value={stats.data?.openTickets ?? 0}
-          subtitle="Reporte global"
-        />
-      </div>
+      {(isSupervisor || isAdmin) && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <StatCard
+            title={isSupervisor ? 'Sin asignar en mi grupo' : 'Sin asignar en grupos'}
+            value={queueCount}
+            subtitle={groups.data?.[0]?.name ?? 'Grupo'}
+            onClick={() => navigate('/queue')}
+          />
+          <StatCard
+            title={isAdmin ? 'Total abiertos en el sistema' : 'Total abiertos en mi grupo'}
+            value={stats.data?.openTickets ?? 0}
+            subtitle={isAdmin ? 'Reporte global' : 'Reporte de grupo'}
+          />
+        </div>
+      )}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -185,7 +189,9 @@ export function Dashboard() {
       {stats.data ? (
         <div className="grid gap-4 lg:grid-cols-1">
           <div className="rounded-md border border-border p-4">
-            <p className="mb-2 text-sm font-medium text-muted-foreground">Tickets por estado (global)</p>
+            <p className="mb-2 text-sm font-medium text-muted-foreground">
+              {isAdmin ? 'Tickets por estado (global)' : isSupervisor ? 'Tickets por estado (grupo)' : 'Mis tickets por estado'}
+            </p>
             <div className="flex flex-wrap gap-2">
               {stats.data.byStatus.map((b) => (
                 <span key={b.status} className={cn('rounded px-2 py-0.5 text-sm', statusMeta(b.status).badgeClass)}>

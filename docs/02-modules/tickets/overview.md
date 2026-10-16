@@ -164,6 +164,26 @@ RFC 7807 `ProblemDetails` for every failure:
 
 Las operaciones operativas clave (`claim` al autoasignarse un ticket y `resolve` al cambiar a estado 5) se registran automáticamente de manera asíncrona y no bloqueante en la tabla `audit_log` de PostgreSQL (ver [Audit Overview](../audit/overview.md)).
 
+## Modelo de autorización estricto (BOLA Protection)
+
+Para proteger la integridad de los datos y evitar vulnerabilidades de autorización a nivel de objeto (BOLA), el servidor aplica estrictamente las siguientes reglas mediante `TicketAccessPolicy`:
+
+1. **Técnico (`technician`) — Modelo Estricto**:
+   - **Lectura de detalle (`GET /api/tickets/{id}`)**: Solo puede ver un ticket si:
+     * Está asignado a él, **O**
+     * Está en estado Nuevo (`status = 1`), sin asignar, y pertenece a uno de sus grupos (para poder reclamarlo).
+     * Un ticket asignado a otro técnico de su mismo grupo devuelve `403 Forbidden`.
+   - **Modificación de estado (`PATCH /api/tickets/{id}/status`)**: Solo si está asignado a él.
+   - **Inserción de soluciones (`POST /api/tickets/{id}/solutions`)**: Solo si está asignado a él.
+   - **Autoasignación (`POST /api/tickets/{id}/claim`)**: Debe estar en estado Nuevo (`status = 1`), sin técnico asignado y pertenecer a un grupo del usuario.
+   - **Listado (`GET /api/tickets`)**: Se ignora cualquier `assigneeId` provisto por el cliente; siempre se fuerza al `userId` del token autenticado.
+
+2. **Supervisor (`supervisor`)**:
+   - Puede ver, modificar estado y añadir soluciones a cualquier ticket que pertenezca a sus grupos de trabajo.
+
+3. **Administrador (`admin`)**:
+   - Acceso global irrestricto de lectura y modificación sobre todos los tickets y colas de cualquier grupo.
+
 ## Kanban del técnico
 
 El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 columnas de atención ágil:

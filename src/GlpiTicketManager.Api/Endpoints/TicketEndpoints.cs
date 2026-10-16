@@ -120,11 +120,14 @@ public static class TicketEndpoints
             return Results.Unauthorized();
         }
 
+        var role = principal.GetRole();
+
         try
         {
             var result = await ticketService.GetUnassignedByGroupAsync(
                 groupId,
                 userId.Value,
+                role,
                 limit ?? 20,
                 offset ?? 0,
                 cancellationToken);
@@ -152,9 +155,11 @@ public static class TicketEndpoints
             return Results.Unauthorized();
         }
 
+        var role = principal.GetRole();
+
         try
         {
-            var ticket = await ticketService.GetByIdAsync(id, userId.Value, cancellationToken);
+            var ticket = await ticketService.GetByIdAsync(id, userId.Value, role, cancellationToken);
             return ticket is null ? Results.NotFound() : Results.Ok(ticket);
         }
         catch (ForbiddenException ex)
@@ -179,9 +184,11 @@ public static class TicketEndpoints
             return Results.Unauthorized();
         }
 
+        var role = principal.GetRole();
+
         try
         {
-            var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, cancellationToken);
+            var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, role, cancellationToken);
             return updated ? Results.NoContent() : Results.NotFound();
         }
         catch (ForbiddenException ex)
@@ -208,9 +215,11 @@ public static class TicketEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
+        var role = principal.GetRole();
+
         try
         {
-            var result = await ticketService.ClaimAsync(id, userId.Value, cancellationToken);
+            var result = await ticketService.ClaimAsync(id, userId.Value, role, cancellationToken);
             return Results.Ok(result);
         }
         catch (ForbiddenException ex)
@@ -238,10 +247,12 @@ public static class TicketEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
+        var role = principal.GetRole();
+
         try
         {
             var solutionId = await ticketService.SolutionInsertAsync(
-                id, request.Content, userId.Value, cancellationToken);
+                id, request.Content, userId.Value, role, cancellationToken);
 
             return Results.Created($"/api/tickets/{id}/solutions/{solutionId}", new SolutionResponse(solutionId));
         }

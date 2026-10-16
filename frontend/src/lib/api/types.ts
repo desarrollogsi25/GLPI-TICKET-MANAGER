@@ -3,12 +3,15 @@
  * Source of truth: src/GlpiTicketManager.Application/Dtos
  */
 
+export type AppRole = 'technician' | 'supervisor' | 'admin'
+
 export interface UserProfile {
   userId: number
   username: string
   displayName: string
   profileId: number | null
   defaultEntityId: number | null
+  role?: AppRole
 }
 
 export interface LoginResponse {

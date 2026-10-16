@@ -1,9 +1,11 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Dtos.Groups;
 using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Models;
+using GlpiTicketManager.Domain.Enums;
 
 namespace GlpiTicketManager.Application.Abstractions;
 
@@ -29,9 +31,15 @@ public interface ITicketService
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
+    Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
+
     Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken);
 
+    Task<DashboardStatsDto> GetDashboardStatsAsync(DashboardScope? scope, CancellationToken cancellationToken);
+
     Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, CancellationToken cancellationToken);
+
+    Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,
@@ -46,11 +54,23 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
+        int groupId,
+        int userId,
+        AppRole role,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
     Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, CancellationToken cancellationToken);
+
+    Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken);
+
+    Task<int> SolutionInsertAsync(int ticketId, string content, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 

@@ -13,6 +13,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<ITicketAccessPolicy, TicketAccessPolicy>();
+        services.AddScoped<IDashboardAccessPolicy, DashboardAccessPolicy>();
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IAuthService, AuthService>();
         return services;

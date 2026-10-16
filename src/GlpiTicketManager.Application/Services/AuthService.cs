@@ -1,4 +1,5 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Auth;
 
 namespace GlpiTicketManager.Application.Services;
@@ -11,11 +12,16 @@ public sealed class AuthService : IAuthService
 {
     private readonly IUserRepository _users;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IUserRoleResolver _roleResolver;
 
-    public AuthService(IUserRepository users, IPasswordHasher passwordHasher)
+    public AuthService(
+        IUserRepository users,
+        IPasswordHasher passwordHasher,
+        IUserRoleResolver roleResolver)
     {
         _users = users;
         _passwordHasher = passwordHasher;
+        _roleResolver = roleResolver;
     }
 
     public async Task<Models.AuthenticatedUser?> AuthenticateAsync(
@@ -40,12 +46,14 @@ public sealed class AuthService : IAuthService
         }
 
         var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Name : user.DisplayName;
+        var role = await _roleResolver.ResolveAsync(user.Id, cancellationToken);
 
         return new Models.AuthenticatedUser(
             user.Id,
             user.Name,
             displayName,
             user.ProfileId,
-            user.DefaultEntityId);
+            user.DefaultEntityId,
+            role);
     }
 }

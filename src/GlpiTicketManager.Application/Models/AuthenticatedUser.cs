@@ -1,3 +1,5 @@
+using GlpiTicketManager.Domain.Enums;
+
 namespace GlpiTicketManager.Application.Models;
 
 /// <summary>
@@ -8,4 +10,5 @@ public sealed record AuthenticatedUser(
     string Username,
     string DisplayName,
     int? ProfileId,
-    int? DefaultEntityId);
+    int? DefaultEntityId,
+    AppRole Role = AppRole.Technician);

@@ -90,8 +90,43 @@ Lista negra de identificadores de tokens JWT revocados antes de su expiración n
 
 ---
 
+### `role_profile_mapping`
+Mapeo de perfiles de GLPI (`glpi_profiles.id`) hacia los roles canónicos de la aplicación (`technician`, `supervisor`, `admin`).
+
+| Columna | Tipo | Nulo | Default | Descripción |
+|---|---|---|---|---|
+| `glpi_profile_id` | `INT` | NO | — | ID del perfil en GLPI (`glpi_profiles.id`, PK) |
+| `app_role` | `TEXT` | NO | — | Rol asignado (`technician`, `supervisor`, `admin`) con `CHECK` |
+| `notes` | `TEXT` | SÍ | — | Notas explicativas del perfil mapeado |
+| `created_at` | `TIMESTAMPTZ` | NO | `NOW()` | Timestamp de creación |
+
+- **Índices:**
+  - `role_profile_mapping_pkey`: `PRIMARY KEY (glpi_profile_id)`
+
+---
+
+### `user_role_overrides`
+Overrides individuales de rol para elevar o redefinir permisos de usuarios sin alterar GLPI.
+
+| Columna | Tipo | Nulo | Default | Descripción |
+|---|---|---|---|---|
+| `user_id` | `INT` | NO | — | ID del usuario (`glpi_users.id`, PK lógica) |
+| `app_role` | `TEXT` | NO | — | Rol forzado (`technician`, `supervisor`, `admin`) con `CHECK` |
+| `granted_by` | `INT` | NO | — | ID del usuario administrador que otorgó el rol |
+| `granted_at` | `TIMESTAMPTZ` | NO | `NOW()` | Momento en el que se otorgó el override |
+| `reason` | `TEXT` | SÍ | — | Justificación administrativa del override |
+
+- **Índices:**
+  - `user_role_overrides_pkey`: `PRIMARY KEY (user_id)`
+  - `idx_user_role_overrides_user`: `(user_id)`
+
+---
+
 ## 3. Inicialización y Migraciones
 
-- Las migraciones residen en el directorio `db/migrations/`.
+- Las migraciones residen en el directorio `db/migrations/`:
+  - `001_init.sql`: Configuración inicial, auditoría y preferencias.
+  - `002_revoked_tokens.sql`: Blacklist de tokens JWT revocados.
+  - `003_roles.sql`: Mapeo de perfiles GLPI y overrides individuales de roles.
 - En Docker Compose, se montan en `/docker-entrypoint-initdb.d:ro`, aplicándose automáticamente por orden léxico en el arranque inicial del contenedor `app-db`.
 - Todas las sentencias DDL utilizan `IF NOT EXISTS` para garantizar idempotencia.

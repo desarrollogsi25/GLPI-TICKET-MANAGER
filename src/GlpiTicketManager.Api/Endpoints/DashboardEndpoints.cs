@@ -1,5 +1,8 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
+using System.Security.Claims;
+using GlpiTicketManager.Api.Auth;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -22,9 +25,19 @@ public static class DashboardEndpoints
 
     private static async Task<IResult> GetStats(
         ITicketService ticketService,
+        IDashboardAccessPolicy dashboardAccessPolicy,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
-        var stats = await ticketService.GetDashboardStatsAsync(cancellationToken);
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var role = principal.GetRole();
+        var scope = await dashboardAccessPolicy.GetScopeAsync(userId.Value, role, cancellationToken);
+        var stats = await ticketService.GetDashboardStatsAsync(scope, cancellationToken);
         return Results.Ok(stats);
     }
 }

@@ -1,4 +1,5 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Infrastructure.BackgroundServices;
 using GlpiTicketManager.Infrastructure.Glpi;
 using GlpiTicketManager.Infrastructure.Persistence;
@@ -36,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IRevokedTokenRepository, RevokedTokenRepository>();
+        services.AddScoped<IUserRoleResolver, UserRoleRepository>();
         services.AddHostedService<RevokedTokenCleanupService>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 

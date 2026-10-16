@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
+import { useRole } from '@/hooks/useRole'
 import { useGroupQueueQuery, useGroupsQuery } from '@/hooks/useTickets'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -13,6 +14,7 @@ interface NavItemConfig {
   label: string
   icon: (active: boolean) => React.ReactNode
   isQueue?: boolean
+  adminOnly?: boolean
 }
 
 const primaryNav: NavItemConfig[] = [
@@ -193,6 +195,7 @@ export function AppSidebar() {
   const username = profile?.username ? `@${profile.username}` : ''
   const initial = displayName.charAt(0).toUpperCase()
 
+  const { isAdmin } = useRole()
   const groupsQuery = useGroupsQuery()
   const currentGroupId =
     groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
@@ -201,7 +204,7 @@ export function AppSidebar() {
 
   const renderNavList = (items: NavItemConfig[]) => (
     <ul className="flex flex-col gap-1">
-      {items.map((item) => (
+      {items.filter((item) => !item.adminOnly || isAdmin).map((item) => (
         <li key={item.id}>
           <NavLink
             to={item.to}

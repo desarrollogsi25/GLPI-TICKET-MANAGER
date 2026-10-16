@@ -14,4 +14,5 @@ public sealed record UserProfileDto(
     string Username,
     string DisplayName,
     int? ProfileId,
-    int? DefaultEntityId);
+    int? DefaultEntityId,
+    string Role = "technician");

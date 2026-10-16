@@ -40,6 +40,7 @@ public interface ITicketRepository
         CancellationToken cancellationToken);
 
     Task<DashboardStats> GetDashboardStatsAsync(CancellationToken cancellationToken);
+    Task<DashboardStats> GetDashboardStatsAsync(GlpiTicketManager.Application.Authorization.DashboardScope? scope, CancellationToken cancellationToken);
 
     Task<PagedResult<Ticket>> GetUnassignedByGroupAsync(
         int groupId,
@@ -60,4 +61,5 @@ public interface ITicketRepository
     Task<IReadOnlyList<int>> GetGroupIdsForTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
+    Task<bool> HasAssigneeAsync(int ticketId, CancellationToken cancellationToken);
 }

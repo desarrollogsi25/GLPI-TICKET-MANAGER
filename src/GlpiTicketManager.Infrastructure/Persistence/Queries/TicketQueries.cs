@@ -1,3 +1,6 @@
+using GlpiTicketManager.Application.Authorization;
+using GlpiTicketManager.Domain.Enums;
+
 namespace GlpiTicketManager.Infrastructure.Persistence.Queries;
 
 /// <summary>
@@ -179,4 +182,75 @@ public static class TicketQueries
 
     /// <summary>Dashboard batch: aggregate + status breakdown + technician workload.</summary>
     public static string Dashboard => AggregateStats + "\n" + StatusBreakdown + "\n" + TechnicianWorkload;
+
+    public static string BuildDashboardQuery(DashboardScope? scope)
+    {
+        string filter = string.Empty;
+        string workloadQuery;
+
+        if (scope is null || scope.IsGlobal)
+        {
+            filter = string.Empty;
+            workloadQuery = TechnicianWorkload;
+        }
+        else if (scope.Role == AppRole.Supervisor)
+        {
+            if (scope.GroupIds is { Count: > 0 })
+            {
+                filter = " AND EXISTS (SELECT 1 FROM glpi_groups_tickets gt WHERE gt.tickets_id = t.id AND gt.groups_id IN @ScopeGroupIds AND gt.type = 2)";
+                workloadQuery = $"""
+                    SELECT
+                        tu.users_id AS UserId,
+                        COUNT(*)    AS OpenTickets
+                    FROM glpi_tickets t
+                    INNER JOIN glpi_tickets_users tu ON tu.tickets_id = t.id AND tu.type = 2
+                    WHERE t.is_deleted = 0
+                      AND t.status IN (1,2,3,4)
+                      {filter}
+                    GROUP BY tu.users_id
+                    ORDER BY OpenTickets DESC
+                    LIMIT 10;
+                    """;
+            }
+            else
+            {
+                filter = " AND 1 = 0";
+                workloadQuery = "SELECT 0 AS UserId, 0 AS OpenTickets WHERE 1 = 0;";
+            }
+        }
+        else // Technician
+        {
+            filter = " AND EXISTS (SELECT 1 FROM glpi_tickets_users tu_scope WHERE tu_scope.tickets_id = t.id AND tu_scope.users_id = @ScopeUserId AND tu_scope.type = 2)";
+            workloadQuery = "SELECT 0 AS UserId, 0 AS OpenTickets WHERE 1 = 0;";
+        }
+
+        var aggregate = $"""
+            SELECT
+                COUNT(*)                                                                                   AS TotalTickets,
+                CAST(SUM(CASE WHEN t.status IN (1,2,3,4) THEN 1 ELSE 0 END) AS SIGNED)                      AS OpenTickets,
+                CAST(SUM(CASE WHEN t.status = 1 THEN 1 ELSE 0 END) AS SIGNED)                              AS NewTickets,
+                CAST(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END) AS SIGNED)                              AS AssignedTickets,
+                CAST(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END) AS SIGNED)                         AS PendingTickets,
+                CAST(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END) AS SIGNED)                              AS SolvedTickets,
+                CAST(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END) AS SIGNED)                              AS ClosedTickets,
+                CAST(SUM(CASE WHEN t.status IN (1,2,3,4)
+                               AND t.time_to_resolve IS NOT NULL
+                               AND t.time_to_resolve < NOW() THEN 1 ELSE 0 END) AS SIGNED)                 AS OverdueTickets,
+                AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, t.date, t.solvedate) END)   AS AverageResolutionHours
+            FROM glpi_tickets t
+            WHERE t.is_deleted = 0 {filter};
+            """;
+
+        var statusBreakdown = $"""
+            SELECT
+                t.status AS Status,
+                COUNT(*) AS Count
+            FROM glpi_tickets t
+            WHERE t.is_deleted = 0 {filter}
+            GROUP BY t.status
+            ORDER BY t.status ASC;
+            """;
+
+        return aggregate + "\n" + statusBreakdown + "\n" + workloadQuery;
+    }
 }

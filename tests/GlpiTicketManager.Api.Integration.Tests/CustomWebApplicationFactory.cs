@@ -1,4 +1,6 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
+using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Domain.Enums;
@@ -14,10 +16,13 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     public const int Tech1Id = 7;
     public const int Tech2Id = 8;
+    public const int AdminId = 100;
+    public const int SupervisorId = 101;
     public const int Group1Id = 1;
     public const int Group2Id = 2;
     public const int Ticket11Id = 11; // Group 1, unassigned, New (1)
     public const int Ticket12Id = 12; // Group 1, assigned to Tech1, Assigned (2)
+    public const int Ticket13Id = 13; // Group 1, assigned to Tech2, Assigned (2)
     public const int Ticket21Id = 21; // Group 2, assigned to Tech2, Assigned (2)
     public const int Ticket22Id = 22; // Group 2, unassigned, New (1)
 
@@ -55,12 +60,24 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IPasswordHasher) ||
                 d.ServiceType == typeof(IRevokedTokenRepository) ||
                 d.ServiceType == typeof(IGlpiApiClient) ||
-                d.ServiceType == typeof(IAuditRepository)).ToList();
+                d.ServiceType == typeof(IAuditRepository) ||
+                d.ServiceType == typeof(IUserRoleResolver)).ToList();
 
             foreach (var d in descriptors)
             {
                 services.Remove(d);
             }
+
+            // Mock IUserRoleResolver
+            var roleResolverMock = new Mock<IUserRoleResolver>();
+            roleResolverMock.Setup(r => r.ResolveAsync(Tech1Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(AppRole.Technician);
+            roleResolverMock.Setup(r => r.ResolveAsync(Tech2Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(AppRole.Technician);
+            roleResolverMock.Setup(r => r.ResolveAsync(AdminId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(AppRole.Admin);
+            roleResolverMock.Setup(r => r.ResolveAsync(SupervisorId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(AppRole.Supervisor);
 
             // Mock IUserRepository
             var userRepoMock = new Mock<IUserRepository>();
@@ -92,10 +109,40 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     DefaultEntityId = 0
                 });
 
+            userRepoMock.Setup(u => u.GetByNameAsync("admin_test", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new UserAccount
+                {
+                    Id = AdminId,
+                    Name = "admin_test",
+                    RealName = "Admin User",
+                    FirstName = "Admin",
+                    PasswordHash = "admin_hash",
+                    IsActive = true,
+                    IsDeleted = false,
+                    ProfileId = 4,
+                    DefaultEntityId = 0
+                });
+
+            userRepoMock.Setup(u => u.GetByNameAsync("supervisor_test", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new UserAccount
+                {
+                    Id = SupervisorId,
+                    Name = "supervisor_test",
+                    RealName = "Supervisor User",
+                    FirstName = "Supervisor",
+                    PasswordHash = "sup_hash",
+                    IsActive = true,
+                    IsDeleted = false,
+                    ProfileId = 7,
+                    DefaultEntityId = 0
+                });
+
             // Mock IPasswordHasher
             var hasherMock = new Mock<IPasswordHasher>();
             hasherMock.Setup(h => h.Verify("Tech1Pass!", "hash1")).Returns(true);
             hasherMock.Setup(h => h.Verify("Tech2Pass!", "hash2")).Returns(true);
+            hasherMock.Setup(h => h.Verify("AdminPass123!", "admin_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify("SupervisorPass123!", "sup_hash")).Returns(true);
 
             // Mock IRevokedTokenRepository
             var revokedMock = new Mock<IRevokedTokenRepository>();
@@ -131,6 +178,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 AssigneeIds = new[] { Tech1Id }
             };
 
+            var ticket13 = new Ticket
+            {
+                Id = Ticket13Id,
+                Name = "Ticket 13 (Tech2 assigned same group)",
+                Status = (int)TicketStatus.Assigned,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = new[] { Tech2Id }
+            };
+
             var ticket21 = new Ticket
             {
                 Id = Ticket21Id,
@@ -153,6 +209,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 [Ticket11Id] = ticket11,
                 [Ticket12Id] = ticket12,
+                [Ticket13Id] = ticket13,
                 [Ticket21Id] = ticket21,
                 [Ticket22Id] = ticket22
             };
@@ -167,9 +224,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 .ReturnsAsync(new[] { Group1Id });
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(Tech2Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new[] { Group2Id });
+                .ReturnsAsync(new[] { Group1Id, Group2Id });
 
-            ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket11Id || id == Ticket12Id), It.IsAny<CancellationToken>()))
+            ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(SupervisorId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { Group1Id });
+
+            ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(AdminId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket11Id || id == Ticket12Id || id == Ticket13Id), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { Group1Id });
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket21Id || id == Ticket22Id), It.IsAny<CancellationToken>()))
@@ -178,8 +241,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             ticketRepoMock.Setup(t => t.IsUserAssignedToTicketAsync(Tech1Id, Ticket12Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
 
+            ticketRepoMock.Setup(t => t.IsUserAssignedToTicketAsync(Tech2Id, Ticket13Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
             ticketRepoMock.Setup(t => t.IsUserAssignedToTicketAsync(Tech2Id, Ticket21Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
+
+            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket11Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(false);
+            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket12Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket13Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket21Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket22Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(false);
 
             ticketRepoMock.Setup(t => t.GetFilteredAsync(Tech1Id, It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { ticket12 });
@@ -188,10 +265,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 .ReturnsAsync(1L);
 
             ticketRepoMock.Setup(t => t.GetFilteredAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new[] { ticket21 });
+                .ReturnsAsync(new[] { ticket13, ticket21 });
 
             ticketRepoMock.Setup(t => t.CountFilteredAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1L);
+                .ReturnsAsync(2L);
 
             ticketRepoMock.Setup(t => t.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyCollection<int> ids, CancellationToken _) =>
@@ -199,6 +276,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     var links = new List<TicketUser>();
                     if (ids.Contains(Ticket12Id))
                         links.Add(new TicketUser { TicketId = Ticket12Id, UserId = Tech1Id, Type = (int)TicketUserType.Assigned });
+                    if (ids.Contains(Ticket13Id))
+                        links.Add(new TicketUser { TicketId = Ticket13Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
                     if (ids.Contains(Ticket21Id))
                         links.Add(new TicketUser { TicketId = Ticket21Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
                     return links;
@@ -210,6 +289,33 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             ticketRepoMock.Setup(t => t.GetUnassignedByGroupAsync(Group2Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new PagedResult<Ticket>(new[] { ticket22 }, 1, 20, 0));
 
+            ticketRepoMock.Setup(t => t.GetDashboardStatsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new DashboardStats { TotalTickets = 5, OpenTickets = 5, ByStatus = new List<TicketStatusCount>(), ByTechnician = new List<TechnicianWorkload>() });
+
+            ticketRepoMock.Setup(t => t.GetDashboardStatsAsync(It.IsAny<DashboardScope?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((DashboardScope? scope, CancellationToken _) =>
+                {
+                    if (scope is not null && scope.Role == AppRole.Technician)
+                    {
+                        return new DashboardStats
+                        {
+                            TotalTickets = 1,
+                            OpenTickets = 1,
+                            ByStatus = new List<TicketStatusCount>(),
+                            ByTechnician = new List<TechnicianWorkload>()
+                        };
+                    }
+
+                    return new DashboardStats
+                    {
+                        TotalTickets = 5,
+                        OpenTickets = 5,
+                        ByStatus = new List<TicketStatusCount>(),
+                        ByTechnician = new List<TechnicianWorkload>()
+                    };
+                });
+
+            services.AddSingleton(roleResolverMock.Object);
             services.AddSingleton(userRepoMock.Object);
             services.AddSingleton(hasherMock.Object);
             services.AddSingleton(revokedMock.Object);

@@ -86,7 +86,10 @@ public sealed class TicketService : ITicketService
         return new PagedResult<TicketSummaryDto>(items, total, effectiveLimit, effectiveOffset);
     }
 
-    public async Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken)
+    public Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken) =>
+        GetByIdAsync(ticketId, userId, AppRole.Technician, cancellationToken);
+
+    public async Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
         {
@@ -99,7 +102,7 @@ public sealed class TicketService : ITicketService
             return null;
         }
 
-        if (!await _accessPolicy.CanViewAsync(userId, ticketId, cancellationToken))
+        if (!await _accessPolicy.CanViewAsync(userId, role, ticketId, cancellationToken))
         {
             throw new ForbiddenException($"User {userId} cannot view ticket {ticketId}");
         }
@@ -118,9 +121,12 @@ public sealed class TicketService : ITicketService
         return ticket?.ToDetail();
     }
 
-    public async Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken)
+    public Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken) =>
+        GetDashboardStatsAsync(null, cancellationToken);
+
+    public async Task<DashboardStatsDto> GetDashboardStatsAsync(DashboardScope? scope, CancellationToken cancellationToken)
     {
-        var stats = await _tickets.GetDashboardStatsAsync(cancellationToken);
+        var stats = await _tickets.GetDashboardStatsAsync(scope, cancellationToken);
 
         return new DashboardStatsDto(
             stats.TotalTickets,
@@ -140,10 +146,14 @@ public sealed class TicketService : ITicketService
                 .ToArray());
     }
 
+    public Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, CancellationToken cancellationToken) =>
+        UpdateStatusAsync(ticketId, status, userId, AppRole.Technician, cancellationToken);
+
     public async Task<bool> UpdateStatusAsync(
         int ticketId,
         int status,
         int userId,
+        AppRole role,
         CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
@@ -156,7 +166,7 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
-        if (!await _accessPolicy.CanModifyStatusAsync(userId, ticketId, cancellationToken))
+        if (!await _accessPolicy.CanModifyStatusAsync(userId, role, ticketId, cancellationToken))
         {
             throw new ForbiddenException($"User {userId} cannot modify status of ticket {ticketId}");
         }
@@ -194,14 +204,23 @@ public sealed class TicketService : ITicketService
         return true;
     }
 
-    public async Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
+    public Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,
         int userId,
         int limit,
         int offset,
+        CancellationToken cancellationToken) =>
+        GetUnassignedByGroupAsync(groupId, userId, AppRole.Technician, limit, offset, cancellationToken);
+
+    public async Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
+        int groupId,
+        int userId,
+        AppRole role,
+        int limit,
+        int offset,
         CancellationToken cancellationToken)
     {
-        if (!await _accessPolicy.CanViewGroupQueueAsync(userId, groupId, cancellationToken))
+        if (!await _accessPolicy.CanViewGroupQueueAsync(userId, role, groupId, cancellationToken))
         {
             throw new ForbiddenException($"User {userId} cannot view queue for group {groupId}");
         }
@@ -247,7 +266,10 @@ public sealed class TicketService : ITicketService
         return new PagedResult<TicketSummaryDto>(items, paged.Total, effectiveLimit, effectiveOffset);
     }
 
-    public async Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, CancellationToken cancellationToken)
+    public Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, CancellationToken cancellationToken) =>
+        ClaimAsync(ticketId, userId, AppRole.Technician, cancellationToken);
+
+    public async Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
         {
@@ -279,7 +301,7 @@ public sealed class TicketService : ITicketService
             throw new ConflictException("El ticket ya está asignado a un técnico.");
         }
 
-        if (!await _accessPolicy.CanClaimAsync(userId, ticketId, cancellationToken))
+        if (!await _accessPolicy.CanClaimAsync(userId, role, ticketId, cancellationToken))
         {
             throw new ForbiddenException($"User {userId} cannot claim ticket {ticketId}");
         }
@@ -314,7 +336,10 @@ public sealed class TicketService : ITicketService
         return await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
     }
 
-    public async Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken)
+    public Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken) =>
+        SolutionInsertAsync(ticketId, content, userId, AppRole.Technician, cancellationToken);
+
+    public async Task<int> SolutionInsertAsync(int ticketId, string content, int userId, AppRole role, CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
         {
@@ -332,7 +357,7 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
-        if (!await _accessPolicy.CanAddSolutionAsync(userId, ticketId, cancellationToken))
+        if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
         {
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }

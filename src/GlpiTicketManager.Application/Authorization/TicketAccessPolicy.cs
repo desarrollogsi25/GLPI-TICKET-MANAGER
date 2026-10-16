@@ -1,10 +1,17 @@
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace GlpiTicketManager.Application.Authorization;
 
 public interface ITicketAccessPolicy
 {
+    Task<bool> CanViewAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+    Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+    Task<bool> CanClaimAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+    Task<bool> CanAddSolutionAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+    Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default);
+
     Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanModifyStatusAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanClaimAsync(int userId, int ticketId, CancellationToken ct = default);
@@ -23,61 +30,97 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
         _logger = logger;
     }
 
-    public async Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default)
+    public async Task<bool> CanViewAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
     {
+        if (role == AppRole.Admin) return true;
+
+        if (role == AppRole.Supervisor)
+        {
+            // Supervisor ve todo lo de sus grupos
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return userGroups.Intersect(ticketGroups).Any();
+        }
+
+        // Technician: estricto
+        // (a) asignado a él, O
+        // (b) sin asignar Y en su grupo (para poder reclamarlo)
+        if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+            return true;
+
         var ticket = await _tickets.GetByIdAsync(ticketId, ct);
-        if (ticket is null) return false;
+        if (ticket is null || ticket.Status != 1) return false;
+        if (await _tickets.HasAssigneeAsync(ticketId, ct)) return false;
 
-        // Regla: puede ver si
-        // (a) es el asignado, o
-        // (b) el ticket está en un grupo del usuario, o
-        // (c) es el creador (requester)
-        var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
-        var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
-        var isAssigned = await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
-
-        if (isAssigned) return true;
-        if (userGroups.Intersect(ticketGroups).Any()) return true;
-        if (ticket.RequesterIds.Contains(userId)) return true;
-
-        return false;
+        var userGroups2 = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+        var ticketGroups2 = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+        return userGroups2.Intersect(ticketGroups2).Any();
     }
 
-    public async Task<bool> CanModifyStatusAsync(int userId, int ticketId, CancellationToken ct = default)
+    public async Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
     {
-        // Solo el asignado puede cambiar estado
+        if (role == AppRole.Admin) return true;
+
+        if (role == AppRole.Supervisor)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return userGroups.Intersect(ticketGroups).Any();
+        }
+
+        // Technician: solo si asignado a él
         return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
     }
 
-    public async Task<bool> CanClaimAsync(int userId, int ticketId, CancellationToken ct = default)
+    public async Task<bool> CanClaimAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
     {
-        // Puede reclamar si:
-        // - está en un grupo del usuario
-        // - no tiene asignado
-        // - status == 1
+        if (role == AppRole.Admin) return true;
+
         var ticket = await _tickets.GetByIdAsync(ticketId, ct);
-        if (ticket is null) return false;
-        if (ticket.Status != 1) return false;
-
-        var assigned = await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
-        if (assigned) return false;
-
-        if (ticket.AssigneeIds.Count > 0) return false;
+        if (ticket is null || ticket.Status != 1) return false;
+        if (await _tickets.HasAssigneeAsync(ticketId, ct)) return false;
 
         var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
         var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
         return userGroups.Intersect(ticketGroups).Any();
     }
 
-    public async Task<bool> CanAddSolutionAsync(int userId, int ticketId, CancellationToken ct = default)
+    public async Task<bool> CanAddSolutionAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
     {
-        // Solo el asignado puede añadir solución
+        if (role == AppRole.Admin) return true;
+
+        if (role == AppRole.Supervisor)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return userGroups.Intersect(ticketGroups).Any();
+        }
+
+        // Technician: solo si asignado a él
         return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
     }
 
-    public async Task<bool> CanViewGroupQueueAsync(int userId, int groupId, CancellationToken ct = default)
+    public async Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default)
     {
+        if (role == AppRole.Admin) return true;
+
         var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
         return userGroups.Contains(groupId);
     }
+
+    // Default overloads for backward compatibility
+    public Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default) =>
+        CanViewAsync(userId, AppRole.Technician, ticketId, ct);
+
+    public Task<bool> CanModifyStatusAsync(int userId, int ticketId, CancellationToken ct = default) =>
+        CanModifyStatusAsync(userId, AppRole.Technician, ticketId, ct);
+
+    public Task<bool> CanClaimAsync(int userId, int ticketId, CancellationToken ct = default) =>
+        CanClaimAsync(userId, AppRole.Technician, ticketId, ct);
+
+    public Task<bool> CanAddSolutionAsync(int userId, int ticketId, CancellationToken ct = default) =>
+        CanAddSolutionAsync(userId, AppRole.Technician, ticketId, ct);
+
+    public Task<bool> CanViewGroupQueueAsync(int userId, int groupId, CancellationToken ct = default) =>
+        CanViewGroupQueueAsync(userId, AppRole.Technician, groupId, ct);
 }

@@ -1,6 +1,7 @@
 using System.Text;
 using Dapper;
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Dtos.Groups;
 using GlpiTicketManager.Application.Dtos.Tickets;
@@ -199,10 +200,17 @@ public sealed class TicketRepository : ITicketRepository
 
     public async Task<DashboardStats> GetDashboardStatsAsync(CancellationToken cancellationToken)
     {
+        return await GetDashboardStatsAsync(null, cancellationToken);
+    }
+
+    public async Task<DashboardStats> GetDashboardStatsAsync(DashboardScope? scope, CancellationToken cancellationToken)
+    {
         using var connection = _connectionFactory.CreateConnection();
 
+        var query = TicketQueries.BuildDashboardQuery(scope);
         var command = new CommandDefinition(
-            TicketQueries.Dashboard,
+            query,
+            new { ScopeUserId = scope?.UserId ?? 0, ScopeGroupIds = scope?.GroupIds ?? Array.Empty<int>() },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -356,6 +364,20 @@ public sealed class TicketRepository : ITicketRepository
                 AND users_id = @UserId
                 AND type = 2",
             new { TicketId = ticketId, UserId = userId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
+        return result;
+    }
+
+    public async Task<bool> HasAssigneeAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            "SELECT COUNT(*) > 0 FROM glpi_tickets_users WHERE tickets_id = @TicketId AND type = 2",
+            new { TicketId = ticketId },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
