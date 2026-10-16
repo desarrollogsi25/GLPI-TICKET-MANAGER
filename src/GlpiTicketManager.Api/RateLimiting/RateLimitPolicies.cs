@@ -12,3 +12,14 @@ public static class RateLimitPolicies
     /// <summary>Token bucket rate limit for expensive endpoints (20 tokens/min).</summary>
     public const string Expensive = "expensive";
 }
+
+public sealed class RateLimitOptions
+{
+    public const string SectionName = "RateLimiting";
+
+    public int ExpensiveTokenLimit { get; set; } = 20;
+    public int ExpensiveTokensPerPeriod { get; set; } = 1;
+    public int ExpensiveReplenishmentSeconds { get; set; } = 3;
+    public int PerUserRequestLimit { get; set; } = 100;
+    public int LoginAttemptLimit { get; set; } = 5;
+}

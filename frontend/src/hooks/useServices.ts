@@ -7,5 +7,6 @@ export function useServicesQuery() {
   return useQuery({
     queryKey: queryKeys.services.all,
     queryFn: fetchServices,
+    staleTime: 5 * 60_000,
   })
 }

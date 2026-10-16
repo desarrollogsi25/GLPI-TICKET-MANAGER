@@ -7,5 +7,6 @@ export function useDashboardStatsQuery() {
   return useQuery({
     queryKey: queryKeys.dashboard.stats,
     queryFn: fetchDashboardStats,
+    staleTime: 60_000,
   })
 }

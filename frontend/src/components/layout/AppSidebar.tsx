@@ -1,10 +1,13 @@
 import { motion } from 'motion/react'
 import { NavLink } from 'react-router-dom'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
 import { useRole } from '@/hooks/useRole'
-import { useGroupQueueQuery, useGroupsQuery } from '@/hooks/useTickets'
+import { useGroupsQuery } from '@/hooks/useTickets'
+import { queryKeys } from '@/lib/api/queryKeys'
+import type { PagedResult, TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 
@@ -196,11 +199,14 @@ export function AppSidebar() {
   const initial = displayName.charAt(0).toUpperCase()
 
   const { isAdmin } = useRole()
+  const queryClient = useQueryClient()
   const groupsQuery = useGroupsQuery()
   const currentGroupId =
     groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
-  const queueQuery = useGroupQueueQuery(currentGroupId)
-  const queueCount = queueQuery.data?.total ?? queueQuery.data?.items?.length ?? 0
+  const cachedQueue = currentGroupId
+    ? queryClient.getQueryData<PagedResult<TicketSummary>>(queryKeys.tickets.byGroupQueue(currentGroupId))
+    : null
+  const queueCount = cachedQueue?.total ?? cachedQueue?.items?.length ?? 0
 
   const renderNavList = (items: NavItemConfig[]) => (
     <ul className="flex flex-col gap-1">

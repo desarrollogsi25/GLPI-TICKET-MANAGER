@@ -136,7 +136,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["GlpiApi:UserToken"] = "integration-test-user-token-32-chars-minimum!!",
                 ["Jwt:Key"] = "integration-test-secret-signing-key-32-chars-minimum!!",
                 ["Jwt:Issuer"] = "GlpiTicketManager.Api",
-                ["Jwt:Audience"] = "GlpiTicketManager.Frontend"
+                ["Jwt:Audience"] = "GlpiTicketManager.Frontend",
+                ["RateLimiting:ExpensiveTokenLimit"] = "20",
+                ["RateLimiting:ExpensiveTokensPerPeriod"] = "1",
+                ["RateLimiting:ExpensiveReplenishmentSeconds"] = "3",
+                ["RateLimiting:PerUserRequestLimit"] = "100",
+                ["RateLimiting:LoginAttemptLimit"] = "5"
             });
         });
 

@@ -1,6 +1,9 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { useGroupQueueQuery, useGroupsQuery } from '@/hooks/useTickets'
+import { useGroupsQuery } from '@/hooks/useTickets'
+import { queryKeys } from '@/lib/api/queryKeys'
+import type { PagedResult, TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 
 interface BottomTabBarProps {
@@ -12,11 +15,14 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
   const location = useLocation()
   const path = location.pathname
 
+  const queryClient = useQueryClient()
   const groupsQuery = useGroupsQuery()
   const currentGroupId =
     groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
-  const queueQuery = useGroupQueueQuery(currentGroupId)
-  const queueCount = queueQuery.data?.total ?? queueQuery.data?.items?.length ?? 0
+  const cachedQueue = currentGroupId
+    ? queryClient.getQueryData<PagedResult<TicketSummary>>(queryKeys.tickets.byGroupQueue(currentGroupId))
+    : null
+  const queueCount = cachedQueue?.total ?? cachedQueue?.items?.length ?? 0
 
   const isKanbanActive = path === '/kanban' || path === '/'
   const isTicketsActive = path.startsWith('/tickets') && path !== '/tickets/group-queue'

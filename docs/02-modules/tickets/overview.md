@@ -228,8 +228,11 @@ Para prevenir condiciones de carrera cuando múltiples técnicos intentan autoas
 
 - **Modelo optimista con UPDATE condicional**: La operación se ejecuta dentro de una transacción en MariaDB donde el primer paso es un `UPDATE` condicional sobre `glpi_tickets` que verifica atómicamente `WHERE id = @TicketId AND status = 1 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users WHERE tickets_id = @TicketId AND type = 2)`.
 - **Garantía**: Solo un técnico puede reclamar un ticket. El motor transaccional de MariaDB (InnoDB) bloquea la fila durante el `UPDATE`. El primer request modifica la fila y devuelve `rowsAffected = 1`, procediendo con el `INSERT` en `glpi_tickets_users`. Cualquier request concurrente espera el bloqueo o reevalúa la condición encontrando `rowsAffected = 0`.
-- **Comportamiento**: Si `rowsAffected == 0`, la transacción se revierte (`ROLLBACK`) y el servicio retorna un error HTTP `409 Conflict` con el mensaje `"Ticket ya no está disponible."`. Si ocurre cualquier fallo inesperado durante el `INSERT`, la transacción se revierte por completo garantizando que el ticket permanezca en su estado original (`status = 1` y sin asignación).
+### Desacoplamiento del badge de cola (Sidebar y Bottom Bar)
 
-
-
-
+Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-group`):
+- Los componentes de layout global (`AppSidebar` y `BottomTabBar`) **no realizan fetch de `by-group` en mount**.
+- En su lugar, leen de forma síncrona los datos existentes en la caché de TanStack Query mediante `queryClient.getQueryData(queryKeys.tickets.byGroupQueue(groupId))`.
+- Si el usuario no ha visitado `/queue` en la sesión, el badge permanece vacío (`queueCount = 0`).
+- Al navegar a `/queue`, `GroupQueuePage` dispara la consulta `useGroupQueueQuery`, poblando la caché.
+- El hook `useGroupQueueQuery` cuenta con `staleTime: 60_000`, evitando reconsultas redundantes mientras el usuario navega entre vistas de la aplicación.

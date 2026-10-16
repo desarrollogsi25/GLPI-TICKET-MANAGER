@@ -75,6 +75,7 @@ export function useGroupsQuery() {
   return useQuery({
     queryKey: queryKeys.groups.all,
     queryFn: listGroups,
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -82,6 +83,7 @@ export function useChannelsQuery() {
   return useQuery({
     queryKey: queryKeys.channels.all,
     queryFn: listChannels,
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -90,6 +92,7 @@ export function useGroupQueueQuery(groupId: number | null) {
     queryKey: queryKeys.tickets.byGroupQueue(groupId ?? 0),
     queryFn: () => listGroupQueue(groupId as number),
     enabled: groupId != null && groupId > 0,
+    staleTime: 60_000,
   })
 }
 

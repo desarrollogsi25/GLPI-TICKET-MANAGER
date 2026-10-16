@@ -92,6 +92,10 @@ builder.Services.AddAuthorization();
 // ---- Rate limiting (native .NET 9) --------------------------------------
 builder.Services.AddRateLimiter(options =>
 {
+    var rateLimitOptions = builder.Configuration
+        .GetSection(RateLimitOptions.SectionName)
+        .Get<RateLimitOptions>() ?? new RateLimitOptions();
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.AddPolicy(RateLimitPolicies.Login, httpContext =>
@@ -99,7 +103,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
+                PermitLimit = rateLimitOptions.LoginAttemptLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -113,7 +117,7 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
         {
             Window = TimeSpan.FromMinutes(1),
-            PermitLimit = 100,
+            PermitLimit = rateLimitOptions.PerUserRequestLimit,
             QueueLimit = 0
         });
     });
@@ -123,11 +127,11 @@ builder.Services.AddRateLimiter(options =>
         var userId = context.User.GetUserId()?.ToString() ?? "anonymous";
         return RateLimitPartition.GetTokenBucketLimiter(userId, _ => new TokenBucketRateLimiterOptions
         {
-            TokenLimit = 20,
-            TokensPerPeriod = 1,
-            ReplenishmentPeriod = TimeSpan.FromSeconds(3),
+            TokenLimit = rateLimitOptions.ExpensiveTokenLimit,
+            TokensPerPeriod = rateLimitOptions.ExpensiveTokensPerPeriod,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(rateLimitOptions.ExpensiveReplenishmentSeconds),
             AutoReplenishment = true,
-            QueueLimit = 20
+            QueueLimit = 0
         });
     });
 });
