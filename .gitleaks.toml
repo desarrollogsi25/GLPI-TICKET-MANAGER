@@ -1,0 +1,10 @@
+[allowlist]
+description = "Known test fixtures and historical test secrets in git history"
+paths = [
+  '''scripts/glpi-base\.sql''',
+  '''\.agents/''',
+]
+fingerprints = [
+  "43c74b680232689f4a3598796f938ba3e719e54c:scripts/config_db.php:generic-api-key:5",
+  "75a72e5a98ea120d29f19d0925b1027627efd4d2:.github/workflows/ci.yml:generic-api-key:68",
+]

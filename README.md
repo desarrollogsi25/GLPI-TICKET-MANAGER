@@ -201,6 +201,15 @@ The web application is audited and verified against **WCAG 2.1 Level AA** standa
 - **Multi-viewport responsive QA**: Audited across mobile (375px), tablet (768px), and desktop (1280px).
 - See detailed report in [`docs/09-visual-docs/accessibility.md`](docs/09-visual-docs/accessibility.md).
 
+## Secrets & Security
+
+- **No committed secrets**: Runtime credentials (`.env`, `scripts/config_db.php`, `scripts/glpicrypt.key`, `*.key`) are strictly git-ignored. Configuration templates are provided as `.env.example` and `scripts/config_db.php.template`.
+- **Secret Scanning (Gitleaks)**: Automated scan on every push/PR via `.github/workflows/ci.yml` with allowlists configured in `.gitleaks.toml`.
+- **Fail-fast validation**: The API rejects default or empty passwords at boot via `StartupConfigurationValidator`.
+- For storage, rotation runbooks and leak remediation, see:
+  - [`docs/12-security/secrets.md`](docs/12-security/secrets.md) — secret storage, rotation, verification
+  - [`docs/07-operations/secret-rotation.md`](docs/07-operations/secret-rotation.md) — standard operating procedure for secret rotation
+
 ## Documentation
 
 Start at [`docs/`](docs/):
@@ -210,5 +219,7 @@ Start at [`docs/`](docs/):
 - [`docs/01-architecture/ADR-002-api-glpi-integration.md`](docs/01-architecture/ADR-002-api-glpi-integration.md) — why Dapper reads + REST writes
 - [`docs/01-architecture/decisions/ADR-009-system-is-ticket-manager-only.md`](docs/01-architecture/decisions/ADR-009-system-is-ticket-manager-only.md) — el sistema es gestor, no creador de tickets (ADR-009)
 - [`docs/12-security/secrets.md`](docs/12-security/secrets.md) — secret storage, rotation, verification
+- [`docs/07-operations/secret-rotation.md`](docs/07-operations/secret-rotation.md) — secret rotation procedures and policies
 - [`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) — 4-service stack, network diagram, start/stop/log commands
 - [`docs/06-infrastructure/environment-variables.md`](docs/06-infrastructure/environment-variables.md) — every variable, its consumer and where it lives
+

@@ -161,11 +161,47 @@ grep -RIn 'Password=glpi\|Password=changeme' --include='appsettings.json' --incl
 `appsettings.Development.json` is intentionally **not** git-ignored because it contains
 no secrets; keeping it tracked documents the expected keys. `.env` **is** git-ignored.
 
+### GLPI Crypt Key (`GLPI_CRYPT_KEY`)
+
+| Variable | Stored in | Notes |
+|---|---|---|
+| `GLPI_CRYPT_KEY` | GitHub Secrets (base64) / local `scripts/glpicrypt.key` (git-ignored) | 32-byte binary AES key used by GLPI to encrypt API tokens at rest. Decoded at runtime in CI. |
+
+### PostgreSQL (`app-db`)
+
+| Variable | Stored in | Notes |
+|---|---|---|
+| `APP_DB_PASSWORD` | `.env` / GitHub Secrets | Password for the `app` user connecting to PostgreSQL database `glpi_ticket_manager`. |
+
+## Secret Scanning in CI (Gitleaks)
+
+The CI workflow includes an automated secret scanning job powered by [Gitleaks](https://github.com/gitleaks/gitleaks):
+- **Trigger**: Runs on every push and pull request to `main`.
+- **Configuration**: `.gitleaks.toml` defines the scan rules and allowlists for known test fixtures (`scripts/glpi-base.sql`, `.agents/`).
+- **Enforcement**: Any commit introducing a detected token, private key, or password causes the workflow to fail immediately before running downstream tests.
+
+## What to do if a secret is leaked
+
+If any credential or key is accidentally exposed (committed, pasted in a chat, ticket, or log):
+
+1. **Immediate Revocation & Rotation**:
+   - Follow [Procedimiento de rotación de secretos](../07-operations/secret-rotation.md).
+   - Generate a replacement credential in the affected system immediately.
+   - Update `.env`, `.NET user-secrets`, and GitHub Actions Secrets (`gh secret set <NAME>`).
+2. **Invalidate the Old Credential**:
+   - Verify that the old token or password is completely non-functional.
+3. **Audit Access**:
+   - Inspect GLPI access logs (`glpi-db` / `app-db` connection logs) for anomalous activity during the exposure window.
+4. **Git Remediation**:
+   - If committed to a remote branch, removing the file in a new commit does **not** erase it from Git history.
+   - For production secrets, follow GitHub's guide to rotate the secret immediately, notify the repository owner, and coordinate repository scrubbing via `git filter-repo` or BFG Repo-Cleaner if authorized.
+
 ## Rules
 
 - Never commit real values to `appsettings.json`, `appsettings.Development.json`,
   `docker-compose.yml`, or any doc.
-- Prefer `dotnet user-secrets` for local work and environment variables / a secret
-  manager in any deployed environment.
+- `scripts/config_db.php` and `scripts/glpicrypt.key` are strictly runtime artifacts and must never be tracked in git. Use `scripts/config_db.php.template` for templates.
+- Prefer `dotnet user-secrets` for local work and environment variables / GitHub Secrets in CI/CD.
 - Rotate a token immediately if it is ever pasted into a chat, ticket, or log.
-- Do not weaken the startup validation to "make it boot"; provision the secret instead.
+- Do not weaken the startup validation or gitleaks scanner to "make it pass"; provision the secret or fix the leak instead.
+- See detailed runbook in [`docs/07-operations/secret-rotation.md`](../07-operations/secret-rotation.md).

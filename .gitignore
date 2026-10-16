@@ -13,6 +13,11 @@ config/.env
 appsettings.*.Local.json
 *.secrets.json
 secrets.json
+/scripts/config_db.php
+/scripts/glpicrypt.key
+/scripts/glpi-key.php
+*.key
+*.pem
 
 # Local test artifacts (NO versionar)
 token.txt
