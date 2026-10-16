@@ -20,6 +20,17 @@ public static class StartupConfigurationValidator
 
     private static readonly string[] ForbiddenAppDbPasswords = { "Password=placeholder", "Password=changeme" };
 
+    private static readonly string[] ForbiddenJwtKeys =
+    {
+        "dev-only-change-me-in-production-32chars-min",
+        "dev-only-signing-key-change-me-32bytes-min!!",
+        "dev-only-",
+        "changeme",
+        "12345678901234567890123456789012",
+        "secret",
+        "placeholder"
+    };
+
     public static void Validate(IConfiguration configuration)
     {
         var invalid = new List<string>();
@@ -75,10 +86,18 @@ public static class StartupConfigurationValidator
         }
 
         // (d) JWT signing key.
-        if ((configuration[$"{JwtOptions.SectionName}:{nameof(JwtOptions.Key)}"] ?? string.Empty)
-            .Length < MinimumSecretLength)
+        var jwtKey = configuration[$"{JwtOptions.SectionName}:{nameof(JwtOptions.Key)}"] ?? string.Empty;
+        if (jwtKey.Length < MinimumSecretLength)
         {
             invalid.Add($"{JwtOptions.SectionName}:Key (mínimo {MinimumSecretLength} caracteres)");
+        }
+        else if (ForbiddenJwtKeys.Any(k => jwtKey.StartsWith(k, StringComparison.OrdinalIgnoreCase) || jwtKey.Equals(k, StringComparison.OrdinalIgnoreCase)))
+        {
+            invalid.Add($"{JwtOptions.SectionName}:Key (uses a known development value. Generate a new random key)");
+        }
+        else if (jwtKey.Distinct().Count() < 16)
+        {
+            invalid.Add($"{JwtOptions.SectionName}:Key (baja entropía: requiere al menos 16 caracteres distintos)");
         }
 
         if (invalid.Count > 0)

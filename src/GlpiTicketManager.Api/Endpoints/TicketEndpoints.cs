@@ -7,6 +7,7 @@ using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Application.Services;
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
+using GlpiTicketManager.Api.RateLimiting;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -16,7 +17,8 @@ public static class TicketEndpoints
     {
         var group = app.MapGroup("/api/tickets")
             .WithTags("Tickets")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicies.PerUser);
 
         // GET /api/tickets (lista con filtros: assigneeId, serviceId, limit, offset)
         group.MapGet(string.Empty, GetTickets)
@@ -30,6 +32,7 @@ public static class TicketEndpoints
         group.MapGet("by-group", GetUnassignedByGroup)
             .WithName("GetUnassignedByGroup")
             .WithSummary("Tickets sin asignar de un grupo concreto")
+            .RequireRateLimiting(RateLimitPolicies.Expensive)
             .Produces<PagedResult<TicketSummaryDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)

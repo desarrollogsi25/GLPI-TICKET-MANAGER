@@ -103,6 +103,33 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+
+    options.AddPolicy(RateLimitPolicies.PerUser, context =>
+    {
+        var userId = context.User.GetUserId()?.ToString() ?? "anonymous";
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var key = $"{userId}:{ip}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+        {
+            Window = TimeSpan.FromMinutes(1),
+            PermitLimit = 100,
+            QueueLimit = 0
+        });
+    });
+
+    options.AddPolicy(RateLimitPolicies.Expensive, context =>
+    {
+        var userId = context.User.GetUserId()?.ToString() ?? "anonymous";
+        return RateLimitPartition.GetTokenBucketLimiter(userId, _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 20,
+            TokensPerPeriod = 1,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(3),
+            AutoReplenishment = true,
+            QueueLimit = 20
+        });
+    });
 });
 
 // ---- Error handling (ProblemDetails) ------------------------------------
@@ -116,8 +143,8 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 // OpenAPI document + Scalar UI
@@ -139,9 +166,10 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 app.MapGet("/health/ready", async (
     IDbConnectionFactory mariaDbFactory,
     IAppDbConnectionFactory appDbFactory,
+    ILogger<Program> logger,
     CancellationToken ct) =>
 {
-    var checks = new Dictionary<string, string>();
+    var checks = new Dictionary<string, bool>();
     var allOk = true;
 
     // MariaDB check
@@ -151,12 +179,13 @@ app.MapGet("/health/ready", async (
         await conn.OpenAsync(ct);
         await using var cmd = new MySqlCommand("SELECT 1", conn);
         await cmd.ExecuteScalarAsync(ct);
-        checks["mariadb"] = "ok";
+        checks["mariadb"] = true;
     }
     catch (Exception ex)
     {
-        checks["mariadb"] = $"error: {ex.Message}";
+        checks["mariadb"] = false;
         allOk = false;
+        logger.LogError(ex, "Health check failed: MariaDB");
     }
 
     // PostgreSQL check
@@ -165,17 +194,24 @@ app.MapGet("/health/ready", async (
         await using var conn = (NpgsqlConnection)await appDbFactory.CreateAsync(ct);
         await using var cmd = new NpgsqlCommand("SELECT 1", conn);
         await cmd.ExecuteScalarAsync(ct);
-        checks["postgresql"] = "ok";
+        checks["postgresql"] = true;
     }
     catch (Exception ex)
     {
-        checks["postgresql"] = $"error: {ex.Message}";
+        checks["postgresql"] = false;
         allOk = false;
+        logger.LogError(ex, "Health check failed: PostgreSQL");
     }
 
+    var response = new
+    {
+        status = allOk ? "ready" : "not ready",
+        checks
+    };
+
     return allOk
-        ? Results.Ok(new { status = "ready", checks })
-        : Results.Json(new { status = "not ready", checks }, statusCode: 503);
+        ? Results.Ok(response)
+        : Results.Json(response, statusCode: 503);
 })
 .WithTags("Health")
 .AllowAnonymous();

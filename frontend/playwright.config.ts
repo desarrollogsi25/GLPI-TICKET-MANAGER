@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   baseURL: 'http://localhost:5173',
   globalSetup: './tests/e2e/global-setup.ts',
+  workers: 1,
   use: {
     headless: true,
     trace: 'on-first-retry',

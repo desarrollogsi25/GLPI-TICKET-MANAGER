@@ -3,6 +3,7 @@ using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
+using GlpiTicketManager.Api.RateLimiting;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -12,11 +13,13 @@ public static class DashboardEndpoints
     {
         var group = app.MapGroup("/api/dashboard")
             .WithTags("Dashboard")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicies.PerUser);
 
         group.MapGet("/stats", GetStats)
             .WithName("GetDashboardStats")
             .WithSummary("Aggregated ticket metrics for the dashboard")
+            .RequireRateLimiting(RateLimitPolicies.Expensive)
             .Produces<DashboardStatsDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 
