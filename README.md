@@ -223,3 +223,14 @@ Start at [`docs/`](docs/):
 - [`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) — 4-service stack, network diagram, start/stop/log commands
 - [`docs/06-infrastructure/environment-variables.md`](docs/06-infrastructure/environment-variables.md) — every variable, its consumer and where it lives
 
+## Contributing
+
+Todos los cambios a main pasan por PR. El PR requiere:
+- Descripción clara (usar `.github/PULL_REQUEST_TEMPLATE.md`)
+- Checks CI verdes (secret-scan, backend, frontend, e2e)
+- Aprobación de @desarrollogsi25
+- Conversaciones resueltas
+
+Emergencias: ver [`docs/07-operations/emergency-procedure.md`](docs/07-operations/emergency-procedure.md).
+
+
