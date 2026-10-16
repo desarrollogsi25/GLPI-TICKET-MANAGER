@@ -174,44 +174,52 @@ jobs:
         run: |
           docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
           docker compose exec -T frontend pnpm exec playwright install chromium
-      - name: Smoke test - API can update ticket status
+      - name: Smoke test - API claim and status update
         run: |
           echo "===== Login as tech1 ====="
           LOGIN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"username":"tech1","password":"Tech1Pass!"}' || echo "LOGIN_FAILED")
-          echo "$LOGIN" | head -c 300
-          echo ""
-          
-          if [ "$LOGIN" = "LOGIN_FAILED" ]; then
-            echo "ERROR: Login failed. Checking API logs..."
-            docker compose logs api --tail=100
-            exit 1
-          fi
-          
-          TOKEN=$(echo "$LOGIN" | python3 -c "import sys, json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null || echo "")
-          
+            -d '{"username":"tech1","password":"Tech1Pass!"}')
+          TOKEN=$(echo "$LOGIN" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
           if [ -z "$TOKEN" ]; then
-            echo "ERROR: Could not extract token"
+            echo "ERROR: could not login"
+            docker compose logs api --tail=50
             exit 1
           fi
+          echo "Login OK"
+          
+          echo "===== POST /api/tickets/11/claim ====="
+          CLAIM_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://localhost:8080/api/tickets/11/claim \
+            -H "Authorization: Bearer $TOKEN")
+          if [ "$CLAIM_HTTP" != "200" ]; then
+            echo "ERROR: claim returned $CLAIM_HTTP (expected 200)"
+            docker compose logs api --tail=50
+            exit 1
+          fi
+          echo "Claim OK (200)"
           
           echo "===== PATCH /api/tickets/11/status ====="
-          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PATCH http://localhost:8080/api/tickets/11/status \
+          STATUS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PATCH http://localhost:8080/api/tickets/11/status \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"status":2}')
-          echo "$RESPONSE"
-          
-          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
-          if [ "$HTTP_CODE" != "204" ]; then
-            echo "ERROR: PATCH /api/tickets/11/status returned $HTTP_CODE"
-            echo "===== API logs ====="
-            docker compose logs api --tail=200
+            -d '{"status":3}')
+          if [ "$STATUS_HTTP" != "204" ]; then
+            echo "ERROR: status update returned $STATUS_HTTP (expected 204)"
+            docker compose logs api --tail=50
             exit 1
           fi
+          echo "Status update OK (204)"
           
-          echo "Smoke test PASSED - API can update ticket status"
+          echo "===== Reset ticket #11 for E2E ====="
+          MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
+          docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e \
+            "UPDATE glpi_tickets SET status=1, date_mod=NOW() WHERE id=11; 
+             DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;"
+          echo "Reset OK"
+          
+          echo "Smoke test PASSED - API can claim and update status"
       - name: Seed E2E state
         run: ./scripts/seed-e2e.sh
       - name: Run E2E inside container
