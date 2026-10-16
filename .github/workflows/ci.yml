@@ -226,15 +226,29 @@ jobs:
             exit 1
           fi
           echo "Status update OK (204)"
+
+          echo "===== POST /api/tickets/11/solutions ====="
+          SOL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://localhost:8080/api/tickets/11/solutions \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"content":"Smoke test solution via API"}')
+          if [ "$SOL_HTTP" != "201" ]; then
+            echo "ERROR: solution creation returned $SOL_HTTP (expected 201)"
+            docker compose logs api --tail=50
+            exit 1
+          fi
+          echo "Solution created OK (201)"
           
           echo "===== Reset ticket #11 for E2E ====="
           MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e \
             "UPDATE glpi_tickets SET status=1, date_mod=NOW() WHERE id=11; 
-             DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;"
+             DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
+             DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;"
           echo "Reset OK"
           
-          echo "Smoke test PASSED - API can claim and update status"
+          echo "Smoke test PASSED - API can claim, update status and create solutions"
       - name: Seed E2E state
         run: ./scripts/seed-e2e.sh
       - name: Run E2E inside container

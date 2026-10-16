@@ -5,18 +5,6 @@ namespace GlpiTicketManager.Infrastructure.Persistence.Queries;
 /// </summary>
 public static class SolutionQueries
 {
-    /// <summary>
-    /// Inserta una solución en glpi_itilsolutions.
-    /// Devuelve el id de la fila insertada (LAST_INSERT_ID).
-    /// </summary>
-    public const string Insert = """
-        INSERT INTO glpi_itilsolutions
-            (itemtype, items_id, content, users_id, date_creation, status)
-        VALUES
-            ('Ticket', @TicketId, @Content, @UserId, NOW(), 1);
-
-        SELECT LAST_INSERT_ID() AS Id;
-        """;
 
     /// <summary>
     /// Verifica que al menos exista una solución escrita para el ticket.

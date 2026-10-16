@@ -7,4 +7,6 @@ namespace GlpiTicketManager.Application.Abstractions;
 public interface IGlpiApiClient
 {
     Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
+
+    Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
 }

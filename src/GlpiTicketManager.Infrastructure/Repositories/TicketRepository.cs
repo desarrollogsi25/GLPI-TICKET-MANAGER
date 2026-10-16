@@ -348,20 +348,6 @@ public sealed class TicketRepository : ITicketRepository
         return result;
     }
 
-    public async Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-
-        var command = new CommandDefinition(
-            SolutionQueries.Insert,
-            new { TicketId = ticketId, Content = content, UserId = userId },
-            commandTimeout: _options.CommandTimeoutSeconds,
-            cancellationToken: cancellationToken);
-
-        var result = await connection.ExecuteScalarAsync<int>(command);
-        return result;
-    }
-
     public async Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();

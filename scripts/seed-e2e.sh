@@ -69,7 +69,7 @@ UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3, it
 DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3 WHERE id=57;
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3, content='Ticket #57 para prueba de claim y solucion' WHERE id=57;
 DELETE FROM glpi_tickets_users WHERE tickets_id=57 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=57;
 

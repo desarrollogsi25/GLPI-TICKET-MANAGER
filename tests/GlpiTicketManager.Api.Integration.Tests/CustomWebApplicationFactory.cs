@@ -252,6 +252,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var glpiMock = new Mock<IGlpiApiClient>();
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
+            glpiMock.Setup(g => g.CreateSolutionAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
 
             // Setup tickets
             var ticket11 = new Ticket

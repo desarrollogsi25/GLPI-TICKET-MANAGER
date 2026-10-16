@@ -42,7 +42,9 @@ El sistema implementa una **arquitectura de doble base de datos** para desacopla
 - Almacena tickets, técnicos, usuarios, grupos, soluciones, seguimientos y catálogo de servicios.
 - **Acceso:**
   - *Lectura*: Directa vía SQL con Dapper (`MySqlConnector`) para máximo rendimiento.
-  - *Escritura*: Únicamente a través de la API REST de GLPI (`apirest.php`) para preservar eventos, notificaciones y SLAs nativos.
+  - *Escritura*: Híbrida conforme a [ADR-017](../01-architecture/decisions/ADR-017-glpi-write-strategy.md):
+    - Estados (`PATCH /status`) y soluciones (`POST /solutions`): vía API REST de GLPI (`apirest.php`) para preservar eventos, notificaciones y reglas nativas.
+    - Asignación atómica (`POST /claim`): vía SQL directo transaccional condicional en MariaDB para garantizar prevención estricta de condiciones de carrera entre técnicos.
 
 ### PostgreSQL (`glpi_ticket_manager`)
 - **Motor propio del gestor de tickets.**

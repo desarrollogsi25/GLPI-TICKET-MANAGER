@@ -70,6 +70,13 @@ never exposed to clients of this API.
 > [!NOTE]
 > La creación de tickets se hace 100% en GLPI. Este sistema NO crea tickets (ADR-009).
 
+### Escrituras GLPI (Estrategia Híbrida)
+
+Conforme a [ADR-017](../../01-architecture/decisions/ADR-017-glpi-write-strategy.md), las mutaciones se distribuyen según sus requisitos de concurrencia y reglas de negocio:
+- **Cambio de estado (`PATCH /api/tickets/{id}/status`)**: Vía GLPI REST API (`PUT /Ticket/{id}`). GLPI ejecuta reglas de negocio y transiciones.
+- **Creación de solución (`POST /api/tickets/{id}/solutions`)**: Vía GLPI REST API (`POST /ITILSolution`). GLPI valida y persiste la solución con su metadatos y eventos.
+- **Claim / Autoasignación (`POST /api/tickets/{id}/claim`)**: Vía **SQL directo atómico** (`UPDATE glpi_tickets ... WHERE id = @Id AND status = 1 AND NOT EXISTS (...)`). Justificado en [ADR-017](../../01-architecture/decisions/ADR-017-glpi-write-strategy.md) debido a que la API REST de GLPI no ofrece garantías transaccionales de no-duplicación ante peticiones simultáneas.
+
 ### Change status
 
 ```

@@ -362,7 +362,7 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
-        return await _tickets.SolutionInsertAsync(ticketId, content, userId, cancellationToken);
+        return await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
     }
 
     public async Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken)

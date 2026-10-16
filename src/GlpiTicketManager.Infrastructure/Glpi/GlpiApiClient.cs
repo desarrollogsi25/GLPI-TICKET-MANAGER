@@ -63,6 +63,52 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    public async Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var payload = new
+            {
+                input = new
+                {
+                    itemtype = "Ticket",
+                    items_id = ticketId,
+                    content
+                }
+            };
+
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                "ITILSolution",
+                sessionToken,
+                payload,
+                cancellationToken);
+
+            var created = await response.Content
+                .ReadFromJsonAsync<CreateItemResponse>(SerializerOptions, cancellationToken);
+
+            if (created is null || created.Id <= 0)
+            {
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    "GLPI created solution but did not return a valid identifier.");
+            }
+
+            _logger.LogInformation(
+                "Created GLPI solution {SolutionId} for ticket {TicketId}",
+                created.Id,
+                ticketId);
+
+            return created.Id;
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
     private async Task<string> InitSessionAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "initSession");
@@ -152,4 +198,8 @@ public sealed class GlpiApiClient : IGlpiApiClient
 
     private sealed record InitSessionResponse(
         [property: JsonPropertyName("session_token")] string SessionToken);
+
+    private sealed record CreateItemResponse(
+        [property: JsonPropertyName("id")] int Id,
+        [property: JsonPropertyName("message")] string? Message);
 }
