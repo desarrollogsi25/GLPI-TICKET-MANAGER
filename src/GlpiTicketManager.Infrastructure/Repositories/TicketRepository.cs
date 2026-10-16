@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text;
 using Dapper;
 using GlpiTicketManager.Application.Abstractions;
@@ -251,31 +252,85 @@ public sealed class TicketRepository : ITicketRepository
 
     public async Task<bool> ClaimAsync(int ticketId, int userId, int updatedBy, CancellationToken cancellationToken)
     {
-        using var connection = _connectionFactory.CreateConnection();
-
-        try
+        var rawConn = _connectionFactory.CreateConnection();
+        if (rawConn is DbConnection dbConn)
         {
-            var claimCommand = new CommandDefinition(
-                TicketUserQueries.Claim,
-                new { TicketId = ticketId, UserId = userId, UpdatedBy = updatedBy },
-                commandTimeout: _options.CommandTimeoutSeconds,
-                cancellationToken: cancellationToken);
+            await using (dbConn.ConfigureAwait(false))
+            {
+                await dbConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                await using var tx = await dbConn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    // 1. UPDATE condicional: solo reclama si status=1 y sin assignee
+                    var rowsAffected = await dbConn.ExecuteAsync(new CommandDefinition(
+                        TicketQueries.ClaimConditionalUpdate,
+                        new { TicketId = ticketId, UpdatedBy = updatedBy },
+                        transaction: tx,
+                        commandTimeout: _options.CommandTimeoutSeconds,
+                        cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-            await connection.ExecuteAsync(claimCommand);
+                    if (rowsAffected == 0)
+                    {
+                        // Ticket ya no está disponible (alguien lo reclamó, o ya no es status 1)
+                        await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                        return false;
+                    }
 
-            var updateCommand = new CommandDefinition(
-                TicketQueries.UpdateStatus,
-                new { NewStatus = 2, UpdatedBy = updatedBy, TicketId = ticketId },
-                commandTimeout: _options.CommandTimeoutSeconds,
-                cancellationToken: cancellationToken);
+                    // 2. INSERT de asignación (dentro de la misma transacción)
+                    await dbConn.ExecuteAsync(new CommandDefinition(
+                        TicketQueries.InsertAssignee,
+                        new { TicketId = ticketId, UserId = userId },
+                        transaction: tx,
+                        commandTimeout: _options.CommandTimeoutSeconds,
+                        cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-            await connection.ExecuteAsync(updateCommand);
-
-            return true;
+                    await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    return true;
+                }
+                catch
+                {
+                    await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                    throw;
+                }
+            }
         }
-        catch
+        else
         {
-            return false;
+            using (rawConn)
+            {
+                rawConn.Open();
+                using var tx = rawConn.BeginTransaction();
+                try
+                {
+                    var rowsAffected = await rawConn.ExecuteAsync(new CommandDefinition(
+                        TicketQueries.ClaimConditionalUpdate,
+                        new { TicketId = ticketId, UpdatedBy = updatedBy },
+                        transaction: tx,
+                        commandTimeout: _options.CommandTimeoutSeconds,
+                        cancellationToken: cancellationToken));
+
+                    if (rowsAffected == 0)
+                    {
+                        tx.Rollback();
+                        return false;
+                    }
+
+                    await rawConn.ExecuteAsync(new CommandDefinition(
+                        TicketQueries.InsertAssignee,
+                        new { TicketId = ticketId, UserId = userId },
+                        transaction: tx,
+                        commandTimeout: _options.CommandTimeoutSeconds,
+                        cancellationToken: cancellationToken));
+
+                    tx.Commit();
+                    return true;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
         }
     }
 

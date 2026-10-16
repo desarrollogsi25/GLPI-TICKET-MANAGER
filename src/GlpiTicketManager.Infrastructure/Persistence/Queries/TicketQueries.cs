@@ -180,6 +180,24 @@ public static class TicketQueries
         WHERE id = @TicketId;
         """;
 
+    public const string ClaimConditionalUpdate = """
+        UPDATE glpi_tickets 
+        SET status = 2, date_mod = NOW(), users_id_lastupdater = @UpdatedBy
+        WHERE id = @TicketId 
+          AND status = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM glpi_tickets_users 
+            WHERE tickets_id = @TicketId AND type = 2
+          );
+        """;
+
+    public const string InsertAssignee = """
+        INSERT INTO glpi_tickets_users 
+          (tickets_id, users_id, type, use_notification, alternative_email)
+        VALUES 
+          (@TicketId, @UserId, 2, 1, NULL);
+        """;
+
     /// <summary>Dashboard batch: aggregate + status breakdown + technician workload.</summary>
     public static string Dashboard => AggregateStats + "\n" + StatusBreakdown + "\n" + TechnicianWorkload;
 

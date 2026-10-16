@@ -222,5 +222,14 @@ En dispositivos móviles, el tablero Kanban sustituye el scroll horizontal de 5 
 - **Swipe horizontal entre tabs**: Gesto de arrastre horizontal (swipe) con Motion sobre la lista para alternar ágilmente entre columnas contiguas con retroalimentación elástica.
 - **Automatizaciones en cola**: Auto-refresco en segundo plano cada 30 segundos mientras la tab "Cola" está activa, indicador pulsante suave si ingresan nuevos tickets a la cola y badge en el Bottom Tab Bar.
 
+## Concurrencia en claim
+
+Para prevenir condiciones de carrera cuando múltiples técnicos intentan autoasignarse el mismo ticket simultáneamente (`POST /api/tickets/{id}/claim`), el sistema implementa atomicidad a nivel de repositorio y base de datos:
+
+- **Modelo optimista con UPDATE condicional**: La operación se ejecuta dentro de una transacción en MariaDB donde el primer paso es un `UPDATE` condicional sobre `glpi_tickets` que verifica atómicamente `WHERE id = @TicketId AND status = 1 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users WHERE tickets_id = @TicketId AND type = 2)`.
+- **Garantía**: Solo un técnico puede reclamar un ticket. El motor transaccional de MariaDB (InnoDB) bloquea la fila durante el `UPDATE`. El primer request modifica la fila y devuelve `rowsAffected = 1`, procediendo con el `INSERT` en `glpi_tickets_users`. Cualquier request concurrente espera el bloqueo o reevalúa la condición encontrando `rowsAffected = 0`.
+- **Comportamiento**: Si `rowsAffected == 0`, la transacción se revierte (`ROLLBACK`) y el servicio retorna un error HTTP `409 Conflict` con el mensaje `"Ticket ya no está disponible."`. Si ocurre cualquier fallo inesperado durante el `INSERT`, la transacción se revierte por completo garantizando que el ticket permanezca en su estado original (`status = 1` y sin asignación).
+
+
 
 

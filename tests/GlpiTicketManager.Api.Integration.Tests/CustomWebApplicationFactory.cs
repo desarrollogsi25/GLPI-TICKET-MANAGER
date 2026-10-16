@@ -25,6 +25,95 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     public const int Ticket13Id = 13; // Group 1, assigned to Tech2, Assigned (2)
     public const int Ticket21Id = 21; // Group 2, assigned to Tech2, Assigned (2)
     public const int Ticket22Id = 22; // Group 2, unassigned, New (1)
+    public const int Ticket31Id = 31; // Group 1, unassigned, New (1) - shared for concurrency tests
+
+    public bool SimulateInsertFailure { get; set; }
+    private readonly object _stateLock = new();
+    private readonly Dictionary<int, Ticket> _allTickets = new();
+    private readonly List<TicketUser> _ticketUsers = new();
+
+    public CustomWebApplicationFactory()
+    {
+        ResetState();
+    }
+
+    public void ResetState()
+    {
+        lock (_stateLock)
+        {
+            SimulateInsertFailure = false;
+            _allTickets.Clear();
+            _allTickets[Ticket11Id] = new Ticket
+            {
+                Id = Ticket11Id,
+                Name = "Ticket 11 (Call Center unassigned)",
+                Status = (int)TicketStatus.New,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = Array.Empty<int>()
+            };
+            _allTickets[Ticket12Id] = new Ticket
+            {
+                Id = Ticket12Id,
+                Name = "Ticket 12 (Tech1 assigned)",
+                Status = (int)TicketStatus.Assigned,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = new[] { Tech1Id }
+            };
+            _allTickets[Ticket13Id] = new Ticket
+            {
+                Id = Ticket13Id,
+                Name = "Ticket 13 (Tech2 assigned same group)",
+                Status = (int)TicketStatus.Assigned,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = new[] { Tech2Id }
+            };
+            _allTickets[Ticket21Id] = new Ticket
+            {
+                Id = Ticket21Id,
+                Name = "Ticket 21 (Tech2 assigned)",
+                Status = (int)TicketStatus.Assigned,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = new[] { Tech2Id }
+            };
+            _allTickets[Ticket22Id] = new Ticket
+            {
+                Id = Ticket22Id,
+                Name = "Ticket 22 (Group 2 unassigned)",
+                Status = (int)TicketStatus.New,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = Array.Empty<int>()
+            };
+            _allTickets[Ticket31Id] = new Ticket
+            {
+                Id = Ticket31Id,
+                Name = "Ticket 31 (Group 1 unassigned concurrency test)",
+                Status = (int)TicketStatus.New,
+                RequesterIds = new[] { 9 },
+                AssigneeIds = Array.Empty<int>()
+            };
+
+            _ticketUsers.Clear();
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket12Id, UserId = Tech1Id, Type = (int)TicketUserType.Assigned });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket13Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket21Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
+        }
+    }
+
+    public int GetAssigneeCount(int ticketId)
+    {
+        lock (_stateLock)
+        {
+            return _ticketUsers.Count(u => u.TicketId == ticketId && u.Type == (int)TicketUserType.Assigned);
+        }
+    }
+
+    public Ticket? GetTicket(int ticketId)
+    {
+        lock (_stateLock)
+        {
+            return _allTickets.GetValueOrDefault(ticketId);
+        }
+    }
 
     static CustomWebApplicationFactory()
     {
@@ -218,7 +307,13 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var ticketRepoMock = new Mock<ITicketRepository>();
 
             ticketRepoMock.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync((int id, CancellationToken _) => allTickets.GetValueOrDefault(id));
+                .ReturnsAsync((int id, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _allTickets.GetValueOrDefault(id);
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(Tech1Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { Group1Id });
@@ -232,7 +327,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(AdminId, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<int>());
 
-            ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket11Id || id == Ticket12Id || id == Ticket13Id), It.IsAny<CancellationToken>()))
+            ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket11Id || id == Ticket12Id || id == Ticket13Id || id == Ticket31Id), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { Group1Id });
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket21Id || id == Ticket22Id), It.IsAny<CancellationToken>()))
@@ -247,25 +342,35 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             ticketRepoMock.Setup(t => t.IsUserAssignedToTicketAsync(Tech2Id, Ticket21Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
 
-            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket11Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(false);
-            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket12Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(true);
-            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket13Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(true);
-            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket21Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(true);
-            ticketRepoMock.Setup(t => t.HasAssigneeAsync(Ticket22Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(false);
+            ticketRepoMock.Setup(t => t.HasAssigneeAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int id, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _ticketUsers.Any(u => u.TicketId == id && u.Type == (int)TicketUserType.Assigned);
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.GetFilteredAsync(Tech1Id, It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new[] { ticket12 });
+                .ReturnsAsync(() =>
+                {
+                    lock (_stateLock)
+                    {
+                        return new[] { _allTickets[Ticket12Id] };
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.CountFilteredAsync(Tech1Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1L);
 
             ticketRepoMock.Setup(t => t.GetFilteredAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new[] { ticket13, ticket21 });
+                .ReturnsAsync(() =>
+                {
+                    lock (_stateLock)
+                    {
+                        return new[] { _allTickets[Ticket13Id], _allTickets[Ticket21Id] };
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.CountFilteredAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(2L);
@@ -273,14 +378,62 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             ticketRepoMock.Setup(t => t.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyCollection<int> ids, CancellationToken _) =>
                 {
-                    var links = new List<TicketUser>();
-                    if (ids.Contains(Ticket12Id))
-                        links.Add(new TicketUser { TicketId = Ticket12Id, UserId = Tech1Id, Type = (int)TicketUserType.Assigned });
-                    if (ids.Contains(Ticket13Id))
-                        links.Add(new TicketUser { TicketId = Ticket13Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
-                    if (ids.Contains(Ticket21Id))
-                        links.Add(new TicketUser { TicketId = Ticket21Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
-                    return links;
+                    lock (_stateLock)
+                    {
+                        return _ticketUsers.Where(u => ids.Contains(u.TicketId)).ToList();
+                    }
+                });
+
+            ticketRepoMock.Setup(t => t.ClaimAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, int userId, int updatedBy, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (!_allTickets.TryGetValue(ticketId, out var ticket))
+                            return false;
+
+                        // Conditional UPDATE: WHERE status = 1 AND NOT EXISTS (assignee type = 2)
+                        bool hasAssignee = _ticketUsers.Any(u => u.TicketId == ticketId && u.Type == (int)TicketUserType.Assigned);
+                        if (ticket.Status != (int)TicketStatus.New || hasAssignee)
+                        {
+                            return false;
+                        }
+
+                        if (SimulateInsertFailure)
+                        {
+                            // Failure during INSERT in transaction: rolled back, status remains New (1) and unassigned
+                            throw new InvalidOperationException("Simulated database failure during INSERT into glpi_tickets_users.");
+                        }
+
+                        _allTickets[ticketId] = new Ticket
+                        {
+                            Id = ticket.Id,
+                            Name = ticket.Name,
+                            Content = ticket.Content,
+                            Status = (int)TicketStatus.Assigned,
+                            Type = ticket.Type,
+                            Priority = ticket.Priority,
+                            Urgency = ticket.Urgency,
+                            Impact = ticket.Impact,
+                            CategoryId = ticket.CategoryId,
+                            CreatedAt = ticket.CreatedAt,
+                            UpdatedAt = DateTime.UtcNow,
+                            SolvedAt = ticket.SolvedAt,
+                            ClosedAt = ticket.ClosedAt,
+                            IsDeleted = ticket.IsDeleted,
+                            HasSolution = ticket.HasSolution,
+                            RequesterIds = ticket.RequesterIds,
+                            AssigneeIds = new[] { userId }
+                        };
+                        _ticketUsers.Add(new TicketUser
+                        {
+                            TicketId = ticketId,
+                            UserId = userId,
+                            Type = (int)TicketUserType.Assigned
+                        });
+
+                        return true;
+                    }
                 });
 
             ticketRepoMock.Setup(t => t.GetUnassignedByGroupAsync(Group1Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))

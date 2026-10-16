@@ -310,7 +310,7 @@ public sealed class TicketService : ITicketService
 
         if (!claimed)
         {
-            throw new ConflictException("No se pudo reclamar el ticket.");
+            throw new ConflictException("Ticket ya no está disponible.");
         }
 
         try
