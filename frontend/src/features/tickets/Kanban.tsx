@@ -34,6 +34,7 @@ import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
+import { KanbanMobileSheet } from './KanbanMobileSheet'
 
 type ColumnId = 'queue' | 'mine' | 'in_progress' | 'pending' | 'resolved'
 
@@ -264,6 +265,7 @@ export function Kanban() {
 
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
+  const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
 
@@ -314,14 +316,8 @@ export function Kanban() {
     [queueTickets, myTicketsByColumn],
   )
 
-  // Smart default tab para móvil: in_progress si se está trabajando en alguno; si no, queue
-  const defaultTab = useMemo<ColumnId>(() => {
-    if (myTicketsByColumn.in_progress.length > 0) return 'in_progress'
-    if (queueTickets.length > 0) return 'queue'
-    if (myTicketsByColumn.mine.length > 0) return 'mine'
-    if (myTicketsByColumn.pending.length > 0) return 'pending'
-    return 'queue'
-  }, [queueTickets.length, myTicketsByColumn])
+  // Default tab para móvil: cola del grupo (queue)
+  const defaultTab: ColumnId = 'queue'
 
   const [userSelectedTab, setUserSelectedTab] = useState<ColumnId | null>(null)
   const activeTab: ColumnId = userSelectedTab ?? defaultTab
@@ -434,6 +430,26 @@ export function Kanban() {
     )
   }
 
+  const handlePause = (ticketId: number) => {
+    updateStatus.mutate(
+      { ticketId, status: 4 },
+      {
+        onSuccess: () =>
+          pushToast({
+            title: `Ticket #${ticketId} marcado como pendiente`,
+            description: 'En espera de respuesta externa o proveedor.',
+            variant: 'success',
+          }),
+        onError: (err) =>
+          pushToast({
+            title: 'No se pudo cambiar el estado',
+            description: getApiErrorMessage(err),
+            variant: 'destructive',
+          }),
+      },
+    )
+  }
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(Number(event.active.id))
   }
@@ -482,23 +498,7 @@ export function Kanban() {
     }
 
     if (sourceId === 'in_progress' && targetId === 'pending') {
-      updateStatus.mutate(
-        { ticketId, status: 4 },
-        {
-          onSuccess: () =>
-            pushToast({
-              title: `Ticket #${ticketId} marcado como pendiente`,
-              description: 'En espera de respuesta externa o proveedor.',
-              variant: 'success',
-            }),
-          onError: (err) =>
-            pushToast({
-              title: 'No se pudo cambiar el estado',
-              description: getApiErrorMessage(err),
-              variant: 'destructive',
-            }),
-        },
-      )
+      handlePause(ticketId)
       return
     }
 
@@ -573,17 +573,31 @@ export function Kanban() {
         )
       case 'in_progress':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={(e) => {
-              e.stopPropagation()
-              setResolveTicketId(ticket.id)
-            }}
-          >
-            Resolver
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+              disabled={updateStatus.isPending}
+              onClick={(e) => {
+                e.stopPropagation()
+                handlePause(ticket.id)
+              }}
+            >
+              Pausar
+            </Button>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={(e) => {
+                e.stopPropagation()
+                setResolveTicketId(ticket.id)
+              }}
+            >
+              Resolver
+            </Button>
+          </div>
         )
       case 'pending':
         return (
@@ -734,6 +748,7 @@ export function Kanban() {
                       compact={true}
                       highlight={recentlyUpdatedIds.has(ticket.id)}
                       actionButton={getMobileActionButton(activeTab, ticket)}
+                      onCardClick={() => setSelectedMobileTicket(ticket)}
                     />
                   </motion.div>
                 ))}
@@ -807,6 +822,18 @@ export function Kanban() {
         onOpenChange={(v) => {
           if (!v) setResolveTicketId(null)
         }}
+      />
+
+      <KanbanMobileSheet
+        ticket={selectedMobileTicket}
+        currentColumn={activeTab}
+        isOpen={selectedMobileTicket !== null}
+        onClose={() => setSelectedMobileTicket(null)}
+        onClaim={handleClaim}
+        onStart={handleStart}
+        onPause={handlePause}
+        onResume={handleResume}
+        onResolve={(ticketId) => setResolveTicketId(ticketId)}
       />
     </div>
   )

@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
-import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
+import { useLogout } from '@/hooks/useAuth'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
-import { useAuthStore } from '@/store/authStore'
 import { AppSidebar } from './AppSidebar'
 import { BottomTabBar } from './BottomTabBar'
 import { ConnectionIndicator } from './ConnectionIndicator'
@@ -13,12 +12,8 @@ import { PageTransition } from './PageTransition'
 
 export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const storedUser = useAuthStore((state) => state.user)
-  const { data: currentUser } = useCurrentUserQuery()
   const { connectionState } = useRealtimeTicketHub()
   const logout = useLogout()
-
-  const profile = currentUser ?? storedUser
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -35,23 +30,38 @@ export function AppLayout() {
 
       {/* 2. Mobile Header (<md) */}
       <header className="flex md:hidden items-center justify-between border-b border-border bg-card px-4 py-3 pt-[env(safe-area-inset-top)]">
-        {/* Mobile Brand Title */}
+        {/* Left: Hamburger Menu Button & Connection */}
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded bg-primary text-primary-foreground font-bold text-xs">
-            GL
-          </div>
-          <span className="text-sm font-semibold">GLPI Manager</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsDrawerOpen(true)}
+            aria-label="Abrir menú"
+            data-testid="mobile-hamburger-btn"
+            className="flex h-9 w-9 items-center justify-center p-0 rounded-lg hover:bg-accent text-foreground cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="4" x2="20" y1="6" y2="6" />
+              <line x1="4" x2="20" y1="12" y2="12" />
+              <line x1="4" x2="20" y1="18" y2="18" />
+            </svg>
+          </Button>
           <ConnectionIndicator state={connectionState} />
         </div>
 
-        {/* User profile & actions */}
-        <div className="ml-auto flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-sm font-medium leading-tight">
-              {profile?.displayName || profile?.username || 'Sesión'}
-            </p>
-            <p className="text-xs text-muted-foreground">{profile?.username}</p>
-          </div>
+        {/* Right: Quick actions (Logout button) */}
+        <div className="ml-auto flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -59,12 +69,12 @@ export function AppLayout() {
             aria-label="Cerrar sesión"
             title="Cerrar sesión"
             data-testid="logout-btn"
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
+              width="15"
+              height="15"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
