@@ -158,6 +158,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public void AddTicket(Ticket ticket)
+    {
+        lock (_stateLock)
+        {
+            _allTickets[ticket.Id] = ticket;
+        }
+    }
+
+    public void RemoveTicket(int id)
+    {
+        lock (_stateLock)
+        {
+            _allTickets.Remove(id);
+        }
+    }
+
     public int GetAssigneeCount(int ticketId)
     {
         lock (_stateLock)
@@ -526,10 +542,28 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 });
 
             ticketRepoMock.Setup(t => t.GetUnassignedByGroupAsync(Group1Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new PagedResult<Ticket>(new[] { ticket11 }, 1, 20, 0));
+                .ReturnsAsync((int groupId, int limit, int offset, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var list = _allTickets.Values
+                            .Where(t => (t.Id == Ticket11Id || t.Id == 999) && !t.IsDeleted && t.Status == (int)TicketStatus.New && !_ticketUsers.Any(u => u.TicketId == t.Id && u.Type == (int)TicketUserType.Assigned))
+                            .ToList();
+                        return new PagedResult<Ticket>(list, list.Count, limit, offset);
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.GetUnassignedByGroupAsync(Group2Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new PagedResult<Ticket>(new[] { ticket22 }, 1, 20, 0));
+                .ReturnsAsync((int groupId, int limit, int offset, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var list = _allTickets.Values
+                            .Where(t => t.Id == Ticket22Id && !t.IsDeleted && t.Status == (int)TicketStatus.New && !_ticketUsers.Any(u => u.TicketId == t.Id && u.Type == (int)TicketUserType.Assigned))
+                            .ToList();
+                        return new PagedResult<Ticket>(list, list.Count, limit, offset);
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.GetDashboardStatsAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new DashboardStats { TotalTickets = 5, OpenTickets = 5, ByStatus = new List<TicketStatusCount>(), ByTechnician = new List<TechnicianWorkload>() });
