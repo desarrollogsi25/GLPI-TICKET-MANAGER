@@ -16,6 +16,7 @@ interface TicketCardProps {
   compact?: boolean
   highlight?: boolean
   shake?: boolean
+  onCardClick?: () => void
 }
 
 export function TicketCard({
@@ -25,6 +26,7 @@ export function TicketCard({
   compact = false,
   highlight = false,
   shake = false,
+  onCardClick,
 }: TicketCardProps) {
   const shouldReduceMotion = useReducedMotion()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -37,10 +39,12 @@ export function TicketCard({
   if (compact) {
     return (
       <motion.div
+        onClick={onCardClick}
         animate={highlight ? { boxShadow: '0 0 0 2px rgb(109 89 232)' } : {}}
         transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
         className={cn(
           'relative flex flex-col justify-between gap-2 rounded-xl border border-border bg-card p-3 shadow-xs hover:border-primary/40 transition-all min-h-[80px]',
+          onCardClick && 'cursor-pointer active:scale-[0.99]',
           isDragging && 'opacity-60',
         )}
       >
