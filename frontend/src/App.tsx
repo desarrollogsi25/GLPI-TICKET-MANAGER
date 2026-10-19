@@ -21,11 +21,11 @@ function GlobalThemeSync() {
   const { data } = usePreferencesQuery()
 
   useEffect(() => {
-    const stored = localStorage.getItem('theme') || localStorage.getItem('glpi_theme')
+    const stored = localStorage.getItem('theme')
     if (stored === 'dark') {
       document.documentElement.classList.add('dark')
       document.documentElement.setAttribute('data-theme', 'dark')
-    } else if (stored === 'light') {
+    } else {
       document.documentElement.classList.remove('dark')
       document.documentElement.setAttribute('data-theme', 'light')
     }
@@ -33,13 +33,13 @@ function GlobalThemeSync() {
 
   useEffect(() => {
     if (!token) {
-      const stored = localStorage.getItem('theme') || localStorage.getItem('glpi_theme')
+      const stored = localStorage.getItem('theme')
       if (stored === 'dark') {
         document.documentElement.classList.add('dark')
         document.documentElement.setAttribute('data-theme', 'dark')
       } else {
         document.documentElement.classList.remove('dark')
-        document.documentElement.removeAttribute('data-theme')
+        document.documentElement.setAttribute('data-theme', 'light')
       }
       return
     }

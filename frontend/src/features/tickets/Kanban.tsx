@@ -375,8 +375,8 @@ export function Kanban() {
     claimMutation.mutate(ticketId, {
       onSuccess: () => {
         pushToast({
-          title: `Ticket #${ticketId} asignado`,
-          description: 'El ticket se agregó a tus tickets asignados.',
+          title: 'Ticket asignado correctamente',
+          description: `Ticket #${ticketId} asignado a vos.`,
           variant: 'success',
         })
       },

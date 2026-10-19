@@ -30,8 +30,8 @@ export function getApiErrorMessage(error: unknown): string {
       return problem.title
     }
 
-    if (error.code === 'ERR_NETWORK') {
-      return 'No se pudo contactar con el API. ¿Está el backend en marcha?'
+    if (error.code === 'ERR_NETWORK' || !error.response) {
+      return 'No se pudo conectar al servidor. ¿Está el backend en marcha?'
     }
 
     if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {

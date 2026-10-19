@@ -56,10 +56,18 @@ export function GroupQueuePage() {
   const handleClaim = (ticketId: number) => {
     claim.mutate(ticketId, {
       onSuccess: () => {
-        toast({ title: `Ticket #${ticketId} asignado a vos`, variant: 'success' })
+        toast({
+          title: 'Ticket asignado correctamente',
+          description: `Ticket #${ticketId} asignado a vos.`,
+          variant: 'success',
+        })
       },
       onError: (err) => {
-        toast({ title: 'No se pudo asignar', description: getApiErrorMessage(err), variant: 'destructive' })
+        toast({
+          title: 'No se pudo asignar el ticket',
+          description: getApiErrorMessage(err),
+          variant: 'destructive',
+        })
       },
     })
   }
