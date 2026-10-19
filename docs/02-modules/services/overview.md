@@ -1,5 +1,9 @@
 # Catálogo de Servicios (Services Module)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-02-MOD-SERVICES | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Capa:** `GlpiTicketManager.Application` + `GlpiTicketManager.Infrastructure` + `frontend`
 - **Origen de datos:** Tabla `glpi_itilcategories` en MariaDB (ADR-011)
 - **Repositorio:** `IServiceRepository` (`GlpiTicketManager.Infrastructure.Repositories.ServiceRepository`)

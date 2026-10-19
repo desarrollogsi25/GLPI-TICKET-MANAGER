@@ -1,5 +1,9 @@
 # Procedimiento de rotación de secretos
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-07-SECRET_ROTATION | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 Este documento establece el procedimiento estándar para la rotación de credenciales, claves de cifrado y tokens de servicio del proyecto GLPI Ticket Manager.
 
 ---

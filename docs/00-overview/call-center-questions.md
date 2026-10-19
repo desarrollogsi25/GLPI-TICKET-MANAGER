@@ -1,6 +1,7 @@
 # Call Centre — Business Questions (Resolved)
 
-ISO Header: Business Scope
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-00-CALL_CENTER_QUESTIONS | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 
 **Status:** All questions resolved by the business on **2026-10-13**. No question
 remains pending.

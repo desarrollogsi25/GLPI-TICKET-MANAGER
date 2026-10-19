@@ -1,5 +1,9 @@
 # ADR-018 — Notificaciones en tiempo real mediante SignalR
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-018 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 ## Estado
 Accepted
 

@@ -1,5 +1,9 @@
 # ADR-013: Migración de .NET 9 a .NET 10 (LTS)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-013 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Related:** ADR-002, ADR-009, ADR-012

@@ -1,5 +1,9 @@
 # Preferences module
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-02-MOD-PREFERENCES | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Layer:** `GlpiTicketManager.Application` + `GlpiTicketManager.Api`
 - **Writes/Reads via:** PostgreSQL + Dapper (`IUserPreferencesRepository`)
 - **Storage:** Tabla `user_preferences` en `app-db` (PostgreSQL)

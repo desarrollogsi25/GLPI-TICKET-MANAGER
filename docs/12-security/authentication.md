@@ -1,5 +1,9 @@
 # Authentication and JWT Revocation
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-12-AUTHENTICATION | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Layer:** `GlpiTicketManager.Api` + `GlpiTicketManager.Infrastructure`
 - **Identity Provider:** Credenciales verificadas contra base de datos GLPI (`glpi_users`).
 - **Token Format:** JWT (HMAC-SHA256, expiración configurada en `Jwt:ExpiryMinutes`).

@@ -1,5 +1,9 @@
 # ADR-006: Self-assign and mandatory solution to close
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-006 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Supersedes:** —

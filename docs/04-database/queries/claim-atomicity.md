@@ -1,5 +1,9 @@
 # Operación atómica de autoasignación (Claim) de tickets
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-04-DB-QUERY-CLAIM_ATOMICITY | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Consumer:** `POST /api/tickets/{id}/claim`
 - **Repository:** `TicketRepository.ClaimAsync`
 - **Service:** `TicketService.ClaimAsync`

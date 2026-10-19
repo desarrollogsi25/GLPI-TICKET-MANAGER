@@ -1,5 +1,9 @@
 # Esquema de Base de Datos PostgreSQL (`glpi_ticket_manager`)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-04-POSTGRESQL_SCHEMA | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 Este documento describe el esquema relacional de PostgreSQL utilizado para los **datos propios del sistema**, según lo establecido en el [ADR-012](../01-architecture/decisions/ADR-012-postgresql-for-own-data.md).
 
 ---

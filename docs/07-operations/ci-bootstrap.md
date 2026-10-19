@@ -1,5 +1,9 @@
 # Bootstrap de Base de Datos y Configuración en CI/CD
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-07-CI_BOOTSTRAP | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 Este documento describe el mecanismo de inicialización (bootstrap) de la base de datos GLPI y sus claves de cifrado en entornos efímeros de integración continua (GitHub Actions).
 
 ---

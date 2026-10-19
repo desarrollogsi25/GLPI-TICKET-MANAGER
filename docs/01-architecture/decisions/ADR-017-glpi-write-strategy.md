@@ -1,5 +1,9 @@
 # ADR-017 — Estrategia de escritura contra GLPI: API vs SQL directo
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-017 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 ## Estado
 Accepted
 

@@ -1,5 +1,9 @@
 # Módulo de Auditoría (Audit Log)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-02-MOD-AUDIT | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Capa:** `GlpiTicketManager.Application` + `GlpiTicketManager.Infrastructure`
 - **Destino de datos:** Tabla `audit_log` en PostgreSQL (`app-db`, ADR-012)
 - **Repositorio:** `IAuditRepository` (`GlpiTicketManager.Infrastructure.Repositories.AuditRepository`)

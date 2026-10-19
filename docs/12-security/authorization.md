@@ -1,5 +1,9 @@
 # Autorización y Control de Acceso (RBAC + ABAC)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-12-AUTHORIZATION | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 Este documento describe el modelo de autorización implementado en GLPI Ticket Manager para mitigar vulnerabilidades BOLA (*Broken Object Level Authorization*) y aplicar el principio de mínimo privilegio.
 
 ---
