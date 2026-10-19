@@ -33,6 +33,7 @@ La aplicación reconoce tres roles canónicos definidos en el enum `AppRole`:
 | **PATCH /api/tickets/{id}/status** | Solo si asignado a él | Pertenece a sus grupos | Cualquier ticket |
 | **POST /api/tickets/{id}/claim** | Estado 1 + Sin asignar + Grupo del usuario | Estado 1 + Sin asignar + Grupo del usuario | Permitido |
 | **POST /api/tickets/{id}/solutions** | Solo si asignado a él | Pertenece a sus grupos | Cualquier ticket |
+| **POST /api/tickets/{id}/reopen** | Solo si asignado a él | Pertenece a sus grupos | Cualquier ticket |
 | **GET /api/tickets/by-group** | Grupo pertenece al usuario | Grupo pertenece al usuario | Cualquier grupo |
 | **GET /api/dashboard/stats** | Métricas personales (sin workload ajeno) | Métricas de sus grupos | Métricas globales completas |
 
@@ -85,3 +86,25 @@ FROM audit_log
 ORDER BY id DESC
 LIMIT 20;
 ```
+
+---
+
+## 6. Visibilidad de Followups Privados (H-08)
+
+La privacidad de seguimientos y notas técnicas (`glpi_itilfollowups.is_private = 1`) se aplica rigurosamente en la capa de datos en el backend, no en el frontend, mediante el parámetro de consulta SQL `@CanSeePrivate`:
+
+- **Administrador (`Admin`)**: Visualiza todos los followups (públicos y privados) de cualquier ticket.
+- **Supervisor (`Supervisor`)**: Visualiza followups privados si el ticket pertenece a uno de sus grupos asignados (`userGroups.Intersect(ticketGroups).Any()`).
+- **Técnico Asignado (`Technician`)**: Visualiza followups privados únicamente si está explícitamente asignado al ticket (`IsUserAssignedToTicketAsync(userId, ticketId)`).
+- **Solicitante / Observador (`Requester / Observer`)**: Nunca tienen acceso a followups privados (`is_private = 1`).
+
+### Implementación en SQL
+El repositorio ejecuta la consulta parametrizada `TicketQueries.FollowupsByTicketFiltered`:
+
+```sql
+WHERE f.itemtype = 'Ticket'
+  AND f.items_id = @TicketId
+  AND (@CanSeePrivate = 1 OR f.is_private = 0)
+```
+
+La política `TicketAccessPolicy.CanSeePrivateFollowupsAsync(userId, role, ticketId)` evalúa las relaciones antes de la consulta, asegurando que los seguimientos confidenciales nunca viajen por la red hacia clientes no autorizados.

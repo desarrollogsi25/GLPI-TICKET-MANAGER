@@ -20,6 +20,11 @@ public sealed class GlpiApiClient : IGlpiApiClient
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly JsonSerializerOptions IncludeNullsSerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never
+    };
+
     private readonly HttpClient _httpClient;
     private readonly GlpiOptions _options;
     private readonly ILogger<GlpiApiClient> _logger;
@@ -109,6 +114,85 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    public async Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var payload = new
+            {
+                input = new
+                {
+                    status = 2,
+                    solvedate = (string?)null,
+                    closedate = (string?)null
+                }
+            };
+
+            using var response = await SendAsync(
+                HttpMethod.Put,
+                $"Ticket/{ticketId}",
+                sessionToken,
+                payload,
+                IncludeNullsSerializerOptions,
+                cancellationToken);
+
+            _logger.LogInformation("Reopened GLPI ticket {TicketId} to status 2", ticketId);
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    public async Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var payload = new
+            {
+                input = new
+                {
+                    itemtype = "Ticket",
+                    items_id = ticketId,
+                    content,
+                    is_private = isPrivate ? 1 : 0
+                }
+            };
+
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                "ITILFollowup",
+                sessionToken,
+                payload,
+                cancellationToken);
+
+            var created = await response.Content
+                .ReadFromJsonAsync<CreateItemResponse>(SerializerOptions, cancellationToken);
+
+            if (created is null || created.Id <= 0)
+            {
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    "GLPI created followup but did not return a valid identifier.");
+            }
+
+            _logger.LogInformation(
+                "Created GLPI followup {FollowupId} for ticket {TicketId}",
+                created.Id,
+                ticketId);
+
+            return created.Id;
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
     private async Task<string> InitSessionAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "initSession");
@@ -163,11 +247,20 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    private Task<HttpResponseMessage> SendAsync(
+        HttpMethod method,
+        string relativeUrl,
+        string sessionToken,
+        object payload,
+        CancellationToken cancellationToken) =>
+        SendAsync(method, relativeUrl, sessionToken, payload, SerializerOptions, cancellationToken);
+
     private async Task<HttpResponseMessage> SendAsync(
         HttpMethod method,
         string relativeUrl,
         string sessionToken,
         object payload,
+        JsonSerializerOptions serializerOptions,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(method, relativeUrl);
@@ -178,7 +271,7 @@ public sealed class GlpiApiClient : IGlpiApiClient
             request.Headers.TryAddWithoutValidation("App-Token", _options.AppToken);
         }
 
-        request.Content = JsonContent.Create(payload, options: SerializerOptions);
+        request.Content = JsonContent.Create(payload, options: serializerOptions);
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
 

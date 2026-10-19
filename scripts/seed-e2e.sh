@@ -53,7 +53,8 @@ INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type)
 VALUES
   (11, 1, 2),
   (57, 1, 2),
-  (61, 1, 2)
+  (61, 1, 2),
+  (70, 1, 2)
 ON DUPLICATE KEY UPDATE groups_id = 1, type = 2;
 
 INSERT IGNORE INTO glpi_itilcategories 
@@ -76,6 +77,17 @@ DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=57;
 UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=5, date=NOW(), date_mod=NOW() WHERE id=61;
 DELETE FROM glpi_tickets_users WHERE tickets_id=61 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=61;
+
+INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
+VALUES
+  (70, 0, 'TEST reapertura ticket tech1', NOW(), NOW(), 1, 3, 'Ticket para prueba E2E de reapertura', 3, 3, 3, 1, 1, 2)
+ON DUPLICATE KEY UPDATE 
+  status = 1, solvedate = NULL, closedate = NULL, priority = 3, date_mod = NOW();
+DELETE FROM glpi_tickets_users WHERE tickets_id=70 AND type=2;
+DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=70;
+DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=70;
+
+UPDATE glpi_tickets SET status=2 WHERE status=3 AND id IN (SELECT tickets_id FROM glpi_tickets_users WHERE users_id=7 AND type=2);
 SQL
 
 # 4. Limpiar preferencias de usuario tech1 (id=7) en app-db para inicio limpio

@@ -110,6 +110,12 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot view ticket {ticketId}");
         }
 
+        var canSeePrivate = await _accessPolicy.CanSeePrivateFollowupsAsync(userId, role, ticketId, cancellationToken);
+        if (!canSeePrivate)
+        {
+            ticket = await _tickets.GetByIdAsync(ticketId, canSeePrivate: false, cancellationToken) ?? ticket;
+        }
+
         return ticket.ToDetail();
     }
 
@@ -424,6 +430,87 @@ public sealed class TicketService : ITicketService
     public Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken)
     {
         return _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
+    }
+
+    public Task<TicketDetailDto> ReopenAsync(int ticketId, int userId, string? reason, CancellationToken cancellationToken) =>
+        ReopenAsync(ticketId, userId, AppRole.Technician, reason, cancellationToken);
+
+    public async Task<TicketDetailDto> ReopenAsync(
+        int ticketId,
+        int userId,
+        AppRole role,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0)
+        {
+            throw Invalid("id", "id must be a positive integer.");
+        }
+
+        if (userId <= 0)
+        {
+            throw Invalid("userId", "userId must be a positive integer.");
+        }
+
+        if (reason is not null && reason.Length > 500)
+        {
+            throw Invalid("reason", "Reason cannot exceed 500 characters.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        if (!await _accessPolicy.CanReopenAsync(userId, role, ticketId, cancellationToken))
+        {
+            throw new ForbiddenException($"User {userId} cannot reopen ticket {ticketId}");
+        }
+
+        if (ticket.Status != (int)TicketStatus.Solved && ticket.Status != (int)TicketStatus.Closed)
+        {
+            throw new ConflictException("Ticket ya está abierto");
+        }
+
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            try
+            {
+                await _glpi.CreateFollowupAsync(ticketId, reason.Trim(), isPrivate: true, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create followup note for reopen on ticket {TicketId}", ticketId);
+            }
+        }
+
+        await _glpi.ReopenTicketAsync(ticketId, cancellationToken);
+
+        try
+        {
+            await _notifications.NotifyTicketStatusChangedAsync(
+                ticketId,
+                (int)TicketStatus.Assigned,
+                ticket.AssigneeIds.FirstOrDefault(),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for reopen on ticket {TicketId}", ticketId);
+        }
+
+        try
+        {
+            await _audit.LogAsync(userId, "reopen", ticketId, reason, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record audit log for reopen on ticket {TicketId}", ticketId);
+        }
+
+        var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        return (updated ?? ticket).ToDetail();
     }
 
     private static void AttachUsers(IReadOnlyList<Ticket> tickets, IReadOnlyList<TicketUser> links)

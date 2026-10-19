@@ -14,6 +14,7 @@ public static class SolutionQueries
         FROM glpi_itilsolutions
         WHERE itemtype = 'Ticket'
           AND items_id = @TicketId
+          AND status <> 4
           AND TRIM(content) <> ''
           AND CHAR_LENGTH(TRIM(content)) >= 10;
         """;

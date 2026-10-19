@@ -144,13 +144,16 @@ public sealed class TicketRepository : ITicketRepository
         return (sql.ToString(), parameters);
     }
 
-    public async Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken)
+    public Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken) =>
+        GetByIdAsync(ticketId, true, cancellationToken);
+
+    public async Task<Ticket?> GetByIdAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
 
         var command = new CommandDefinition(
-            TicketQueries.Detail,
-            new { TicketId = ticketId },
+            TicketQueries.DetailFiltered,
+            new { TicketId = ticketId, CanSeePrivate = canSeePrivate ? 1 : 0 },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 

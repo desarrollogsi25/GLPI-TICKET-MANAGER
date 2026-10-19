@@ -78,6 +78,19 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // POST /api/tickets/{id}/reopen -> reabre ticket resuelto/cerrado
+        group.MapPost("/{id:int}/reopen", Reopen)
+            .WithName("ReopenTicket")
+            .WithSummary("Reopen a solved or closed ticket back to status 2 (assigned)")
+            .Accepts<ReopenTicketRequest>("application/json")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .RequireRateLimiting(RateLimitPolicies.PerUser);
+
         return group;
     }
 
@@ -273,5 +286,30 @@ public static class TicketEndpoints
                 title: "Ticket no encontrado",
                 detail: ex.Message);
         }
+    }
+
+    private static async Task<IResult> Reopen(
+        int id,
+        ReopenTicketRequest? request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var role = principal.GetRole();
+
+        var ticket = await ticketService.ReopenAsync(
+            id,
+            userId.Value,
+            role,
+            request?.Reason,
+            cancellationToken);
+
+        return Results.Ok(ticket);
     }
 }

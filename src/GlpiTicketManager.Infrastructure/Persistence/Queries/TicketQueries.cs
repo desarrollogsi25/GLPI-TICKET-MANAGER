@@ -102,6 +102,21 @@ public static class TicketQueries
         ORDER BY f.date ASC, f.id ASC;
         """;
 
+    public const string FollowupsByTicketFiltered = """
+        SELECT
+            f.id             AS id,
+            f.date           AS createdAt,
+            f.content        AS content,
+            f.users_id       AS userId,
+            f.is_private     AS isPrivate,
+            f.sourceitems_id AS sourceItemId
+        FROM glpi_itilfollowups f
+        WHERE f.itemtype = 'Ticket'
+          AND f.items_id = @TicketId
+          AND (@CanSeePrivate = 1 OR f.is_private = 0)
+        ORDER BY f.date ASC, f.id ASC;
+        """;
+
     public const string UsersByTicket = """
         SELECT
             tu.tickets_id AS TicketId,
@@ -124,6 +139,9 @@ public static class TicketQueries
 
     /// <summary>Full detail: ticket + follow-ups + user links (one round-trip, three result sets).</summary>
     public static string Detail => ById + "\n" + FollowupsByTicket + "\n" + UsersByTicket;
+
+    /// <summary>Full detail with followup privacy filter.</summary>
+    public static string DetailFiltered => ById + "\n" + FollowupsByTicketFiltered + "\n" + UsersByTicket;
 
     private const string AggregateStats = """
         SELECT

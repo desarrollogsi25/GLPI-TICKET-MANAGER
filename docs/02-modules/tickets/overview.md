@@ -17,7 +17,9 @@ through the GLPI REST API so notifications, logs, SLAs and plugins keep working.
 |---|---|---|---|
 | `GET` | `/api/tickets?assigneeId={id}&serviceId={id}&limit=&offset=` | JWT | Tickets list with optional assignee and service filters |
 | `GET` | `/api/tickets/{id}` | JWT | Full detail: description, follow-ups and user links |
-| `PATCH` | `/api/tickets/{id}/status` | JWT | Change ticket status through GLPI |
+| `POST` | `/api/tickets/{id}/solutions` | JWT | Insert a written solution into glpi_itilsolutions (ADR-006) |
+| `POST` | `/api/tickets/{id}/claim` | JWT | Technician claims an unassigned ticket (ADR-017) |
+| `POST` | `/api/tickets/{id}/reopen` | JWT | Reopen a solved or closed ticket (ADR-019) |
 | `GET` | `/api/dashboard/stats` | JWT | Aggregated metrics |
 | `POST` | `/api/auth/login` | anonymous, rate-limited | Exchange credentials for a JWT |
 | `GET` | `/api/auth/me` | JWT | Profile encoded in the current token |
@@ -255,4 +257,24 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 
 ## Notificaciones en tiempo real (SignalR)
 
-Las operaciones de mutación sobre tickets (`ClaimAsync`, `UpdateStatusAsync`, `SolutionInsertAsync`) emiten eventos en tiempo real a través del hub `/hubs/tickets` (`ITicketNotificationService`) para notificar a clientes conectados sin depender del ciclo de auto-refresco. Véase [Módulo de Tiempo Real](../realtime/overview.md) y [ADR-018](../../01-architecture/decisions/ADR-018-signalr-realtime.md).
+Las operaciones de mutación sobre tickets (`ClaimAsync`, `UpdateStatusAsync`, `SolutionInsertAsync`, `ReopenAsync`) emiten eventos en tiempo real a través del hub `/hubs/tickets` (`ITicketNotificationService`) para notificar a clientes conectados sin depender del ciclo de auto-refresco. Véase [Módulo de Tiempo Real](../realtime/overview.md) y [ADR-018](../../01-architecture/decisions/ADR-018-signalr-realtime.md).
+
+## Reapertura de tickets
+
+La reapertura de tickets cerrados o resueltos permite reactivar el flujo de trabajo sobre el mismo ticket sin fragmentar el historial:
+
+- **Endpoint**: `POST /api/tickets/{id}/reopen`
+- **Autorización**: Solo permitida para usuarios con rol `Admin`, `Supervisor` del grupo del ticket, o el `Technician` asignado al ticket (`TicketAccessPolicy.CanReopenAsync`).
+- **Estados de origen y destino permitidos**:
+  - Estado de origen: Exclusivamente `status = 5` (Solved) o `status = 6` (Closed). Si el ticket ya se encuentra abierto (`status ∈ {1, 2, 3, 4}`), devuelve `409 Conflict` ("Ticket ya está abierto").
+  - Estado destino: `status = 2` (Assigned).
+- **Tratamiento en GLPI**:
+  - Se ejecuta `PUT /Ticket/{id}` enviando `status = 2`, `solvedate = null`, `closedate = null` a GLPI REST API.
+  - GLPI preserva las soluciones previas en `glpi_itilsolutions` marcándolas con `status = 4` (superseded / histórico).
+  - La siguiente resolución del ticket exigirá una nueva solución válida; la solución previa se mantiene como referencia histórica pero no satisface la nueva resolución.
+- **Motivo de reapertura (opcional)**:
+  - El payload acepta `reason` (hasta 500 caracteres).
+  - Si se proporciona un motivo, el backend crea un seguimiento privado en GLPI (`glpi_itilfollowups` con `is_private = 1`), asegurando trazabilidad técnica protegida.
+- **Auditoría y eventos**:
+  - Se registra entrada en `audit_log` con acción `reopen` y el motivo proporcionado.
+  - Se emite notificación SignalR `TicketStatusChanged` con nuevo estado 2.

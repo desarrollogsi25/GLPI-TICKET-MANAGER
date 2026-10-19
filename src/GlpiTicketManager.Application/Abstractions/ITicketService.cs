@@ -75,4 +75,8 @@ public interface ITicketService
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);
+
+    Task<TicketDetailDto> ReopenAsync(int ticketId, int userId, string? reason, CancellationToken cancellationToken);
+
+    Task<TicketDetailDto> ReopenAsync(int ticketId, int userId, AppRole role, string? reason, CancellationToken cancellationToken);
 }

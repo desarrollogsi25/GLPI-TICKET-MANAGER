@@ -33,6 +33,7 @@ public interface ITicketRepository
         CancellationToken cancellationToken);
 
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
+    Task<Ticket?> GetByIdAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken);
 
     /// <summary>Loads the user links (requesters / assignees) for a set of tickets.</summary>
     Task<IReadOnlyList<TicketUser>> GetUsersForTicketsAsync(

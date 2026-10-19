@@ -11,12 +11,16 @@ public interface ITicketAccessPolicy
     Task<bool> CanClaimAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanAddSolutionAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default);
+    Task<bool> CanSeePrivateFollowupsAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+    Task<bool> CanReopenAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
 
     Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanModifyStatusAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanClaimAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanAddSolutionAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanViewGroupQueueAsync(int userId, int groupId, CancellationToken ct = default);
+    Task<bool> CanSeePrivateFollowupsAsync(int userId, int ticketId, CancellationToken ct = default);
+    Task<bool> CanReopenAsync(int userId, int ticketId, CancellationToken ct = default);
 }
 
 public sealed class TicketAccessPolicy : ITicketAccessPolicy
@@ -108,6 +112,44 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
         return userGroups.Contains(groupId);
     }
 
+    public async Task<bool> CanSeePrivateFollowupsAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
+    {
+        if (role == AppRole.Admin) return true;
+
+        if (role == AppRole.Supervisor)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return userGroups.Intersect(ticketGroups).Any();
+        }
+
+        if (role == AppRole.Technician)
+        {
+            return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        }
+
+        return false;
+    }
+
+    public async Task<bool> CanReopenAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
+    {
+        if (role == AppRole.Admin) return true;
+
+        if (role == AppRole.Supervisor)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return userGroups.Intersect(ticketGroups).Any();
+        }
+
+        if (role == AppRole.Technician)
+        {
+            return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        }
+
+        return false;
+    }
+
     // Default overloads for backward compatibility
     public Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default) =>
         CanViewAsync(userId, AppRole.Technician, ticketId, ct);
@@ -123,4 +165,10 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
     public Task<bool> CanViewGroupQueueAsync(int userId, int groupId, CancellationToken ct = default) =>
         CanViewGroupQueueAsync(userId, AppRole.Technician, groupId, ct);
+
+    public Task<bool> CanSeePrivateFollowupsAsync(int userId, int ticketId, CancellationToken ct = default) =>
+        CanSeePrivateFollowupsAsync(userId, AppRole.Technician, ticketId, ct);
+
+    public Task<bool> CanReopenAsync(int userId, int ticketId, CancellationToken ct = default) =>
+        CanReopenAsync(userId, AppRole.Technician, ticketId, ct);
 }
