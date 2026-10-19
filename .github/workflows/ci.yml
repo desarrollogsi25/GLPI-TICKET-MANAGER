@@ -23,17 +23,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '!docs/**'
+              - '!frontend/**'
       - uses: actions/setup-dotnet@v4
+        if: steps.filter.outputs.backend == 'true'
         with:
           dotnet-version: '10.0.x'
+      - name: Cache NuGet packages
+        if: steps.filter.outputs.backend == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
       - name: Restore
+        if: steps.filter.outputs.backend == 'true'
         run: dotnet restore GlpiTicketManager.sln
       - name: Build
+        if: steps.filter.outputs.backend == 'true'
         run: dotnet build GlpiTicketManager.sln --no-restore -c Release
       - name: Test
+        if: steps.filter.outputs.backend == 'true'
         run: dotnet test tests/GlpiTicketManager.Application.Tests --no-build -c Release --verbosity normal
       - name: Run integration tests
+        if: steps.filter.outputs.backend == 'true'
         run: dotnet test tests/GlpiTicketManager.Api.Integration.Tests -c Release
+      - name: Skip Backend notice
+        if: steps.filter.outputs.backend != 'true'
+        run: echo "No backend changes detected. Skipping .NET restore, build, and tests."
 
   frontend:
     name: Frontend (typecheck + build)
@@ -43,17 +66,33 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - '!docs/**'
+              - '!src/**'
+              - '!tests/GlpiTicketManager.**'
       - uses: pnpm/action-setup@v4
+        if: steps.filter.outputs.frontend == 'true'
         with:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
+        if: steps.filter.outputs.frontend == 'true'
         with:
           node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        if: steps.filter.outputs.frontend == 'true'
       - run: pnpm typecheck
+        if: steps.filter.outputs.frontend == 'true'
       - run: pnpm build
+        if: steps.filter.outputs.frontend == 'true'
+      - name: Skip Frontend notice
+        if: steps.filter.outputs.frontend != 'true'
+        run: echo "No frontend changes detected. Skipping typecheck and build."
 
   e2e:
     name: E2E (Playwright against full stack)
@@ -69,6 +108,13 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Validate required secrets
         run: |
           for v in MARIADB_ROOT_PASSWORD MARIADB_PASSWORD GLPI_APP_TOKEN GLPI_USER_TOKEN JWT_SECRET APP_DB_PASSWORD GLPI_CRYPT_KEY; do
@@ -185,10 +231,22 @@ jobs:
             sleep 2
           done
           exit 1
+      - name: Seed Playwright browser cache into container
+        run: |
+          if [ -d "$HOME/.cache/ms-playwright" ] && [ -n "$(ls -A "$HOME/.cache/ms-playwright" 2>/dev/null)" ]; then
+            docker compose exec -T -u root frontend mkdir -p /root/.cache/ms-playwright
+            docker compose cp "$HOME/.cache/ms-playwright/." frontend:/root/.cache/ms-playwright/
+            echo "Restored Playwright browser cache from host into container."
+          fi
       - name: Install Playwright browser in container
         run: |
           docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
           docker compose exec -T frontend pnpm exec playwright install chromium
+      - name: Save Playwright browser cache to host
+        if: always()
+        run: |
+          mkdir -p "$HOME/.cache/ms-playwright"
+          docker compose cp frontend:/root/.cache/ms-playwright/. "$HOME/.cache/ms-playwright/" 2>/dev/null || true
       - name: Smoke test - API claim and status update
         run: |
           echo "===== Login as tech1 ====="
@@ -262,7 +320,7 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report/
-          retention-days: 7
+          retention-days: 3
       - name: Collect logs on failure
         if: failure()
         run: |
