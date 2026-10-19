@@ -4,8 +4,9 @@ import { cn } from '@/lib/utils'
 export interface KanbanColumnTab {
   id: string
   title: string
-  count: number
+  count: number | string
   hasNew?: boolean
+  isError?: boolean
 }
 
 interface KanbanSegmentedTabsProps {
@@ -62,9 +63,11 @@ export function KanbanSegmentedTabs({
             <span
               className={cn(
                 'relative z-10 flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] rounded-full font-bold transition-transform',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground',
+                col.isError
+                  ? 'bg-destructive/20 text-destructive font-bold'
+                  : isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground',
               )}
             >
               {col.hasNew && !isActive ? (

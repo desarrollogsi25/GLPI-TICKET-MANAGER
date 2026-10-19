@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useRole } from '@/hooks/useRole'
 import { useGroupsQuery } from '@/hooks/useTickets'
 import { queryKeys } from '@/lib/api/queryKeys'
 import type { PagedResult, TicketSummary } from '@/lib/api/types'
@@ -14,6 +15,7 @@ interface BottomTabBarProps {
 export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) {
   const location = useLocation()
   const path = location.pathname
+  const { isSolicitante } = useRole()
 
   const queryClient = useQueryClient()
   const groupsQuery = useGroupsQuery()
@@ -33,9 +35,10 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
       aria-label="Navegación inferior móvil"
       className="fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border pb-[env(safe-area-inset-bottom)] md:hidden shadow-lg select-none"
     >
-      <div className="grid grid-cols-4 h-14">
-        {/* Tab 1: Kanban */}
-        <NavLink
+      <div className={cn('grid h-14', isSolicitante ? 'grid-cols-2' : 'grid-cols-4')}>
+        {/* Tab 1: Kanban (solo técnicos/supervisores/admin) */}
+        {!isSolicitante && (
+          <NavLink
           to="/kanban"
           aria-label="Tablero Kanban"
           data-testid="mobile-tab-kanban"
@@ -74,6 +77,7 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
             <span>Kanban</span>
           </span>
         </NavLink>
+        )}
 
         {/* Tab 2: Tickets */}
         <NavLink
@@ -119,7 +123,8 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
           </span>
         </NavLink>
 
-        {/* Tab 3: Cola */}
+        {/* Tab 3: Cola (solo técnicos/supervisores/admin) */}
+        {!isSolicitante && (
         <NavLink
           to="/queue"
           aria-label="Cola del grupo"
@@ -168,6 +173,7 @@ export function BottomTabBar({ onOpenDrawer, isDrawerOpen }: BottomTabBarProps) 
             <span>Cola</span>
           </span>
         </NavLink>
+        )}
 
         {/* Tab 4: Más (Drawer) */}
         <button

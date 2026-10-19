@@ -94,7 +94,8 @@ export function Dialog({ open, onClose, title, description, children, className 
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
-            aria-label={title}
+            aria-labelledby="dialog-title"
+            aria-describedby={description ? 'dialog-description' : undefined}
             initial={prefersReduced ? false : { opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={prefersReduced ? undefined : { opacity: 0, scale: 0.98 }}
@@ -110,8 +111,8 @@ export function Dialog({ open, onClose, title, description, children, className 
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 space-y-1">
-              <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-              {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+              <h2 id="dialog-title" className="text-lg font-semibold tracking-tight">{title}</h2>
+              {description ? <p id="dialog-description" className="text-sm text-muted-foreground">{description}</p> : null}
             </div>
             {children}
           </motion.div>

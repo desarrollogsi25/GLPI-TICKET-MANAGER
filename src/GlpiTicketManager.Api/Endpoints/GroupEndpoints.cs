@@ -37,8 +37,7 @@ public static class GroupEndpoints
                 detail: "No se encontro el userId en el token JWT.");
         }
 
-        var entityId = principal.GetEntityId() ?? 0;
-        var groups = await repository.GetByEntityAsync(entityId, cancellationToken);
+        var groups = await repository.GetByUserAsync(userId.Value, cancellationToken);
         return Results.Ok(groups);
     }
 }

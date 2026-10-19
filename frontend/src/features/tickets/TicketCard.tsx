@@ -39,6 +39,19 @@ export function TicketCard({
   if (compact) {
     return (
       <motion.div
+        role={onCardClick ? 'button' : undefined}
+        tabIndex={onCardClick ? 0 : undefined}
+        aria-label={onCardClick ? `Ticket #${ticket.id}: ${ticket.title}` : undefined}
+        onKeyDown={
+          onCardClick
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onCardClick()
+                }
+              }
+            : undefined
+        }
         onClick={onCardClick}
         animate={highlight ? { boxShadow: '0 0 0 2px rgb(109 89 232)' } : {}}
         transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}

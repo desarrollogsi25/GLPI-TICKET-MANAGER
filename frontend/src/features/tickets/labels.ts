@@ -12,12 +12,12 @@ export interface TicketStatusMeta {
 }
 
 export const TICKET_STATUSES: TicketStatusMeta[] = [
-  { value: 1, label: 'New', badgeClass: 'border-transparent bg-sky-100 text-sky-800' },
-  { value: 2, label: 'Assigned', badgeClass: 'border-transparent bg-indigo-100 text-indigo-800' },
-  { value: 3, label: 'Planned', badgeClass: 'border-transparent bg-violet-100 text-violet-800' },
-  { value: 4, label: 'Pending', badgeClass: 'border-transparent bg-amber-100 text-amber-800' },
-  { value: 5, label: 'Solved', badgeClass: 'border-transparent bg-emerald-100 text-emerald-800' },
-  { value: 6, label: 'Closed', badgeClass: 'border-transparent bg-slate-200 text-slate-700' },
+  { value: 1, label: 'Nuevo', badgeClass: 'border-transparent bg-sky-100 text-sky-800' },
+  { value: 2, label: 'Asignado', badgeClass: 'border-transparent bg-indigo-100 text-indigo-800' },
+  { value: 3, label: 'Planificado', badgeClass: 'border-transparent bg-violet-100 text-violet-800' },
+  { value: 4, label: 'Pendiente', badgeClass: 'border-transparent bg-amber-100 text-amber-800' },
+  { value: 5, label: 'Resuelto', badgeClass: 'border-transparent bg-emerald-100 text-emerald-800' },
+  { value: 6, label: 'Cerrado', badgeClass: 'border-transparent bg-slate-200 text-slate-700' },
 ]
 
 const STATUS_BY_VALUE = new Map(TICKET_STATUSES.map((status) => [status.value, status]))

@@ -126,6 +126,9 @@ function KanbanColumn({
   column,
   tickets,
   isLoading,
+  isError = false,
+  errorMessage,
+  onRetry,
   emptyMessage = 'No hay tickets aquí',
   onClaim,
   isClaiming,
@@ -135,6 +138,9 @@ function KanbanColumn({
   column: ColumnDef
   tickets: TicketSummary[]
   isLoading?: boolean
+  isError?: boolean
+  errorMessage?: string
+  onRetry?: () => void
   emptyMessage?: string
   onClaim?: (ticketId: number) => void
   isClaiming?: boolean
@@ -154,8 +160,13 @@ function KanbanColumn({
           <span className="text-sm font-semibold">{column.title}</span>
           <p className="text-[11px] text-muted-foreground">{column.description}</p>
         </div>
-        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', column.badgeClass)}>
-          {tickets.length}
+        <span
+          className={cn(
+            'text-xs px-2 py-0.5 rounded-full font-medium',
+            isError ? 'bg-destructive/15 text-destructive font-bold' : column.badgeClass,
+          )}
+        >
+          {isError ? '!' : tickets.length}
         </span>
       </div>
 
@@ -171,6 +182,21 @@ function KanbanColumn({
           <div className="space-y-2 p-1">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center my-auto">
+            <span className="text-xl mb-1">⚠️</span>
+            <p className="text-xs font-semibold text-destructive">Error al cargar</p>
+            {errorMessage ? (
+              <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px] line-clamp-2">
+                {errorMessage}
+              </p>
+            ) : null}
+            {onRetry ? (
+              <Button size="sm" variant="ghost" className="mt-2 h-7 px-2 text-xs" onClick={onRetry}>
+                Reintentar
+              </Button>
+            ) : null}
           </div>
         ) : (
           <>
@@ -253,6 +279,7 @@ export function Kanban() {
   const currentUserId = selectedAssignee ?? currentUser?.userId ?? null
 
   const groupsQuery = useGroupsQuery()
+  const hasNoGroups = Boolean(groupsQuery.data && groupsQuery.data.length === 0)
   const currentGroupId =
     groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
 
@@ -519,8 +546,12 @@ export function Kanban() {
   const segmentedTabColumns: KanbanColumnTab[] = COLUMNS.map((col) => ({
     id: col.id,
     title: col.title,
-    count: ticketsByColumn[col.id].length,
+    count:
+      col.id === 'queue' && queueQuery.isError
+        ? '!'
+        : ticketsByColumn[col.id].length,
     hasNew: col.id === 'queue' && hasNewQueueTickets,
+    isError: col.id === 'queue' && queueQuery.isError,
   }))
 
   const activeMobileTickets = ticketsByColumn[activeTab]
@@ -760,13 +791,37 @@ export function Kanban() {
                 transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
                 className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
               >
-                <span className="text-3xl mb-2">{EMPTY_MESSAGES[activeTab].icon}</span>
+                <span className="text-3xl mb-2">
+                  {activeTab === 'queue' && hasNoGroups
+                    ? '👥'
+                    : activeTab === 'queue' && queueQuery.isError
+                      ? '⚠️'
+                      : EMPTY_MESSAGES[activeTab].icon}
+                </span>
                 <p className="text-sm font-semibold text-foreground">
-                  {EMPTY_MESSAGES[activeTab].title}
+                  {activeTab === 'queue' && hasNoGroups
+                    ? 'Sin grupo de soporte asignado'
+                    : activeTab === 'queue' && queueQuery.isError
+                      ? 'Error al cargar la cola del grupo'
+                      : EMPTY_MESSAGES[activeTab].title}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
-                  {EMPTY_MESSAGES[activeTab].subtitle}
+                <p className="text-xs text-muted-foreground mt-1 max-w-[260px]">
+                  {activeTab === 'queue' && hasNoGroups
+                    ? 'No perteneces a ningún grupo de soporte técnico. Contacta al supervisor o administrador para que te asigne uno.'
+                    : activeTab === 'queue' && queueQuery.isError
+                      ? getApiErrorMessage(queueQuery.error)
+                      : EMPTY_MESSAGES[activeTab].subtitle}
                 </p>
+                {activeTab === 'queue' && queueQuery.isError && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 text-xs"
+                    onClick={() => void queueQuery.refetch()}
+                  >
+                    Reintentar
+                  </Button>
+                )}
               </motion.div>
             )}
           </motion.div>
@@ -785,10 +840,15 @@ export function Kanban() {
                   ? queueQuery.isLoading || groupsQuery.isLoading
                   : myTicketsQuery.isLoading
 
+              const isError = column.id === 'queue' && queueQuery.isError
+              const errorMessage = isError ? getApiErrorMessage(queueQuery.error) : undefined
+
               const emptyMessage =
-                column.id === 'queue' && currentGroupId == null
-                  ? 'Sin grupo asignado'
-                  : 'No hay tickets aquí'
+                column.id === 'queue' && hasNoGroups
+                  ? 'No perteneces a ningún grupo de soporte.'
+                  : column.id === 'queue' && currentGroupId == null
+                    ? 'Sin grupo asignado'
+                    : 'No hay tickets aquí'
 
               return (
                 <KanbanColumn
@@ -796,6 +856,9 @@ export function Kanban() {
                   column={column}
                   tickets={ticketsByColumn[column.id]}
                   isLoading={isLoading}
+                  isError={isError}
+                  errorMessage={errorMessage}
+                  onRetry={isError ? () => void queueQuery.refetch() : undefined}
                   emptyMessage={emptyMessage}
                   onClaim={handleClaim}
                   isClaiming={claimMutation.isPending}

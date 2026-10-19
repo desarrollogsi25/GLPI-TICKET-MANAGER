@@ -81,14 +81,14 @@ export function ResolveTicketDialog({
         }
       }}
       title={`Resolver ticket #${ticketId}`}
-      description="Escribi la solucion (minimo 10 caracteres). Sin solucion el ticket no puede marcarse como resuelto."
+      description="Escribí la solución (mínimo 10 caracteres). Sin solución el ticket no puede marcarse como resuelto."
     >
       <div className="space-y-1.5">
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onBlur={() => setTouched(true)}
-          placeholder="Describi la solucion aplicada..."
+          placeholder="Describí la solución aplicada..."
           className={cn('min-h-[120px]', hasError && 'border-destructive focus-visible:ring-destructive')}
           aria-invalid={hasError}
           aria-describedby={hasError ? 'solution-error' : undefined}

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
+import { ProtectedRouteWithRole } from '@/components/layout/ProtectedRouteWithRole'
 import { Toaster } from '@/components/ui/toast'
 import { Login } from '@/features/auth/Login'
 import { Dashboard } from '@/features/dashboard/Dashboard'
@@ -32,8 +33,8 @@ function GlobalThemeSync() {
   }, [])
 
   useEffect(() => {
-    if (!token) {
-      const stored = localStorage.getItem('theme')
+    const stored = localStorage.getItem('theme')
+    if (stored === 'dark' || stored === 'light') {
       if (stored === 'dark') {
         document.documentElement.classList.add('dark')
         document.documentElement.setAttribute('data-theme', 'dark')
@@ -43,6 +44,9 @@ function GlobalThemeSync() {
       }
       return
     }
+
+    if (!token) return
+
     if (data?.prefs) {
       try {
         const parsed = JSON.parse(data.prefs)
@@ -64,6 +68,11 @@ function GlobalThemeSync() {
   return null
 }
 
+function RootRedirect() {
+  const role = useAuthStore((s) => s.role)
+  return <Navigate to={role === 'solicitante' ? '/tickets' : '/kanban'} replace />
+}
+
 export default function App() {
   return (
     <>
@@ -78,19 +87,47 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/kanban" replace />} />
-          <Route path="/kanban" element={<Kanban />} />
+          <Route index element={<RootRedirect />} />
+          <Route
+            path="/kanban"
+            element={
+              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                <Kanban />
+              </ProtectedRouteWithRole>
+            }
+          />
           <Route path="/tickets" element={<List />} />
           <Route path="/tickets/:id" element={<Detail />} />
-          <Route path="/queue" element={<GroupQueuePage />} />
-          <Route path="/services" element={<ServicesPage />} />
+          <Route
+            path="/queue"
+            element={
+              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                <GroupQueuePage />
+              </ProtectedRouteWithRole>
+            }
+          />
+          <Route
+            path="/services"
+            element={
+              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                <ServicesPage />
+              </ProtectedRouteWithRole>
+            }
+          />
           <Route path="/preferences" element={<PreferencesPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                <Dashboard />
+              </ProtectedRouteWithRole>
+            }
+          />
           <Route path="/ayuda" element={<AgentGuide />} />
 
         </Route>
 
-        <Route path="*" element={<Navigate to="/kanban" replace />} />
+        <Route path="*" element={<RootRedirect />} />
       </Routes>
 
       <Toaster />

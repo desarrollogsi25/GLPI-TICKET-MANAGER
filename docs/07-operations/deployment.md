@@ -109,20 +109,30 @@ Para acceder a GLPI Ticket Manager desde otra máquina, portátil o dispositivo 
   # O alternativamente: ip a show | grep 'inet '
   ```
 
-### 7.2 Acceso desde el Navegador en Otro Dispositivo
-Abrir el navegador web en cualquier terminal de la red local e ingresar la dirección:
+### 7.2 Configuración del Firewall de Windows (Host)
+Para permitir el tráfico entrante desde otros equipos de la red local, el administrador debe habilitar los puertos en el Firewall de Windows ejecutando PowerShell como Administrador:
+
+```powershell
+New-NetFirewallRule -DisplayName "GLPI Ticket Manager LAN Access" -Direction Inbound -LocalPort 80,8080,8081 -Protocol TCP -Action Allow
 ```
-http://<IP_DEL_HOST>
-# Ejemplo: http://192.168.1.100 (o http://192.168.1.100:80)
+> [!NOTE]
+> - Puerto `80` (o `8080`): Interfaz web frontend (Nginx Reverse Proxy).
+> - Puerto `8081`: API Backend .NET 10 (mapeado directamente desde el puerto 8080 del contenedor).
+
+### 7.3 Acceso desde el Navegador en Otro Dispositivo
+Abrir el navegador web en cualquier terminal de la red local e ingresar la dirección:
+```text
+http://<IP_DEL_HOST>:80
+# Ejemplo: http://192.168.1.100:80
 ```
 
-### 7.3 Configuración de la URL de API (`VITE_API_BASE_URL`)
-- Por defecto, el frontend utiliza `/api`, lo cual delega el enrutamiento al reverse proxy Nginx en el puerto 80 del host.
-- Si el backend se publica en un puerto o IP independiente de la red, definir en `.env.prod`:
+### 7.4 Configuración de la URL de API (`VITE_API_BASE_URL`)
+- Por defecto, el frontend utiliza el valor relativo `/api`, lo cual delega el enrutamiento transparente al reverse proxy Nginx en el puerto 80 del host (`0.0.0.0:80:80`), evitando problemas de CORS o resolución de nombres.
+- Si el cliente requiere acceder directamente a la API en el puerto 8081 sin pasar por el reverse proxy, definir en `.env.prod`:
   ```bash
-  VITE_API_BASE_URL=http://192.168.1.100:8080/api
+  VITE_API_BASE_URL=http://<IP_DEL_HOST>:8081/api
   ```
-- Reiniciar el contenedor de frontend para aplicar la configuración:
+- Reiniciar el stack productivo para aplicar la configuración:
   ```bash
-  docker compose -f docker-compose.prod.yml up -d --build frontend
+  docker compose -f docker-compose.prod.yml up -d --build
   ```
