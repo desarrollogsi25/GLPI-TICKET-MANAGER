@@ -61,16 +61,33 @@ El script ejecuta automáticamente:
    curl -I http://localhost/health
    # Debe responder HTTP/1.1 200 OK
    ```
-2. **Inspección de Encabezados de Seguridad:**
+2. **Inspección de Encabezados de Seguridad (crítico):**
+
+   > Nginx **no** hereda las directivas `add_header` en un `location` que declara
+   > las suyas propias (p. ej. `location /`, que fija `Cache-Control`). Las
+   > cabeceras de seguridad deben por tanto comprobarse explícitamente sobre `/`,
+   > no solo sobre `/health`.
+
    ```bash
-   curl -I http://localhost/
-   # Verificar presencia de:
+   curl -sSI http://localhost/ | grep -Ei 'strict-transport-security|x-frame-options|x-content-type-options|content-security-policy'
+   # Debe imprimir las 4 cabeceras:
    # Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
    # X-Frame-Options: DENY
    # X-Content-Type-Options: nosniff
    # Content-Security-Policy: default-src 'self' ...
    ```
-3. **Revisión de Logs en Tiempo Real:**
+
+   Verificación automática (debe devolver `4`; menos indica herencia rota):
+   ```bash
+   curl -sSI http://localhost/ | grep -Eic 'strict-transport-security|x-frame-options|x-content-type-options|content-security-policy'
+   ```
+3. **Proxy SignalR / WebSockets (`/hubs/`):**
+   ```bash
+   curl -sSI http://localhost/hubs/tickets | grep -E '^HTTP/'
+   # Un 401 Unauthorized (WWW-Authenticate: Bearer) confirma que Nginx reenvía
+   # /hubs/ a la API y el hub queda protegido por autenticación.
+   ```
+4. **Revisión de Logs en Tiempo Real:**
    ```bash
    docker compose -f docker-compose.prod.yml logs --tail 50 -f api
    ```
