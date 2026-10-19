@@ -21,18 +21,37 @@ function GlobalThemeSync() {
   const { data } = usePreferencesQuery()
 
   useEffect(() => {
-    if (!token) {
+    const stored = localStorage.getItem('theme') || localStorage.getItem('glpi_theme')
+    if (stored === 'dark') {
+      document.documentElement.classList.add('dark')
+      document.documentElement.setAttribute('data-theme', 'dark')
+    } else if (stored === 'light') {
       document.documentElement.classList.remove('dark')
-      document.documentElement.removeAttribute('data-theme')
+      document.documentElement.setAttribute('data-theme', 'light')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!token) {
+      const stored = localStorage.getItem('theme') || localStorage.getItem('glpi_theme')
+      if (stored === 'dark') {
+        document.documentElement.classList.add('dark')
+        document.documentElement.setAttribute('data-theme', 'dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+        document.documentElement.removeAttribute('data-theme')
+      }
       return
     }
     if (data?.prefs) {
       try {
         const parsed = JSON.parse(data.prefs)
         if (parsed?.theme === 'dark') {
+          localStorage.setItem('theme', 'dark')
           document.documentElement.classList.add('dark')
           document.documentElement.setAttribute('data-theme', 'dark')
         } else if (parsed?.theme === 'light') {
+          localStorage.setItem('theme', 'light')
           document.documentElement.classList.remove('dark')
           document.documentElement.setAttribute('data-theme', 'light')
         }
