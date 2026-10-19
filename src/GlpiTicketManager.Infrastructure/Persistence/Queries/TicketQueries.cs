@@ -73,6 +73,7 @@ public static class TicketQueries
         WHERE gt.groups_id = @GroupId
           AND gt.type = 2
           AND t.status = 1
+          AND t.is_deleted = 0
           AND NOT EXISTS (
             SELECT 1 FROM glpi_tickets_users tu
             WHERE tu.tickets_id = t.id AND tu.type = 2
@@ -185,6 +186,7 @@ public static class TicketQueries
         SET status = 2, date_mod = NOW(), users_id_lastupdater = @UpdatedBy
         WHERE id = @TicketId 
           AND status = 1
+          AND is_deleted = 0
           AND NOT EXISTS (
             SELECT 1 FROM glpi_tickets_users 
             WHERE tickets_id = @TicketId AND type = 2

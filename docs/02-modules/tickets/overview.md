@@ -251,6 +251,7 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 - **Guard estricto de resolución (`status = 5`)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido válido en `glpi_itilsolutions` (`TRIM(content) <> '' AND CHAR_LENGTH(TRIM(content)) >= 10`). Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity` ("Solution required").
 - **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
+- **Exclusión de tickets eliminados lógicamente (H-25)**: Las consultas de la cola de grupo (`TicketQueries.UnassignedByGroup` y su conteo en `TicketRepository.GetUnassignedByGroupAsync`), así como la condición de asignación (`ClaimConditionalUpdate`), filtran explícitamente `is_deleted = 0` para garantizar que tickets eliminados en GLPI no aparezcan en la bandeja de entrada ni puedan ser reclamados.
 
 ## Notificaciones en tiempo real (SignalR)
 
