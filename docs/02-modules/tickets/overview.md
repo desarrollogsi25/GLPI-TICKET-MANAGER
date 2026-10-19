@@ -247,6 +247,8 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 ## Reglas de negocio de GLPI
 
 - **Contenido obligatorio en tickets para soluciones**: Un ticket debe tener `content` (descripción) no vacío en `glpi_tickets` para poder recibir soluciones vía GLPI REST (`/apirest.php/ITILSolution`). Un ticket sin descripción no es resoluble por API (GLPI rechaza la operación con `Mandatory fields are not filled`).
+- **Validación de contenido de soluciones (H-24)**: Toda solución registrada mediante `POST /api/tickets/{id}/solutions` es validada en el backend antes de su envío a GLPI. Debe ser no vacía, contener al menos 10 caracteres significativos (`content.Trim().Length >= 10`) y no exceder los 2000 caracteres. Contenidos inválidos devuelven `400 Bad Request`.
+- **Guard estricto de resolución (`status = 5`)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido válido en `glpi_itilsolutions` (`TRIM(content) <> '' AND CHAR_LENGTH(TRIM(content)) >= 10`). Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity` ("Solution required").
 - **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
 
