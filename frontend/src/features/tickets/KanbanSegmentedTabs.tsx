@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
 
 export interface KanbanColumnTab {
@@ -19,6 +19,7 @@ export function KanbanSegmentedTabs({
   activeId,
   onSelect,
 }: KanbanSegmentedTabsProps) {
+  const shouldReduceMotion = useReducedMotion()
   return (
     <div
       role="tablist"
@@ -47,7 +48,11 @@ export function KanbanSegmentedTabs({
               <motion.div
                 layoutId="kanban-segment-active"
                 className="absolute inset-0 bg-card rounded-lg border border-border shadow-xs"
-                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                transition={
+                  shouldReduceMotion
+                    ? { duration: 0 }
+                    : { type: 'spring', stiffness: 350, damping: 30 }
+                }
               />
             )}
 
@@ -63,13 +68,17 @@ export function KanbanSegmentedTabs({
               )}
             >
               {col.hasNew && !isActive ? (
-                <motion.span
-                  animate={{ opacity: [0.5, 1, 0.5], scale: [0.95, 1.05, 0.95] }}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="inline-block"
-                >
-                  {col.count}
-                </motion.span>
+                shouldReduceMotion ? (
+                  <span>{col.count}</span>
+                ) : (
+                  <motion.span
+                    animate={{ opacity: [0.5, 1, 0.5], scale: [0.95, 1.05, 0.95] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
+                    className="inline-block"
+                  >
+                    {col.count}
+                  </motion.span>
+                )
               ) : (
                 col.count
               )}

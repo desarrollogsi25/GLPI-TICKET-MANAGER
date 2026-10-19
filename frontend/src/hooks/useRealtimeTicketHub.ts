@@ -30,6 +30,11 @@ export interface SolutionAddedPayload {
   timestamp: string
 }
 
+export interface UseRealtimeTicketHubOptions {
+  onTicketStatusChanged?: (ticketId: number, newStatus: number) => void
+  onTicketClaimed?: (ticketId: number, groupId: number) => void
+}
+
 const signalRLogger = {
   log(logLevel: LogLevel, message: string) {
     if (
@@ -44,95 +49,149 @@ const signalRLogger = {
   },
 }
 
-export function useRealtimeTicketHub() {
+type Listener = UseRealtimeTicketHubOptions
+const activeListeners = new Set<Listener>()
+
+let sharedConnection: HubConnection | null = null
+let sharedToken: string | null = null
+let connectionRefCount = 0
+let currentConnectionState: ConnectionState = 'disconnected'
+const stateListeners = new Set<(state: ConnectionState) => void>()
+
+function updateConnectionState(newState: ConnectionState) {
+  currentConnectionState = newState
+  stateListeners.forEach((cb) => cb(newState))
+}
+
+export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
   const token = useAuthStore((s) => s.accessToken ?? s.token)
   const queryClient = useQueryClient()
   const [connectionState, setConnectionState] =
-    useState<ConnectionState>('disconnected')
-  const connectionRef = useRef<HubConnection | null>(null)
+    useState<ConnectionState>(currentConnectionState)
 
+  const optionsRef = useRef(options)
+  useEffect(() => {
+    optionsRef.current = options
+  })
+
+  // Registrar listeners de callbacks
+  useEffect(() => {
+    if (!options) return
+    const listener: Listener = {
+      onTicketStatusChanged: (ticketId, newStatus) =>
+        optionsRef.current?.onTicketStatusChanged?.(ticketId, newStatus),
+      onTicketClaimed: (ticketId, groupId) =>
+        optionsRef.current?.onTicketClaimed?.(ticketId, groupId),
+    }
+    activeListeners.add(listener)
+    return () => {
+      activeListeners.delete(listener)
+    }
+  }, [options != null]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Registrar listener de estado de conexión
+  useEffect(() => {
+    stateListeners.add(setConnectionState)
+    setConnectionState(currentConnectionState)
+    return () => {
+      stateListeners.delete(setConnectionState)
+    }
+  }, [])
+
+  // Manejo de conexión compartida
   useEffect(() => {
     if (!token) {
-      setConnectionState('disconnected')
+      updateConnectionState('disconnected')
       return
     }
 
-    setConnectionState('connecting')
-    let isCancelled = false
+    connectionRefCount++
 
-    const connection = new HubConnectionBuilder()
-      .withUrl('/hubs/tickets', {
-        accessTokenFactory: () => token,
-      })
-      .withAutomaticReconnect({
-        nextRetryDelayInMilliseconds: (ctx) => {
-          // backoff exponencial: 1s, 2s, 4s, 8s, 16s, 30s max
-          const delays = [1000, 2000, 4000, 8000, 16000, 30000]
-          return delays[Math.min(ctx.previousRetryCount, delays.length - 1)]
-        },
-      })
-      .configureLogging(signalRLogger)
-      .build()
+    if (!sharedConnection || sharedToken !== token) {
+      if (sharedConnection) {
+        sharedConnection.stop().catch(() => {})
+      }
 
-    // Eventos
-    connection.on('TicketClaimed', (payload: TicketClaimedPayload) => {
-      // Alguien reclamó un ticket → refrescar cola del grupo
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.tickets.byGroupQueue(payload.groupId),
-      })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    })
+      sharedToken = token
+      updateConnectionState('connecting')
 
-    connection.on('TicketStatusChanged', (payload: TicketStatusChangedPayload) => {
-      // Cambio de estado → refrescar ticket detalle + listas
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.tickets.detail(payload.ticketId),
-      })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    })
+      const connection = new HubConnectionBuilder()
+        .withUrl('/hubs/tickets', {
+          accessTokenFactory: () => token,
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (ctx) => {
+            const delays = [1000, 2000, 4000, 8000, 16000, 30000]
+            return delays[Math.min(ctx.previousRetryCount, delays.length - 1)]
+          },
+        })
+        .configureLogging(signalRLogger)
+        .build()
 
-    connection.on('SolutionAdded', (payload: SolutionAddedPayload) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.tickets.detail(payload.ticketId),
-      })
-    })
-
-    connection.onreconnecting(() => {
-      if (!isCancelled) setConnectionState('connecting')
-    })
-    connection.onreconnected(() => {
-      if (!isCancelled) setConnectionState('connected')
-    })
-    connection.onclose(() => {
-      if (!isCancelled) setConnectionState('disconnected')
-    })
-
-    connection
-      .start()
-      .then(() => {
-        if (isCancelled) {
-          connection.stop().catch(() => {})
-          return
-        }
-        setConnectionState('connected')
-        // Suscribirse a la cola del grupo 1 por defecto (grupo del técnico)
-        connection.invoke('SubscribeToGroup', 1).catch(() => {})
-      })
-      .catch((err) => {
-        if (isCancelled) return
-        console.warn('SignalR connection failed:', err)
-        setConnectionState('disconnected')
+      // Eventos
+      connection.on('TicketClaimed', (payload: TicketClaimedPayload) => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.tickets.byGroupQueue(payload.groupId),
+        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        activeListeners.forEach((l) =>
+          l.onTicketClaimed?.(payload.ticketId, payload.groupId),
+        )
       })
 
-    connectionRef.current = connection
+      connection.on('TicketStatusChanged', (payload: TicketStatusChangedPayload) => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.tickets.detail(payload.ticketId),
+        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        activeListeners.forEach((l) =>
+          l.onTicketStatusChanged?.(payload.ticketId, payload.newStatus),
+        )
+      })
+
+      connection.on('SolutionAdded', (payload: SolutionAddedPayload) => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.tickets.detail(payload.ticketId),
+        })
+      })
+
+      connection.onreconnecting(() => {
+        updateConnectionState('connecting')
+      })
+      connection.onreconnected(() => {
+        updateConnectionState('connected')
+      })
+      connection.onclose(() => {
+        updateConnectionState('disconnected')
+      })
+
+      connection
+        .start()
+        .then(() => {
+          updateConnectionState('connected')
+          connection.invoke('SubscribeToGroup', 1).catch(() => {})
+        })
+        .catch((err) => {
+          console.warn('SignalR connection failed:', err)
+          updateConnectionState('disconnected')
+        })
+
+      sharedConnection = connection
+    }
 
     return () => {
-      isCancelled = true
-      connection.stop().catch(() => {})
-      connectionRef.current = null
-      setConnectionState('disconnected')
+      connectionRefCount--
+      if (connectionRefCount <= 0) {
+        connectionRefCount = 0
+        if (sharedConnection) {
+          sharedConnection.stop().catch(() => {})
+          sharedConnection = null
+          sharedToken = null
+          updateConnectionState('disconnected')
+        }
+      }
     }
   }, [token, queryClient])
 

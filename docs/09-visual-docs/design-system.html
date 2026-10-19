@@ -1496,6 +1496,41 @@
             <td>Cambio directo sin traslación</td>
           </tr>
           <tr>
+            <td><strong>Kanban Layout (Desktop)</strong></td>
+            <td>250ms</td>
+            <td>Spring: <code>stiffness: 350, damping: 30</code></td>
+            <td><code>layout</code> prop en tarjeta: deslizamiento físico entre columnas sin desaparecer/reaparecer</td>
+            <td>Reubicación instantánea (<code>duration: 0</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>Kanban Tabs (Móvil)</strong></td>
+            <td>200ms</td>
+            <td>Spring: <code>stiffness: 350, damping: 30</code></td>
+            <td>Entrada/salida lateral: <code>opacity</code> + <code>x: -20 / +20</code> con <code>mode="wait"</code></td>
+            <td>Cambio instantáneo (<code>duration: 0</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>Claim Exit (Móvil)</strong></td>
+            <td>250ms</td>
+            <td>Spring: <code>stiffness: 350, damping: 30</code></td>
+            <td><code>exit: { opacity: 0, scale: 0.9 }</code> con <code>AnimatePresence mode="popLayout"</code></td>
+            <td>Desaparición directa</td>
+          </tr>
+          <tr>
+            <td><strong>Highlight SignalR (Tiempo Real)</strong></td>
+            <td>300ms animación<br>(1.5s duración)</td>
+            <td><code>easeOut</code></td>
+            <td>Ring violeta: <code>boxShadow: 0 0 0 2px rgb(109 89 232)</code> al recibir evento concurrente</td>
+            <td>Resaltado estático sin animación</td>
+          </tr>
+          <tr>
+            <td><strong>Shake en Drag Inválido</strong></td>
+            <td>300ms</td>
+            <td>Keyframes lineal</td>
+            <td>Rechazo táctil elástico: <code>x: [0, -4, 4, -4, 4, 0]</code> ante transiciones no permitidas</td>
+            <td>Sin vibración física (<code>x: 0</code>)</td>
+          </tr>
+          <tr>
             <td><strong>Cards de Ticket</strong></td>
             <td>150ms</td>
             <td><code>ease-out</code></td>

@@ -219,10 +219,10 @@ Para consultar el diagrama visual completo, consultar el [Flujograma 5: Kanban d
 ### Kanban móvil (< 768px)
 
 En dispositivos móviles, el tablero Kanban sustituye el scroll horizontal de 5 columnas (1440px) por una experiencia nativa y adaptativa:
-- **Segmented Tabs**: Las 5 columnas se presentan como tabs horizontales con desplazamiento suave, targets táctiles mínimos de 44px (`min-h-[44px]`), badges con contador de tickets y animación de pestaña activa con Motion (`layoutId="activeKanbanTabBg"`).
+- **Segmented Tabs**: Las 5 columnas se presentan como tabs horizontales con desplazamiento suave, targets táctiles mínimos de 44px (`min-h-[44px]`), badges con contador de tickets y animación de pestaña activa con Motion (`layoutId="kanban-segment-active"`).
 - **Lista vertical unificada**: Solo la columna seleccionada se renderiza a la vez, permitiendo navegación natural vertical con tarjetas compactas de tickets.
 - **Acciones inline contextuales**: Se evita el drag & drop táctil en favor de botones directos por columna:
-  - Cola: `[Asignarme]` (claim directo al usuario).
+  - Cola: `[Asignarme]` (claim directo al usuario con spinner de carga interactivo).
   - Mis tickets: `[Empezar]` (cambio a estado 3 / En progreso).
   - En progreso: `[Resolver]` (apertura de `ResolveTicketDialog`).
   - Pendiente: `[Retomar]` (reanudación a estado 3 / En progreso).
@@ -230,6 +230,32 @@ En dispositivos móviles, el tablero Kanban sustituye el scroll horizontal de 5 
 - **Smart default tab**: Selección inteligente de la pestaña activa inicial en móvil: `in_progress` (si se está trabajando activamente) > `queue` (si hay tickets en cola) > `mine` > `pending`.
 - **Swipe horizontal entre tabs**: Gesto de arrastre horizontal (swipe) con Motion sobre la lista para alternar ágilmente entre columnas contiguas con retroalimentación elástica.
 - **Automatizaciones en cola**: Auto-refresco en segundo plano cada 30 segundos mientras la tab "Cola" está activa, indicador pulsante suave si ingresan nuevos tickets a la cola y badge en el Bottom Tab Bar.
+
+### Motion y feedback visual (Bloque 11)
+
+El tablero Kanban integra animaciones fluidas con Motion (`motion/react`) para dar continuidad física a los cambios de estado y eventos en tiempo real:
+
+1. **Layout animations en Desktop**:
+   - Cada tarjeta está envuelta en un contenedor con prop `layout` y física de resorte (`spring`, `stiffness: 350`, `damping: 30`, `duration: 0.25s`).
+   - Al cambiar de columna (por drag & drop o actualización externa), la tarjeta se desliza físicamente a su nueva posición sin desaparecer ni parpadear. Las demás tarjetas de la columna se reacomodan automáticamente con animación suave.
+   - Si una columna queda sin tickets, el empty state entra con un fade-in suave (`opacity: 0 → 1`, 300ms) sin colapsar la altura del contenedor.
+
+2. **Transiciones entre tabs y claim en Móvil**:
+   - Al alternar entre tabs (por tap o gesto de swipe), la lista saliente sale con desplazamiento lateral suave (`exit: { opacity: 0, x: -20 }`) y la nueva entra desde la dirección opuesta (`initial: { opacity: 0, x: 20 }`, 200ms spring).
+   - Al autoasignarse un ticket en la cola móvil (`Asignarme`), la tarjeta realiza un exit animado con escala y desvanecimiento (`exit: { opacity: 0, scale: 0.9 }`), permitiendo que el empty state aparezca fluidamente si era el único elemento.
+
+3. **Feedback táctil y drag inválido**:
+   - **Botón Asignarme**: Muestra un spinner de carga y estado deshabilitado durante la mutación de claim, seguido de toast de confirmación.
+   - **Drag inválido**: Si el usuario arrastra un ticket hacia una columna de destino no permitida según la máquina de estados, la tarjeta ejecuta una sutil animación de shake (`x: [0, -4, 4, -4, 4, 0]`, 300ms) antes de regresar a su columna original.
+
+4. **Highlight en tiempo real (SignalR)**:
+   - Al recibir eventos de `TicketStatusChanged` o `TicketClaimed` emitidos por otros usuarios a través del Hub de SignalR, el sistema identifica el ticket modificado y activa un resaltado temporal mediante anillo de acento (`boxShadow: 0 0 0 2px rgb(109 89 232)`).
+   - El highlight permanece visible durante 1.5 segundos y se desvanece suavemente, permitiendo al técnico advertir visualmente la actividad concurrente sin interrumpir su trabajo.
+
+5. **Accesibilidad y `prefers-reduced-motion`**:
+   - Todas las animaciones respetan estrictamente la preferencia de movimiento reducido del usuario a través del hook `useReducedMotion()`.
+   - Cuando la preferencia está activa, todas las transiciones físicas de spring, desplazamientos de eje X e indicadores pulsantes conmutan a un fallback instantáneo (`duration: 0`), garantizando ergonomía visual y accesibilidad sin degradar la funcionalidad operativa.
+
 
 ## Concurrencia en claim
 

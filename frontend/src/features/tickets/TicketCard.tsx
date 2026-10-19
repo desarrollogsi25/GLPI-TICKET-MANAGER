@@ -1,4 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
+import { motion, useReducedMotion } from 'motion/react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +14,8 @@ interface TicketCardProps {
   draggable?: boolean
   actionButton?: React.ReactNode
   compact?: boolean
+  highlight?: boolean
+  shake?: boolean
 }
 
 export function TicketCard({
@@ -20,7 +23,10 @@ export function TicketCard({
   draggable = true,
   actionButton,
   compact = false,
+  highlight = false,
+  shake = false,
 }: TicketCardProps) {
+  const shouldReduceMotion = useReducedMotion()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
     disabled: !draggable,
@@ -30,7 +36,9 @@ export function TicketCard({
 
   if (compact) {
     return (
-      <div
+      <motion.div
+        animate={highlight ? { boxShadow: '0 0 0 2px rgb(109 89 232)' } : {}}
+        transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
         className={cn(
           'relative flex flex-col justify-between gap-2 rounded-xl border border-border bg-card p-3 shadow-xs hover:border-primary/40 transition-all min-h-[80px]',
           isDragging && 'opacity-60',
@@ -79,14 +87,19 @@ export function TicketCard({
             </Link>
           )}
         </div>
-      </div>
+      </motion.div>
     )
   }
 
   return (
-    <div
+    <motion.div
       ref={setNodeRef}
       style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
+      animate={{
+        boxShadow: highlight ? '0 0 0 2px rgb(109 89 232)' : '0 0 0 0px transparent',
+        x: !shouldReduceMotion && shake ? [0, -4, 4, -4, 4, 0] : 0,
+      }}
+      transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
       className={cn(
         'rounded-lg border border-border bg-card p-3 shadow-xs hover:shadow-md hover:border-primary/40 transition-shadow duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         draggable && 'cursor-grab active:cursor-grabbing',
@@ -121,6 +134,6 @@ export function TicketCard({
           {actionButton}
         </div>
       ) : null}
-    </div>
+    </motion.div>
   )
 }
