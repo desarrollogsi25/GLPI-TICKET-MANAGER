@@ -15,6 +15,8 @@ RUN pnpm install --frozen-lockfile
 
 # Copy frontend source and build static bundle
 COPY . .
+ARG VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN pnpm build
 
 # ---------------------------------------------------------------------------

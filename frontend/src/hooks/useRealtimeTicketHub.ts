@@ -115,8 +115,11 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
       sharedToken = token
       updateConnectionState('connecting')
 
+      const apiBase = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? ''
+      const hubEndpoint = apiBase ? `${apiBase.replace(/\/api\/?$/, '')}/hubs/tickets` : '/hubs/tickets'
+
       const connection = new HubConnectionBuilder()
-        .withUrl('/hubs/tickets', {
+        .withUrl(hubEndpoint, {
           accessTokenFactory: () => token,
         })
         .withAutomaticReconnect({

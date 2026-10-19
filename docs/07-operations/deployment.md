@@ -1,7 +1,7 @@
 # Procedimiento de Despliegue y Puesta en Producción (H-19)
 
 > **Control Documental ISO 9001 / ISO 27001**  
-> **Código:** DOC-07-OPS-DEPLOYMENT | **Versión:** 1.1.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+> **Código:** DOC-07-OPS-DEPLOYMENT | **Versión:** 1.2.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 
 ## 1. Propósito y Alcance
 
@@ -92,3 +92,37 @@ Si se detecta una degradación de servicio o falla crítica posterior al desplie
    docker compose -f docker-compose.prod.yml up -d --build
    ```
 4. **Registrar incidente:** Abrir reporte en `docs/11-incidents/` según protocolo ISO 27001.
+
+## 7. Acceso a la Plataforma desde la Red Local (LAN)
+
+Para acceder a GLPI Ticket Manager desde otra máquina, portátil o dispositivo móvil conectado a la misma red local:
+
+### 7.1 Identificación de la Dirección IP del Host Servidor
+- **En Windows:**
+  ```powershell
+  ipconfig
+  # Localizar el adaptador conectado (Ethernet o Wi-Fi) y anotar la "Dirección IPv4" (ej. 192.168.1.100).
+  ```
+- **En Linux / macOS:**
+  ```bash
+  hostname -I | awk '{print $1}'
+  # O alternativamente: ip a show | grep 'inet '
+  ```
+
+### 7.2 Acceso desde el Navegador en Otro Dispositivo
+Abrir el navegador web en cualquier terminal de la red local e ingresar la dirección:
+```
+http://<IP_DEL_HOST>
+# Ejemplo: http://192.168.1.100 (o http://192.168.1.100:80)
+```
+
+### 7.3 Configuración de la URL de API (`VITE_API_BASE_URL`)
+- Por defecto, el frontend utiliza `/api`, lo cual delega el enrutamiento al reverse proxy Nginx en el puerto 80 del host.
+- Si el backend se publica en un puerto o IP independiente de la red, definir en `.env.prod`:
+  ```bash
+  VITE_API_BASE_URL=http://192.168.1.100:8080/api
+  ```
+- Reiniciar el contenedor de frontend para aplicar la configuración:
+  ```bash
+  docker compose -f docker-compose.prod.yml up -d --build frontend
+  ```

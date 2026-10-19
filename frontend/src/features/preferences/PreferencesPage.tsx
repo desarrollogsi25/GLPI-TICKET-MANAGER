@@ -12,17 +12,25 @@ export function PreferencesPage() {
   const { data, isLoading, isError, error, refetch } = usePreferencesQuery()
   const updateMutation = useUpdatePreferencesMutation()
 
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('theme') || localStorage.getItem('glpi_theme')
+    if (saved === 'dark' || saved === 'light') return saved
+    const docTheme = document.documentElement.getAttribute('data-theme')
+    if (docTheme === 'dark' || docTheme === 'light') return docTheme
+    if (document.documentElement.classList.contains('dark')) return 'dark'
+    return 'light'
+  })
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
   const [savedMessage, setSavedMessage] = useState(false)
 
-  // Cargar preferencias iniciales y aplicar data-theme
+  // Cargar preferencias iniciales sincronizadas con backend
   useEffect(() => {
     if (data?.prefs) {
       try {
         const parsed = JSON.parse(data.prefs)
         if (parsed.theme === 'dark' || parsed.theme === 'light') {
           setTheme(parsed.theme)
+          localStorage.setItem('theme', parsed.theme)
           if (parsed.theme === 'dark') {
             document.documentElement.classList.add('dark')
             document.documentElement.setAttribute('data-theme', 'dark')
@@ -48,6 +56,7 @@ export function PreferencesPage() {
       { theme, density },
       {
         onSuccess: () => {
+          localStorage.setItem('theme', theme)
           if (theme === 'dark') {
             document.documentElement.classList.add('dark')
             document.documentElement.setAttribute('data-theme', 'dark')
@@ -107,6 +116,7 @@ export function PreferencesPage() {
                   onChange={(e) => {
                     const val = e.target.value as 'light' | 'dark'
                     setTheme(val)
+                    localStorage.setItem('theme', val)
                     if (val === 'dark') {
                       document.documentElement.classList.add('dark')
                       document.documentElement.setAttribute('data-theme', 'dark')
