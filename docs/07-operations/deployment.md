@@ -1,51 +1,94 @@
-# Procedimiento de Despliegue y Puesta en Producción
+# Procedimiento de Despliegue y Puesta en Producción (H-19)
 
 > **Control Documental ISO 9001 / ISO 27001**  
-> **Código:** DOC-07-OPS-DEPLOY | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+> **Código:** DOC-07-OPS-DEPLOYMENT | **Versión:** 1.1.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 
-## 1. Propósito
+## 1. Propósito y Alcance
 
-Establece las directrices para el despliegue del sistema GLPI Ticket Manager en entornos de staging y producción utilizando contenedores Docker y orquestación con Docker Compose.
+Establece el procedimiento operacional estándar para el despliegue de la versión productiva de GLPI Ticket Manager conforme a ISO 9001 (Control Operacional) e ISO 27001 (A.12.1.2 Gestión de Cambios y A.14.2 Seguridad en Desarrollo).
 
-## 2. Requisitos Previos
+## 2. Requisitos Previos al Lanzamiento
 
-- Docker Engine 24+ y Docker Compose v2.
-- Instancia activa de GLPI 10.0+ / 11.0 con API REST habilitada y tokens generados (`App-Token` y `User-Token`).
-- Base de datos relacional MariaDB/MySQL (para GLPI) y PostgreSQL 16+ (para datos propios del sistema: auditoría, preferencias, revoked tokens).
-- Fichero `.env` configurado a partir de `.env.example` con contraseñas seguras y claves criptográficas de longitud mínima requerida (JWT ≥ 32 caracteres).
+- Servidor Linux / Docker Host con Docker Engine 24+ y Docker Compose v2.
+- Puertos requeridos disponibles: `80` (HTTP público), `443` (HTTPS vía reverse proxy / TLS termination), y `5341` (Seq logs, interno o restringido).
+- Instancia activa de GLPI con API REST habilitada y credenciales de servicio generadas:
+  - `App-Token`: Generado en *Configuración > General > API*.
+  - `User-Token`: Generado en la cuenta de servicio de GLPI (*Preferencia > Token API*).
+- Clave criptográfica JWT con longitud mínima de 32 caracteres (HMAC-SHA256).
 
-## 3. Topología de Contenedores
+## 3. Preparación de Secretos y Variables (`.env.prod`)
 
-| Servicio | Imagen / Build | Puerto Interno | Puerto Expuesto | Propósito |
-|---|---|---|---|---|
-| `glpi-api` | .NET 9 ASP.NET Core | 8080 | 5000 | API REST, SignalR Hub y lógica de negocio |
-| `glpi-frontend` | Nginx Alpine + Vite bundle | 80 | 5173 / 80 | SPA React y reverse proxy de `/api` |
-| `glpi-app-db` | PostgreSQL 16 Alpine | 5432 | 5432 | Almacén propio (auditoría, roles, tokens revocados) |
-| `glpi-db` | MariaDB 10.11 | 3306 | 3306 | Base de datos de GLPI nativo |
-| `glpi` | PHP 8.2 Apache (GLPI 11.0) | 80 | 8080 | Aplicación web nativa de GLPI |
-
-## 4. Secuencia de Despliegue
+Antes del despliegue, el operador de infraestructura debe instanciar el archivo de entorno en el host:
 
 ```bash
-# 1. Validar variables de entorno y secretos
-test -f .env || cp .env.example .env
-
-# 2. Levantar la infraestructura base
-docker compose up -d glpi-db glpi-app-db
-
-# 3. Aplicar migraciones en PostgreSQL
-bash scripts/migrate-app-db.sh
-
-# 4. Compilar y desplegar backend y frontend
-docker compose build api frontend
-docker compose up -d api frontend
-
-# 5. Verificación de salud (Healthchecks)
-curl -f http://localhost:5000/api/auth/me || true
-curl -f http://localhost:5173/ || exit 1
+# Copiar plantilla base de producción
+cp .env.prod.example .env.prod
+chmod 600 .env.prod
 ```
 
-## 5. Verificación Post-Despliegue
+### Variables Mandatorias en `.env.prod`:
+| Variable | Descripción | Restricción de Seguridad |
+| :--- | :--- | :--- |
+| `POSTGRES_PASSWORD` | Contraseña del PostgreSQL (`app-db`) | Mínimo 16 caracteres alfanuméricos |
+| `GLPI_DB_PASSWORD` | Contraseña del usuario GLPI en MariaDB | Acceso de solo lectura optimizado |
+| `GLPI_APP_TOKEN` | Token de aplicación GLPI API REST | Secreto de alta criticidad |
+| `GLPI_USER_TOKEN` | Token de usuario técnico en GLPI | Secreto de alta criticidad |
+| `JWT_SECRET` | Clave simétrica de firma de JWT | Mínimo 32 caracteres (FIPS compliant) |
 
-- Ejecutar suite de smoke tests: `bash scripts/test-audit.sh`.
-- Verificar logs sin excepciones: `docker compose logs --tail=100 api`.
+> [!CAUTION]
+> El archivo `.env.prod` contiene secretos reales de producción. NUNCA debe ser versionado en Git ni transferido por canales no cifrados.
+
+## 4. Secuencia de Despliegue Automatizada
+
+Para un despliegue sin errores humanos, ejecutar el script de despliegue oficial:
+
+```bash
+bash scripts/deploy-prod.sh
+```
+
+El script ejecuta automáticamente:
+1. Validación de preexistencia de `.env.prod` y `docker-compose.prod.yml`.
+2. Compilación multi-stage de imágenes productivas:
+   - Backend: .NET runtime endurecido sobre Alpine en modo no-root (`app:1654`).
+   - Frontend: Nginx Alpine hardened con cabeceras de seguridad estrictas (HSTS, CSP, X-Frame-Options: DENY, Permissions-Policy).
+3. Puesta en marcha de servicios dependientes (`postgres`, `api`, `frontend`, `seq`).
+4. Sondeo automatizado al healthcheck (`http://127.0.0.1:${PROD_HTTP_PORT}/health`) hasta confirmar estado operativo (`HTTP 200`).
+
+## 5. Verificación Post-Despliegue (Smoke Testing)
+
+1. **Sondeo de Salud HTTP:**
+   ```bash
+   curl -I http://localhost/health
+   # Debe responder HTTP/1.1 200 OK
+   ```
+2. **Inspección de Encabezados de Seguridad:**
+   ```bash
+   curl -I http://localhost/
+   # Verificar presencia de:
+   # Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+   # X-Frame-Options: DENY
+   # X-Content-Type-Options: nosniff
+   # Content-Security-Policy: default-src 'self' ...
+   ```
+3. **Revisión de Logs en Tiempo Real:**
+   ```bash
+   docker compose -f docker-compose.prod.yml logs --tail 50 -f api
+   ```
+
+## 6. Procedimiento de Rollback Inmediato
+
+Si se detecta una degradación de servicio o falla crítica posterior al despliegue:
+
+1. **Detener stack actual:**
+   ```bash
+   docker compose -f docker-compose.prod.yml down
+   ```
+2. **Restaurar tag de versión previa:**
+   ```bash
+   git checkout <TAG_VERSION_ANTERIOR> # Ej: git checkout v1.0.0
+   ```
+3. **Relanzar versión anterior estable:**
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --build
+   ```
+4. **Registrar incidente:** Abrir reporte en `docs/11-incidents/` según protocolo ISO 27001.
