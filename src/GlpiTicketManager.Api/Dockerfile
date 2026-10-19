@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1
 
+ARG SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0
+ARG RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-alpine
+
 # ---------------------------------------------------------------------------
-# Build stage: SDK image (fixed 10.0 tag, never "latest").
+# Stage 1: build
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM ${SDK_IMAGE} AS build
 WORKDIR /src
 
-# Restore layer: copy only the solution, the SDK pin and the four csproj files
-# so a source change never invalidates the NuGet restore cache (--link).
+# Restore dependencies
 COPY --link global.json GlpiTicketManager.sln ./
 COPY --link src/GlpiTicketManager.Domain/GlpiTicketManager.Domain.csproj src/GlpiTicketManager.Domain/
 COPY --link src/GlpiTicketManager.Application/GlpiTicketManager.Application.csproj src/GlpiTicketManager.Application/
@@ -15,27 +17,31 @@ COPY --link src/GlpiTicketManager.Infrastructure/GlpiTicketManager.Infrastructur
 COPY --link src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj src/GlpiTicketManager.Api/
 RUN dotnet restore src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj
 
-
-# Build layer: copy the sources and publish a framework-dependent output.
+# Build source
 COPY --link src/ src/
+RUN dotnet build src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj \
+    -c Release \
+    --no-restore
+
+# ---------------------------------------------------------------------------
+# Stage 2: publish
+# ---------------------------------------------------------------------------
+FROM build AS publish
 RUN dotnet publish src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj \
-        -c Release \
-        -o /app/publish \
-        --no-restore \
-        /p:UseAppHost=false
+    -c Release \
+    -o /app/publish \
+    --no-build \
+    /p:UseAppHost=false
 
 # ---------------------------------------------------------------------------
-# Runtime stage: ASP.NET runtime image, unprivileged user.
+# Stage 3: final (unprivileged non-root user on alpine)
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
-
-# Least privilege: the .NET 10 runtime image already ships an unprivileged
-# `app` user/group (uid/gid 1654), so we reuse it instead of creating another.
+FROM ${RUNTIME_IMAGE} AS final
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_RUNNING_IN_CONTAINER=true
 
-COPY --from=build --chown=app:app /app/publish .
+COPY --from=publish --chown=app:app /app/publish .
 
 USER app
 
