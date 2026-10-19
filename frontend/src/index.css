@@ -21,7 +21,7 @@
   --secondary-foreground: oklch(0.205 0 0);
 
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.50 0 0);
+  --muted-foreground: oklch(0.42 0 0);
 
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
@@ -34,7 +34,7 @@
 
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.45 0 0);
 }
 
 .dark {
@@ -54,7 +54,7 @@
   --secondary-foreground: oklch(0.985 0 0);
 
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: oklch(0.78 0 0);
 
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
@@ -65,9 +65,9 @@
   --success: oklch(0.696 0.17 162.48);
   --success-foreground: oklch(0.145 0 0);
 
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.78 0 0);
 }
 
 @theme inline {
@@ -101,7 +101,12 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
   body {

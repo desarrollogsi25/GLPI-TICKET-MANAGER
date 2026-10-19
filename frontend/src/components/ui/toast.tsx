@@ -5,9 +5,11 @@ import { cn } from '@/lib/utils'
 import { useToastStore, type ToastVariant } from '@/store/toastStore'
 
 const variantClasses: Record<ToastVariant, string> = {
-  default: 'border-border bg-card text-card-foreground',
-  success: 'border-success/40 bg-success/10 text-foreground',
-  destructive: 'border-destructive/40 bg-destructive/10 text-foreground',
+  default: 'border-border bg-card text-card-foreground shadow-lg',
+  success:
+    'border-emerald-500/40 bg-emerald-500/10 text-foreground dark:bg-emerald-950/40 dark:border-emerald-500/40 shadow-lg',
+  destructive:
+    'border-destructive/40 bg-destructive/10 text-foreground dark:bg-red-950/40 dark:border-red-500/40 shadow-lg',
 }
 
 export function Toaster() {
@@ -26,7 +28,8 @@ export function Toaster() {
         {toasts.map((toast) => (
           <motion.div
             key={toast.id}
-            role="status"
+            data-testid="toast-item"
+            role={toast.variant === 'destructive' ? 'alert' : 'status'}
             initial={
               prefersReduced
                 ? false
@@ -62,21 +65,80 @@ export function Toaster() {
               }
             }}
             className={cn(
-              'pointer-events-auto rounded-lg border p-4 shadow-lg select-none cursor-grab active:cursor-grabbing',
+              'pointer-events-auto rounded-lg border p-4 shadow-lg select-none cursor-grab active:cursor-grabbing backdrop-blur-sm',
               variantClasses[toast.variant],
             )}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">{toast.title}</p>
+            <div className="flex items-start gap-3">
+              {/* Icon per variant */}
+              <div className="mt-0.5 shrink-0">
+                {toast.variant === 'success' && (
+                  <div className="flex size-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                )}
+                {toast.variant === 'destructive' && (
+                  <div className="flex size-5 items-center justify-center rounded-full bg-destructive/20 text-destructive dark:text-red-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                  </div>
+                )}
+                {toast.variant === 'default' && (
+                  <div className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1">
+                <p className="text-sm font-semibold">{toast.title}</p>
                 {toast.description ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{toast.description}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{toast.description}</p>
                 ) : null}
               </div>
+
               <button
                 type="button"
                 onClick={() => dismiss(toast.id)}
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground cursor-pointer p-1 rounded hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Cerrar notificación"
               >
                 ✕

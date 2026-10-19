@@ -34,12 +34,16 @@ export function Login() {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
     defaultValues: { username: '', password: '' },
   })
 
   if (token) {
     return <Navigate to="/kanban" replace />
   }
+
+  const hasErrors = Object.keys(errors).length > 0
 
   const onSubmit = handleSubmit((values) => {
     login.mutate(values, {
@@ -58,12 +62,21 @@ export function Login() {
           <CardDescription>Accede con tu cuenta de GLPI.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+          <form className="space-y-4" onSubmit={onSubmit} noValidate>
             <div className="space-y-1">
               <Label htmlFor="username">Usuario</Label>
-              <Input id="username" autoComplete="username" {...register('username')} />
+              <Input
+                id="username"
+                autoComplete="username"
+                aria-invalid={Boolean(errors.username)}
+                aria-describedby={errors.username ? 'username-error' : undefined}
+                className={errors.username ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                {...register('username')}
+              />
               {errors.username ? (
-                <p className="text-xs text-destructive">{errors.username.message}</p>
+                <p id="username-error" role="alert" className="text-xs text-destructive">
+                  {errors.username.message}
+                </p>
               ) : null}
             </div>
 
@@ -73,20 +86,25 @@ export function Login() {
                 id="password"
                 type="password"
                 autoComplete="current-password"
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? 'password-error' : undefined}
+                className={errors.password ? 'border-destructive focus-visible:ring-destructive' : undefined}
                 {...register('password')}
               />
               {errors.password ? (
-                <p className="text-xs text-destructive">{errors.password.message}</p>
+                <p id="password-error" role="alert" className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
               ) : null}
             </div>
 
             {login.isError ? (
-              <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs">
+              <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
                 {getApiErrorMessage(login.error)}
               </p>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={login.isPending}>
+            <Button type="submit" className="w-full" disabled={hasErrors || login.isPending}>
               {login.isPending ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>

@@ -56,12 +56,12 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await confirmReopen.click()
 
   // 5. Verificar status vuelve a 2 (Assigned)
-  await expect(page.getByText('Ticket reabierto')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText(/Ticket reabierto/i).first()).toBeVisible({ timeout: 15000 })
   await expect(page.locator('textarea')).toHaveCount(0, { timeout: 15000 })
   await expect(page.getByText('Assigned').first()).toBeVisible({ timeout: 10000 })
 
   // 6. Verificar que el motivo aparece como followup privado
-  await expect(page.getByText(reopenReason)).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(reopenReason).first()).toBeVisible({ timeout: 10000 })
   await expect(page.getByText('Privado').first()).toBeVisible({ timeout: 10000 })
 
   // 7. Verificar que se puede volver a resolver con nueva solución

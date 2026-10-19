@@ -286,9 +286,12 @@ export function List() {
           />
 
           {isError ? (
-            <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              {getApiErrorMessage(error)}
-            </p>
+            <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
+              <span>{getApiErrorMessage(error)}</span>
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                Reintentar
+              </Button>
+            </div>
           ) : (
             <>
               {/* Vista Desktop (md:+): Tabla TanStack completa */}

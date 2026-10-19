@@ -24,20 +24,32 @@ import { ResolveTicketDialog } from './ResolveTicketDialog'
 
 function TicketTasksPanel({ ticketId }: { ticketId: number }) {
   const taskMap = useUiStore((state) => state.tasks)
-const tasks = taskMap[ticketId] ?? (EMPTY_TASKS as TicketTask[])
+  const tasks = taskMap[ticketId] ?? (EMPTY_TASKS as TicketTask[])
   const addTask = useUiStore((state) => state.addTask)
   const toggleTask = useUiStore((state) => state.toggleTask)
   const removeTask = useUiStore((state) => state.removeTask)
+  const pushToast = useToastStore((state) => state.push)
   const [draft, setDraft] = useState('')
+  const [touched, setTouched] = useState(false)
+
+  const trimmed = draft.trim()
+  const hasError = touched && trimmed.length === 0
+  const isSubmitDisabled = trimmed.length === 0
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    const label = draft.trim()
-    if (!label) {
+    if (isSubmitDisabled) {
+      setTouched(true)
       return
     }
-    addTask(ticketId, label)
+    addTask(ticketId, trimmed)
+    pushToast({
+      title: 'Tarea añadida',
+      description: trimmed,
+      variant: 'success',
+    })
     setDraft('')
+    setTouched(false)
   }
 
   return (
@@ -49,15 +61,26 @@ const tasks = taskMap[ticketId] ?? (EMPTY_TASKS as TicketTask[])
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <form className="flex gap-2" onSubmit={handleSubmit}>
-          <Input
-            value={draft}
-            placeholder="Añadir una tarea"
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <Button type="submit" variant="secondary">
-            Añadir
-          </Button>
+        <form className="space-y-1.5" onSubmit={handleSubmit} noValidate>
+          <div className="flex gap-2">
+            <Input
+              value={draft}
+              placeholder="Añadir una tarea"
+              aria-invalid={hasError}
+              aria-describedby={hasError ? 'task-error' : undefined}
+              className={hasError ? 'border-destructive focus-visible:ring-destructive' : undefined}
+              onBlur={() => setTouched(true)}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <Button type="submit" variant="secondary" disabled={isSubmitDisabled}>
+              Añadir
+            </Button>
+          </div>
+          {hasError ? (
+            <p id="task-error" role="alert" className="text-xs text-destructive">
+              El nombre de la tarea es obligatorio.
+            </p>
+          ) : null}
         </form>
 
         {tasks.length === 0 ? (

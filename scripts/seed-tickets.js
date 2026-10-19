@@ -9,6 +9,14 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { seedGlpiUsers } = require('./seed-glpi-users');
+
+// 0. Ejecutar creación e inicialización de usuarios y roles de prueba en GLPI
+try {
+  seedGlpiUsers();
+} catch (err) {
+  console.warn('[!] Advertencia al inicializar usuarios GLPI:', err.message);
+}
 
 // 1. Obtener credenciales desde .env o variables de entorno
 let mariadbPassword = process.env.MARIADB_PASSWORD;
@@ -130,6 +138,20 @@ DELETE FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND type = 2;
 INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
 VALUES (${t.id}, ${t.tech}, 2);
 `);
+    // También asignar tickets a los técnicos de prueba nuevo entorno
+    if (t.tech === 7 && t.id % 2 === 0) {
+      sqlStatements.push(`
+INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
+SELECT ${t.id}, u.id, 2 FROM glpi_users u WHERE u.name = 'tecnico_test1'
+AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND users_id = u.id AND type = 2);
+`);
+    } else if (t.tech === 8 && t.id % 2 === 1) {
+      sqlStatements.push(`
+INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
+SELECT ${t.id}, u.id, 2 FROM glpi_users u WHERE u.name = 'tecnico_test2'
+AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND users_id = u.id AND type = 2);
+`);
+    }
   }
 
   // Solución para tickets resueltos

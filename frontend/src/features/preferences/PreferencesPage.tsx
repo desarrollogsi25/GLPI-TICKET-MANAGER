@@ -7,21 +7,29 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePreferencesQuery, useUpdatePreferencesMutation } from '@/hooks/usePreferences'
+import { getApiErrorMessage } from '@/lib/api/errors'
+import { useToastStore } from '@/store/toastStore'
 
 export function PreferencesPage() {
   const { data, isLoading, isError, error, refetch } = usePreferencesQuery()
   const updateMutation = useUpdatePreferencesMutation()
+  const pushToast = useToastStore((state) => state.push)
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('theme') || localStorage.getItem('glpi_theme')
-    if (saved === 'dark' || saved === 'light') return saved
-    const docTheme = document.documentElement.getAttribute('data-theme')
-    if (docTheme === 'dark' || docTheme === 'light') return docTheme
-    if (document.documentElement.classList.contains('dark')) return 'dark'
-    return 'light'
+    return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'
   })
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
+  const [themeTouched, setThemeTouched] = useState(false)
+  const [densityTouched, setDensityTouched] = useState(false)
   const [savedMessage, setSavedMessage] = useState(false)
+
+  const themeError = themeTouched && !['light', 'dark'].includes(theme)
+    ? 'El tema seleccionado no es válido.'
+    : null
+  const densityError = densityTouched && !['comfortable', 'compact'].includes(density)
+    ? 'La densidad seleccionada no es válida.'
+    : null
+  const hasErrors = Boolean(themeError || densityError)
 
   // Cargar preferencias iniciales sincronizadas con backend
   useEffect(() => {
@@ -52,6 +60,8 @@ export function PreferencesPage() {
     e.preventDefault()
     setSavedMessage(false)
 
+    if (hasErrors) return
+
     updateMutation.mutate(
       { theme, density },
       {
@@ -65,6 +75,18 @@ export function PreferencesPage() {
             document.documentElement.setAttribute('data-theme', 'light')
           }
           setSavedMessage(true)
+          pushToast({
+            title: 'Preferencias guardadas correctamente',
+            description: 'Tus preferencias visuales han sido actualizadas.',
+            variant: 'success',
+          })
+        },
+        onError: (err) => {
+          pushToast({
+            title: 'Error al guardar preferencias',
+            description: getApiErrorMessage(err),
+            variant: 'destructive',
+          })
         },
       },
     )
@@ -106,13 +128,17 @@ export function PreferencesPage() {
           )}
 
           {!isLoading && !isError && (
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="theme">Tema</Label>
                 <Select
                   id="theme"
                   name="theme"
                   value={theme}
+                  aria-invalid={Boolean(themeError)}
+                  aria-describedby={themeError ? 'theme-error' : undefined}
+                  className={themeError ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                  onBlur={() => setThemeTouched(true)}
                   onChange={(e) => {
                     const val = e.target.value as 'light' | 'dark'
                     setTheme(val)
@@ -129,9 +155,15 @@ export function PreferencesPage() {
                   <option value="light">Claro</option>
                   <option value="dark">Oscuro</option>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Selecciona la apariencia general de la aplicación.
-                </p>
+                {themeError ? (
+                  <p id="theme-error" role="alert" className="text-xs text-destructive">
+                    {themeError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona la apariencia general de la aplicación.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -140,18 +172,28 @@ export function PreferencesPage() {
                   id="density"
                   name="density"
                   value={density}
+                  aria-invalid={Boolean(densityError)}
+                  aria-describedby={densityError ? 'density-error' : undefined}
+                  className={densityError ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                  onBlur={() => setDensityTouched(true)}
                   onChange={(e) => setDensity(e.target.value as 'comfortable' | 'compact')}
                 >
                   <option value="comfortable">Cómoda</option>
                   <option value="compact">Compacta</option>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Ajusta la cantidad de espaciado y compacidad de los elementos.
-                </p>
+                {densityError ? (
+                  <p id="density-error" role="alert" className="text-xs text-destructive">
+                    {densityError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Ajusta la cantidad de espaciado y compacidad de los elementos.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-4 pt-2">
-                <Button type="submit" disabled={updateMutation.isPending}>
+                <Button type="submit" disabled={hasErrors || updateMutation.isPending}>
                   {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
                 </Button>
                 {savedMessage && (

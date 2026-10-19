@@ -1,6 +1,9 @@
 import axios from 'axios'
 
 import { useAuthStore } from '@/store/authStore'
+import { useToastStore } from '@/store/toastStore'
+
+let lastNetworkToastTime = 0
 
 /**
  * Single axios instance for the whole app.
@@ -34,6 +37,25 @@ apiClient.interceptors.response.use(
     // A rejected token means the session is no longer usable.
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       useAuthStore.getState().clear()
+    }
+
+    // Network errors (no response, timeout, server down)
+    if (
+      axios.isAxiosError(error) &&
+      (!error.response ||
+        error.code === 'ERR_NETWORK' ||
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ETIMEDOUT')
+    ) {
+      const now = Date.now()
+      if (now - lastNetworkToastTime > 5000) {
+        lastNetworkToastTime = now
+        useToastStore.getState().push({
+          title: 'Error de red',
+          description: 'No se pudo conectar al servidor.',
+          variant: 'destructive',
+        })
+      }
     }
 
     return Promise.reject(error)
