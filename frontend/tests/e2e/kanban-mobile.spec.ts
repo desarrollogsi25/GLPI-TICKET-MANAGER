@@ -22,25 +22,25 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
   const queueTab = page.getByTestId('kanban-tab-queue')
   await expect(queueTab).toHaveAttribute('aria-selected', 'true')
 
-  // 3. Ticket en cola (#61 o primer ticket de la cola)
+  // 3. Ticket en cola (primer ticket disponible de la lista)
   const mobileList = page.locator('[data-testid="kanban-mobile-list"]')
   const ticketBadge = mobileList.getByText(/^#\d+$/).first()
   await expect(ticketBadge).toBeVisible({ timeout: 10000 })
   const ticketToClaim = (await ticketBadge.innerText()).trim()
 
-  await expect(mobileList.getByText(ticketToClaim).first()).toBeVisible()
-
-  // 4. Tap en "Asignarme" inline (no botón full-width)
-  const claimBtn = page.getByRole('button', { name: /Asignarme/i }).first()
+  // 4. Tap en "Asignarme" inline del primer ticket de la cola
+  const claimBtn = mobileList.getByRole('button', { name: 'Asignarme' }).first()
   await expect(claimBtn).toBeVisible()
   await claimBtn.click()
 
-  // 5. Cambiar a tab "Mis tickets" (tap)
-  await page.getByTestId('kanban-tab-mine').click()
-  await page.waitForTimeout(800)
+  // 5. Esperar confirmación de asignación (toast) y cambiar a tab "Mis tickets"
+  await expect(page.getByText(/Ticket asignado correctamente/i)).toBeVisible({ timeout: 10000 })
+  const mineTab = page.getByTestId('kanban-tab-mine')
+  await mineTab.click()
+  await expect(mineTab).toHaveAttribute('aria-selected', 'true')
 
   // 6. Verificar que el ticket está en "Mis tickets"
-  await expect(page.locator('[data-testid="kanban-mobile-list"]').getByText(ticketToClaim).first()).toBeVisible({ timeout: 5000 })
+  await expect(mobileList.getByText(ticketToClaim).first()).toBeVisible({ timeout: 10000 })
 
   // 7. Swipe a "En progreso" (drag en la lista)
   const list = page.locator('[data-testid="kanban-mobile-list"]')

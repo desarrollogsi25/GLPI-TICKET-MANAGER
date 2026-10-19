@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   use: {
     headless: true,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     storageState: 'tests/e2e/.auth/tech1.json',
   },
   reporter: 'list',
