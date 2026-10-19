@@ -80,10 +80,6 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
     {
         if (role == AppRole.Admin) return true;
 
-        var ticket = await _tickets.GetByIdAsync(ticketId, ct);
-        if (ticket is null || ticket.Status != 1) return false;
-        if (await _tickets.HasAssigneeAsync(ticketId, ct)) return false;
-
         var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
         var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
         return userGroups.Intersect(ticketGroups).Any();
