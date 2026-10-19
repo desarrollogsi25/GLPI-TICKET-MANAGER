@@ -24,8 +24,9 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
 
   // 3. Ticket en cola (#61 o primer ticket de la cola)
   const mobileList = page.locator('[data-testid="kanban-mobile-list"]')
-  await expect(mobileList.locator('span:text-matches("^#\\\\d+$")').first()).toBeVisible({ timeout: 10000 })
-  const ticketToClaim = (await mobileList.locator('span:text-matches("^#\\\\d+$")').first().innerText()).trim()
+  const ticketBadge = mobileList.getByText(/^#\d+$/).first()
+  await expect(ticketBadge).toBeVisible({ timeout: 10000 })
+  const ticketToClaim = (await ticketBadge.innerText()).trim()
 
   await expect(mobileList.getByText(ticketToClaim).first()).toBeVisible()
 
