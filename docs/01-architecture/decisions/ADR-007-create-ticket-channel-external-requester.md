@@ -1,5 +1,9 @@
 # ADR-007 - Canal y solicitante interno/externo en creación de tickets
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-007 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 > ⚠️ **Superseded by ADR-009 (2026-10-14)**
 
 ## Estado

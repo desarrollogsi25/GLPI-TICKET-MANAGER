@@ -1,5 +1,9 @@
 # Query: tickets assigned to a technician
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-04-DB-QUERY-TICKETS_BY_ASSIGNEE | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Consumer:** `GET /api/tickets?assigneeId={id}`
 - **Repository:** `TicketRepository.GetByAssigneeAsync` / `CountByAssigneeAsync`
 - **Source:** `Infrastructure/Persistence/Queries/TicketQueries.cs` → `ByAssignee` / `CountByAssignee`

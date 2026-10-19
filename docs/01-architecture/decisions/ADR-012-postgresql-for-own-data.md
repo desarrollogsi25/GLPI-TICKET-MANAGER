@@ -1,5 +1,9 @@
 # ADR-012: Arquitectura de doble base de datos — MariaDB para GLPI y PostgreSQL para datos propios
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-012 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Status:** Accepted (confirmado por el jefe el 2026-10-14)
 - **Date:** 2026-10-14
 - **Related:** ADR-002, ADR-009, ADR-011, ADR-013

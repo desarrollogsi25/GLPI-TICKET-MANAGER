@@ -1,5 +1,9 @@
 # ADR-005: External requester model
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-005 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 > ⚠️ **Superseded by ADR-010 (2026-10-14)**
 
 - **Status:** Superseded by ADR-010

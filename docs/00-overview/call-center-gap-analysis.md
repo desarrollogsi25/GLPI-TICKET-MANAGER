@@ -1,6 +1,7 @@
 # Call Centre Gap Analysis
 
-ISO Header: Business Scope
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-00-CALL_CENTER_GAP_ANALYSIS | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 
 **Status:** Decided — business answers received 2026-10-13. Mechanics recorded in
 [ADR-004](../01-architecture/decisions/ADR-004-call-center-scope.md) (scope),

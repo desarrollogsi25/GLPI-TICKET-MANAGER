@@ -1,5 +1,9 @@
 # Auditoría de Accesibilidad (WCAG 2.1 AA)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-09-ACCESSIBILITY | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 Este documento registra los estándares, herramientas, fixes implementados y resultados de la auditoría de accesibilidad aplicada en **GLPI Ticket Manager** (Bloque 11).
 
 ---

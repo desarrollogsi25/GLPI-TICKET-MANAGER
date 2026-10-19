@@ -1,3 +1,6 @@
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-001 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
 ## ADR-001: GLPI Docker Setup
 
 ### Context and Problem

@@ -1,5 +1,9 @@
 # Rate Limiting y Control de Consumo de Recursos (OWASP API4)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-12-RATE_LIMITING | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 Este documento describe la arquitectura, configuración y estrategias de prueba del subsistema de rate limiting en GLPI Ticket Manager, diseñado para mitigar ataques de denegación de servicio (DoS) y consumo indiscriminado de recursos computacionales (OWASP API4: Unrestricted Resource Consumption).
 
 ---

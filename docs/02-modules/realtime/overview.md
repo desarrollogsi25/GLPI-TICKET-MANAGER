@@ -1,5 +1,9 @@
 # Módulo de Tiempo Real (SignalR Real-Time Notifications)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-02-MOD-REALTIME | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 ## Descripción
 El módulo de tiempo real proporciona notificaciones instantáneas bidireccionales entre el backend .NET y los clientes frontend mediante **ASP.NET Core SignalR** sobre WebSockets.
 

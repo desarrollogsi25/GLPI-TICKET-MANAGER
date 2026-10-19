@@ -1,5 +1,9 @@
 # ADR-011: Catálogo de servicios basado en categorías ITIL nativas de GLPI
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-011 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Related:** ADR-009, ADR-010, ADR-012

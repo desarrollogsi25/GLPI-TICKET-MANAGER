@@ -1,5 +1,9 @@
 # ADR-014: Modelo de roles de autorización (Technician, Supervisor, Admin)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-014 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Status:** Accepted
 - **Date:** 2026-10-16
 - **Related:** ADR-009, ADR-012

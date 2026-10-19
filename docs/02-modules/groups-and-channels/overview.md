@@ -1,5 +1,9 @@
 # Módulo de Grupos y Canales (Groups & Channels)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-02-MOD-GROUPS_AND_CHANNELS | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 ## Descripción
 El módulo de grupos y canales expone catálogos maestros leídos directamente desde el esquema de GLPI en MariaDB para alimentar los selectores de colas, filtros y canales de entrada en la interfaz de usuario.
 

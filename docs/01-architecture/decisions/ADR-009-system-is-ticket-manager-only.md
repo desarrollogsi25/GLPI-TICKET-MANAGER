@@ -1,5 +1,9 @@
 # ADR-009: El sistema propio es únicamente gestor de tickets (no creador)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-009 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Supersedes:** ADR-003, ADR-007

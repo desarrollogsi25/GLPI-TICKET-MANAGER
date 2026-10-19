@@ -1,5 +1,9 @@
 # ADR-003: Ticket creation DTO — urgency/impact/assigneeId/requesterId (singular)
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-01-ADR-003 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 > ⚠️ **Superseded by ADR-009 (2026-10-14)**
 
 - **Status:** Superseded by ADR-009

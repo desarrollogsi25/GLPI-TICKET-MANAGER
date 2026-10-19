@@ -1,5 +1,9 @@
 # Secrets management
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-12-SECRETS | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 This project reads several secrets at runtime. **No real secret value belongs in the
 repository.** This document lists the variables, where each one is read from, and how
 to rotate it. Values are intentionally omitted.

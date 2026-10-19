@@ -1,5 +1,9 @@
 # Procedimiento de emergencia para push directo a main
 
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-07-EMERGENCY_PROCEDURE | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+
+
 ## Cuándo aplica
 - Hotfix crítico en producción que no puede esperar a un PR
 - Bug de seguridad que requiere parche inmediato

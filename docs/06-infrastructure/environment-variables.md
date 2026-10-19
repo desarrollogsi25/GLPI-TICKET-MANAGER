@@ -1,6 +1,7 @@
 # Environment Variables
 
-ISO Header: Infrastructure Setup
+> **Control Documental ISO 9001 / ISO 27001**  
+> **Código:** DOC-06-ENVIRONMENT_VARIABLES | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 
 Two places hold configuration, and never the same secret twice in the repository:
 
