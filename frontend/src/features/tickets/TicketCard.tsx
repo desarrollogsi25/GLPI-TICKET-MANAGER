@@ -41,6 +41,7 @@ export function TicketCard({
       <motion.div
         role={onCardClick ? 'button' : undefined}
         tabIndex={onCardClick ? 0 : undefined}
+        aria-label={onCardClick ? `Ticket #${ticket.id}: ${ticket.title}` : undefined}
         onKeyDown={
           onCardClick
             ? (e) => {
