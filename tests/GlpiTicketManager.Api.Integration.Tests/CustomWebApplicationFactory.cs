@@ -190,6 +190,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public void AddFollowup(int ticketId, TicketFollowup followup)
+    {
+        lock (_stateLock)
+        {
+            if (_allTickets.TryGetValue(ticketId, out var ticket))
+            {
+                var list = ticket.Followups.ToList();
+                list.Add(followup);
+                ticket.Followups = list;
+            }
+        }
+    }
+
     static CustomWebApplicationFactory()
     {
         Environment.SetEnvironmentVariable("Database__ConnectionString", "Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password=SecretNonDefaultPass123!;");
@@ -330,6 +343,59 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var glpiMock = new Mock<IGlpiApiClient>();
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
+            glpiMock.Setup(g => g.ReopenTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = ticket.Id,
+                                Name = ticket.Name,
+                                Content = ticket.Content,
+                                Status = (int)TicketStatus.Assigned,
+                                Type = ticket.Type,
+                                Priority = ticket.Priority,
+                                Urgency = ticket.Urgency,
+                                Impact = ticket.Impact,
+                                CategoryId = ticket.CategoryId,
+                                CreatedAt = ticket.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow,
+                                SolvedAt = null,
+                                ClosedAt = null,
+                                IsDeleted = ticket.IsDeleted,
+                                HasSolution = false,
+                                RequesterIds = ticket.RequesterIds,
+                                AssigneeIds = ticket.AssigneeIds,
+                                Followups = ticket.Followups
+                            };
+                        }
+                        return Task.CompletedTask;
+                    }
+                });
+            glpiMock.Setup(g => g.CreateFollowupAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, string content, bool isPrivate, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            var list = ticket.Followups.ToList();
+                            list.Add(new TicketFollowup
+                            {
+                                Id = list.Count + 1,
+                                TicketId = ticketId,
+                                Content = content,
+                                IsPrivate = isPrivate,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                            ticket.Followups = list;
+                        }
+                        return 1;
+                    }
+                });
             glpiMock.Setup(g => g.CreateSolutionAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int ticketId, string content, CancellationToken _) =>
                 {
@@ -404,6 +470,37 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     lock (_stateLock)
                     {
                         return _allTickets.GetValueOrDefault(id);
+                    }
+                });
+
+            ticketRepoMock.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int id, bool canSeePrivate, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (!_allTickets.TryGetValue(id, out var ticket)) return null;
+                        if (canSeePrivate) return ticket;
+                        return new Ticket
+                        {
+                            Id = ticket.Id,
+                            Name = ticket.Name,
+                            Content = ticket.Content,
+                            Status = ticket.Status,
+                            Type = ticket.Type,
+                            Priority = ticket.Priority,
+                            Urgency = ticket.Urgency,
+                            Impact = ticket.Impact,
+                            CategoryId = ticket.CategoryId,
+                            CreatedAt = ticket.CreatedAt,
+                            UpdatedAt = ticket.UpdatedAt,
+                            SolvedAt = ticket.SolvedAt,
+                            ClosedAt = ticket.ClosedAt,
+                            IsDeleted = ticket.IsDeleted,
+                            HasSolution = ticket.HasSolution,
+                            AssigneeIds = ticket.AssigneeIds,
+                            RequesterIds = ticket.RequesterIds,
+                            Followups = ticket.Followups.Where(f => !f.IsPrivate).ToList()
+                        };
                     }
                 });
 

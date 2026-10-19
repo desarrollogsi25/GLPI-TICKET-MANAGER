@@ -51,3 +51,8 @@ export async function createSolution(id: number, content: string): Promise<{ id:
   const { data } = await apiClient.post(`/tickets/${id}/solutions`, { content })
   return data
 }
+
+export async function reopenTicket(id: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {
+  const { data } = await apiClient.post(`/tickets/${id}/reopen`, reason ? { reason } : {})
+  return data
+}

@@ -10,6 +10,7 @@ import {
   listGroupQueue,
   claimTicket,
   createSolution,
+  reopenTicket,
 } from '@/lib/api/tickets'
 
 /** The API caps `limit` at 100; the board and table filter client-side. */
@@ -118,6 +119,22 @@ export function useCreateSolutionMutation() {
       createSolution(ticketId, content),
     onSuccess: async (_data, variables) => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
+      ])
+    },
+  })
+}
+
+export function useReopenTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, reason }: { ticketId: number; reason?: string }) =>
+      reopenTicket(ticketId, reason),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
       ])

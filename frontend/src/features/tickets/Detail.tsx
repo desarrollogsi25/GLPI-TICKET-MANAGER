@@ -17,7 +17,9 @@ import type { TicketTask } from '@/store/uiStore'
 const EMPTY_TASKS: TicketTask[] = []
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { useAuthStore } from '@/store/authStore'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
+import { ReopenTicketDialog } from './ReopenTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
 function TicketTasksPanel({ ticketId }: { ticketId: number }) {
@@ -96,7 +98,10 @@ export function Detail() {
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const updateStatus = useUpdateTicketStatusMutation()
   const pushToast = useToastStore((state) => state.push)
+  const currentUser = useAuthStore((state) => state.user)
+  const role = useAuthStore((state) => state.role ?? state.user?.role)
   const [resolveOpen, setResolveOpen] = useState(false)
+  const [reopenOpen, setReopenOpen] = useState(false)
 
   const changeStatus = (status: number) => {
     updateStatus.mutate(
@@ -140,6 +145,9 @@ export function Detail() {
   const status = statusMeta(ticket.status)
   const priority = priorityMeta(ticket.priority)
   const type = TICKET_TYPES.find((item) => item.value === ticket.type)?.label ?? ticket.typeLabel
+  const canReopen =
+    (ticket.status === 5 || ticket.status === 6) &&
+    (role === 'admin' || (currentUser?.userId != null && ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))))
 
   return (
     <div className="space-y-4">
@@ -189,6 +197,16 @@ export function Detail() {
               >
                 Resolver
               </Button>
+              {canReopen && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="reopen-ticket-btn"
+                  onClick={() => setReopenOpen(true)}
+                >
+                  Reabrir
+                </Button>
+              )}
               {TICKET_STATUSES.map((option) => (
                 <Button
                   key={option.value}
@@ -269,6 +287,7 @@ export function Detail() {
         </div>
       </div>
       <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />
+      <ReopenTicketDialog ticketId={ticketId} open={reopenOpen} onOpenChange={setReopenOpen} />
     </div>
   )
 }

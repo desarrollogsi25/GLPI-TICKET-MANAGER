@@ -9,4 +9,8 @@ public interface IGlpiApiClient
     Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
 
     Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
+
+    Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken);
+
+    Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken);
 }
