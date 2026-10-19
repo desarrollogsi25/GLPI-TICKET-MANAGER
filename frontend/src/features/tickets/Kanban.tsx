@@ -8,12 +8,13 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { motion } from 'motion/react'
-import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import {
   useClaimTicketMutation,
   useGroupQueueQuery,
@@ -127,6 +128,8 @@ function KanbanColumn({
   emptyMessage = 'No hay tickets aquí',
   onClaim,
   isClaiming,
+  recentlyUpdatedIds,
+  invalidDropTicketId,
 }: {
   column: ColumnDef
   tickets: TicketSummary[]
@@ -134,8 +137,14 @@ function KanbanColumn({
   emptyMessage?: string
   onClaim?: (ticketId: number) => void
   isClaiming?: boolean
+  recentlyUpdatedIds?: Set<number>
+  invalidDropTicketId?: number | null
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
+  const shouldReduceMotion = useReducedMotion()
+  const springTransition: Transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { type: 'spring', stiffness: 350, damping: 30, duration: 0.25 }
 
   return (
     <div data-column-id={column.id} className="flex w-72 shrink-0 flex-col">
@@ -164,44 +173,71 @@ function KanbanColumn({
           </div>
         ) : (
           <>
-            {tickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                draggable={column.id !== 'resolved'}
-                actionButton={
-                  column.id === 'queue' ? (
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="h-7 text-xs w-full"
-                      disabled={isClaiming}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onClaim?.(ticket.id)
-                      }}
-                    >
-                      Asignarme
-                    </Button>
-                  ) : column.id === 'in_progress' || column.id === 'pending' ? (
-                    <Link
-                      to={`/tickets/${ticket.id}`}
-                      className="inline-flex items-center text-xs font-medium text-primary hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Abrir detalle →
-                    </Link>
-                  ) : null
-                }
-              />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {tickets.map((ticket) => (
+                <motion.div
+                  key={ticket.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={springTransition}
+                >
+                  <TicketCard
+                    ticket={ticket}
+                    draggable={column.id !== 'resolved'}
+                    highlight={recentlyUpdatedIds?.has(ticket.id)}
+                    shake={invalidDropTicketId === ticket.id}
+                    actionButton={
+                      column.id === 'queue' ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs w-full"
+                          disabled={isClaiming}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onClaim?.(ticket.id)
+                          }}
+                        >
+                          {isClaiming ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Asignando...
+                            </span>
+                          ) : (
+                            'Asignarme'
+                          )}
+                        </Button>
+                      ) : column.id === 'in_progress' || column.id === 'pending' ? (
+                        <Link
+                          to={`/tickets/${ticket.id}`}
+                          className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Abrir detalle →
+                        </Link>
+                      ) : null
+                    }
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
             {tickets.length === 0 ? (
-              <div className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
+                className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center"
+              >
                 <p className="text-xs text-muted-foreground">{emptyMessage}</p>
-              </div>
+              </motion.div>
             ) : null}
           </>
         )}
@@ -228,6 +264,29 @@ export function Kanban() {
 
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
+  const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
+  const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
+
+  const shouldReduceMotion = useReducedMotion()
+  const springTransition: Transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { type: 'spring', stiffness: 350, damping: 30, duration: 0.25 }
+
+  const markTicketUpdated = useCallback((ticketId: number) => {
+    setRecentlyUpdatedIds((prev) => new Set(prev).add(ticketId))
+    setTimeout(() => {
+      setRecentlyUpdatedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(ticketId)
+        return next
+      })
+    }, 1500)
+  }, [])
+
+  useRealtimeTicketHub({
+    onTicketStatusChanged: (ticketId) => markTicketUpdated(ticketId),
+    onTicketClaimed: (ticketId) => markTicketUpdated(ticketId),
+  })
 
   // Pointer sensor with distance prevents click conflict on buttons and links
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -406,6 +465,8 @@ export function Kanban() {
     // Check if transition is allowed
     const allowedTargets = VALID_TRANSITIONS[sourceId] ?? []
     if (!allowedTargets.includes(targetId)) {
+      setInvalidDropTicketId(ticketId)
+      setTimeout(() => setInvalidDropTicketId(null), 400)
       return
     }
 
@@ -482,7 +543,17 @@ export function Kanban() {
               handleClaim(ticket.id)
             }}
           >
-            Asignarme
+            {claimMutation.isPending ? (
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Asignando...
+              </span>
+            ) : (
+              'Asignarme'
+            )}
           </Button>
         )
       case 'mine':
@@ -614,58 +685,77 @@ export function Kanban() {
           </Button>
         </div>
 
-        {/* Lista Vertical con soporte Swipe Horizontal */}
-        <motion.div
-          key={activeTab}
-          data-testid="kanban-mobile-list"
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.15}
-          onDragEnd={(_e, info) => {
-            if (info.offset.x < -60 || info.velocity.x < -300) {
-              handleSwipe('left')
-            } else if (info.offset.x > 60 || info.velocity.x > 300) {
-              handleSwipe('right')
+        {/* Lista Vertical con soporte Swipe Horizontal y Transición entre tabs */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            data-testid="kanban-mobile-list"
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.15}
+            onDragEnd={(_e, info) => {
+              if (info.offset.x < -60 || info.velocity.x < -300) {
+                handleSwipe('left')
+              } else if (info.offset.x > 60 || info.velocity.x > 300) {
+                handleSwipe('right')
+              }
+            }}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={
+              shouldReduceMotion
+                ? { duration: 0 }
+                : { type: 'spring', stiffness: 350, damping: 30, duration: 0.2 }
             }
-          }}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex flex-col gap-2.5 touch-pan-y"
-        >
-          {isMobileLoading ? (
-            <div className="space-y-3 p-1">
-              <Skeleton className="h-24 w-full rounded-xl" />
-              <Skeleton className="h-24 w-full rounded-xl" />
-              <Skeleton className="h-24 w-full rounded-xl" />
-            </div>
-          ) : activeMobileTickets.length > 0 ? (
-            activeMobileTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                draggable={false}
-                compact={true}
-                actionButton={getMobileActionButton(activeTab, ticket)}
-              />
-            ))
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
-            >
-              <span className="text-3xl mb-2">{EMPTY_MESSAGES[activeTab].icon}</span>
-              <p className="text-sm font-semibold text-foreground">
-                {EMPTY_MESSAGES[activeTab].title}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
-                {EMPTY_MESSAGES[activeTab].subtitle}
-              </p>
-            </motion.div>
-          )}
-        </motion.div>
+            className="flex flex-col gap-2.5 touch-pan-y"
+          >
+            {isMobileLoading ? (
+              <div className="space-y-3 p-1">
+                <Skeleton className="h-24 w-full rounded-xl" />
+                <Skeleton className="h-24 w-full rounded-xl" />
+                <Skeleton className="h-24 w-full rounded-xl" />
+              </div>
+            ) : activeMobileTickets.length > 0 ? (
+              <AnimatePresence mode="popLayout">
+                {activeMobileTickets.map((ticket) => (
+                  <motion.div
+                    key={ticket.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={springTransition}
+                  >
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      draggable={false}
+                      compact={true}
+                      highlight={recentlyUpdatedIds.has(ticket.id)}
+                      actionButton={getMobileActionButton(activeTab, ticket)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
+                className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
+              >
+                <span className="text-3xl mb-2">{EMPTY_MESSAGES[activeTab].icon}</span>
+                <p className="text-sm font-semibold text-foreground">
+                  {EMPTY_MESSAGES[activeTab].title}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
+                  {EMPTY_MESSAGES[activeTab].subtitle}
+                </p>
+              </motion.div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* =========================================================================
@@ -694,6 +784,8 @@ export function Kanban() {
                   emptyMessage={emptyMessage}
                   onClaim={handleClaim}
                   isClaiming={claimMutation.isPending}
+                  recentlyUpdatedIds={recentlyUpdatedIds}
+                  invalidDropTicketId={invalidDropTicketId}
                 />
               )
             })}
