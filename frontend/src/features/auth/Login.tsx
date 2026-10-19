@@ -39,8 +39,10 @@ export function Login() {
     defaultValues: { username: '', password: '' },
   })
 
+  const role = useAuthStore((state) => state.role)
+
   if (token) {
-    return <Navigate to="/kanban" replace />
+    return <Navigate to={role === 'solicitante' ? '/tickets' : '/kanban'} replace />
   }
 
   const hasErrors = Object.keys(errors).length > 0
@@ -49,7 +51,8 @@ export function Login() {
     login.mutate(values, {
       onSuccess: () => {
         const state = location.state as LocationState | null
-        navigate(state?.from ?? '/kanban', { replace: true })
+        const defaultPath = useAuthStore.getState().role === 'solicitante' ? '/tickets' : '/kanban'
+        navigate(state?.from ?? defaultPath, { replace: true })
       },
     })
   })

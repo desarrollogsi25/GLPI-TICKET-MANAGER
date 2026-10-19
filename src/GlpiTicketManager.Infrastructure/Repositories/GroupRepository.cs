@@ -29,4 +29,21 @@ public sealed class GroupRepository : IGroupRepository
 
         return result.ToList();
     }
+
+    public async Task<IReadOnlyList<GroupDto>> GetByUserAsync(int userId, CancellationToken ct = default)
+    {
+        using var conn = _factory.CreateConnection();
+        if (conn is MySqlConnection mysqlConn)
+            await mysqlConn.OpenAsync(ct);
+        else
+            conn.Open();
+
+        var result = await conn.QueryAsync<GroupDto>(
+            new CommandDefinition(
+                GroupQueries.GetByUser,
+                new { UserId = userId },
+                cancellationToken: ct));
+
+        return result.ToList();
+    }
 }

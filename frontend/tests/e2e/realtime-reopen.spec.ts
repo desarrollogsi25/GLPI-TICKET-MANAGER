@@ -39,7 +39,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   // 3. Verificar status = 5 (Solved)
   await expect(page.getByText('Ticket resuelto')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('textarea')).toHaveCount(0, { timeout: 15000 })
-  await expect(page.getByText('Solved').first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/Resuelto|Solved/).first()).toBeVisible({ timeout: 10000 })
 
   // 4. Click en "Reabrir" con motivo
   const reopenButton = page.getByRole('button', { name: /^Reabrir$/ }).first()
@@ -55,10 +55,10 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await expect(confirmReopen).toBeEnabled()
   await confirmReopen.click()
 
-  // 5. Verificar status vuelve a 2 (Assigned)
+  // 5. Verificar status vuelve a 2 (Assigned / Asignado)
   await expect(page.getByText(/Ticket reabierto/i).first()).toBeVisible({ timeout: 15000 })
   await expect(page.locator('textarea')).toHaveCount(0, { timeout: 15000 })
-  await expect(page.getByText('Assigned').first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/Asignado|Assigned/).first()).toBeVisible({ timeout: 10000 })
 
   // 6. Verificar que el motivo aparece como followup privado
   await expect(page.getByText(reopenReason).first()).toBeVisible({ timeout: 10000 })
@@ -77,7 +77,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await confirmResolve2.click()
 
   await expect(page.getByText('Ticket resuelto')).toBeVisible({ timeout: 15000 })
-  await expect(page.getByText('Solved').first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/Resuelto|Solved/).first()).toBeVisible({ timeout: 10000 })
 
   expect(consoleErrors).toEqual([])
 })

@@ -7,5 +7,6 @@ export function useRole() {
     isAdmin: role === 'admin',
     isSupervisor: role === 'supervisor',
     isTechnician: role === 'technician',
+    isSolicitante: role === 'solicitante',
   }
 }

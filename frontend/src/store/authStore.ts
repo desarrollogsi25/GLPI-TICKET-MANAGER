@@ -10,7 +10,7 @@ function decodeRoleFromToken(token: string): AppRole {
       const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
       const payload = JSON.parse(atob(base64))
       const r = (payload.role || payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'])?.toLowerCase()
-      if (r === 'admin' || r === 'supervisor' || r === 'technician') {
+      if (r === 'admin' || r === 'supervisor' || r === 'technician' || r === 'solicitante') {
         return r
       }
     }

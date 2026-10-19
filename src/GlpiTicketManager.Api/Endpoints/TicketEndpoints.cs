@@ -154,7 +154,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
-                title: "Forbidden",
+                title: "Acceso denegado",
                 detail: ex.Message);
         }
     }
@@ -182,7 +182,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
-                title: "Forbidden",
+                title: "Acceso denegado",
                 detail: ex.Message);
         }
     }
@@ -211,7 +211,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
-                title: "Forbidden",
+                title: "Acceso denegado",
                 detail: ex.Message);
         }
     }
@@ -242,7 +242,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
-                title: "Forbidden",
+                title: "Acceso denegado",
                 detail: ex.Message);
         }
     }
@@ -276,7 +276,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
-                title: "Forbidden",
+                title: "Acceso denegado",
                 detail: ex.Message);
         }
         catch (NotFoundException ex)

@@ -78,6 +78,17 @@ public sealed class UserRoleRepository : IUserRoleResolver
             {
                 return AppRole.Technician;
             }
+
+            if (roles.Contains("solicitante", StringComparer.OrdinalIgnoreCase) ||
+                roles.Contains("requester", StringComparer.OrdinalIgnoreCase))
+            {
+                return AppRole.Solicitante;
+            }
+        }
+
+        if (profileIds.Contains(1))
+        {
+            return AppRole.Solicitante;
         }
 
         return AppRole.Technician;

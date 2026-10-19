@@ -48,11 +48,10 @@ function runInGlpi(command) {
 }
 
 function runSql(sql) {
-  const escapedSql = sql.replace(/"/g, '\\"');
   try {
     return execSync(
-      `docker exec glpi-db mariadb -u ${mariadbUser} -p${mariadbPassword} ${mariadbDatabase} -e "${escapedSql}"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" ${mariadbDatabase}`,
+      { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
   } catch (err) {
     const msg = err.stderr || err.message;

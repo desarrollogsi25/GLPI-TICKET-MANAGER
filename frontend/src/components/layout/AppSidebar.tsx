@@ -204,7 +204,7 @@ export function AppSidebar({ connectionState = 'disconnected' }: AppSidebarProps
   const username = profile?.username ? `@${profile.username}` : ''
   const initial = displayName.charAt(0).toUpperCase()
 
-  const { isAdmin } = useRole()
+  const { isAdmin, isSolicitante } = useRole()
   const queryClient = useQueryClient()
   const groupsQuery = useGroupsQuery()
   const currentGroupId =
@@ -216,7 +216,9 @@ export function AppSidebar({ connectionState = 'disconnected' }: AppSidebarProps
 
   const renderNavList = (items: NavItemConfig[]) => (
     <ul className="flex flex-col gap-1">
-      {items.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+      {items
+        .filter((item) => (!item.adminOnly || isAdmin) && (!isSolicitante || item.id === 'tickets' || item.id === 'preferences' || item.id === 'ayuda'))
+        .map((item) => (
         <li key={item.id}>
           <NavLink
             to={item.to}

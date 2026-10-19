@@ -697,6 +697,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                         return _groups.ToList();
                     }
                 });
+            groupRepoMock.Setup(g => g.GetByUserAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int userId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _groups.ToList();
+                    }
+                });
 
             var channelRepoMock = new Mock<IChannelRepository>();
             channelRepoMock.Setup(c => c.GetAllActiveAsync(It.IsAny<CancellationToken>()))

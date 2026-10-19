@@ -52,8 +52,8 @@ public static class AuthEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status401Unauthorized,
-                title: "Invalid credentials",
-                detail: "The username or password is incorrect.");
+                title: "Credenciales incorrectas",
+                detail: "Credenciales incorrectas");
         }
 
         var (token, expiresAt) = tokenService.CreateToken(user);

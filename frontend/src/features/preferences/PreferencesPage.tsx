@@ -31,22 +31,29 @@ export function PreferencesPage() {
     : null
   const hasErrors = Boolean(themeError || densityError)
 
-  // Cargar preferencias iniciales sincronizadas con backend
+  // Cargar preferencias iniciales sincronizadas con backend (priorizando localStorage)
   useEffect(() => {
     if (data?.prefs) {
       try {
         const parsed = JSON.parse(data.prefs)
-        if (parsed.theme === 'dark' || parsed.theme === 'light') {
-          setTheme(parsed.theme)
-          localStorage.setItem('theme', parsed.theme)
-          if (parsed.theme === 'dark') {
-            document.documentElement.classList.add('dark')
-            document.documentElement.setAttribute('data-theme', 'dark')
-          } else {
-            document.documentElement.classList.remove('dark')
-            document.documentElement.setAttribute('data-theme', 'light')
-          }
+        const localTheme = localStorage.getItem('theme')
+        const effectiveTheme =
+          localTheme === 'dark' || localTheme === 'light'
+            ? (localTheme as 'light' | 'dark')
+            : parsed.theme === 'dark' || parsed.theme === 'light'
+              ? (parsed.theme as 'light' | 'dark')
+              : 'light'
+
+        setTheme(effectiveTheme)
+        localStorage.setItem('theme', effectiveTheme)
+        if (effectiveTheme === 'dark') {
+          document.documentElement.classList.add('dark')
+          document.documentElement.setAttribute('data-theme', 'dark')
+        } else {
+          document.documentElement.classList.remove('dark')
+          document.documentElement.setAttribute('data-theme', 'light')
         }
+
         if (parsed.density === 'compact' || parsed.density === 'comfortable') {
           setDensity(parsed.density)
         }

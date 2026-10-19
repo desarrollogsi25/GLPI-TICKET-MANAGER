@@ -31,50 +31,50 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         {
             case Application.Exceptions.ValidationException validation:
                 statusCode = StatusCodes.Status400BadRequest;
-                title = "Validation failed";
+                title = "Error de validación";
                 errors = validation.Errors;
                 break;
 
             case Application.Exceptions.ForbiddenException:
             case UnauthorizedAccessException:
                 statusCode = StatusCodes.Status403Forbidden;
-                title = "Forbidden";
+                title = "Acceso denegado";
                 detail = exception.Message;
                 break;
 
             case Application.Exceptions.UnprocessableEntityException:
                 statusCode = StatusCodes.Status422UnprocessableEntity;
-                title = "Solution required";
+                title = "Solución requerida";
                 detail = exception.Message;
                 break;
 
             case Application.Exceptions.ConflictException:
                 statusCode = StatusCodes.Status409Conflict;
-                title = "Conflict";
+                title = "Conflicto";
                 detail = exception.Message;
                 break;
 
             case Application.Exceptions.NotFoundException:
                 statusCode = StatusCodes.Status404NotFound;
-                title = "Not found";
+                title = "No encontrado";
                 detail = exception.Message;
                 break;
 
             case GlpiApiException glpi when glpi.StatusCode == StatusCodes.Status404NotFound:
                 statusCode = StatusCodes.Status404NotFound;
-                title = "Resource not found in GLPI";
+                title = "Recurso no encontrado en GLPI";
                 detail = glpi.Message;
                 break;
 
             case GlpiApiException glpi:
                 statusCode = StatusCodes.Status502BadGateway;
-                title = "GLPI API error";
+                title = "Error en el API de GLPI";
                 detail = glpi.Message;
                 break;
 
             default:
                 statusCode = StatusCodes.Status500InternalServerError;
-                title = "Unexpected error";
+                title = "Error inesperado";
                 break;
         }
 
