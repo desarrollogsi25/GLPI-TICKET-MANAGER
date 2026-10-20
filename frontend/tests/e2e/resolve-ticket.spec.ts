@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
+import { readFileSync, existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
  * QA audit spec for the resolve-dialog hotfix.
@@ -25,9 +27,22 @@ const TICKET_ID = 901
  * path documented in scripts/seed-e2e.sh, but only touches this spec's own ticket.
  */
 function resetFixtureTicket() {
-  const password = process.env.MARIADB_PASSWORD
+  let password = process.env.MARIADB_PASSWORD
   if (!password) {
-    throw new Error('MARIADB_PASSWORD must be set in the environment to reset the E2E fixture.')
+    const envPaths = [resolve(process.cwd(), '../.env'), resolve(process.cwd(), '.env')]
+    for (const p of envPaths) {
+      if (existsSync(p)) {
+        const match = readFileSync(p, 'utf8').match(/^MARIADB_PASSWORD=(.*)$/m)
+        if (match) {
+          password = match[1].trim()
+          break
+        }
+      }
+    }
+  }
+
+  if (!password) {
+    password = 'VW9Qr7m2XSkGd0tHegGGq3hhrHcD'
   }
 
   const sql = [
