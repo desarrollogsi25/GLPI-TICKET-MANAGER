@@ -42,51 +42,61 @@ export function ResolveTicketDialog({
     onOpenChange(false)
   }
 
-  const submit = () => {
+  /**
+   * Resolve sequence, in strictly this order:
+   *   1. `POST /tickets/{id}/solutions` — must succeed (201) first.
+   *   2. Only then `PATCH /tickets/{id}/status` to 5 (Resuelto).
+   *
+   * If the solution is not saved we MUST NOT attempt the status change: the API
+   * rejects resolving a ticket without a solution (422) and GLPI refuses the
+   * solution outright when the ticket data is incomplete. Failing fast on step 1
+   * keeps the two errors from surfacing together and shows a single clear toast.
+   */
+  const submit = async () => {
     if (disabled) {
       setTouched(true)
       return
     }
-    createSolution.mutate(
-      { ticketId, content: trimmed },
-      {
-        onSuccess: () => {
-          updateStatus.mutate(
-            { ticketId, status: 5 },
-            {
-              onSuccess: () => {
-                closeDialog()
-                void queryClient.invalidateQueries({ queryKey: ['tickets'] })
-                void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                try {
-                  pushToast({
-                    title: 'Ticket resuelto correctamente',
-                    description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
-                    variant: 'success',
-                  })
-                } catch {
-                  // toast fail-safe
-                }
-              },
-              onError: (err) => {
-                pushToast({
-                  title: getApiErrorTitle(err, 'No se pudo resolver el ticket'),
-                  description: getApiErrorMessage(err),
-                  variant: 'destructive',
-                })
-              },
-            },
-          )
-        },
-        onError: (err) => {
-          pushToast({
-            title: getApiErrorTitle(err, 'No se pudo guardar la solución'),
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          })
-        },
-      },
-    )
+
+    // Step 1: save the solution. Abort the whole flow if this fails.
+    try {
+      await createSolution.mutateAsync({ ticketId, content: trimmed })
+    } catch (err) {
+      pushToast({
+        title: getApiErrorTitle(err, 'No se pudo guardar la solución'),
+        description: getApiErrorMessage(err),
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Step 2: only reached when the solution was saved (HTTP 201).
+    try {
+      await updateStatus.mutateAsync({ ticketId, status: 5 })
+    } catch (err) {
+      // The solution exists but the ticket stayed open; refresh so the user sees it.
+      void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      pushToast({
+        title: getApiErrorTitle(err, 'No se pudo resolver el ticket'),
+        description: getApiErrorMessage(err),
+        variant: 'destructive',
+      })
+      return
+    }
+
+    closeDialog()
+    void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    try {
+      pushToast({
+        title: 'Ticket resuelto correctamente',
+        description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
+        variant: 'success',
+      })
+    } catch {
+      // toast fail-safe
+    }
   }
 
   return (
@@ -126,7 +136,7 @@ export function ResolveTicketDialog({
         >
           Cancelar
         </Button>
-        <Button onClick={submit} disabled={disabled}>
+        <Button onClick={() => void submit()} disabled={disabled}>
           {pending ? 'Guardando...' : 'Resolver'}
         </Button>
       </div>
