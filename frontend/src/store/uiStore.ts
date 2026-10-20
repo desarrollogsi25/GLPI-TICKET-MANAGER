@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { v4 as uuidv4 } from 'uuid'
 
 export interface TicketTask {
   id: string
@@ -35,7 +36,8 @@ export const useUiStore = create<UiState>()(
             ...state.tasks,
             [ticketId]: [
               ...(state.tasks[ticketId] ?? []),
-              { id: crypto.randomUUID(), label, done: false },
+              // uuid works in insecure contexts (LAN http by IP) where crypto.randomUUID is undefined.
+              { id: uuidv4(), label, done: false },
             ],
           },
         })),
