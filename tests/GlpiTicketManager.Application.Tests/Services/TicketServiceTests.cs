@@ -45,7 +45,8 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusSolvedAndNoSolution_Throws422()
     {
-        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
@@ -56,23 +57,40 @@ public class TicketServiceTests
     }
 
     [Fact]
-    public async Task UpdateStatusAsync_WhenStatusSolvedAndHasSolution_Succeeds()
+    public async Task UpdateStatusAsync_WhenTransitionDenied_Throws403WithReason()
     {
-        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Deny("Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado."));
+
+        var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Assigned, 7, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.");
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_WhenStatusSolvedAndHasSolution_SucceedsAndAutoCloses()
+    {
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _glpi.Setup(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _glpi.Setup(g => g.UpdateTicketStatusAsync(10, It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var result = await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
 
         result.Should().BeTrue();
+        // Resolve (5) then auto-close (6) in the same operation.
         _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Closed, It.IsAny<CancellationToken>()), Times.Once);
         _audit.Verify(a => a.LogAsync(7, "resolve", 10, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusNotSolved_DoesNotCheckSolution()
     {
-        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 5, It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 5, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
         _glpi.Setup(g => g.UpdateTicketStatusAsync(5, 2, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var result = await _svc.UpdateStatusAsync(5, 2, 7, CancellationToken.None);
@@ -80,6 +98,8 @@ public class TicketServiceTests
         result.Should().BeTrue();
         _repo.Verify(r => r.SolutionExistsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         _glpi.Verify(g => g.UpdateTicketStatusAsync(5, 2, It.IsAny<CancellationToken>()), Times.Once);
+        // Non-resolve transitions never auto-close.
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(5, (int)TicketStatus.Closed, It.IsAny<CancellationToken>()), Times.Never);
         _audit.Verify(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

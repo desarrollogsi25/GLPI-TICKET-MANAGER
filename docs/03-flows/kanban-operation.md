@@ -27,7 +27,22 @@ Describe la interacción operativa del técnico y supervisor con el tablero Kanb
   - En progreso: Botón `[Resolver]` (abre modal de solución mandatoria).
   - Pendiente: Botón `[Retomar]`.
 
-## 4. Sincronización en Tiempo Real
+## 4. Orden de las Tarjetas
+
+- **Columnas activas** (`Cola del grupo`, `Mis tickets`, `En progreso`, `Pendiente`): orden **FIFO** (ascendente) por fecha de última actualización (o de creación si no hubiera actualización). El ticket más antiguo se muestra arriba.
+- **Columna `Resuelto`** (agrupa los estados Resuelto 5 y Cerrado 6): orden **LIFO** (descendente), el cambio más reciente arriba.
+- **La prioridad no participa en el ordenamiento.** Se conserva únicamente como indicador visual (color de la insignia). Los tickets con prioridad alta y baja se intercalan según su fecha.
+
+## 5. Reglas de Transición de Estado
+
+- El técnico asignado no puede devolver un ticket `Asignado` (2) o `En progreso` (3) al estado `Nuevo` (1).
+- `Pendiente` (4) puede avanzar a `En progreso` (2) o resolverse directamente (5).
+- Resolver un ticket requiere una solución escrita (ADR-006).
+- **Cierre automático:** al resolver un ticket (técnico o administrador), el ticket pasa inmediatamente a `Cerrado` (6) en la misma operación.
+- `Resuelto` (5) y `Cerrado` (6) son estados terminales para el técnico: **solo un administrador** puede cambiarlos o reabrirlos. Al intentarlo, el backend responde 403 con el mensaje `Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.`, que la interfaz muestra en un *toast* de error.
+- El cierre manual (`Cerrado` 6) sin resolver también queda restringido a administradores.
+
+## 6. Sincronización en Tiempo Real
 
 - Conexión persistente mediante SignalR (`/hubs/tickets`).
 - Al registrarse un cambio por otro técnico (`TicketClaimed` o `TicketStatusChanged`):

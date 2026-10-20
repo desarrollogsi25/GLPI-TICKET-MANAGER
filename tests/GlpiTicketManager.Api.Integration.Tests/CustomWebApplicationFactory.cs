@@ -397,7 +397,41 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             // Mock IGlpiApiClient
             var glpiMock = new Mock<IGlpiApiClient>();
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .Returns(Task.CompletedTask);
+                .Returns((int ticketId, int status, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = ticket.Id,
+                                Name = ticket.Name,
+                                Content = ticket.Content,
+                                Status = status,
+                                Type = ticket.Type,
+                                Priority = ticket.Priority,
+                                Urgency = ticket.Urgency,
+                                Impact = ticket.Impact,
+                                CategoryId = ticket.CategoryId,
+                                CreatedAt = ticket.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow,
+                                SolvedAt = status == (int)TicketStatus.Solved || status == (int)TicketStatus.Closed
+                                    ? ticket.SolvedAt ?? DateTime.UtcNow
+                                    : ticket.SolvedAt,
+                                ClosedAt = status == (int)TicketStatus.Closed
+                                    ? ticket.ClosedAt ?? DateTime.UtcNow
+                                    : ticket.ClosedAt,
+                                IsDeleted = ticket.IsDeleted,
+                                HasSolution = ticket.HasSolution,
+                                RequesterIds = ticket.RequesterIds,
+                                AssigneeIds = ticket.AssigneeIds,
+                                Followups = ticket.Followups
+                            };
+                        }
+                    }
+                    return Task.CompletedTask;
+                });
             glpiMock.Setup(g => g.ReopenTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, CancellationToken _) =>
                 {

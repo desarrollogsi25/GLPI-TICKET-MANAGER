@@ -4,10 +4,29 @@ using Microsoft.Extensions.Logging;
 
 namespace GlpiTicketManager.Application.Authorization;
 
+/// <summary>
+/// Outcome of evaluating a status transition. <see cref="Allowed"/> is false when the
+/// caller cannot perform the change; <see cref="Reason"/> then carries an operator-facing
+/// message (in Spanish) that the API surfaces to the UI.
+/// </summary>
+public readonly record struct StatusTransitionDecision(bool Allowed, string? Reason)
+{
+    public static StatusTransitionDecision Allow() => new(true, null);
+
+    public static StatusTransitionDecision Deny(string reason) => new(false, reason);
+}
+
 public interface ITicketAccessPolicy
 {
     Task<bool> CanViewAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, int newStatus, CancellationToken ct = default);
+
+    /// <summary>
+    /// Evaluates a status transition for the given role and returns a decision with a
+    /// clear reason when the transition is rejected (business rules: technicians cannot
+    /// reopen resolved/closed tickets nor move work backwards to New).
+    /// </summary>
+    Task<StatusTransitionDecision> EvaluateStatusTransitionAsync(int userId, AppRole role, int ticketId, int newStatus, CancellationToken ct = default);
     Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanClaimAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanAddSolutionAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
@@ -69,28 +88,95 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
     public async Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, int newStatus, CancellationToken ct = default)
     {
-        if (role == AppRole.Admin) return true;
+        var decision = await EvaluateStatusTransitionAsync(userId, role, ticketId, newStatus, ct);
+        return decision.Allowed;
+    }
+
+    /// <summary>
+    /// Business rules for status transitions enforced on the server:
+    /// <list type="bullet">
+    /// <item>Technicians cannot leave Resolved (5) or Closed (6): only an admin reopens.</item>
+    /// <item>Technicians cannot move work backwards: In-Progress (2/3) cannot go to New (1).</item>
+    /// <item>Technicians can move Waiting (4) forward to In-Progress (3) or Resolved (5).</item>
+    /// </list>
+    /// Admins and supervisors bypass the transition graph (supervisors already scoped to
+    /// their groups by the underlying assignment checks).
+    /// </summary>
+    public async Task<StatusTransitionDecision> EvaluateStatusTransitionAsync(
+        int userId,
+        AppRole role,
+        int ticketId,
+        int newStatus,
+        CancellationToken ct = default)
+    {
+        if (role == AppRole.Admin) return StatusTransitionDecision.Allow();
 
         if (role == AppRole.Supervisor)
         {
             var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
-            return userGroups.Intersect(ticketGroups).Any();
+            return userGroups.Intersect(ticketGroups).Any()
+                ? StatusTransitionDecision.Allow()
+                : StatusTransitionDecision.Deny("No tienes acceso a este ticket.");
         }
 
-        if (role == AppRole.Technician)
+        if (role != AppRole.Technician)
         {
-            // El cierre definitivo (6) queda restringido al Admin o Supervisor
-            if (newStatus == 6)
+            return StatusTransitionDecision.Deny("No tienes permisos para cambiar el estado de este ticket.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, ct);
+        if (ticket is null)
+        {
+            return StatusTransitionDecision.Deny($"El ticket {ticketId} no existe.");
+        }
+
+        var currentStatus = ticket.Status;
+
+        // A transition to the same status is an idempotent no-op and is always allowed
+        // for the assignee. This matters in practice because GLPI marks a ticket as
+        // Solved (5) as a side effect of adding a solution, so the resolve endpoint then
+        // receives a 2->5 that is really a 5->5 confirmation.
+        if (newStatus == currentStatus)
+        {
+            if (role == AppRole.Technician
+                && !await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
             {
-                return false;
+                return StatusTransitionDecision.Deny("Solo el técnico asignado puede cambiar el estado de este ticket.");
             }
 
-            // El técnico asignado al ticket tiene permiso para cambiar el estado a "En Progreso" (2), "Pendiente" (4) y "Resuelto" (5)
-            return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+            return StatusTransitionDecision.Allow();
         }
 
-        return false;
+        // 1. Resolved (5) / Closed (6) are terminal for technicians: only an admin reopens.
+        if (currentStatus == (int)TicketStatus.Solved || currentStatus == (int)TicketStatus.Closed)
+        {
+            return StatusTransitionDecision.Deny(
+                "Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.");
+        }
+
+        // 2. Technicians cannot rewind progress back to New (1).
+        if (newStatus == (int)TicketStatus.New &&
+            (currentStatus == (int)TicketStatus.Assigned || currentStatus == (int)TicketStatus.Planned))
+        {
+            return StatusTransitionDecision.Deny(
+                "No puedes devolver un ticket asignado o en progreso al estado Nuevo.");
+        }
+
+        // 3. Explicit close (6) stays admin-only; resolving (5) is allowed for the assignee.
+        if (newStatus == (int)TicketStatus.Closed)
+        {
+            return StatusTransitionDecision.Deny(
+                "Solo un administrador puede cerrar un ticket manualmente.");
+        }
+
+        // A technician may only act on tickets assigned to them.
+        if (!await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+        {
+            return StatusTransitionDecision.Deny("Solo el técnico asignado puede cambiar el estado de este ticket.");
+        }
+
+        return StatusTransitionDecision.Allow();
     }
 
     public Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default) =>
@@ -150,6 +236,14 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
     public async Task<bool> CanReopenAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
     {
         if (role == AppRole.Admin) return true;
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, ct);
+
+        // Closed tickets (status 6) are terminal for non-admins: only an admin reopens them.
+        if (ticket is not null && ticket.Status == (int)TicketStatus.Closed)
+        {
+            return false;
+        }
 
         if (role == AppRole.Supervisor)
         {

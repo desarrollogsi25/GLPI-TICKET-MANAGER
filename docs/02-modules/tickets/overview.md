@@ -237,19 +237,27 @@ El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 co
 2. **Mis tickets**: Tickets asignados al resolutor en estado Nuevo o Asignado (`status = 1, 2`) listos para comenzar.
 3. **En progreso**: Incidencias bajo diagnóstico o resolución activa (`status = 3`).
 4. **Pendiente**: Tickets con atención pausada por espera externa (`status = 4`).
-5. **Resuelto**: Tickets solucionados con solución documentada obligatoria (`status = 5`, según ADR-006).
+5. **Resuelto**: Tickets solucionados o cerrados (`status = 5` y `status = 6`, según ADR-006). La resolución exige una solución documentada; al resolver, el ticket se cierra automáticamente (véase [Reglas de estado](#reglas-de-estado-y-cierre-automático)).
 
 ### Consultas y partición
 - **Cola del grupo**: Se obtiene mediante `useGroupQueueQuery(currentGroupId)`.
-- **Columnas personales**: Se obtienen con `useTicketsQuery(currentUserId)` y se particionan en memoria en el cliente según su `status`. Los tickets cerrados (`status = 6`) se omiten del tablero.
+- **Columnas personales**: Se obtienen con `useTicketsQuery(currentUserId)` y se particionan en memoria en el cliente según su `status`. La columna **Resuelto** agrupa los estados Resuelto (5) y Cerrado (6).
+
+### Orden de las tarjetas
+- **Columnas activas** (Cola del grupo, Mis tickets, En progreso, Pendiente): orden **FIFO** (ascendente) por fecha de última actualización (o de creación si no hubiera actualización). La tarjeta más antigua aparece arriba.
+- **Columna Resuelto**: orden **LIFO** (descendente); el cambio más reciente aparece arriba.
+- El ordenamiento se aplica de forma determinista en el cliente mediante `sortTicketsForColumn` (`frontend/src/features/tickets/Kanban.tsx`), usando `updatedAt ?? createdAt` con `id` como desempate.
+- **La prioridad no interviene en el orden**; sólo se muestra como color de insignia. Tanto el backend (ORDER BY en `TicketQueries`/`TicketRepository`) como el cliente respetan esta política.
 
 ### Transiciones permitidas (Drag & Drop)
 - `queue → mine`: Dispara autoasignación (`POST /api/tickets/{id}/claim`).
 - `mine → in_progress`: Cambia el estado a planificado (`PATCH /api/tickets/{id}/status { status: 3 }`).
 - `in_progress → pending`: Pausa la incidencia (`PATCH /api/tickets/{id}/status { status: 4 }`).
 - `pending → in_progress`: Reanuda la incidencia (`PATCH /api/tickets/{id}/status { status: 3 }`).
-- `in_progress → resolved`: Abre el modal `ResolveTicketDialog` para ingreso mandatorio de solución escrita (`POST /api/tickets/{id}/solutions` y posterior cambio a `status = 5`).
-- Las transiciones no permitidas se revierten silenciosamente sin alterar el estado.
+- `in_progress → resolved`: Abre el modal `ResolveTicketDialog` para ingreso mandatorio de solución escrita (`POST /api/tickets/{id}/solutions` y posterior cambio a `status = 5`). El ticket se cierra automáticamente (`status = 6`).
+- `pending → resolved`: Permite resolver directamente desde Pendiente reutilizando el mismo modal de solución.
+- **No se permite** `mine → queue` (devolver un ticket asignado a Nuevo) ni mover fuera de Resuelto/Cerrado.
+- Las transiciones no permitidas se rechazan en el backend con `403` y un mensaje claro; la interfaz lo muestra en un *toast* de error en lugar de revertir en silencio.
 
 Para consultar el diagrama visual completo, consultar el [Flujograma 5: Kanban del Técnico](../../09-visual-docs/flows/kanban-flow.html).
 
@@ -318,6 +326,17 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
 - **Exclusión de tickets eliminados lógicamente (H-25)**: Las consultas de la cola de grupo (`TicketQueries.UnassignedByGroup` y su conteo en `TicketRepository.GetUnassignedByGroupAsync`), así como la condición de asignación (`ClaimConditionalUpdate`), filtran explícitamente `is_deleted = 0` para garantizar que tickets eliminados en GLPI no aparezcan en la bandeja de entrada ni puedan ser reclamados.
 
+## Reglas de estado y cierre automático
+
+La máquina de estados se aplica en `TicketAccessPolicy.EvaluateStatusTransitionAsync` y `TicketService.UpdateStatusAsync`:
+
+- **Sin retroceso a Nuevo**: un técnico no puede mover un ticket `Asignado` (2) o `En progreso` (3) al estado `Nuevo` (1). El intento recibe `403` con `No puedes devolver un ticket asignado o en progreso al estado Nuevo.`
+- **Cierre automático al resolver**: al registrar una resolución (por técnico o administrador), el ticket pasa inmediatamente a `Cerrado` (6) en la misma operación. Si el cierre automático falla en GLPI, se registra una advertencia y no se revierte la resolución.
+- **Solo el técnico asignado** puede cambiar el estado de un ticket: en caso contrario, `403` con `Solo el técnico asignado puede cambiar el estado de este ticket.`
+- **Cierre manual restringido**: enviar `status = 6` sin resolver queda reservado a administradores (`403` para técnicos).
+- **Transiciones idempotentes**: confirmar el estado ya vigente (p. ej. `5 → 5`) se permite. Es necesario porque GLPI marca el ticket como `Resuelto` al crear la solución, de modo que la confirmación posterior debe ser aceptada para poder aplicar el cierre automático.
+- **Mapeo de errores en la API**: `TicketEndpoints` traduce las reglas a códigos HTTP explícitos — `403` (prohibido), `404` (no encontrado), `409` (conflicto), `422` (sin solución) y `400` (validación), evitando respuestas `500`. El frontend muestra el `detail` recibido en un *toast* rojo de error.
+
 ## Notificaciones en tiempo real (SignalR)
 
 Las operaciones de mutación sobre tickets (`ClaimAsync`, `UpdateStatusAsync`, `SolutionInsertAsync`, `ReopenAsync`) emiten eventos en tiempo real a través del hub `/hubs/tickets` (`ITicketNotificationService`) para notificar a clientes conectados sin depender del ciclo de auto-refresco. Véase [Módulo de Tiempo Real](../realtime/overview.md) y [ADR-018](../../01-architecture/decisions/ADR-018-signalr-realtime.md).
@@ -327,7 +346,10 @@ Las operaciones de mutación sobre tickets (`ClaimAsync`, `UpdateStatusAsync`, `
 La reapertura de tickets cerrados o resueltos permite reactivar el flujo de trabajo sobre el mismo ticket sin fragmentar el historial:
 
 - **Endpoint**: `POST /api/tickets/{id}/reopen`
-- **Autorización**: Solo permitida para usuarios con rol `Admin`, `Supervisor` del grupo del ticket, o el `Technician` asignado al ticket (`TicketAccessPolicy.CanReopenAsync`).
+- **Autorización** (`TicketAccessPolicy.CanReopenAsync`):
+  - `Admin`: puede reabrir tanto `Resuelto` (5) como `Cerrado` (6).
+  - `Technician` asignado: puede reabrir un ticket `Resuelto` (5).
+  - **Un ticket `Cerrado` (6) es terminal para no-administradores**: cualquier otro rol recibe `403 Forbidden` con el mensaje `Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.`
 - **Estados de origen y destino permitidos**:
   - Estado de origen: Exclusivamente `status = 5` (Solved) o `status = 6` (Closed). Si el ticket ya se encuentra abierto (`status ∈ {1, 2, 3, 4}`), devuelve `409 Conflict` ("Ticket ya está abierto").
   - Estado destino: `status = 2` (Assigned).

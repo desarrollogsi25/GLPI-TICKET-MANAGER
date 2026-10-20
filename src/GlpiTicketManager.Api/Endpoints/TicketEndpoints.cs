@@ -248,6 +248,20 @@ public static class TicketEndpoints
                 title: "Acceso denegado",
                 detail: ex.Message);
         }
+        catch (UnprocessableEntityException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "Operación no válida",
+                detail: ex.Message);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Solicitud inválida",
+                detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> Claim(
@@ -337,13 +351,37 @@ public static class TicketEndpoints
 
         var role = principal.GetRole();
 
-        var ticket = await ticketService.ReopenAsync(
-            id,
-            userId.Value,
-            role,
-            request?.Reason,
-            cancellationToken);
+        try
+        {
+            var ticket = await ticketService.ReopenAsync(
+                id,
+                userId.Value,
+                role,
+                request?.Reason,
+                cancellationToken);
 
-        return Results.Ok(ticket);
+            return Results.Ok(ticket);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado",
+                detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado",
+                detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflicto",
+                detail: ex.Message);
+        }
     }
 }

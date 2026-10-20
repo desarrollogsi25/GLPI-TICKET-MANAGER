@@ -44,7 +44,7 @@ public static class TicketQueries
         WHERE tu.users_id = @AssigneeId
           AND tu.type = 2
           AND t.is_deleted = 0
-        ORDER BY t.status ASC, t.priority DESC, t.date DESC
+        ORDER BY t.date ASC
         LIMIT @Limit OFFSET @Offset;
         """;
 
