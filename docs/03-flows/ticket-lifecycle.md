@@ -22,19 +22,23 @@ Este documento define la máquina de estados y el ciclo de vida completo de las 
 
 ```
  [ 1. Nuevo (Cola) ] ──(Autoasignación / Claim)──> [ 2. Mis Tickets (Asignado) ]
-                                                            │
-                                                     (Iniciar trabajo)
-                                                            ▼
+                                                             │
+                                                      (Iniciar trabajo)
+                                                             ▼
  [ 4. Pendiente (Espera) ] <──(Pausar/Reanudar)──> [ 3. En progreso ]
-                                                            │
-                                                  (Registrar Solución)
-                                                            ▼
- [ 2. Asignado ] <──(Reapertura POST /reopen)─── [ 5. Resuelto ]
-                                                            │
-                                                   (Cierre administrativo)
-                                                            ▼
-                                                     [ 6. Cerrado ]
+                                                             │
+                                                   (Registrar Solución)
+                                                             ▼
+                                                       [ 5. Resuelto ]
+                                                             │
+                                          (Cierre AUTOMÁTICO al resolver)
+                                                             ▼
+                                                       [ 6. Cerrado ]
+
+ (Reapertura 5/6 → 2: SOLO Administrador)
 ```
+
+La máquina de estados es **monótona hacia adelante** para el técnico: `Nuevo → Asignado → En progreso ↔ Pendiente → Resuelto → Cerrado`. No existe retroceso hacia `Nuevo` una vez asignado.
 
 ## 4. Reglas de Transición y Guards
 
@@ -45,7 +49,16 @@ Este documento define la máquina de estados y el ciclo de vida completo de las 
    - Técnico cambia el estado a `Planned` (3) mediante `PATCH /api/tickets/{id}/status`.
 3. **Pausa y Reanudación (3 ↔ 4)**:
    - Transiciones bidireccionales entre `Planned` (3) y `Waiting` (4).
-4. **Resolución (3 → 5)**:
-   - Guard estricto: exige la existencia de una solución escrita con al menos 10 caracteres significativos en `glpi_itilsolutions` (H-24).
-5. **Reapertura (5/6 → 2)**:
-   - Permite a Admin, Supervisor o Técnico asignado reactivar un ticket cerrado o resuelto conservando la trazabilidad (ADR-019).
+4. **Resolver (3/4 → 5)**:
+   - Exige la existencia de una solución escrita en `glpi_itilsolutions` (ADR-006). La ausencia de solución se rechaza con `422 Unprocessable Entity`.
+5. **Cierre automático (5 → 6)**:
+   - Al resolverse un ticket, el sistema lo pasa inmediatamente a `Cerrado` (6) en la misma operación, sin intervención manual. Un fallo del cierre automático se registra como advertencia y no revierte la resolución.
+6. **Sin retroceso a Nuevo (2/3 → 1)**:
+   - Un técnico no puede devolver un ticket `Asignado` (2) o `En progreso` (3) al estado `Nuevo` (1). El intento responde `403` con el mensaje `No puedes devolver un ticket asignado o en progreso al estado Nuevo.`
+7. **Cierre manual (→ 6)**: reservado a administradores (`403` para técnicos).
+8. **Estados terminales y Reapertura (5/6 → 2)**:
+   - `Resuelto` (5) y `Cerrado` (6) son **terminales para el técnico**.
+   - **Solo un administrador** puede cambiar el estado de un ticket resuelto o cerrado o reabrirlo (ADR-019). El intento del técnico responde `403` con `Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.`
+   - La reapertura conserva la trazabilidad registrando el motivo como seguimiento privado.
+9. **Transiciones idempotentes (5 → 5)**:
+   - Confirmar el estado ya vigente está permitido; esto cubre el efecto colateral de GLPI, que marca el ticket como `Resuelto` al crear la solución antes de que la aplicación confirme el cambio y aplique el cierre automático.
