@@ -133,9 +133,9 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Technician_CannotChangeStatusOfResolvedTicket_Returns403WithClearMessage()
+    public async Task Technician_CannotChangeStatusOfClosedTicket_Returns403WithClearMessage()
     {
-        ArrangeTicket((int)TicketStatus.Solved);
+        ArrangeTicket((int)TicketStatus.Closed, closedAt: DateTime.UtcNow.AddDays(-1));
         var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
 
         var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
@@ -143,6 +143,17 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
         problem!.Detail.Should().Contain("administrador");
+    }
+
+    [Fact]
+    public async Task Technician_CanMoveSolvedTicketBackToAssigned()
+    {
+        ArrangeTicket((int)TicketStatus.Solved);
+        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+
+        var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     [Fact]

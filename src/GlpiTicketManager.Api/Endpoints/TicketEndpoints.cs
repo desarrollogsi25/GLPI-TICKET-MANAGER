@@ -238,7 +238,7 @@ public static class TicketEndpoints
 
         try
         {
-            var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, role, cancellationToken);
+            var updated = await ticketService.UpdateStatusAsync(id, request.Status, userId.Value, role, request.Solution, cancellationToken);
             return updated ? Results.NoContent() : Results.NotFound();
         }
         catch (ForbiddenException ex)

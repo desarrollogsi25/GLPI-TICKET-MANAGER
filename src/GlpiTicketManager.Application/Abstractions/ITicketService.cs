@@ -63,6 +63,8 @@ public interface ITicketService
 
     Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, CancellationToken cancellationToken);
 
+    Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, string? solution, CancellationToken cancellationToken);
+
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,
         int limit,

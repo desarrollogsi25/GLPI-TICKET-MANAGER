@@ -47,7 +47,8 @@ public sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.UniqueName, user.Username),
             new(ClaimTypes.Name, user.Username),
             new(JwtClaimNames.DisplayName, user.DisplayName),
-            new("role", user.Role.ToClaimValue())
+            new("role", user.Role.ToClaimValue()),
+            new(ClaimTypes.Role, user.Role.ToClaimValue())
         };
 
         if (user.ProfileId is int profileId)
