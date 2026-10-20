@@ -516,22 +516,6 @@ public sealed class TicketService : ITicketService
             throw Invalid("userId", "userId must be a positive integer.");
         }
 
-        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
-        if (ticket is null)
-        {
-            throw new NotFoundException($"Ticket {ticketId} not found.");
-        }
-
-        if (ticket.Status == (int)TicketStatus.Closed)
-        {
-            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
-        }
-
-        if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
-        {
-            throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
-        }
-
         if (string.IsNullOrWhiteSpace(content))
         {
             throw new ValidationException("content", "Solution content cannot be empty.");
@@ -540,6 +524,22 @@ public sealed class TicketService : ITicketService
         if (content.Length > 2000)
         {
             throw new ValidationException("content", "Solution content exceeds maximum length.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
+        {
+            throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Closed)
+        {
+            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
         }
 
         var solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
