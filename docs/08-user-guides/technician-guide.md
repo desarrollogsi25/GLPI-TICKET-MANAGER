@@ -5,7 +5,7 @@
 
 ## 1. Introducción
 
-Esta guía describe el funcionamiento operativo diario para los técnicos de soporte que gestionan incidencias y solicitudes mediante la aplicación GLPI Ticket Manager.
+Esta guía describe el funcionamiento operativo diario para los técnicos de soporte en la **Consola de Service Desk** de GLPI Ticket Manager. El software es una Consola exclusiva para Técnicos y Administradores; los usuarios finales crean sus requerimientos directamente en la interfaz nativa de GLPI.
 
 ## 2. Acceso al Sistema
 

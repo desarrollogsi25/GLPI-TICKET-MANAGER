@@ -5,7 +5,7 @@
 
 ## 1. Propósito y Alcance
 
-Esta guía describe las responsabilidades operativas, permisos y flujos de trabajo habilitados para los usuarios con rol **Supervisor** (`supervisor`) en GLPI Ticket Manager.
+Esta guía describe las responsabilidades operativas, permisos y flujos de trabajo habilitados para los usuarios con rol **Supervisor** (`supervisor`) en la **Consola de Service Desk** de GLPI Ticket Manager. El software es una herramienta operativa para Técnicos y Supervisores; los usuarios finales crean sus requerimientos directamente en GLPI nativo.
 
 ## 2. Permisos y Matriz de Acceso (RBAC)
 

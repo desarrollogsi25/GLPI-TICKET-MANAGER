@@ -78,7 +78,7 @@ public static class TicketQueries
             SELECT 1 FROM glpi_tickets_users tu
             WHERE tu.tickets_id = t.id AND tu.type = 2
           )
-        ORDER BY t.status ASC, t.priority DESC, t.date DESC
+        ORDER BY t.date ASC
         LIMIT @Limit OFFSET @Offset;
         """;
 
@@ -137,11 +137,24 @@ public static class TicketQueries
         ORDER BY tu.tickets_id ASC, tu.type ASC;
         """;
 
-    /// <summary>Full detail: ticket + follow-ups + user links (one round-trip, three result sets).</summary>
-    public static string Detail => ById + "\n" + FollowupsByTicket + "\n" + UsersByTicket;
+    public const string SolutionsByTicket = """
+        SELECT
+            s.id             AS Id,
+            s.date_creation  AS CreatedAt,
+            s.content        AS Content,
+            s.users_id       AS UserId
+        FROM glpi_itilsolutions s
+        WHERE s.itemtype = 'Ticket'
+          AND s.items_id = @TicketId
+          AND s.status <> 4
+        ORDER BY s.date_creation ASC, s.id ASC;
+        """;
+
+    /// <summary>Full detail: ticket + follow-ups + user links + solutions (one round-trip, four result sets).</summary>
+    public static string Detail => ById + "\n" + FollowupsByTicket + "\n" + UsersByTicket + "\n" + SolutionsByTicket;
 
     /// <summary>Full detail with followup privacy filter.</summary>
-    public static string DetailFiltered => ById + "\n" + FollowupsByTicketFiltered + "\n" + UsersByTicket;
+    public static string DetailFiltered => ById + "\n" + FollowupsByTicketFiltered + "\n" + UsersByTicket + "\n" + SolutionsByTicket;
 
     private const string AggregateStats = """
         SELECT

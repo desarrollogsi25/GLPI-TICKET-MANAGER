@@ -7,6 +7,7 @@ namespace GlpiTicketManager.Application.Authorization;
 public interface ITicketAccessPolicy
 {
     Task<bool> CanViewAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+    Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, int newStatus, CancellationToken ct = default);
     Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanClaimAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanAddSolutionAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
@@ -66,7 +67,7 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
         return userGroups2.Intersect(ticketGroups2).Any();
     }
 
-    public async Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
+    public async Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, int newStatus, CancellationToken ct = default)
     {
         if (role == AppRole.Admin) return true;
 
@@ -77,9 +78,23 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // Technician: solo si asignado a él
-        return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        if (role == AppRole.Technician)
+        {
+            // El cierre definitivo (6) queda restringido al Admin o Supervisor
+            if (newStatus == 6)
+            {
+                return false;
+            }
+
+            // El técnico asignado al ticket tiene permiso para cambiar el estado a "En Progreso" (2), "Pendiente" (4) y "Resuelto" (5)
+            return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        }
+
+        return false;
     }
+
+    public Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default) =>
+        CanModifyStatusAsync(userId, role, ticketId, 0, ct);
 
     public async Task<bool> CanClaimAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
     {

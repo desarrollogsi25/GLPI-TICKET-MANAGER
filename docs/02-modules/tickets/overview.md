@@ -11,9 +11,9 @@
 
 ## Purpose
 
-Expose GLPI ticket data to the custom frontend without reimplementing GLPI's
-workflow. Reads come straight from the GLPI database for speed; every mutation goes
-through the GLPI REST API so notifications, logs, SLAs and plugins keep working.
+Consola de Service Desk para Técnicos y Administradores. Los tickets ingresan desde GLPI
+y se gestionan operativamente en esta interfaz. Reads come straight from the GLPI database
+for speed; mutations go through the GLPI REST API / DB transactions according to the write strategy.
 
 ## Endpoints
 

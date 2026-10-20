@@ -45,7 +45,7 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusSolvedAndNoSolution_Throws422()
     {
-        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
@@ -58,7 +58,7 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusSolvedAndHasSolution_Succeeds()
     {
-        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _repo.Setup(r => r.SolutionExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _glpi.Setup(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
@@ -72,7 +72,7 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenStatusNotSolved_DoesNotCheckSolution()
     {
-        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 5, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.CanModifyStatusAsync(7, It.IsAny<AppRole>(), 5, It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _glpi.Setup(g => g.UpdateTicketStatusAsync(5, 2, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var result = await _svc.UpdateStatusAsync(5, 2, 7, CancellationToken.None);
