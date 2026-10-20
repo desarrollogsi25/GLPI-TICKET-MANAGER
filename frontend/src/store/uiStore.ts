@@ -23,6 +23,14 @@ interface UiState {
   removeTask: (ticketId: number, taskId: string) => void
 }
 
+function generateId(): string {
+  try {
+    return uuidv4()
+  } catch {
+    return Math.random().toString(36).substring(2, 11) + Date.now().toString(36)
+  }
+}
+
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
@@ -36,8 +44,8 @@ export const useUiStore = create<UiState>()(
             ...state.tasks,
             [ticketId]: [
               ...(state.tasks[ticketId] ?? []),
-              // uuid works in insecure contexts (LAN http by IP) where crypto.randomUUID is undefined.
-              { id: uuidv4(), label, done: false },
+              // uuid with fallback for insecure contexts (LAN http by IP) where crypto.randomUUID is undefined.
+              { id: generateId(), label, done: false },
             ],
           },
         })),

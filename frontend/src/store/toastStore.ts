@@ -18,12 +18,20 @@ interface ToastState {
 
 const AUTO_DISMISS_MS = 4000
 
+function generateId(): string {
+  try {
+    return uuidv4()
+  } catch {
+    return Math.random().toString(36).substring(2, 11) + Date.now().toString(36)
+  }
+}
+
 /** Minimal toast store: no extra dependency, rendered by <Toaster />. */
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
   push: (toast) => {
-    // uuid works in insecure contexts (LAN http by IP) where crypto.randomUUID is undefined.
-    const id = uuidv4()
+    // uuid with fallback for insecure contexts (LAN http by IP) where crypto.randomUUID is undefined.
+    const id = generateId()
     set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }))
 
     window.setTimeout(() => {

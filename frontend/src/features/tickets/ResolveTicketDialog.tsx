@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -19,6 +20,7 @@ export function ResolveTicketDialog({
 }) {
   const [content, setContent] = useState('')
   const [touched, setTouched] = useState(false)
+  const queryClient = useQueryClient()
   const createSolution = useCreateSolutionMutation()
   const updateStatus = useUpdateTicketStatusMutation()
   const pushToast = useToastStore((state) => state.push)
@@ -53,12 +55,18 @@ export function ResolveTicketDialog({
             { ticketId, status: 5 },
             {
               onSuccess: () => {
-                pushToast({
-                  title: 'Ticket resuelto correctamente',
-                  description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
-                  variant: 'success',
-                })
                 closeDialog()
+                void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+                void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                try {
+                  pushToast({
+                    title: 'Ticket resuelto correctamente',
+                    description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
+                    variant: 'success',
+                  })
+                } catch {
+                  // toast fail-safe
+                }
               },
               onError: (err) => {
                 pushToast({

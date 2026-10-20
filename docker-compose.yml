@@ -15,7 +15,7 @@ services:
       - glpi-data:/var/glpi
       - glpi-plugins:/var/www/glpi/plugins
     ports:
-      - 127.0.0.1:8081:80
+      - "0.0.0.0:8081:80"
     depends_on:
       glpi-db:
         condition: service_healthy

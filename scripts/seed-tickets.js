@@ -38,65 +38,65 @@ if (!mariadbPassword) {
 
 // 2. Definir catálogo de 50 tickets realistas
 const SAMPLE_TICKETS = [
-  // COLA / NUEVO (Status 1) - 12 tickets
-  { id: 301, name: '[SEED-01] Atasco constante de papel en impresora de Planta 2', status: 1, priority: 3, cat: 2, content: 'La bandeja 2 de la impresora HP multifunción de contabilidad atasca las hojas continuamente.' },
-  { id: 302, name: '[SEED-02] Solicitud de acceso a carpeta compartida de Marketing', status: 1, priority: 2, cat: 3, content: 'El usuario requiere permisos de lectura y escritura en la unidad de red MKT_2026.' },
-  { id: 303, name: '[SEED-03] Caída de conexión WiFi en sala de juntas principal', status: 1, priority: 5, cat: 6, content: 'El punto de acceso AP-SALA-01 no asigna direcciones IP por DHCP durante la reunión directiva.' },
-  { id: 304, name: '[SEED-04] Bloqueo de cuenta de correo por intentos fallidos', status: 1, priority: 4, cat: 3, content: 'El usuario introdujo la contraseña errónea en Outlook móvil y la cuenta quedó suspendida.' },
-  { id: 305, name: '[SEED-05] Instalación de cliente VPN para empleado en teletrabajo', status: 1, priority: 3, cat: 4, content: 'Se necesita instalar y configurar cliente OpenVPN en el portátil corporativo asignado.' },
-  { id: 306, name: '[SEED-06] Monitor parpadea y muestra artefactos en puesto 14', status: 1, priority: 2, cat: 2, content: 'El cable DisplayPort o la tarjeta integrada del equipo de atención al cliente presenta fallos.' },
-  { id: 307, name: '[SEED-07] Error 500 al generar reporte mensual de nóminas en ERP', status: 1, priority: 4, cat: 5, content: 'El módulo de nóminas lanza excepción por tiempo de espera al exportar en formato Excel.' },
-  { id: 308, name: '[SEED-08] Reemplazo de teclado por fallo de tecla espaciadora', status: 1, priority: 1, cat: 2, content: 'Petición de teclado ergonómico de recambio para puesto de call center.' },
-  { id: 309, name: '[SEED-09] Solicitud de licencia para Microsoft Visio', status: 1, priority: 2, cat: 4, content: 'Diseñador de procesos requiere licencia estándar para modelado de flujos BPMN.' },
-  { id: 310, name: '[SEED-10] Alerta de espacio en disco en servidor de backup secundario', status: 1, priority: 4, cat: 6, content: 'El volumen /mnt/backup-nas se encuentra al 93% de su capacidad total.' },
-  { id: 311, name: '[SEED-11] Auricular de call center sin recepción de audio en canal derecho', status: 1, priority: 3, cat: 2, content: 'Auriculares Jabra USB con conector dañado requieren sustitución.' },
-  { id: 312, name: '[SEED-12] Notificaciones de spam masivo desde remitente falso', status: 1, priority: 4, cat: 6, content: 'Varios usuarios reportan correos con enlaces sospechosos solicitando credenciales bancarias.' },
+  // COLA / NUEVO (Status 1) - 12 tickets (sin técnico asignado, pero en cola de grupo)
+  { id: 301, name: '[SEED-01] Solicitud de acceso a módulo de reportes CRM', status: 1, priority: 3, cat: 7, group: 'Requerimiento Service Desk', content: 'El usuario requiere permisos de acceso al módulo de reportes para el cierre mensual.' },
+  { id: 302, name: '[SEED-02] Monitor parpadea y muestra artefactos en puesto 14', status: 1, priority: 2, cat: 11, group: 'Hardware', content: 'El cable DisplayPort o la tarjeta integrada del equipo de atención al cliente presenta fallos.' },
+  { id: 303, name: '[SEED-03] Caída de tablero analítico de ventas en PowerBI', status: 1, priority: 5, cat: 8, group: 'Requerimiento Service Desk', content: 'El tablero de control gerencial no refresca los datos desde la madrugada.' },
+  { id: 304, name: '[SEED-04] Reemplazo de teclado por fallo de tecla espaciadora', status: 1, priority: 1, cat: 10, group: 'Hardware', content: 'Petición de teclado ergonómico de recambio para puesto de call center.' },
+  { id: 305, name: '[SEED-05] Error al sincronizar registros en aplicativo GSI', status: 1, priority: 4, cat: 9, group: 'Requerimiento Service Desk', content: 'El módulo de facturación muestra error de concurrencia al procesar lotes.' },
+  { id: 306, name: '[SEED-06] Fuente de alimentación emite zumbido anormal', status: 1, priority: 3, cat: 11, group: 'Hardware', content: 'Estación de diseño presenta ruidos eléctricos y reinicios intermitentes.' },
+  { id: 307, name: '[SEED-07] Solicitud de extracción de informe consolidado anual', status: 1, priority: 3, cat: 12, group: 'Requerimiento Service Desk', content: 'Auditoría interna requiere consolidado de movimientos contables 2025.' },
+  { id: 308, name: '[SEED-08] Lector de código de barras no responde por USB', status: 1, priority: 2, cat: 10, group: 'Hardware', content: 'Dispositivo Honeywell en almacén no lee etiquetas reflectantes.' },
+  { id: 309, name: '[SEED-09] Instalación y configuración de suite ofimática', status: 1, priority: 2, cat: 4, group: 'Requerimiento Service Desk', content: 'Nuevo ingreso en RRHH requiere instalación de paquete ofimático.' },
+  { id: 310, name: '[SEED-10] Portátil no enciende tras corte de energía eléctrica', status: 1, priority: 4, cat: 11, group: 'Hardware', content: 'El equipo ThinkPad no enciende ni muestra LED de carga de batería.' },
+  { id: 311, name: '[SEED-11] Alta de usuario y buzón para nueva incorporación', status: 1, priority: 3, cat: 7, group: 'Requerimiento Service Desk', content: 'Crear credenciales corporativas y asignar a lista de distribución general.' },
+  { id: 312, name: '[SEED-12] Sustitución de conector RJ45 dañado en roseta de red', status: 1, priority: 3, cat: 11, group: 'Hardware', content: 'Pestaña plástica rota provoca desconexiones continuas de red local.' },
 
   // ASIGNADO (Status 2) - 10 tickets
-  { id: 313, name: '[SEED-13] Configuración de firma digital en Adobe Acrobat', status: 2, priority: 3, cat: 4, tech: 7, content: 'Asistir al departamento legal en la importación de certificado FNMT en formato PFX.' },
-  { id: 314, name: '[SEED-14] Equipo se apaga repentinamente tras 20 minutos de uso', status: 2, priority: 4, cat: 2, tech: 7, content: 'Posible sobrecalentamiento de la CPU por fallo en disipador térmico.' },
-  { id: 315, name: '[SEED-15] Desbloqueo de puerto USB para transferencia autorizada', status: 2, priority: 2, cat: 3, tech: 8, content: 'Autorización temporal para extraer logs de auditoría industrial mediante pendrive cifrado.' },
-  { id: 316, name: '[SEED-16] Migración de perfil de usuario a nuevo equipo portátil', status: 2, priority: 3, cat: 3, tech: 7, content: 'Transferencia de documentos, certificados y configuración de correo a ThinkPad T14.' },
-  { id: 317, name: '[SEED-17] Error en sincronización de OneDrive con carpetas compartidas', status: 2, priority: 3, cat: 5, tech: 8, content: 'Conflicto de versiones bloquea la subida de expedientes compartidos.' },
-  { id: 318, name: '[SEED-18] Solicitud de alta de buzón compartido para soporte@empresa.com', status: 2, priority: 3, cat: 3, tech: 7, content: 'Crear buzón en Exchange Online y asignar permisos de envío a 5 agentes.' },
-  { id: 319, name: '[SEED-19] Batería de portátil no retiene carga más de 15 minutos', status: 2, priority: 3, cat: 2, tech: 8, content: 'Portátil Dell Latitude requiere cambio de celda de batería por degradación.' },
-  { id: 320, name: '[SEED-20] Asignación de rol de supervisor en plataforma de helpdesk', status: 2, priority: 4, cat: 3, tech: 7, content: 'Promoción interna: agregar permisos para gestión de colas de tickets.' },
-  { id: 321, name: '[SEED-21] Configuración de acceso RDP para servidor de desarrollo', status: 2, priority: 2, cat: 6, tech: 8, content: 'Habilitar regla en cortafuegos interno para IP de desarrollador senior.' },
-  { id: 322, name: '[SEED-22] Lentitud en aplicación CRM al filtrar por clientes activos', status: 2, priority: 3, cat: 5, tech: 7, content: 'Se investiga necesidad de optimización de índices en consulta relacional.' },
+  { id: 313, name: '[SEED-13] Configuración de firma digital en Adobe Acrobat', status: 2, priority: 3, cat: 7, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Asistir al departamento legal en la importación de certificado FNMT en formato PFX.' },
+  { id: 314, name: '[SEED-14] Equipo se apaga repentinamente tras 20 minutos de uso', status: 2, priority: 4, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Posible sobrecalentamiento de la CPU por fallo en disipador térmico.' },
+  { id: 315, name: '[SEED-15] Desbloqueo de permisos para extracción de métricas BI', status: 2, priority: 2, cat: 8, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Autorización temporal para extraer logs de auditoría industrial.' },
+  { id: 316, name: '[SEED-16] Migración de disco mecánico a SSD en puesto administrativo', status: 2, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Clonación de disco y optimización de arranque en equipo de oficina.' },
+  { id: 317, name: '[SEED-17] Error en carga de comprobantes en sistema GSI', status: 2, priority: 3, cat: 9, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Conflicto de validación bloquea la subida de expedientes compartidos.' },
+  { id: 318, name: '[SEED-18] Batería de portátil no retiene carga más de 15 minutos', status: 2, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Portátil Dell Latitude requiere cambio de celda de batería por degradación.' },
+  { id: 319, name: '[SEED-19] Creación de plantilla de informe mensual en Excel', status: 2, priority: 2, cat: 12, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Automatización de fórmulas de cálculo de impuestos en plantilla corporativa.' },
+  { id: 320, name: '[SEED-20] Auricular de soporte con cable cortado en conector jack', status: 2, priority: 2, cat: 10, tech: 'tecnico_test2', group: 'Hardware', content: 'Auriculares Jabra USB con conector dañado requieren sustitución.' },
+  { id: 321, name: '[SEED-21] Configuración de perfil de correo en Outlook móvil', status: 2, priority: 2, cat: 7, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Configuración segura mediante autenticación moderna en dispositivo Android.' },
+  { id: 322, name: '[SEED-22] Ampliación de memoria RAM a 32GB para equipo de arquitectura', status: 2, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Instalación de dos módulos DDR5 de 16GB para trabajo en CAD 3D.' },
 
   // EN PROGRESO (Status 3) - 10 tickets
-  { id: 323, name: '[SEED-23] Diagnóstico de caída de enlace de fibra óptica en Sede Norte', status: 3, priority: 5, cat: 6, tech: 7, content: 'Incidencia abierta con operador de telecomunicaciones tras corte físico de fibra.' },
-  { id: 324, name: '[SEED-24] Reinstalación de sistema operativo Windows 11 por corrupción', status: 3, priority: 3, cat: 4, tech: 7, content: 'BSOD recurrente por fallo en controlador de almacenamiento NVMe. Formateo en curso.' },
-  { id: 325, name: '[SEED-25] Despliegue de actualización crítica de seguridad en servidores web', status: 3, priority: 5, cat: 6, tech: 8, content: 'Parcheado de vulnerabilidad en Nginx en ventana de mantenimiento autorizada.' },
-  { id: 326, name: '[SEED-26] Configuración de túnel IPSec entre oficinas centrales y almacén', status: 3, priority: 4, cat: 6, tech: 7, content: 'Enrutamiento de subredes 192.168.10.0/24 y 192.168.20.0/24 mediante routers Cisco.' },
-  { id: 327, name: '[SEED-27] Análisis forense tras detección de malware en endpoint', status: 3, priority: 5, cat: 6, tech: 8, content: 'Aislamiento de red del equipo infectado y escaneo completo con EDR.' },
-  { id: 328, name: '[SEED-28] Automatización de backups incrementales en PostgreSQL', status: 3, priority: 3, cat: 6, tech: 7, content: 'Script cron con pg_dump y rotación a bucket S3 compatible con retención de 30 días.' },
-  { id: 329, name: '[SEED-29] Renovación de certificados SSL wildcard *.dominio.com', status: 3, priority: 4, cat: 6, tech: 8, content: 'Certificados expiran en 10 días. Verificación de reto DNS con Let’s Encrypt.' },
-  { id: 330, name: '[SEED-30] Depuración de timeout en webhook de integración de pagos', status: 3, priority: 4, cat: 5, tech: 7, content: 'Pasarela de pagos reporta reintentos agotados por latencia superior a 10s.' },
-  { id: 331, name: '[SEED-31] Pruebas de conmutación por error en clúster de alta disponibilidad', status: 3, priority: 4, cat: 6, tech: 8, content: 'Simulación de fallo en nodo primario para validar failover automático de MariaDB.' },
-  { id: 332, name: '[SEED-32] Auditoría de cuentas inactivas con más de 90 días sin login', status: 3, priority: 2, cat: 3, tech: 7, content: 'Listado de usuarios a deshabilitar conforme a política de seguridad ISO 27001.' },
+  { id: 323, name: '[SEED-23] Diagnóstico de lentitud en consultas del aplicativo GSI', status: 3, priority: 4, cat: 9, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Análisis de trazas de ejecución en base de datos para detectar cuellos de botella.' },
+  { id: 324, name: '[SEED-24] Reemplazo de placa base por fallo en chipset de audio', status: 3, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Sustitución en garantía coordinada con servicio técnico oficial HP.' },
+  { id: 325, name: '[SEED-25] Ajuste en pipeline de transformación de datos BI', status: 3, priority: 4, cat: 8, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Corrección de tipo de dato numérico en carga incremental de facturación.' },
+  { id: 326, name: '[SEED-26] Limpieza interna y cambio de pasta térmica en servidor local', status: 3, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Mantenimiento preventivo programado para reducir temperatura operativa.' },
+  { id: 327, name: '[SEED-27] Regularización de licencias de software ofimático', status: 3, priority: 3, cat: 4, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Reasignación de suscripciones Microsoft 365 tras rotación de personal.' },
+  { id: 328, name: '[SEED-28] Sustitución de rodillo de arrastre en impresora multifunción', status: 3, priority: 3, cat: 10, tech: 'tecnico_test2', group: 'Hardware', content: 'Kit de mantenimiento MK-3130 recibido, instalación en curso.' },
+  { id: 329, name: '[SEED-29] Depuración de formato en exportación de informes fiscales', status: 3, priority: 4, cat: 12, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'El archivo TXT generado no cumple especificación de longitud de campos.' },
+  { id: 330, name: '[SEED-30] Instalación de switch de 24 puertos Gigabit en rack B', status: 3, priority: 4, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Montaje en bastidor y etiquetado de latiguillos de parcheo Cat6.' },
+  { id: 331, name: '[SEED-31] Configuración de flujos de aprobación en portal interno', status: 3, priority: 3, cat: 7, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Implementación de matriz de autorización según importe de compra.' },
+  { id: 332, name: '[SEED-32] Revisión de SAI (UPS) ante alerta de fallo en batería', status: 3, priority: 4, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Verificación de voltaje en celdas de batería de respaldo de CPD.' },
 
   // PENDIENTE (Status 4) - 9 tickets
-  { id: 333, name: '[SEED-33] En espera de recibir presupuesto de pieza de repuesto para servidor', status: 4, priority: 3, cat: 2, tech: 7, content: 'Se solicitó cotización de fuente de alimentación redundante a distribuidor oficial.' },
-  { id: 334, name: '[SEED-34] Esperando confirmación de usuario para reiniciar router de planta', status: 4, priority: 3, cat: 6, tech: 8, content: 'Se requiere ventana sin operaciones críticas para aplicar reinicio de firmware.' },
-  { id: 335, name: '[SEED-35] En espera de validación de responsable para alta de permisos', status: 4, priority: 2, cat: 3, tech: 7, content: 'Esperando visto bueno por escrito de la dirección de departamento.' },
-  { id: 336, name: '[SEED-36] A la espera de entrega de terminal telefónico IP por mensajería', status: 4, priority: 2, cat: 2, tech: 8, content: 'El transportista indica entrega prevista para mañana antes de las 14:00.' },
-  { id: 337, name: '[SEED-37] Solicitud de información adicional sobre error de facturación', status: 4, priority: 3, cat: 5, tech: 7, content: 'Se solicitó captura de pantalla y número de factura al usuario solicitante.' },
-  { id: 338, name: '[SEED-38] Esperando llegada de técnico externo para revisión de climatización', status: 4, priority: 4, cat: 6, tech: 8, content: 'Alarma de temperatura en CPD. Proveedor de refrigeración notificado.' },
-  { id: 339, name: '[SEED-39] En espera de aprobación de presupuesto para ampliación de RAM', status: 4, priority: 2, cat: 2, tech: 7, content: 'Estación de trabajo de renderizado requiere 64GB DDR5 adicionales.' },
-  { id: 340, name: '[SEED-40] A la espera de respuesta de soporte del fabricante por bug de firmware', status: 4, priority: 3, cat: 6, tech: 8, content: 'Ticket de soporte N3 abierto con el fabricante del conmutador de red.' },
-  { id: 341, name: '[SEED-41] En espera de cita presencial con usuario para cambio de equipo', status: 4, priority: 2, cat: 2, tech: 7, content: 'Usuario se encuentra de viaje de trabajo hasta el lunes próximo.' },
+  { id: 333, name: '[SEED-33] En espera de confirmación de usuario para validar informe', status: 4, priority: 2, cat: 12, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Se envió borrador de reporte a la jefa de contabilidad para su aprobación.' },
+  { id: 334, name: '[SEED-34] Esperando entrega de piezas de repuesto por distribuidor', status: 4, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Se solicitó cotización de fuente de alimentación redundante a distribuidor oficial.' },
+  { id: 335, name: '[SEED-35] En espera de respuesta de soporte externo del software ERP', status: 4, priority: 3, cat: 9, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Caso de soporte abierto con fabricante por excepción no controlada.' },
+  { id: 336, name: '[SEED-36] A la espera de recepción de dock station Thunderbolt', status: 4, priority: 2, cat: 10, tech: 'tecnico_test2', group: 'Hardware', content: 'El transportista indica entrega prevista para mañana antes de las 14:00.' },
+  { id: 337, name: '[SEED-37] En espera de especificación funcional para nuevo tablero BI', status: 4, priority: 2, cat: 8, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Se requiere definición de KPIs por parte de la dirección comercial.' },
+  { id: 338, name: '[SEED-38] Esperando retirada de monitor defectuoso por servicio de garantía', status: 4, priority: 2, cat: 11, tech: 'tecnico_test2', group: 'Hardware', content: 'Número de RMA asignado, a la espera de mensajero de recogida.' },
+  { id: 339, name: '[SEED-39] En espera de visto bueno para actualización de versión de software', status: 4, priority: 3, cat: 4, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Esperando ventana sin operaciones críticas autorizada por jefatura.' },
+  { id: 340, name: '[SEED-40] A la espera de ratón vertical ergonómico solicitado a compras', status: 4, priority: 1, cat: 10, tech: 'tecnico_test2', group: 'Hardware', content: 'Petición con prescripción de prevención de riesgos laborales tramitada.' },
+  { id: 341, name: '[SEED-41] En espera de datos de acceso de capacitación externa', status: 4, priority: 2, cat: 7, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', content: 'Solicitud enviada al proveedor de formación para emisión de credenciales.' },
 
   // RESUELTO (Status 5) - 9 tickets
-  { id: 342, name: '[SEED-42] Restablecimiento de credenciales de acceso a portal de empleados', status: 5, priority: 3, cat: 3, tech: 7, sol: 'Se regeneró la contraseña temporal y se verificó el login correcto junto al usuario.', content: 'Usuario no recordaba contraseña tras retorno de vacaciones.' },
-  { id: 343, name: '[SEED-43] Sustitución de cable HDMI en sala de videoconferencias B', status: 5, priority: 3, cat: 2, tech: 8, sol: 'Cable defectuoso sustituido por cable HDMI 2.1 apantallado. Audio y vídeo probados con éxito.', content: 'Pantalla parpadeaba durante reuniones por Teams.' },
-  { id: 344, name: '[SEED-44] Configuración de impresora virtual PDF en puesto de facturación', status: 5, priority: 2, cat: 4, tech: 7, sol: 'Instalado controlador Microsoft Print to PDF y configurada como predeterminada.', content: 'El sistema de contabilidad no permitía exportar facturas electrónicas a PDF.' },
-  { id: 345, name: '[SEED-45] Liberación de espacio en disco en estación de diseño gráfico', status: 5, priority: 3, cat: 2, tech: 8, sol: 'Purgados 120 GB de archivos temporales de Adobe Cache y reubicados proyectos antiguos en NAS.', content: 'Disco C sin espacio impedía renderizar vídeos promocionales.' },
-  { id: 346, name: '[SEED-46] Asignación de permisos de acceso a nueva sala de Teams', status: 5, priority: 2, cat: 3, tech: 7, sol: 'Canal privado configurado con permisos para los 8 miembros del comité organizador.', content: 'Comité de auditoría requería canal confidencial de comunicación.' },
-  { id: 347, name: '[SEED-47] Reemplazo de ratón inalámbrico por fallo de sensor óptico', status: 5, priority: 1, cat: 2, tech: 8, sol: 'Entregado ratón Logitech óptico nuevo en el puesto de recepción.', content: 'El puntero saltaba de forma errática en pantalla.' },
-  { id: 348, name: '[SEED-48] Corrección de hora del sistema desfasada en terminal de control horario', status: 5, priority: 4, cat: 6, tech: 7, sol: 'Reconfigurado servidor NTP corporativo en el dispositivo biométrico. Hora sincronizada al segundo.', content: 'Fichajes se registraban con 15 minutos de retraso.' },
-  { id: 349, name: '[SEED-49] Activación de buzón de voz y desvío de llamadas en teléfono IP', status: 5, priority: 2, cat: 2, tech: 8, sol: 'Regla de desvío tras 4 tonos activada hacia buzón de voz con notificación por email.', content: 'Agente requería recibir audios cuando se encuentra en atención presencial.' },
-  { id: 350, name: '[SEED-50] Verificación de backup y restauración de prueba en ambiente de test', status: 5, priority: 4, cat: 6, tech: 7, sol: 'Restauración completa efectuada en base de datos de pruebas. Integridad de tablas comprobada.', content: 'Simulacro trimestral de recuperación de datos conforme a ISO 27001.' }
+  { id: 342, name: '[SEED-42] Restablecimiento de credenciales de acceso a portal corporativo', status: 5, priority: 3, cat: 7, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', sol: 'Se regeneró la contraseña temporal y se verificó el login correcto junto al usuario.', content: 'Usuario no recordaba contraseña tras retorno de vacaciones.' },
+  { id: 343, name: '[SEED-43] Sustitución de cable HDMI en sala de videoconferencias B', status: 5, priority: 3, cat: 11, tech: 'tecnico_test2', group: 'Hardware', sol: 'Cable defectuoso sustituido por cable HDMI 2.1 apantallado. Audio y vídeo probados con éxito.', content: 'Pantalla parpadeaba durante reuniones por Teams.' },
+  { id: 344, name: '[SEED-44] Actualización de fórmula de cálculo en tablero de ventas', status: 5, priority: 2, cat: 8, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', sol: 'Modificada medida DAX para incluir devoluciones del trimestre anterior.', content: 'El total de ventas no cuadraba con el cierre de caja de Tesorería.' },
+  { id: 345, name: '[SEED-45] Limpieza de cabezales y calibración de escáner departamental', status: 5, priority: 2, cat: 10, tech: 'tecnico_test2', group: 'Hardware', sol: 'Cabezales ópticos limpiados con alcohol isopropílico y calibración ejecutada con hoja patrón.', content: 'Líneas negras verticales aparecían en los documentos digitalizados.' },
+  { id: 346, name: '[SEED-46] Corrección de error de conexión en aplicativo GSI', status: 5, priority: 3, cat: 9, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', sol: 'Actualizado string de conexión y reiniciado pool de conexiones del servidor web.', content: 'El aplicativo mostraba error de timeout intermitente al inicio de jornada.' },
+  { id: 347, name: '[SEED-47] Reemplazo de pila CMOS CR2032 en equipo que perdía la hora', status: 5, priority: 2, cat: 11, tech: 'tecnico_test2', group: 'Hardware', sol: 'Pila cambiada y hora configurada en BIOS/UEFI. Comprobado arranque en frío.', content: 'El equipo solicitaba pulsar F1 en cada encendido para reiniciar fecha.' },
+  { id: 348, name: '[SEED-48] Generación y entrega de extracto de nóminas consolidado', status: 5, priority: 2, cat: 12, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', sol: 'Ejecutado script de extracción y validada integridad con departamento de RRHH.', content: 'Petición urgente para auditoría laboral semestral.' },
+  { id: 349, name: '[SEED-49] Sustitución de ratón inalámbrico por fallo de sensor', status: 5, priority: 1, cat: 10, tech: 'tecnico_test2', group: 'Hardware', sol: 'Entregado ratón Logitech óptico nuevo en el puesto de recepción.', content: 'El puntero saltaba de forma errática en pantalla.' },
+  { id: 350, name: '[SEED-50] Instalación de visor de modelos 3D autorizado', status: 5, priority: 2, cat: 4, tech: 'tecnico_test1', group: 'Requerimiento Service Desk', sol: 'Instalado Autodesk Viewer y asociado a extensiones DWG y DXF.', content: 'Puesto de compras requiere revisar planos técnicos sin licencia completa de CAD.' }
 ];
 
 console.log(`[+] Generando script SQL para ${SAMPLE_TICKETS.length} tickets de simulación...`);
@@ -108,6 +108,7 @@ for (const t of SAMPLE_TICKETS) {
   const safeContent = t.content.replace(/'/g, "''");
   const urgency = t.priority >= 4 ? 4 : 3;
   const impact = t.priority >= 4 ? 4 : 3;
+  const groupName = t.group || (t.id % 2 === 0 ? 'Requerimiento Service Desk' : 'Hardware');
 
   // Insertar o actualizar ticket en glpi_tickets
   sqlStatements.push(`
@@ -122,11 +123,18 @@ ON DUPLICATE KEY UPDATE
   date_mod = NOW();
 `);
 
-  // Asignar al grupo Call Center (group 1)
+  // Asignar al grupo correspondiente (Requerimiento Service Desk o Hardware)
   sqlStatements.push(`
 DELETE FROM glpi_groups_tickets WHERE tickets_id = ${t.id};
 INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type)
-VALUES (${t.id}, 1, 2);
+SELECT ${t.id}, g.id, 2 FROM glpi_groups g WHERE g.name = '${groupName}';
+`);
+
+  // Asignar solicitante (solicitante_test)
+  sqlStatements.push(`
+DELETE FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND type = 1;
+INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
+SELECT ${t.id}, u.id, 1 FROM glpi_users u WHERE u.name = 'solicitante_test';
 `);
 
   // Asignar técnico si aplica (idempotente: limpiar relación previa de asignado)
@@ -134,33 +142,23 @@ VALUES (${t.id}, 1, 2);
 DELETE FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND type = 2;
 `);
   if (t.tech) {
+    const techUsername = t.tech;
+    const legacyTech = techUsername === 'tecnico_test1' ? 'tech1' : 'tech2';
     sqlStatements.push(`
 INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
-VALUES (${t.id}, ${t.tech}, 2);
+SELECT ${t.id}, u.id, 2 FROM glpi_users u WHERE u.name IN ('${techUsername}', '${legacyTech}');
 `);
-    // También asignar tickets a los técnicos de prueba nuevo entorno
-    if (t.tech === 7 && t.id % 2 === 0) {
-      sqlStatements.push(`
-INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
-SELECT ${t.id}, u.id, 2 FROM glpi_users u WHERE u.name = 'tecnico_test1'
-AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND users_id = u.id AND type = 2);
-`);
-    } else if (t.tech === 8 && t.id % 2 === 1) {
-      sqlStatements.push(`
-INSERT INTO glpi_tickets_users (tickets_id, users_id, type)
-SELECT ${t.id}, u.id, 2 FROM glpi_users u WHERE u.name = 'tecnico_test2'
-AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users WHERE tickets_id = ${t.id} AND users_id = u.id AND type = 2);
-`);
-    }
   }
 
   // Solución para tickets resueltos
   if (t.status === 5 && t.sol) {
     const safeSol = t.sol.replace(/'/g, "''");
+    const techUser = t.tech || 'tecnico_test1';
     sqlStatements.push(`
 DELETE FROM glpi_itilsolutions WHERE items_id = ${t.id} AND itemtype = 'Ticket';
 INSERT INTO glpi_itilsolutions (itemtype, items_id, solutiontypes_id, content, date_creation, date_mod, users_id, status)
-VALUES ('Ticket', ${t.id}, 1, '${safeSol}', NOW(), NOW(), ${t.tech || 7}, 2);
+SELECT 'Ticket', ${t.id}, 1, '${safeSol}', NOW(), NOW(), u.id, 2
+FROM glpi_users u WHERE u.name = '${techUser}' LIMIT 1;
 UPDATE glpi_tickets SET solvedate = NOW() WHERE id = ${t.id};
 `);
   }

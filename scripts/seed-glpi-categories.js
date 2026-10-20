@@ -191,6 +191,10 @@ function seedGlpiCategories() {
   // el cual aplica por defecto la estrategia LAST_VALID_ANSWER a la pregunta de tipo ITILCategory.
   console.log('✓ Mapeo de Categoría en destino de tickets activo con estrategia nativa last_valid_answer.');
 
+  // 4.4 Asegurar que perfiles Self-Service (1) y Technician (6) tengan derecho de lectura sobre Categorías ITIL
+  runSql(`UPDATE glpi_profilerights SET rights = 1 WHERE name = 'itilcategory' AND profiles_id IN (1, 6) AND rights = 0;`);
+  console.log('✓ Permisos de lectura en Categorías ITIL asignados a perfiles Self-Service y Technician.');
+
   // Paso 5: Poblar glpi_forms_categories con las 7 categorías, sus descripciones e ilustraciones
   for (const cat of ITIL_CATEGORIES) {
     const escapedName = escapeSql(cat.name);

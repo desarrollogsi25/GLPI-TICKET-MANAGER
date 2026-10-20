@@ -11,6 +11,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -301,6 +302,7 @@ function KanbanColumn({
 }
 
 export function Kanban() {
+  const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
   const currentUser = useAuthStore((state) => state.user)
   const currentUserId = selectedAssignee ?? currentUser?.userId ?? null
@@ -916,7 +918,10 @@ export function Kanban() {
         ticketId={resolveTicketId ?? 0}
         open={resolveTicketId !== null}
         onOpenChange={(v) => {
-          if (!v) setResolveTicketId(null)
+          if (!v) {
+            setResolveTicketId(null)
+            void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+          }
         }}
       />
 
