@@ -49,8 +49,10 @@ function runInGlpi(command) {
 
 function runSql(sql) {
   try {
+    // -N -B: sin cabeceras y en modo batch, para que la salida sea solo datos y se pueda
+    // parsear de forma fiable en la verificación final (mismos datos, sin formato).
     return execSync(
-      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" ${mariadbDatabase}`,
+      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
       { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
   } catch (err) {
@@ -103,6 +105,29 @@ function seedGlpiUsers() {
       runSql(linkSql);
       console.log(`✓ Usuario ${user.username} vinculado al grupo "${user.group}"`);
     }
+  }
+
+  // 4. Verificación final de la vinculación user <-> group en la BD.
+  //    Si una inserción fallara en silencio, el Kanban entraria en el estado
+  //    "Sin grupo de soporte asignado"; aqui se detiene el script en lugar de eso.
+  for (const user of TEST_USERS) {
+    if (!user.group) continue;
+
+    const verifySql = `
+      SELECT COUNT(*)
+      FROM glpi_groups_users gu
+      INNER JOIN glpi_users u ON u.id = gu.users_id
+      INNER JOIN glpi_groups g ON g.id = gu.groups_id
+      WHERE u.name = '${user.username}' AND g.name = '${user.group}';
+    `;
+    const n = parseInt(String(runSql(verifySql)).trim(), 10);
+
+    if (!Number.isFinite(n) || n < 1) {
+      throw new Error(
+        `Verificación fallida: ${user.username} no está vinculado al grupo "${user.group}" en glpi_groups_users.`
+      );
+    }
+    console.log(`✓ Verificado en BD: ${user.username} -> ${user.group} (${n} vínculo/s)`);
   }
 
   console.log('--- Configuración de usuarios GLPI completada con éxito ---\n');

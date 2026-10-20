@@ -240,12 +240,43 @@ public sealed class TicketService : ITicketService
         int offset,
         CancellationToken cancellationToken)
     {
+        // QA: sin grupo solicitado (nulo/0) no hay cola que consultar. Se responde 200 con
+        // la lista vacia para que el cliente pueda pintar "Sin grupo de soporte asignado".
+        if (groupId <= 0)
+        {
+            return EmptyQueue(limit, offset);
+        }
+
         if (!await _accessPolicy.CanViewGroupQueueAsync(userId, role, groupId, cancellationToken))
         {
+            // QA: un usuario sin ningun grupo en glpi_groups_users no viola ninguna politica,
+            // simplemente no tiene cola asignada: se responde vacia en lugar de 403.
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
+            if (userGroups is { Count: 0 })
+            {
+                return EmptyQueue(limit, offset);
+            }
+
             throw new ForbiddenException($"User {userId} cannot view queue for group {groupId}");
         }
 
         return await GetUnassignedByGroupAsync(groupId, limit, offset, cancellationToken);
+    }
+
+    /// <summary>
+    /// Cola de grupo vacia, normalizando limit/offset igual que la pagina real para que
+    /// la respuesta tenga siempre la misma forma que una consulta valida sin resultados.
+    /// </summary>
+    private static PagedResult<TicketSummaryDto> EmptyQueue(int limit, int offset)
+    {
+        var effectiveLimit = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
+        var effectiveOffset = Math.Max(offset, 0);
+
+        return new PagedResult<TicketSummaryDto>(
+            Array.Empty<TicketSummaryDto>(),
+            0,
+            effectiveLimit,
+            effectiveOffset);
     }
 
     public async Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(

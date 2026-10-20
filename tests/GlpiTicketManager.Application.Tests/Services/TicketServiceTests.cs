@@ -223,4 +223,42 @@ public class TicketServiceTests
 
         result.Should().Equal(1);
     }
+
+    [Fact]
+    public async Task GetUnassignedByGroupAsync_WhenGroupIdIsZero_ReturnsEmptyPageWithoutAuthorizationCheck()
+    {
+        var result = await _svc.GetUnassignedByGroupAsync(0, 7, AppRole.Technician, 20, 0, CancellationToken.None);
+
+        result.Items.Should().BeEmpty();
+        result.Total.Should().Be(0);
+        result.Limit.Should().Be(20);
+        _accessPolicy.Verify(
+            a => a.CanViewGroupQueueAsync(It.IsAny<int>(), It.IsAny<AppRole>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _repo.Verify(r => r.GetUnassignedByGroupAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetUnassignedByGroupAsync_WhenUserHasNoGroups_ReturnsEmptyPageInsteadOfForbidden()
+    {
+        _accessPolicy.Setup(a => a.CanViewGroupQueueAsync(7, It.IsAny<AppRole>(), 3, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _repo.Setup(r => r.GetGroupIdsForUserAsync(7, It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<int>());
+
+        var result = await _svc.GetUnassignedByGroupAsync(3, 7, AppRole.Technician, 20, 0, CancellationToken.None);
+
+        result.Items.Should().BeEmpty();
+        result.Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetUnassignedByGroupAsync_WhenUserBelongsToAnotherGroup_StillThrowsForbidden()
+    {
+        _accessPolicy.Setup(a => a.CanViewGroupQueueAsync(7, It.IsAny<AppRole>(), 2, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _repo.Setup(r => r.GetGroupIdsForUserAsync(7, It.IsAny<CancellationToken>())).ReturnsAsync(new[] { 1 });
+
+        var act = async () => await _svc.GetUnassignedByGroupAsync(2, 7, AppRole.Technician, 20, 0, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("User 7 cannot view queue for group 2");
+    }
 }

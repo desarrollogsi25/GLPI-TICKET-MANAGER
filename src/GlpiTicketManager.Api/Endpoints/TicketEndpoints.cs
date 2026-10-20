@@ -123,7 +123,7 @@ public static class TicketEndpoints
     }
 
     private static async Task<IResult> GetUnassignedByGroup(
-        int groupId,
+        int? groupId,
         ITicketService ticketService,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken,
@@ -138,10 +138,15 @@ public static class TicketEndpoints
 
         var role = principal.GetRole();
 
+        // QA: groupId es opcional. El front envia undefined cuando el usuario no tiene
+        // grupo de soporte asignado; antes eso rompia el binding (500). Se normaliza a 0
+        // y el servicio responde 200 con la cola vacia.
+        var effectiveGroupId = groupId.GetValueOrDefault();
+
         try
         {
             var result = await ticketService.GetUnassignedByGroupAsync(
-                groupId,
+                effectiveGroupId,
                 userId.Value,
                 role,
                 limit ?? 20,

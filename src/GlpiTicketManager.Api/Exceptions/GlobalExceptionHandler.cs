@@ -35,6 +35,15 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 errors = validation.Errors;
                 break;
 
+            // QA: el binding de Minimal APIs lanza BadHttpRequestException cuando falta
+            // un parametro requerido de la querystring (p. ej. groupId en /tickets/by-group).
+            // Es una peticion mal formada, no un error interno: nunca debe responder 500.
+            case BadHttpRequestException badRequest:
+                statusCode = StatusCodes.Status400BadRequest;
+                title = "Petición inválida";
+                detail = badRequest.Message;
+                break;
+
             case Application.Exceptions.ForbiddenException:
             case UnauthorizedAccessException:
                 statusCode = StatusCodes.Status403Forbidden;
