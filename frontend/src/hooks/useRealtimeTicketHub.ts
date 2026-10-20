@@ -39,7 +39,8 @@ const signalRLogger = {
   log(logLevel: LogLevel, message: string) {
     if (
       message.includes('stopped during negotiation') ||
-      message.includes('stopped by the user')
+      message.includes('stopped by the user') ||
+      message.includes('AbortError')
     ) {
       return
     }
@@ -57,6 +58,27 @@ let sharedToken: string | null = null
 let connectionRefCount = 0
 let currentConnectionState: ConnectionState = 'disconnected'
 const stateListeners = new Set<(state: ConnectionState) => void>()
+
+/** Delay before retrying a failed negotiation (the AbortError path). */
+const NEGOTIATION_RETRY_MS = 5000
+/** Timer handle for the pending negotiation retry, if any. */
+let negotiationRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearNegotiationRetry() {
+  if (negotiationRetryTimer !== null) {
+    clearTimeout(negotiationRetryTimer)
+    negotiationRetryTimer = null
+  }
+}
+
+/** True when an error is the expected "stopped during negotiation" AbortError. */
+function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || /stopped during negotiation|aborted/i.test(error.message)
+  }
+  return false
+}
 
 function updateConnectionState(newState: ConnectionState) {
   currentConnectionState = newState
@@ -107,13 +129,55 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
 
     connectionRefCount++
 
+    // Generation guard: any async callback created by this effect (negotiation retry,
+    // start().then/catch) becomes a no-op once the effect is torn down. This is what
+    // prevents the "AbortError: The connection was stopped during negotiation" from
+    // surfacing when a component mounts/unmounts quickly (React 19 StrictMode, route
+    // transitions or a token refresh).
+    let disposed = false
+
+    const startConnection = (connection: HubConnection) => {
+      if (disposed) return
+      updateConnectionState('connecting')
+
+      connection
+        .start()
+        .then(() => {
+          if (disposed) return
+          clearNegotiationRetry()
+          updateConnectionState('connected')
+          connection.invoke('SubscribeToGroup', 1).catch(() => {})
+        })
+        .catch((err) => {
+          if (disposed) return
+          if (isAbortError(err)) {
+            // Expected during fast mount/unmount or a token swap. Retry after 5s
+            // instead of surfacing the error, and never block the UI on it.
+            updateConnectionState('connecting')
+            clearNegotiationRetry()
+            negotiationRetryTimer = setTimeout(() => {
+              negotiationRetryTimer = null
+              startConnection(connection)
+            }, NEGOTIATION_RETRY_MS)
+            return
+          }
+          console.warn('SignalR connection failed:', err)
+          updateConnectionState('disconnected')
+          clearNegotiationRetry()
+          negotiationRetryTimer = setTimeout(() => {
+            negotiationRetryTimer = null
+            startConnection(connection)
+          }, NEGOTIATION_RETRY_MS)
+        })
+    }
+
     if (!sharedConnection || sharedToken !== token) {
       if (sharedConnection) {
+        // stop() may reject with an AbortError mid-negotiation; swallow it.
         sharedConnection.stop().catch(() => {})
       }
 
       sharedToken = token
-      updateConnectionState('connecting')
 
       const apiBase = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? ''
       const hubEndpoint = apiBase ? `${apiBase.replace(/\/api\/?$/, '')}/hubs/tickets` : '/hubs/tickets'
@@ -170,21 +234,14 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         updateConnectionState('disconnected')
       })
 
-      connection
-        .start()
-        .then(() => {
-          updateConnectionState('connected')
-          connection.invoke('SubscribeToGroup', 1).catch(() => {})
-        })
-        .catch((err) => {
-          console.warn('SignalR connection failed:', err)
-          updateConnectionState('disconnected')
-        })
+      startConnection(connection)
 
       sharedConnection = connection
     }
 
     return () => {
+      disposed = true
+      clearNegotiationRetry()
       connectionRefCount--
       if (connectionRefCount <= 0) {
         connectionRefCount = 0

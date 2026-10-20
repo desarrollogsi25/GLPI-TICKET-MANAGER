@@ -86,11 +86,38 @@ const COLUMNS: ColumnDef[] = [
 
 const COLUMN_IDS: ColumnId[] = ['queue', 'mine', 'in_progress', 'pending', 'resolved']
 
+/**
+ * Kanban ordering policy (see docs/02-modules/tickets/overview.md):
+ * - Active columns (queue, mine, in_progress, pending): FIFO by last update/creation,
+ *   oldest on top — the next ticket to work on is always first.
+ * - Resolved column: LIFO by last update, newest on top — the last ticket you finished
+ *   is always first.
+ * Priority is intentionally NOT a sort key: it stays a visual indicator (card colour).
+ */
+function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): TicketSummary[] {
+  const timestamp = (ticket: TicketSummary) => {
+    const value = ticket.updatedAt || ticket.createdAt
+    const parsed = value ? Date.parse(value) : NaN
+    return Number.isNaN(parsed) ? 0 : parsed
+  }
+
+  const sorted = [...tickets].sort((a, b) => {
+    // Stable tiebreaker on id keeps ordering deterministic in tests.
+    const diff = timestamp(a) - timestamp(b)
+    return diff !== 0 ? diff : a.id - b.id
+  })
+
+  // Newest-first for the closed side of the workflow.
+  return columnId === 'resolved' ? sorted.reverse() : sorted
+}
+
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
   mine: ['in_progress'],
   in_progress: ['pending', 'resolved'],
-  pending: ['in_progress'],
+  // A waiting ticket can be resumed (→ En progreso) or resolved straight away.
+  pending: ['in_progress', 'resolved'],
+  // Resolved is terminal in the board: only an admin reopens via the detail view.
   resolved: [],
 }
 
@@ -328,17 +355,18 @@ export function Kanban() {
       mine: all.filter((t) => t.status === 1 || t.status === 2),
       in_progress: all.filter((t) => t.status === 3),
       pending: all.filter((t) => t.status === 4),
-      resolved: all.filter((t) => t.status === 5),
+      // Auto-close moves resolved tickets to Closed (6); both live in the "Resuelto" column.
+      resolved: all.filter((t) => t.status === 5 || t.status === 6),
     }
   }, [myTicketsQuery.data])
 
   const ticketsByColumn: Record<ColumnId, TicketSummary[]> = useMemo(
     () => ({
-      queue: queueTickets,
-      mine: myTicketsByColumn.mine,
-      in_progress: myTicketsByColumn.in_progress,
-      pending: myTicketsByColumn.pending,
-      resolved: myTicketsByColumn.resolved,
+      queue: sortTicketsForColumn('queue', queueTickets),
+      mine: sortTicketsForColumn('mine', myTicketsByColumn.mine),
+      in_progress: sortTicketsForColumn('in_progress', myTicketsByColumn.in_progress),
+      pending: sortTicketsForColumn('pending', myTicketsByColumn.pending),
+      resolved: sortTicketsForColumn('resolved', myTicketsByColumn.resolved),
     }),
     [queueTickets, myTicketsByColumn],
   )
@@ -535,6 +563,11 @@ export function Kanban() {
     }
 
     if (sourceId === 'in_progress' && targetId === 'resolved') {
+      setResolveTicketId(ticketId)
+      return
+    }
+
+    if (sourceId === 'pending' && targetId === 'resolved') {
       setResolveTicketId(ticketId)
       return
     }

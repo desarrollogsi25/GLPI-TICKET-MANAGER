@@ -227,11 +227,9 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
-        if (!await _accessPolicy.CanModifyStatusAsync(userId, role, ticketId, status, cancellationToken))
-        {
-            throw new ForbiddenException($"User {userId} cannot modify status of ticket {ticketId} to {status}");
-        }
-
+        // Payload/state validation runs before the authorization decision so that an
+        // attempt to resolve without a written solution is always reported as 422,
+        // regardless of who is asking (ADR-006).
         if (status == (int)TicketStatus.Solved)
         {
             var solutionExists = await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
@@ -241,6 +239,15 @@ public sealed class TicketService : ITicketService
             }
         }
 
+        // Business-rule evaluation returns a clear, operator-facing reason on rejection
+        // (e.g. "Solo un administrador puede cambiar el estado de un ticket resuelto").
+        var decision = await _accessPolicy.EvaluateStatusTransitionAsync(userId, role, ticketId, status, cancellationToken);
+        if (!decision.Allowed)
+        {
+            throw new ForbiddenException(
+                decision.Reason ?? $"User {userId} cannot modify status of ticket {ticketId} to {status}");
+        }
+
         try
         {
             await _glpi.UpdateTicketStatusAsync(ticketId, status, cancellationToken);
@@ -248,6 +255,24 @@ public sealed class TicketService : ITicketService
         catch (GlpiApiException exception) when (exception.StatusCode == 404)
         {
             return false;
+        }
+
+        // Auto-close: resolving a ticket immediately closes it (status 6) in GLPI so the
+        // lifecycle does not stall in "Resolved". A failure here is logged but never rolls
+        // back the resolve that already succeeded.
+        var effectiveStatus = status;
+        if (status == (int)TicketStatus.Solved)
+        {
+            effectiveStatus = (int)TicketStatus.Closed;
+            try
+            {
+                await _glpi.UpdateTicketStatusAsync(ticketId, effectiveStatus, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
+                effectiveStatus = status;
+            }
         }
 
         if (status == (int)TicketStatus.Solved)
@@ -266,7 +291,7 @@ public sealed class TicketService : ITicketService
         {
             var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
             var assigneeId = ticket?.AssigneeIds?.FirstOrDefault();
-            await _notifications.NotifyTicketStatusChangedAsync(ticketId, status, assigneeId, cancellationToken);
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId, effectiveStatus, assigneeId, cancellationToken);
         }
         catch (Exception ex)
         {

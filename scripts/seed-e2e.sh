@@ -97,6 +97,39 @@ DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=70;
 DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=70;
 
 UPDATE glpi_tickets SET status=2 WHERE status=3 AND id IN (SELECT tickets_id FROM glpi_tickets_users WHERE users_id=7 AND type=2);
+
+-- 3b. Fixtures for Kanban ordering (reserved ids 81-86, assigned to tech1/user1)
+-- Active columns must be FIFO (oldest first) and Resolved LIFO (newest first).
+-- Names deliberately avoid the column labels ("En progreso"/"Pendiente"/"Resuelto")
+-- so existing specs that match those labels are not broken by strict-mode collisions.
+INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
+VALUES
+  (81, 0, 'ORDER FIFO A (older)',    '2026-02-01 08:00:00', '2026-02-01 08:00:00', 3, 3, 'Orden FIFO', 3, 3, 5, 1, 1, 2),
+  (82, 0, 'ORDER FIFO B (newer)',    '2026-03-01 08:00:00', '2026-03-01 08:00:00', 3, 3, 'Orden FIFO', 3, 3, 1, 1, 1, 2),
+  (83, 0, 'ORDER WAIT A (older)',    '2026-02-02 08:00:00', '2026-02-02 08:00:00', 4, 3, 'Orden FIFO', 3, 3, 4, 1, 1, 2),
+  (84, 0, 'ORDER WAIT B (newer)',    '2026-03-02 08:00:00', '2026-03-02 08:00:00', 4, 3, 'Orden FIFO', 3, 3, 2, 1, 1, 2),
+  (85, 0, 'ORDER DONE A (older)',    '2026-02-03 08:00:00', '2026-02-03 08:00:00', 6, 3, 'Orden LIFO', 3, 3, 3, 1, 1, 2),
+  (86, 0, 'ORDER DONE B (newer)',    '2026-03-03 08:00:00', '2026-03-03 08:00:00', 6, 3, 'Orden LIFO', 3, 3, 3, 1, 1, 2)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name), status = VALUES(status), date = VALUES(date), date_mod = VALUES(date_mod),
+  priority = VALUES(priority), closedate = IF(VALUES(status) = 6, VALUES(date), NULL),
+  solvedate = IF(VALUES(status) = 6, VALUES(date), NULL);
+
+DELETE FROM glpi_tickets_users WHERE tickets_id IN (81, 82, 83, 84, 85, 86);
+INSERT INTO glpi_tickets_users (tickets_id, users_id, type, use_notification, alternative_email)
+VALUES
+  (81, 7, 2, 1, NULL),
+  (82, 7, 2, 1, NULL),
+  (83, 7, 2, 1, NULL),
+  (84, 7, 2, 1, NULL),
+  (85, 7, 2, 1, NULL),
+  (86, 7, 2, 1, NULL);
+
+DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id IN (85, 86);
+INSERT INTO glpi_itilsolutions (itemtype, items_id, date_creation, date_mod, content, status, users_id, users_id_editor)
+VALUES
+  ('Ticket', 85, '2026-02-03 08:05:00', '2026-02-03 08:05:00', 'Solucion resuelto antiguo', 2, 7, 7),
+  ('Ticket', 86, '2026-03-03 08:05:00', '2026-03-03 08:05:00', 'Solucion resuelto reciente', 2, 7, 7);
 SQL
 
 # 4. Limpiar preferencias de usuarios (tech1 y solicitante_test) en app-db para inicio limpio

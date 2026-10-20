@@ -29,6 +29,17 @@ export function ResolveTicketDialog({
   const hasError = touched && trimmed.length === 0
   const disabled = trimmed.length === 0 || pending
 
+  /**
+   * Closes the dialog unconditionally (never gated on `pending`). Used after a
+   * successful mutation so the modal always dismisses on mobile, where the ticket
+   * may have moved to the auto-closed "Resuelto" state underneath.
+   */
+  const closeDialog = () => {
+    setContent('')
+    setTouched(false)
+    onOpenChange(false)
+  }
+
   const submit = () => {
     if (disabled) {
       setTouched(true)
@@ -47,9 +58,7 @@ export function ResolveTicketDialog({
                   description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
                   variant: 'success',
                 })
-                setContent('')
-                setTouched(false)
-                onOpenChange(false)
+                closeDialog()
               },
               onError: (err) => {
                 pushToast({
@@ -76,9 +85,10 @@ export function ResolveTicketDialog({
     <Dialog
       open={open}
       onClose={() => {
+        // Backdrop / Escape: keep the dialog open while the resolve is in flight so the
+        // user cannot dismiss it mid-flight and lose the operation's result.
         if (!pending) {
-          setTouched(false)
-          onOpenChange(false)
+          closeDialog()
         }
       }}
       title={`Resolver ticket #${ticketId}`}
@@ -103,10 +113,7 @@ export function ResolveTicketDialog({
       <div className="mt-4 flex justify-end gap-2">
         <Button
           variant="outline"
-          onClick={() => {
-            setTouched(false)
-            onOpenChange(false)
-          }}
+          onClick={closeDialog}
           disabled={pending}
         >
           Cancelar

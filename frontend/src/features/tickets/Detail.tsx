@@ -68,9 +68,14 @@ export function Detail() {
   const status = statusMeta(ticket.status)
   const priority = priorityMeta(ticket.priority)
   const type = TICKET_TYPES.find((item) => item.value === ticket.type)?.label ?? ticket.typeLabel
+  // Reopen policy (backend-enforced): only an admin can reopen a Closed (6) ticket.
+  // An assigned technician may still reopen a Solved (5) ticket.
   const canReopen =
-    (ticket.status === 5 || ticket.status === 6) &&
-    (role === 'admin' || (currentUser?.userId != null && ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))))
+    role === 'admin'
+      ? ticket.status === 5 || ticket.status === 6
+      : ticket.status === 5 &&
+        currentUser?.userId != null &&
+        ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))
 
   return (
     <div className="space-y-4">
