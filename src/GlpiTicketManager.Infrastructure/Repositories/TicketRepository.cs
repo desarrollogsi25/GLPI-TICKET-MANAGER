@@ -42,9 +42,18 @@ public sealed class TicketRepository : ITicketRepository
         return await CountFilteredAsync(assigneeId, null, cancellationToken);
     }
 
+    public Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, null, limit, offset, cancellationToken);
+
     public async Task<IReadOnlyList<Ticket>> GetFilteredAsync(
         int? assigneeId,
         int? serviceId,
+        int? requesterId,
         int limit,
         int offset,
         CancellationToken cancellationToken)
@@ -55,6 +64,7 @@ public sealed class TicketRepository : ITicketRepository
             TicketQueries.BaseProjection,
             assigneeId,
             serviceId,
+            requesterId,
             limit,
             offset);
 
@@ -68,9 +78,16 @@ public sealed class TicketRepository : ITicketRepository
         return rows.AsList();
     }
 
+    public Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        CancellationToken cancellationToken) =>
+        CountFilteredAsync(assigneeId, serviceId, null, cancellationToken);
+
     public async Task<long> CountFilteredAsync(
         int? assigneeId,
         int? serviceId,
+        int? requesterId,
         CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -79,6 +96,7 @@ public sealed class TicketRepository : ITicketRepository
             "SELECT COUNT(*) FROM glpi_tickets t\n",
             assigneeId,
             serviceId,
+            requesterId,
             limit: null,
             offset: null);
 
@@ -95,6 +113,7 @@ public sealed class TicketRepository : ITicketRepository
         string baseSql,
         int? assigneeId,
         int? serviceId,
+        int? requesterId,
         int? limit,
         int? offset)
     {
@@ -107,11 +126,22 @@ public sealed class TicketRepository : ITicketRepository
             parameters.Add("AssigneeId", assigneeId.Value);
         }
 
+        if (requesterId.HasValue)
+        {
+            sql.AppendLine("INNER JOIN glpi_tickets_users tu_req ON tu_req.tickets_id = t.id AND tu_req.type = 1");
+            parameters.Add("RequesterId", requesterId.Value);
+        }
+
         var conditions = new List<string> { "t.is_deleted = 0" };
 
         if (assigneeId.HasValue)
         {
             conditions.Add("tu.users_id = @AssigneeId");
+        }
+
+        if (requesterId.HasValue)
+        {
+            conditions.Add("tu_req.users_id = @RequesterId");
         }
 
         if (serviceId.HasValue)
@@ -407,6 +437,24 @@ public sealed class TicketRepository : ITicketRepository
               WHERE tickets_id = @TicketId
                 AND users_id = @UserId
                 AND type = 2",
+            new { TicketId = ticketId, UserId = userId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
+        return result;
+    }
+
+    public async Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            @"SELECT COUNT(*) > 0
+              FROM glpi_tickets_users
+              WHERE tickets_id = @TicketId
+                AND users_id = @UserId
+                AND type = 1",
             new { TicketId = ticketId, UserId = userId },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);

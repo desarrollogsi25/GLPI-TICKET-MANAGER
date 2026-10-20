@@ -46,6 +46,11 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
+        if (role == AppRole.Solicitante)
+        {
+            return await _tickets.IsUserRequesterOfTicketAsync(userId, ticketId, ct);
+        }
+
         // Technician: estricto
         // (a) asignado a él, O
         // (b) sin asignar Y en su grupo (para poder reclamarlo)

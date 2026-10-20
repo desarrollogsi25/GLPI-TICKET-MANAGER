@@ -13,4 +13,12 @@ public interface IGlpiApiClient
     Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken);
+
+    Task<int> CreateTicketAsync(
+        string title,
+        string description,
+        int urgency,
+        int? categoryId,
+        int requesterUserId,
+        CancellationToken cancellationToken);
 }

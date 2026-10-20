@@ -39,6 +39,9 @@ dist/
 *.log
 logs/
 
+# Tools
+.opencode/
+
 # Docker
 .docker/
 

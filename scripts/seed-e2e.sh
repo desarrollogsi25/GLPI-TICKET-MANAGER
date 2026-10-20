@@ -19,13 +19,15 @@ INSERT IGNORE INTO glpi_users (id, name, password, is_active, profiles_id, entit
 VALUES 
   (7, 'tech1', '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', 1, 0, 0),
   (8, 'tech2', '$2y$12$3G7IE3WmAXFBOUJwnIC4aOfG.wq6kFscRmgcRrpXwHZpyql9ohU1u', 1, 0, 0),
-  (9, 'user1', '$2y$12$IQ1owWOfVxbcjByiKsmGf.mJqEFeFVXRNdDtVmqA5kyoTEZUNFxAC', 1, 0, 0);
+  (9, 'user1', '$2y$12$IQ1owWOfVxbcjByiKsmGf.mJqEFeFVXRNdDtVmqA5kyoTEZUNFxAC', 1, 0, 0),
+  (15, 'solicitante_test', '$2y$12$7o6vKn3csvK.j0oLd8EJuexEbVYj1zXmPqaJuyNWmCF.sp/vwSZCW', 1, 0, 0);
 
 INSERT IGNORE INTO glpi_profiles_users (id, users_id, profiles_id, entities_id, is_recursive, is_dynamic, is_default_profile)
 VALUES
   (6, 7, 6, 0, 0, 0, 1),
   (7, 8, 6, 0, 0, 0, 1),
-  (8, 9, 1, 0, 0, 0, 1);
+  (8, 9, 1, 0, 0, 0, 1),
+  (18, 15, 1, 0, 0, 0, 1);
 
 INSERT IGNORE INTO glpi_groups (id, name, entities_id, completename)
 VALUES
@@ -90,13 +92,13 @@ DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=70;
 UPDATE glpi_tickets SET status=2 WHERE status=3 AND id IN (SELECT tickets_id FROM glpi_tickets_users WHERE users_id=7 AND type=2);
 SQL
 
-# 4. Limpiar preferencias de usuario tech1 (id=7) en app-db para inicio limpio
+# 4. Limpiar preferencias de usuarios (tech1 y solicitante_test) en app-db para inicio limpio
 docker compose exec -T app-db psql -U app -d glpi_ticket_manager -c \
-  "DELETE FROM user_preferences WHERE user_id = 7;" >/dev/null 2>&1 || true
+  "DELETE FROM user_preferences WHERE user_id IN (7, 15);" >/dev/null 2>&1 || true
 
 # 5. Limpiar tokens revocados para que cada run empiece limpio
 echo "Cleaning revoked_tokens..."
 docker compose exec -T app-db psql -U app -d glpi_ticket_manager -c \
-  "DELETE FROM revoked_tokens WHERE user_id = 7;" > /dev/null 2>&1 || true
+  "DELETE FROM revoked_tokens WHERE user_id IN (7, 15);" > /dev/null 2>&1 || true
 
 echo "E2E state seeded (fixtures created, ticket #11 reset, preferences cleaned, revoked tokens cleaned)."
