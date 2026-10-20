@@ -159,6 +159,8 @@ function KanbanColumn({
   onRetry,
   emptyMessage = 'No hay tickets aquí',
   onClaim,
+  onStart,
+  onResolve,
   isClaiming,
   recentlyUpdatedIds,
   invalidDropTicketId,
@@ -171,6 +173,8 @@ function KanbanColumn({
   onRetry?: () => void
   emptyMessage?: string
   onClaim?: (ticketId: number) => void
+  onStart?: (ticketId: number) => void
+  onResolve?: (ticketId: number) => void
   isClaiming?: boolean
   recentlyUpdatedIds?: Set<number>
   invalidDropTicketId?: number | null
@@ -269,7 +273,44 @@ function KanbanColumn({
                             'Asignarme'
                           )}
                         </Button>
-                      ) : column.id === 'in_progress' || column.id === 'pending' ? (
+                      ) : column.id === 'mine' ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs w-full"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onStart?.(ticket.id)
+                          }}
+                        >
+                          Iniciar
+                        </Button>
+                      ) : column.id === 'in_progress' ? (
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <Link
+                            to={`/tickets/${ticket.id}`}
+                            className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Abrir detalle →
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onResolve?.(ticket.id)
+                            }}
+                          >
+                            Resolver
+                          </Button>
+                        </div>
+                      ) : column.id === 'pending' ? (
                         <Link
                           to={`/tickets/${ticket.id}`}
                           className="inline-flex items-center text-xs font-medium text-primary hover:underline"
@@ -896,6 +937,8 @@ export function Kanban() {
                   onRetry={isError ? () => void queueQuery.refetch() : undefined}
                   emptyMessage={emptyMessage}
                   onClaim={handleClaim}
+                  onStart={handleStart}
+                  onResolve={(ticketId) => setResolveTicketId(ticketId)}
                   isClaiming={claimMutation.isPending}
                   recentlyUpdatedIds={recentlyUpdatedIds}
                   invalidDropTicketId={invalidDropTicketId}
