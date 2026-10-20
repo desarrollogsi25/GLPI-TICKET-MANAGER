@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { v4 as uuidv4 } from 'uuid'
 
 export type ToastVariant = 'default' | 'success' | 'destructive'
 
@@ -21,7 +22,8 @@ const AUTO_DISMISS_MS = 4000
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
   push: (toast) => {
-    const id = crypto.randomUUID()
+    // uuid works in insecure contexts (LAN http by IP) where crypto.randomUUID is undefined.
+    const id = uuidv4()
     set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }))
 
     window.setTimeout(() => {
