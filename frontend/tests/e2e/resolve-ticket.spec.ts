@@ -1,22 +1,67 @@
 import { test, expect } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 
 /**
- * QA audit spec for the resolve-dialog hotfix (Antigravity).
+ * QA audit spec for the resolve-dialog hotfix.
  *
  * Verifies the full technician flow end to end:
- *   login (via globalSetup storageState) -> assign a queue ticket -> move it to
+ *   (storageState login as tech1) -> assign a queue ticket -> move it to
  *   "En progreso" -> open the Resolve modal -> fill the solution -> submit ->
  *   the modal must disappear from the DOM and the ticket must land in "Resuelto".
  *
  * The core regression this guards against: the dialog staying open (or re-opening)
  * after a successful mutation, and the ticket not moving to the Resuelto column.
  *
- * NOTE: the fixture ticket depends on the E2E seed. #57 ("TEST sin asignar") is the
- * canonical queue ticket used by self-assign-flow.spec.ts, so this spec reuses it to
- * stay consistent with the existing seed contract.
+ * This spec provisions its OWN ticket (id 901) instead of reusing a shared seed
+ * fixture: self-assign-flow.spec.ts already consumes #57, so resolving the same
+ * ticket twice would break it (workers: 1 runs specs sequentially).
  */
 
-const QUEUE_TICKET_ID = 57
+const TICKET_ID = 901
+
+/**
+ * Resets the dedicated fixture ticket to "Nuevo / unassigned in the group queue"
+ * so the spec is idempotent across repeated runs. Uses the same MariaDB access
+ * path documented in scripts/seed-e2e.sh, but only touches this spec's own ticket.
+ */
+function resetFixtureTicket() {
+  const password = process.env.MARIADB_PASSWORD
+  if (!password) {
+    throw new Error('MARIADB_PASSWORD must be set in the environment to reset the E2E fixture.')
+  }
+
+  const sql = [
+    `INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)`,
+    `VALUES (${TICKET_ID}, 0, 'QA resolve-ticket fixture', NOW(), NOW(), 1, 3, 'Fixture para resolve-ticket.spec.ts', 3, 3, 3, 1, 1, 2)`,
+    `ON DUPLICATE KEY UPDATE status = 1, solvedate = NULL, closedate = NULL, date_mod = NOW();`,
+    `INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) VALUES (${TICKET_ID}, 1, 2)`,
+    `ON DUPLICATE KEY UPDATE groups_id = 1, type = 2;`,
+    `DELETE FROM glpi_tickets_users WHERE tickets_id = ${TICKET_ID} AND type = 2;`,
+    `DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id = ${TICKET_ID};`,
+  ].join('\n')
+
+  execFileSync(
+    'docker',
+    [
+      'compose',
+      'exec',
+      '-T',
+      'glpi-db',
+      'mariadb',
+      '-u',
+      'glpi',
+      `-p${password}`,
+      'glpi',
+      '-e',
+      sql,
+    ],
+    { stdio: 'pipe' },
+  )
+}
+
+test.beforeAll(() => {
+  resetFixtureTicket()
+})
 
 test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -24,21 +69,21 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  // 1. Cola del grupo: asignarme el ticket de cola.
+  // 1. Cola del grupo: asignarme el ticket dedicado.
   await page.goto('/queue')
   await page.waitForLoadState('networkidle')
 
-  await expect(page.locator(`text=#${QUEUE_TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })
+  await expect(page.locator(`text=#${TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })
 
   const card = page
-    .getByText(`#${QUEUE_TICKET_ID}`)
+    .getByText(`#${TICKET_ID}`)
     .first()
     .locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
   const claimButton = card.getByRole('button', { name: /Asignarme/i })
   await expect(claimButton).toBeVisible()
   await claimButton.click()
 
-  await expect(page.locator(`text=#${QUEUE_TICKET_ID}`).first()).not.toBeVisible({ timeout: 15000 })
+  await expect(page.locator(`text=#${TICKET_ID}`).first()).not.toBeVisible({ timeout: 15000 })
 
   // 2. Kanban: el ticket recién asignado aparece en "Mis tickets".
   await page.goto('/kanban')
@@ -46,10 +91,10 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
 
   const mineColumn = page.locator('[data-column-id="mine"]')
   const mineCard = mineColumn
-    .getByText(`#${QUEUE_TICKET_ID}`)
+    .getByText(`#${TICKET_ID}`)
     .first()
     .locator('xpath=ancestor::div[.//button][1]')
-  await expect(mineColumn.locator(`text=#${QUEUE_TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })
+  await expect(mineColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })
 
   // 3. Moverlo a "En progreso" (status 3) desde la tarjeta asignada.
   const startButton = mineCard.getByRole('button', { name: /Iniciar|En progreso|Empezar/i }).first()
@@ -57,13 +102,13 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
   await startButton.click()
 
   const inProgressColumn = page.locator('[data-column-id="in_progress"]')
-  await expect(inProgressColumn.locator(`text=#${QUEUE_TICKET_ID}`).first()).toBeVisible({
+  await expect(inProgressColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({
     timeout: 15000,
   })
 
   // 4. Abrir el modal de resolución desde la tarjeta en progreso.
   const progressCard = inProgressColumn
-    .getByText(`#${QUEUE_TICKET_ID}`)
+    .getByText(`#${TICKET_ID}`)
     .first()
     .locator('xpath=ancestor::div[.//button][1]')
   const resolveButton = progressCard.getByRole('button', { name: /^Resolver$/ }).first()
@@ -91,7 +136,7 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
 
   // 8. El ticket aparece en la columna "Resuelto".
   const resolvedColumn = page.locator('[data-column-id="resolved"]')
-  await expect(resolvedColumn.locator(`text=#${QUEUE_TICKET_ID}`).first()).toBeVisible({
+  await expect(resolvedColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({
     timeout: 15000,
   })
 

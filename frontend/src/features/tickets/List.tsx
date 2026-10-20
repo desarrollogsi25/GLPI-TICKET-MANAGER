@@ -22,6 +22,7 @@ import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { useRole } from '@/hooks/useRole'
 import { priorityMeta, statusMeta } from './labels'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketFiltersBar } from './TicketFiltersBar'
@@ -99,6 +100,7 @@ const columns: ColumnDef<TicketSummary>[] = [
 export function List() {
   const [searchParams] = useSearchParams()
   const isMobile = useIsMobile()
+  const { isTechnician } = useRole()
   const serviceIdParam = searchParams.get('serviceId')
   const serviceId = serviceIdParam ? parseInt(serviceIdParam, 10) : null
 
@@ -323,12 +325,16 @@ export function List() {
         description={
           serviceId
             ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
-            : data
-              ? `${data.total} ticket(s) para el técnico seleccionado.`
-              : 'Listado de tickets'
+            : isTechnician
+              ? data
+                ? `${data.total} ticket(s) asignados a vos.`
+                : 'Tus tickets asignados'
+              : data
+                ? `${data.total} ticket(s) para el técnico seleccionado.`
+                : 'Listado de tickets'
         }
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Tickets' }]}
-        actions={serviceId == null ? <TechnicianFilter /> : undefined}
+        actions={serviceId == null && !isTechnician ? <TechnicianFilter /> : undefined}
       />
 
       {serviceId != null && (
@@ -349,7 +355,9 @@ export function List() {
 
       {assigneeId == null && serviceId == null ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-          Selecciona un técnico o servicio para ver tickets.
+          {isTechnician
+            ? 'No hay tickets asignados a tu usuario.'
+            : 'Selecciona un técnico o servicio para ver tickets.'}
         </p>
       ) : (
         <>

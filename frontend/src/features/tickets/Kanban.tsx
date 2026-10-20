@@ -24,7 +24,8 @@ import {
   useUpdateTicketStatusMutation,
 } from '@/hooks/useTickets'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
-import { getApiErrorMessage } from '@/lib/api/errors'
+import { useRole } from '@/hooks/useRole'
+import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -299,7 +300,7 @@ function KanbanColumn({
                           <Button
                             size="sm"
                             variant="default"
-                            className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="h-7 px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
                             onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
@@ -332,7 +333,7 @@ function KanbanColumn({
                 transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
                 className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center"
               >
-                <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+                <p className="text-xs text-slate-800">{emptyMessage}</p>
               </motion.div>
             ) : null}
           </>
@@ -345,6 +346,7 @@ function KanbanColumn({
 export function Kanban() {
   const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
+  const { isTechnician } = useRole()
   const currentUser = useAuthStore((state) => state.user)
   const currentUserId = selectedAssignee ?? currentUser?.userId ?? null
 
@@ -480,7 +482,7 @@ export function Kanban() {
       },
       onError: (err) => {
         pushToast({
-          title: 'No se pudo asignar el ticket',
+          title: getApiErrorTitle(err, 'No se pudo asignar el ticket'),
           description: getApiErrorMessage(err),
           variant: 'destructive',
         })
@@ -500,7 +502,7 @@ export function Kanban() {
           }),
         onError: (err) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           }),
@@ -520,7 +522,7 @@ export function Kanban() {
           }),
         onError: (err) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           }),
@@ -540,7 +542,7 @@ export function Kanban() {
           }),
         onError: (err) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           }),
@@ -696,7 +698,7 @@ export function Kanban() {
             <Button
               size="sm"
               variant="default"
-              className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-8 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={(e) => {
                 e.stopPropagation()
                 setResolveTicketId(ticket.id)
@@ -734,9 +736,11 @@ export function Kanban() {
         description="Arrastra un ticket entre columnas para cambiar su estado según el flujo operativo."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
-          <div className="hidden md:block">
-            <TechnicianFilter />
-          </div>
+          !isTechnician ? (
+            <div className="hidden md:block">
+              <TechnicianFilter />
+            </div>
+          ) : undefined
         }
       />
 

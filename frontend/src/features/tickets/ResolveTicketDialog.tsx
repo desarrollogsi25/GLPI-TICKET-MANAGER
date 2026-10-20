@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateSolutionMutation, useUpdateTicketStatusMutation } from '@/hooks/useTickets'
-import { getApiErrorMessage } from '@/lib/api/errors'
+import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
 
@@ -70,7 +70,7 @@ export function ResolveTicketDialog({
               },
               onError: (err) => {
                 pushToast({
-                  title: 'No se pudo resolver',
+                  title: getApiErrorTitle(err, 'No se pudo resolver el ticket'),
                   description: getApiErrorMessage(err),
                   variant: 'destructive',
                 })
@@ -80,7 +80,7 @@ export function ResolveTicketDialog({
         },
         onError: (err) => {
           pushToast({
-            title: 'No se pudo guardar la solución',
+            title: getApiErrorTitle(err, 'No se pudo guardar la solución'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           })

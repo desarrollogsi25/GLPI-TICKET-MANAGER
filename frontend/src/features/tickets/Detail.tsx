@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTicketQuery, useUpdateTicketStatusMutation } from '@/hooks/useTickets'
-import { getApiErrorMessage } from '@/lib/api/errors'
+import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, formatRelative, toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -34,7 +34,7 @@ export function Detail() {
           pushToast({ title: 'Estado actualizado', variant: 'success' }),
         onError: (mutationError) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(mutationError, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(mutationError),
             variant: 'destructive',
           }),
@@ -159,7 +159,7 @@ export function Detail() {
             <Card className="border-emerald-500/30 bg-emerald-500/5">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Solución</Badge>
+                  <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">Solución</Badge>
                   <CardTitle className="text-base">Solución aplicada</CardTitle>
                 </div>
               </CardHeader>
