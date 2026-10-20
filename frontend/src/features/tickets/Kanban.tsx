@@ -115,7 +115,7 @@ function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): Tic
 
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
-  mine: ['in_progress'],
+  mine: ['in_progress', 'resolved'],
   in_progress: ['pending', 'resolved'],
   // A waiting ticket can be resumed (→ En progreso) or resolved straight away.
   pending: ['in_progress', 'resolved'],
@@ -604,6 +604,11 @@ export function Kanban() {
 
     if (sourceId === 'pending' && targetId === 'in_progress') {
       handleResume(ticketId)
+      return
+    }
+
+    if (sourceId === 'mine' && targetId === 'resolved') {
+      setResolveTicketId(ticketId)
       return
     }
 

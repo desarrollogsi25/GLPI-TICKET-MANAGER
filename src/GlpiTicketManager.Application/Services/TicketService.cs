@@ -522,6 +522,11 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
+        if (ticket.Status == (int)TicketStatus.Closed)
+        {
+            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
+        }
+
         if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
         {
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");

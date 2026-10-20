@@ -202,8 +202,15 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // Technician: solo si asignado a él
-        return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        // Technician: asignado a él O perteneciente a su grupo
+        if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+        {
+            return true;
+        }
+
+        var userGroups2 = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+        var ticketGroups2 = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+        return userGroups2.Intersect(ticketGroups2).Any();
     }
 
     public async Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default)

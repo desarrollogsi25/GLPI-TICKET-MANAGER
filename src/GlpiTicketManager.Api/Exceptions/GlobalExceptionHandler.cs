@@ -75,10 +75,22 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 detail = glpi.Message;
                 break;
 
+            case GlpiApiException glpi when glpi.StatusCode == StatusCodes.Status400BadRequest:
+                statusCode = StatusCodes.Status400BadRequest;
+                title = "Solicitud inválida para GLPI";
+                detail = !string.IsNullOrWhiteSpace(glpi.ResponseBody) ? $"{glpi.Message} ({glpi.ResponseBody})" : glpi.Message;
+                break;
+
+            case GlpiApiException glpi when glpi.StatusCode == StatusCodes.Status422UnprocessableEntity:
+                statusCode = StatusCodes.Status422UnprocessableEntity;
+                title = "Operación no permitida en GLPI";
+                detail = !string.IsNullOrWhiteSpace(glpi.ResponseBody) ? $"{glpi.Message} ({glpi.ResponseBody})" : glpi.Message;
+                break;
+
             case GlpiApiException glpi:
                 statusCode = StatusCodes.Status502BadGateway;
                 title = "Error en el API de GLPI";
-                detail = glpi.Message;
+                detail = !string.IsNullOrWhiteSpace(glpi.ResponseBody) ? $"{glpi.Message} ({glpi.ResponseBody})" : glpi.Message;
                 break;
 
             default:
