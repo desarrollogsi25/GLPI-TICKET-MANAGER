@@ -30,11 +30,13 @@ if (!mariadbPassword) mariadbPassword = 'secret';
 // - supervisor_test / Super123! -> Supervisor (7)
 // - tecnico_test1 / Tec123! -> Technician (6) / Grupo: Requerimiento Service Desk
 // - tecnico_test2 / Tec123! -> Technician (6) / Grupo: Hardware
+// - solicitante_test / Soli123! -> Self-Service (1)
 const TEST_USERS = [
   { username: 'admin_test', password: 'Admin123!', profileId: 4, role: 'Super-Admin' },
   { username: 'supervisor_test', password: 'Super123!', profileId: 7, role: 'Supervisor' },
   { username: 'tecnico_test1', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Requerimiento Service Desk' },
   { username: 'tecnico_test2', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Hardware' },
+  { username: 'solicitante_test', password: 'Soli123!', profileId: 1, role: 'Self-Service' },
 ];
 
 function runInGlpi(command) {
@@ -138,6 +140,10 @@ function seedGlpiUsers() {
   }
 
   console.log('--- Configuración de usuarios GLPI completada con éxito ---\n');
+
+  // 5. Configurar Categorías ITIL y Catálogo de Servicios
+  const { seedGlpiCategories } = require('./seed-glpi-categories');
+  seedGlpiCategories();
 }
 
 if (require.main === module) {
