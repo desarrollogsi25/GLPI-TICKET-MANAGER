@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from 'motion/react'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
-import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 
@@ -102,12 +101,8 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
   const logout = useLogout()
-  const { isSolicitante } = useRole()
-
   const profile = currentUser ?? storedUser
-  const visibleItems = drawerNavItems.filter(
-    (item) => !isSolicitante || (item.to !== '/services' && item.to !== '/dashboard'),
-  )
+  const visibleItems = drawerNavItems
 
   // Cerrar con Escape
   useEffect(() => {

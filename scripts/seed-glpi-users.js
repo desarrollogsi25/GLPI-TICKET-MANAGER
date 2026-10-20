@@ -28,15 +28,13 @@ if (!mariadbPassword) mariadbPassword = 'secret';
 // Definición de usuarios requeridos:
 // - admin_test / Admin123! -> Super-Admin (4)
 // - supervisor_test / Super123! -> Supervisor (7)
-// - tecnico_test1 / Tec123! -> Technician (6) / Grupo: Soporte N1
-// - tecnico_test2 / Tec123! -> Technician (6) / Grupo: Soporte N2
-// - solicitante_test / Soli123! -> Self-Service (1)
+// - tecnico_test1 / Tec123! -> Technician (6) / Grupo: Requerimiento Service Desk
+// - tecnico_test2 / Tec123! -> Technician (6) / Grupo: Hardware
 const TEST_USERS = [
   { username: 'admin_test', password: 'Admin123!', profileId: 4, role: 'Super-Admin' },
   { username: 'supervisor_test', password: 'Super123!', profileId: 7, role: 'Supervisor' },
-  { username: 'tecnico_test1', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Soporte N1' },
-  { username: 'tecnico_test2', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Soporte N2' },
-  { username: 'solicitante_test', password: 'Soli123!', profileId: 1, role: 'Self-Service' },
+  { username: 'tecnico_test1', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Requerimiento Service Desk' },
+  { username: 'tecnico_test2', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Hardware' },
 ];
 
 function runInGlpi(command) {
@@ -65,7 +63,17 @@ function seedGlpiUsers() {
   console.log('--- Iniciando creación idempotente de usuarios GLPI ---');
 
   // Asegurar que los grupos requeridos existan
-  const groupsToEnsure = ['Soporte N1', 'Soporte N2'];
+  const groupsToEnsure = [
+    'Soporte N1',
+    'Soporte N2',
+    'Requerimiento Service Desk',
+    'Requerimiento BI',
+    'Aplicaciones GSI',
+    'Periféricos',
+    'Hardware',
+    'Software',
+    'Informes',
+  ];
   for (const groupName of groupsToEnsure) {
     const groupSql = `
       INSERT INTO glpi_groups (name, completename, is_requester, is_watcher, is_assign, is_task, is_notify, is_itemgroup, is_usergroup, date_creation, date_mod)
@@ -74,7 +82,7 @@ function seedGlpiUsers() {
     `;
     runSql(groupSql);
   }
-  console.log('✓ Grupos Soporte N1 y Soporte N2 verificados.');
+  console.log('✓ Grupos de soporte técnico verificados.');
 
   for (const user of TEST_USERS) {
     // 1. Intentar crear usuario

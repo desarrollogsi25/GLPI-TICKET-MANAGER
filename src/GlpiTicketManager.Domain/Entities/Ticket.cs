@@ -44,4 +44,13 @@ public sealed class Ticket
     public IReadOnlyList<int> RequesterIds { get; set; } = [];
 
     public IReadOnlyList<TicketFollowup> Followups { get; set; } = [];
+    public IReadOnlyList<TicketSolution> Solutions { get; set; } = [];
+}
+
+public sealed class TicketSolution
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
 }

@@ -1,119 +1,19 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTicketQuery, useUpdateTicketStatusMutation } from '@/hooks/useTickets'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, formatRelative, toPlainText } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
-import { useUiStore } from '@/store/uiStore'
-import type { TicketTask } from '@/store/uiStore'
-
-const EMPTY_TASKS: TicketTask[] = []
-
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useAuthStore } from '@/store/authStore'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
 import { ReopenTicketDialog } from './ReopenTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
-
-function TicketTasksPanel({ ticketId }: { ticketId: number }) {
-  const taskMap = useUiStore((state) => state.tasks)
-  const tasks = taskMap[ticketId] ?? (EMPTY_TASKS as TicketTask[])
-  const addTask = useUiStore((state) => state.addTask)
-  const toggleTask = useUiStore((state) => state.toggleTask)
-  const removeTask = useUiStore((state) => state.removeTask)
-  const pushToast = useToastStore((state) => state.push)
-  const [draft, setDraft] = useState('')
-  const [touched, setTouched] = useState(false)
-
-  const trimmed = draft.trim()
-  const hasError = touched && trimmed.length === 0
-  const isSubmitDisabled = trimmed.length === 0
-
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault()
-    if (isSubmitDisabled) {
-      setTouched(true)
-      return
-    }
-    addTask(ticketId, trimmed)
-    pushToast({
-      title: 'Tarea añadida',
-      description: trimmed,
-      variant: 'success',
-    })
-    setDraft('')
-    setTouched(false)
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tareas</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Lista de comprobación guardada en el navegador (estado local de la UI).
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <form className="space-y-1.5" onSubmit={handleSubmit} noValidate>
-          <div className="flex gap-2">
-            <Input
-              value={draft}
-              placeholder="Añadir una tarea"
-              aria-invalid={hasError}
-              aria-describedby={hasError ? 'task-error' : undefined}
-              className={hasError ? 'border-destructive focus-visible:ring-destructive' : undefined}
-              onBlur={() => setTouched(true)}
-              onChange={(event) => setDraft(event.target.value)}
-            />
-            <Button type="submit" variant="secondary" disabled={isSubmitDisabled}>
-              Añadir
-            </Button>
-          </div>
-          {hasError ? (
-            <p id="task-error" role="alert" className="text-xs text-destructive">
-              El nombre de la tarea es obligatorio.
-            </p>
-          ) : null}
-        </form>
-
-        {tasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin tareas para este ticket.</p>
-        ) : (
-          <ul className="space-y-2">
-            {tasks.map((task) => (
-              <li key={task.id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={task.done}
-                  onChange={() => toggleTask(ticketId, task.id)}
-                  className="size-4"
-                />
-                <span className={cn('flex-1 text-sm', task.done && 'text-muted-foreground line-through')}>
-                  {task.label}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeTask(ticketId, task.id)}
-                  className="text-xs text-muted-foreground hover:text-destructive"
-                  aria-label="Eliminar tarea"
-                >
-                  Eliminar
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
 export function Detail() {
   const { id } = useParams<{ id: string }>()
@@ -250,6 +150,30 @@ export function Detail() {
             </CardContent>
           </Card>
 
+          {ticket.solutions && ticket.solutions.length > 0 && (
+            <Card className="border-emerald-500/30 bg-emerald-500/5">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Solución</Badge>
+                  <CardTitle className="text-base">Solución aplicada</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {ticket.solutions.map((sol) => (
+                  <div key={sol.id} className="border-l-2 border-emerald-500/60 pl-4 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Usuario #{sol.userId}</span>
+                      <span>· {formatDateTime(sol.createdAt)}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">
+                      {toPlainText(sol.content) || '—'}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Seguimiento</CardTitle>
@@ -305,8 +229,6 @@ export function Detail() {
               </div>
             </CardContent>
           </Card>
-
-          <TicketTasksPanel ticketId={ticket.id} />
         </div>
       </div>
       <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />

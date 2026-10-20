@@ -46,7 +46,8 @@ public static class TicketMapper
         ticket.ClosedAt,
         ticket.AssigneeIds,
         ticket.RequesterIds,
-        ticket.Followups.Select(ToDto).ToArray());
+        ticket.Followups.Select(ToDto).ToArray(),
+        ticket.Solutions.Select(ToDto).ToArray());
 
     public static TicketFollowupDto ToDto(this TicketFollowup followup) => new(
         followup.Id,
@@ -54,4 +55,10 @@ public static class TicketMapper
         followup.Content,
         followup.CreatedAt,
         followup.IsPrivate);
+
+    public static TicketSolutionDto ToDto(this TicketSolution solution) => new(
+        solution.Id,
+        solution.UserId,
+        solution.Content,
+        solution.CreatedAt);
 }

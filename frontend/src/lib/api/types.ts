@@ -3,7 +3,7 @@
  * Source of truth: src/GlpiTicketManager.Application/Dtos
  */
 
-export type AppRole = 'technician' | 'supervisor' | 'admin' | 'solicitante'
+export type AppRole = 'technician' | 'supervisor' | 'admin'
 
 export interface UserProfile {
   userId: number
@@ -61,6 +61,13 @@ export interface TicketFollowup {
   isPrivate: boolean
 }
 
+export interface TicketSolution {
+  id: number
+  userId: number
+  content: string
+  createdAt: string
+}
+
 export interface TicketDetail {
   id: number
   title: string
@@ -81,6 +88,7 @@ export interface TicketDetail {
   assigneeIds: number[]
   requesterIds: number[]
   followups: TicketFollowup[]
+  solutions?: TicketSolution[]
 }
 
 export interface TicketListParams {

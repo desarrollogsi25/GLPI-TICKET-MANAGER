@@ -189,9 +189,9 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
-        if (!await _accessPolicy.CanModifyStatusAsync(userId, role, ticketId, cancellationToken))
+        if (!await _accessPolicy.CanModifyStatusAsync(userId, role, ticketId, status, cancellationToken))
         {
-            throw new ForbiddenException($"User {userId} cannot modify status of ticket {ticketId}");
+            throw new ForbiddenException($"User {userId} cannot modify status of ticket {ticketId} to {status}");
         }
 
         if (status == (int)TicketStatus.Solved)
@@ -558,83 +558,6 @@ public sealed class TicketService : ITicketService
         return (updated ?? ticket).ToDetail();
     }
 
-    public async Task<TicketDetailDto> CreateTicketAsync(
-        CreateTicketRequest request,
-        int requesterUserId,
-        AppRole role,
-        CancellationToken cancellationToken)
-    {
-        if (requesterUserId <= 0)
-        {
-            throw Invalid("requesterUserId", "requesterUserId must be a positive integer.");
-        }
-
-        var errors = new Dictionary<string, string[]>();
-
-        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length < 5)
-        {
-            errors["Title"] = ["El título debe tener al menos 5 caracteres."];
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length < 10)
-        {
-            errors["Description"] = ["La descripción debe tener al menos 10 caracteres."];
-        }
-
-        if (request.Urgency < 1 || request.Urgency > 5)
-        {
-            errors["Urgency"] = ["La urgencia debe estar entre 1 y 5."];
-        }
-
-        if (errors.Count > 0)
-        {
-            throw new ValidationException(errors);
-        }
-
-        var ticketId = await _glpi.CreateTicketAsync(
-            request.Title.Trim(),
-            request.Description.Trim(),
-            request.Urgency,
-            request.CategoryId,
-            requesterUserId,
-            cancellationToken);
-
-        try
-        {
-            await _audit.LogAsync(requesterUserId, "create", ticketId, null, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to record audit log for ticket creation {TicketId}", ticketId);
-        }
-
-        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
-        if (ticket is null)
-        {
-            return new TicketDetailDto(
-                ticketId,
-                request.Title.Trim(),
-                request.Description.Trim(),
-                (int)TicketStatus.New,
-                TicketLabels.Status((int)TicketStatus.New),
-                1,
-                TicketLabels.Type(1),
-                request.Urgency,
-                TicketLabels.Priority(request.Urgency),
-                request.Urgency,
-                3,
-                request.CategoryId,
-                DateTime.UtcNow,
-                DateTime.UtcNow,
-                null,
-                null,
-                Array.Empty<int>(),
-                new[] { requesterUserId },
-                Array.Empty<TicketFollowupDto>());
-        }
-
-        return ticket.ToDetail();
-    }
 
     private static void AttachUsers(IReadOnlyList<Ticket> tickets, IReadOnlyList<TicketUser> links)
     {

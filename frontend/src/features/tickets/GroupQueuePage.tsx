@@ -18,15 +18,30 @@ import { cn } from '@/lib/utils'
 import { priorityMeta } from '@/features/tickets/labels'
 import { useToastStore } from '@/store/toastStore'
 
-function GroupQueueCard({ ticket, onClaim, pending }: { ticket: TicketSummary; onClaim: (id: number) => void; pending: boolean }) {
+function GroupQueueCard({
+  ticket,
+  groupName,
+  onClaim,
+  pending,
+}: {
+  ticket: TicketSummary
+  groupName?: string
+  onClaim: (id: number) => void
+  pending: boolean
+}) {
   const priority = priorityMeta(ticket.priority)
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-muted-foreground">#{ticket.id}</span>
             <span className="truncate font-medium">{ticket.title}</span>
+            {groupName ? (
+              <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                {groupName}
+              </span>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className={cn('rounded px-2 py-0.5 font-medium', priority.badgeClass)}>{priority.label}</span>
@@ -34,8 +49,23 @@ function GroupQueueCard({ ticket, onClaim, pending }: { ticket: TicketSummary; o
             <span className="text-muted-foreground">· {formatRelative(ticket.createdAt)}</span>
           </div>
         </div>
-        <Button size="sm" onClick={() => onClaim(ticket.id)} disabled={pending}>
-          {pending ? 'Asignando…' : 'Asignarme'}
+        <Button
+          size="sm"
+          onClick={() => onClaim(ticket.id)}
+          disabled={pending}
+          className="min-w-[105px] shrink-0"
+        >
+          {pending ? (
+            <span className="flex items-center gap-1.5">
+              <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Asignando…
+            </span>
+          ) : (
+            'Asignarme'
+          )}
         </Button>
       </CardContent>
     </Card>
@@ -46,16 +76,21 @@ export function GroupQueuePage() {
   const toast = useToastStore((state) => state.push)
   const groups = useGroupsQuery()
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  const [claimingTicketId, setClaimingTicketId] = useState<number | null>(null)
 
   const effectiveGroupId =
     selectedGroupId ?? (groups.data && groups.data.length > 0 ? groups.data[0].id : null)
+
+  const effectiveGroup = groups.data?.find((g) => g.id === effectiveGroupId)
 
   const queue = useGroupQueueQuery(effectiveGroupId)
   const claim = useClaimTicketMutation()
 
   const handleClaim = (ticketId: number) => {
+    setClaimingTicketId(ticketId)
     claim.mutate(ticketId, {
       onSuccess: () => {
+        setClaimingTicketId(null)
         toast({
           title: 'Ticket asignado correctamente',
           description: `Ticket #${ticketId} asignado a vos.`,
@@ -63,6 +98,7 @@ export function GroupQueuePage() {
         })
       },
       onError: (err) => {
+        setClaimingTicketId(null)
         toast({
           title: 'No se pudo asignar el ticket',
           description: getApiErrorMessage(err),
@@ -111,8 +147,9 @@ export function GroupQueuePage() {
             <GroupQueueCard
               key={ticket.id}
               ticket={ticket}
+              groupName={effectiveGroup?.name}
               onClaim={handleClaim}
-              pending={claim.isPending}
+              pending={claimingTicketId === ticket.id}
             />
           ))}
         </div>

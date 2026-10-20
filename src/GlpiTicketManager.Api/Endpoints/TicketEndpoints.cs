@@ -29,14 +29,6 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        // POST /api/tickets -> crea nuevo ticket (rol solicitante u otros)
-        group.MapPost(string.Empty, CreateTicket)
-            .WithName("CreateTicket")
-            .WithSummary("Crea un nuevo ticket en GLPI")
-            .Accepts<CreateTicketRequest>("application/json")
-            .Produces<TicketDetailDto>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status401Unauthorized);
 
         // GET /api/tickets?groupId=X&unassigned=true -> cola del grupo (sin asignar)
         group.MapGet("by-group", GetUnassignedByGroup)
@@ -144,28 +136,6 @@ public static class TicketEndpoints
         return Results.Ok(result);
     }
 
-    private static async Task<IResult> CreateTicket(
-        CreateTicketRequest request,
-        ITicketService ticketService,
-        ClaimsPrincipal principal,
-        CancellationToken cancellationToken)
-    {
-        var userId = principal.GetUserId();
-        if (userId is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        var role = principal.GetRole();
-
-        var created = await ticketService.CreateTicketAsync(
-            request,
-            userId.Value,
-            role,
-            cancellationToken);
-
-        return Results.Created($"/api/tickets/{created.Id}", created);
-    }
 
     private static async Task<IResult> GetUnassignedByGroup(
         int? groupId,

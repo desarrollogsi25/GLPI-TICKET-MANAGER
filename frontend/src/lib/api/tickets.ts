@@ -56,15 +56,3 @@ export async function reopenTicket(id: number, reason?: string): Promise<import(
   const { data } = await apiClient.post(`/tickets/${id}/reopen`, reason ? { reason } : {})
   return data
 }
-
-export interface CreateTicketPayload {
-  title: string
-  description: string
-  urgency: number
-  categoryId?: number | null
-}
-
-export async function createTicket(payload: CreateTicketPayload): Promise<import('@/lib/api/types').TicketDetail> {
-  const { data } = await apiClient.post<import('@/lib/api/types').TicketDetail>('/tickets', payload)
-  return data
-}

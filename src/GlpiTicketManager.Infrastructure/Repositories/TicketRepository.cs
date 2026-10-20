@@ -197,6 +197,7 @@ public sealed class TicketRepository : ITicketRepository
 
         ticket.Followups = (await reader.ReadAsync<TicketFollowup>()).AsList();
         var links = (await reader.ReadAsync<TicketUser>()).AsList();
+        ticket.Solutions = (await reader.ReadAsync<TicketSolution>()).AsList();
 
         ticket.AssigneeIds = links
             .Where(link => link.Type == (int)Domain.Enums.TicketUserType.Assigned)

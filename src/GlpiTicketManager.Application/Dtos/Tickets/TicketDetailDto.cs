@@ -22,4 +22,5 @@ public sealed record TicketDetailDto(
     DateTime? ClosedAt,
     IReadOnlyList<int> AssigneeIds,
     IReadOnlyList<int> RequesterIds,
-    IReadOnlyList<TicketFollowupDto> Followups);
+    IReadOnlyList<TicketFollowupDto> Followups,
+    IReadOnlyList<TicketSolutionDto> Solutions);
