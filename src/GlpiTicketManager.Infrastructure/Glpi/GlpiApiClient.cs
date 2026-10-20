@@ -193,6 +193,63 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    public async Task<int> CreateTicketAsync(
+        string title,
+        string description,
+        int urgency,
+        int? categoryId,
+        int requesterUserId,
+        CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var input = new Dictionary<string, object>
+            {
+                ["name"] = title,
+                ["content"] = description,
+                ["urgency"] = urgency,
+                ["_users_id_requester"] = requesterUserId
+            };
+
+            if (categoryId.HasValue && categoryId.Value > 0)
+            {
+                input["itilcategories_id"] = categoryId.Value;
+            }
+
+            var payload = new { input };
+
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                "Ticket",
+                sessionToken,
+                payload,
+                cancellationToken);
+
+            var created = await response.Content
+                .ReadFromJsonAsync<CreateItemResponse>(SerializerOptions, cancellationToken);
+
+            if (created is null || created.Id <= 0)
+            {
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    "GLPI created ticket but did not return a valid identifier.");
+            }
+
+            _logger.LogInformation(
+                "Created GLPI ticket {TicketId} requested by user {UserId}",
+                created.Id,
+                requesterUserId);
+
+            return created.Id;
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
     private async Task<string> InitSessionAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "initSession");

@@ -8,6 +8,7 @@ using GlpiTicketManager.Application.Services;
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
 using GlpiTicketManager.Api.RateLimiting;
+using GlpiTicketManager.Domain.Enums;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -25,6 +26,15 @@ public static class TicketEndpoints
             .WithName("GetTickets")
             .WithSummary("Tickets list filtered by assignee and/or service (ITIL category)")
             .Produces<PagedResult<TicketSummaryDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/tickets -> crea nuevo ticket (rol solicitante u otros)
+        group.MapPost(string.Empty, CreateTicket)
+            .WithName("CreateTicket")
+            .WithSummary("Crea un nuevo ticket en GLPI")
+            .Accepts<CreateTicketRequest>("application/json")
+            .Produces<TicketDetailDto>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized);
 
@@ -109,17 +119,52 @@ public static class TicketEndpoints
             return Results.Unauthorized();
         }
 
-        // BOLA fix: Client-provided assigneeId is ignored; always filter by authenticated user.
-        var effectiveAssigneeId = userId.Value;
+        var role = principal.GetRole();
+        int? effectiveAssigneeId = null;
+        int? effectiveRequesterId = null;
+
+        if (role == AppRole.Solicitante)
+        {
+            effectiveRequesterId = userId.Value;
+        }
+        else
+        {
+            // BOLA fix: Client-provided assigneeId is ignored; always filter by authenticated user.
+            effectiveAssigneeId = userId.Value;
+        }
 
         var result = await ticketService.GetFilteredAsync(
             effectiveAssigneeId,
             serviceId,
+            effectiveRequesterId,
             limit ?? 0,
             offset ?? 0,
             cancellationToken);
 
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> CreateTicket(
+        CreateTicketRequest request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var role = principal.GetRole();
+
+        var created = await ticketService.CreateTicketAsync(
+            request,
+            userId.Value,
+            role,
+            cancellationToken);
+
+        return Results.Created($"/api/tickets/{created.Id}", created);
     }
 
     private static async Task<IResult> GetUnassignedByGroup(

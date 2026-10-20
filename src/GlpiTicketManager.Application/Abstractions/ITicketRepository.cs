@@ -27,9 +27,23 @@ public interface ITicketRepository
         int offset,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
     Task<long> CountFilteredAsync(
         int? assigneeId,
         int? serviceId,
+        CancellationToken cancellationToken);
+
+    Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
         CancellationToken cancellationToken);
 
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
@@ -60,5 +74,6 @@ public interface ITicketRepository
     Task<IReadOnlyList<int>> GetGroupIdsForTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
+    Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> HasAssigneeAsync(int ticketId, CancellationToken cancellationToken);
 }

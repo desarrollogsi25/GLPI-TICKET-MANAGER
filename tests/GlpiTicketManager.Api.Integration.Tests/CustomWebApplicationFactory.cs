@@ -18,6 +18,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     public const int Tech1Id = 7;
     public const int Tech2Id = 8;
+    public const int SolicitanteId = 9;
     public const int AdminId = 100;
     public const int SupervisorId = 101;
     public const int Group1Id = 1;
@@ -110,6 +111,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             _ticketUsers.Add(new TicketUser { TicketId = Ticket12Id, UserId = Tech1Id, Type = (int)TicketUserType.Assigned });
             _ticketUsers.Add(new TicketUser { TicketId = Ticket13Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
             _ticketUsers.Add(new TicketUser { TicketId = Ticket21Id, UserId = Tech2Id, Type = (int)TicketUserType.Assigned });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket11Id, UserId = SolicitanteId, Type = (int)TicketUserType.Requester });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket12Id, UserId = SolicitanteId, Type = (int)TicketUserType.Requester });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket13Id, UserId = SolicitanteId, Type = (int)TicketUserType.Requester });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket21Id, UserId = SolicitanteId, Type = (int)TicketUserType.Requester });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket22Id, UserId = SolicitanteId, Type = (int)TicketUserType.Requester });
+            _ticketUsers.Add(new TicketUser { TicketId = Ticket31Id, UserId = SolicitanteId, Type = (int)TicketUserType.Requester });
 
             _groups.Clear();
             _groups.Add(new GroupDto(1, "Call Center"));
@@ -263,6 +270,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 .ReturnsAsync(AppRole.Admin);
             roleResolverMock.Setup(r => r.ResolveAsync(SupervisorId, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(AppRole.Supervisor);
+            roleResolverMock.Setup(r => r.ResolveAsync(SolicitanteId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(AppRole.Solicitante);
 
             // Mock IUserRepository
             var userRepoMock = new Mock<IUserRepository>();
@@ -322,12 +331,42 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     DefaultEntityId = 0
                 });
 
+            userRepoMock.Setup(u => u.GetByNameAsync("solicitante_test", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new UserAccount
+                {
+                    Id = SolicitanteId,
+                    Name = "solicitante_test",
+                    RealName = "Solicitante User",
+                    FirstName = "Solicitante",
+                    PasswordHash = "solicitante_hash",
+                    IsActive = true,
+                    IsDeleted = false,
+                    ProfileId = 1,
+                    DefaultEntityId = 0
+                });
+
+            userRepoMock.Setup(u => u.GetByNameAsync("user1", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new UserAccount
+                {
+                    Id = SolicitanteId,
+                    Name = "user1",
+                    RealName = "User 1",
+                    FirstName = "User",
+                    PasswordHash = "user1_hash",
+                    IsActive = true,
+                    IsDeleted = false,
+                    ProfileId = 1,
+                    DefaultEntityId = 0
+                });
+
             // Mock IPasswordHasher
             var hasherMock = new Mock<IPasswordHasher>();
             hasherMock.Setup(h => h.Verify("Tech1Pass!", "hash1")).Returns(true);
             hasherMock.Setup(h => h.Verify("Tech2Pass!", "hash2")).Returns(true);
             hasherMock.Setup(h => h.Verify("AdminPass123!", "admin_hash")).Returns(true);
             hasherMock.Setup(h => h.Verify("SupervisorPass123!", "sup_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify("Solicitante123!", "solicitante_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify("User1Pass!", "user1_hash")).Returns(true);
 
             // Mock IRevokedTokenRepository
             var revokedMock = new Mock<IRevokedTokenRepository>();
@@ -403,6 +442,46 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     {
                         _ticketSolutions[ticketId] = content;
                         return 1;
+                    }
+                });
+
+            glpiMock.Setup(g => g.CreateTicketAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<int?>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string title, string description, int urgency, int? categoryId, int requesterUserId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var newId = _allTickets.Keys.DefaultIfEmpty(100).Max() + 1;
+                        var newTicket = new Ticket
+                        {
+                            Id = newId,
+                            Name = title,
+                            Content = description,
+                            Status = (int)TicketStatus.New,
+                            Type = 1,
+                            Priority = urgency,
+                            Urgency = urgency,
+                            Impact = 3,
+                            CategoryId = categoryId,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow,
+                            RequesterIds = new[] { requesterUserId },
+                            AssigneeIds = Array.Empty<int>(),
+                            Followups = new List<TicketFollowup>()
+                        };
+                        _allTickets[newId] = newTicket;
+                        _ticketUsers.Add(new TicketUser
+                        {
+                            TicketId = newId,
+                            UserId = requesterUserId,
+                            Type = (int)TicketUserType.Requester
+                        });
+                        return newId;
                     }
                 });
 
@@ -576,6 +655,75 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             ticketRepoMock.Setup(t => t.CountFilteredAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(2L);
+
+            ticketRepoMock.Setup(t => t.IsUserRequesterOfTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int userId, int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _ticketUsers.Any(u => u.TicketId == ticketId && u.UserId == userId && u.Type == (int)TicketUserType.Requester);
+                    }
+                });
+
+            ticketRepoMock.Setup(t => t.GetFilteredAsync(It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int? assigneeId, int? serviceId, int? requesterId, int limit, int offset, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var query = _allTickets.Values.AsEnumerable();
+                        if (assigneeId.HasValue)
+                        {
+                            var ticketIdsWithAssignee = _ticketUsers
+                                .Where(u => u.UserId == assigneeId.Value && u.Type == (int)TicketUserType.Assigned)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithAssignee.Contains(t.Id));
+                        }
+                        if (requesterId.HasValue)
+                        {
+                            var ticketIdsWithRequester = _ticketUsers
+                                .Where(u => u.UserId == requesterId.Value && u.Type == (int)TicketUserType.Requester)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithRequester.Contains(t.Id));
+                        }
+                        if (serviceId.HasValue)
+                        {
+                            query = query.Where(t => t.CategoryId == serviceId.Value);
+                        }
+                        return query.Skip(offset).Take(limit).ToList();
+                    }
+                });
+
+            ticketRepoMock.Setup(t => t.CountFilteredAsync(It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int? assigneeId, int? serviceId, int? requesterId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var query = _allTickets.Values.AsEnumerable();
+                        if (assigneeId.HasValue)
+                        {
+                            var ticketIdsWithAssignee = _ticketUsers
+                                .Where(u => u.UserId == assigneeId.Value && u.Type == (int)TicketUserType.Assigned)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithAssignee.Contains(t.Id));
+                        }
+                        if (requesterId.HasValue)
+                        {
+                            var ticketIdsWithRequester = _ticketUsers
+                                .Where(u => u.UserId == requesterId.Value && u.Type == (int)TicketUserType.Requester)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithRequester.Contains(t.Id));
+                        }
+                        if (serviceId.HasValue)
+                        {
+                            query = query.Where(t => t.CategoryId == serviceId.Value);
+                        }
+                        return (long)query.Count();
+                    }
+                });
 
             ticketRepoMock.Setup(t => t.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyCollection<int> ids, CancellationToken _) =>

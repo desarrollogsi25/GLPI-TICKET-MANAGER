@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useRole } from '@/hooks/useRole'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useServicesQuery } from '@/hooks/useServices'
 import { useTicketsQuery } from '@/hooks/useTickets'
@@ -23,6 +24,7 @@ import { formatRelative } from '@/lib/format'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { priorityMeta, statusMeta } from './labels'
+import { CreateTicketDialog } from './CreateTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketFiltersBar } from './TicketFiltersBar'
 import { TicketFiltersSheet } from './TicketFiltersSheet'
@@ -116,6 +118,9 @@ export function List() {
   const [draftStatus, setDraftStatus] = useState(statusFilter)
   const [draftPriority, setDraftPriority] = useState(priorityFilter)
 
+  const { isSolicitante } = useRole()
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+
   const assigneeId = useSelectedAssignee()
   const { data: services } = useServicesQuery()
   const activeService = services?.find((s) => s.id === serviceId)
@@ -123,7 +128,8 @@ export function List() {
 
   const { data, isLoading, isError, error } = useTicketsQuery({
     serviceId: serviceId ?? undefined,
-    assigneeId: serviceId ? null : assigneeId,
+    assigneeId: isSolicitante ? null : (serviceId ? null : assigneeId),
+    isSolicitante,
   })
 
   const navigate = useNavigate()
@@ -226,16 +232,26 @@ export function List() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Tickets"
+        title={isSolicitante ? 'Mis Tickets' : 'Tickets'}
         description={
-          serviceId
-            ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
-            : data
-              ? `${data.total} ticket(s) para el técnico seleccionado.`
-              : 'Listado de tickets'
+          isSolicitante
+            ? `${data?.total ?? 0} ticket(s) registrados.`
+            : serviceId
+              ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
+              : data
+                ? `${data.total} ticket(s) para el técnico seleccionado.`
+                : 'Listado de tickets'
         }
-        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Tickets' }]}
-        actions={serviceId == null ? <TechnicianFilter /> : undefined}
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: isSolicitante ? 'Mis Tickets' : 'Tickets' }]}
+        actions={
+          isSolicitante ? (
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              + Nuevo Ticket
+            </Button>
+          ) : serviceId == null ? (
+            <TechnicianFilter />
+          ) : undefined
+        }
       />
 
       {serviceId != null && (
@@ -254,7 +270,7 @@ export function List() {
         </div>
       )}
 
-      {assigneeId == null && serviceId == null ? (
+      {!isSolicitante && assigneeId == null && serviceId == null ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
           Selecciona un técnico o servicio para ver tickets.
         </p>
@@ -372,6 +388,11 @@ export function List() {
           </div>
         </>
       )}
+
+      <CreateTicketDialog
+        open={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+      />
     </div>
   )
 }

@@ -27,6 +27,14 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken);
@@ -79,4 +87,10 @@ public interface ITicketService
     Task<TicketDetailDto> ReopenAsync(int ticketId, int userId, string? reason, CancellationToken cancellationToken);
 
     Task<TicketDetailDto> ReopenAsync(int ticketId, int userId, AppRole role, string? reason, CancellationToken cancellationToken);
+
+    Task<TicketDetailDto> CreateTicketAsync(
+        CreateTicketRequest request,
+        int requesterUserId,
+        AppRole role,
+        CancellationToken cancellationToken);
 }
