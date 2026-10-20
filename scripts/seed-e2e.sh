@@ -20,6 +20,7 @@ VALUES
   (7, 'tech1', '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', 1, 0, 0),
   (8, 'tech2', '$2y$12$3G7IE3WmAXFBOUJwnIC4aOfG.wq6kFscRmgcRrpXwHZpyql9ohU1u', 1, 0, 0),
   (9, 'user1', '$2y$12$IQ1owWOfVxbcjByiKsmGf.mJqEFeFVXRNdDtVmqA5kyoTEZUNFxAC', 1, 0, 0),
+  (11, 'admin_test', '$2y$12$tlgSn9hSrb3WsXSDqBHYMekJ9IkpVKIY5E1fhr/4ovA2EIf99ELQS', 1, 0, 0),
   (15, 'solicitante_test', '$2y$12$7o6vKn3csvK.j0oLd8EJuexEbVYj1zXmPqaJuyNWmCF.sp/vwSZCW', 1, 0, 0);
 
 INSERT IGNORE INTO glpi_profiles_users (id, users_id, profiles_id, entities_id, is_recursive, is_dynamic, is_default_profile)
@@ -27,6 +28,8 @@ VALUES
   (6, 7, 6, 0, 0, 0, 1),
   (7, 8, 6, 0, 0, 0, 1),
   (8, 9, 1, 0, 0, 0, 1),
+  (9, 11, 1, 0, 0, 1, 1),
+  (10, 11, 4, 0, 1, 0, 0),
   (18, 15, 1, 0, 0, 0, 1);
 
 INSERT IGNORE INTO glpi_groups (id, name, entities_id, completename, is_assign)
@@ -46,6 +49,14 @@ VALUES
   (1, 7, 1, 0, 0, 0),
   (2, 8, 2, 0, 0, 0);
 
+-- Solution types are required by GLPI to create an ITILSolution. A fresh
+-- glpi-base.sql load leaves this table empty, which makes the resolve endpoint
+-- fail with 400 ("Mandatory fields are not filled"), breaking E2E resolve flows.
+INSERT IGNORE INTO glpi_solutiontypes (id, name, comment, entities_id, is_recursive, is_incident, is_request, is_problem, is_change)
+VALUES
+  (1, 'Descripcion', 'Solucion aplicada al incidente', 0, 1, 1, 1, 1, 1),
+  (2, 'Solucion alternativa', 'Workaround temporal', 0, 1, 1, 1, 1, 1);
+
 INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
 VALUES
   (11, 0, 'PASO3-C llamante externo (usuario generico)', NOW(), NOW(), 1, 3, 'Llamante: Juan Perez | Telefono: +34 600 111 222 | Empresa: ACME. Consulta de facturacion.', 3, 3, 3, 1, 1, 2)
@@ -54,9 +65,9 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
 VALUES
-  (61, 0, 'TEST sin asignar kanban-mobile', '2026-10-10 10:00:00', NOW(), 1, 3, 'Ticket para test E2E kanban-mobile', 3, 3, 5, 1, 1, 2)
+  (61, 0, 'TEST sin asignar kanban-mobile', '2026-10-10 10:00:00', '2026-10-10 10:00:00', 1, 3, 'Ticket para test E2E kanban-mobile', 3, 3, 5, 1, 1, 2)
 ON DUPLICATE KEY UPDATE 
-  status = 1, solvedate = NULL, closedate = NULL, priority = 5, date = '2026-10-10 10:00:00', date_mod = NOW();
+  status = 1, solvedate = NULL, closedate = NULL, priority = 5, date = '2026-10-10 10:00:00', date_mod = '2026-10-10 10:00:00';
 
 INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type)
 VALUES
@@ -79,11 +90,11 @@ UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3, it
 DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;
 
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3, content='Ticket #57 para prueba de claim y solucion' WHERE id=57;
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=3, itilcategories_id=2, content='Ticket #57 para prueba de claim y solucion' WHERE id=57;
 DELETE FROM glpi_tickets_users WHERE tickets_id=57 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=57;
 
-UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=5, date='2026-10-10 10:00:00', date_mod=NOW() WHERE id=61;
+UPDATE glpi_tickets SET status=1, solvedate=NULL, closedate=NULL, priority=5, date='2026-10-10 10:00:00', date_mod='2026-10-10 10:00:00' WHERE id=61;
 DELETE FROM glpi_tickets_users WHERE tickets_id=61 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=61;
 
@@ -91,7 +102,7 @@ INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, request
 VALUES
   (70, 0, 'TEST reapertura ticket tech1', NOW(), NOW(), 1, 3, 'Ticket para prueba E2E de reapertura', 3, 3, 3, 1, 1, 2)
 ON DUPLICATE KEY UPDATE 
-  status = 1, solvedate = NULL, closedate = NULL, priority = 3, date_mod = NOW();
+  status = 1, solvedate = NULL, closedate = NULL, priority = 3, itilcategories_id = 2, date_mod = NOW();
 DELETE FROM glpi_tickets_users WHERE tickets_id=70 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=70;
 DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=70;
