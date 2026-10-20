@@ -103,7 +103,9 @@ public static class TicketEndpoints
         ClaimsPrincipal principal,
         CancellationToken cancellationToken,
         int? limit = null,
-        int? offset = null)
+        int? offset = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
     {
         var userId = principal.GetUserId();
         if (userId is null)
@@ -125,15 +127,27 @@ public static class TicketEndpoints
             effectiveAssigneeId = userId.Value;
         }
 
-        var result = await ticketService.GetFilteredAsync(
-            effectiveAssigneeId,
-            serviceId,
-            effectiveRequesterId,
-            limit ?? 0,
-            offset ?? 0,
-            cancellationToken);
+        try
+        {
+            var result = await ticketService.GetFilteredAsync(
+                effectiveAssigneeId,
+                serviceId,
+                effectiveRequesterId,
+                startDate,
+                endDate,
+                limit ?? 0,
+                offset ?? 0,
+                cancellationToken);
 
-        return Results.Ok(result);
+            return Results.Ok(result);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Filtros inválidos",
+                detail: ex.Message);
+        }
     }
 
 

@@ -19,7 +19,7 @@ for speed; mutations go through the GLPI REST API / DB transactions according to
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/tickets?assigneeId={id}&serviceId={id}&limit=&offset=` | JWT | Tickets list with optional assignee and service filters |
+| `GET` | `/api/tickets?assigneeId={id}&serviceId={id}&startDate={yyyy-MM-dd}&endDate={yyyy-MM-dd}&limit=&offset=` | JWT | Tickets list with optional assignee, service and creation-date filters |
 | `GET` | `/api/tickets/{id}` | JWT | Full detail: description, follow-ups and user links |
 | `POST` | `/api/tickets/{id}/solutions` | JWT | Insert a written solution into glpi_itilsolutions (ADR-006) |
 | `POST` | `/api/tickets/{id}/claim` | JWT | Technician claims an unassigned ticket (ADR-017) |
@@ -35,6 +35,21 @@ El endpoint `GET /api/tickets` admite los siguientes filtros opcionales (query p
 - `groupId`: Filtra por grupo asignado (`glpi_groups_tickets`).
 - `unassigned`: Filtra tickets sin técnico asignado.
 - `serviceId`: Filtra por categoría ITIL (`glpi_itilcategories`) incluyendo subcategorías directas (1 nivel de profundidad: `t.itilcategories_id = @ServiceId OR t.itilcategories_id IN (SELECT id FROM glpi_itilcategories WHERE itilcategories_id = @ServiceId)`).
+- `startDate`: Cota inferior inclusiva sobre la fecha de creación (`glpi_tickets.date`), en formato `yyyy-MM-dd`. Si se envía una fecha sin hora, se interpreta como **00:00:00 UTC**.
+- `endDate`: Cota superior inclusiva sobre la fecha de creación. Si se envía una fecha sin hora, se normaliza al final del día UTC (**23:59:59.9999999**) para que un rango de un solo día cubra el día completo.
+- Si `startDate` es posterior a `endDate`, el endpoint devuelve `400 Bad Request` con el detalle del filtro inválido.
+
+#### Zonas horarias en el filtro de fechas
+
+GLPI persiste `glpi_tickets.date` en **UTC**. Para que los rangos no dependan de la zona horaria del navegador, la normalización se realiza en la capa de servicio (`TicketService.ToUtcBound`) antes de llegar a Dapper:
+
+| Kind recibido | Normalización |
+|---|---|
+| `Utc` | Se usa tal cual. |
+| `Local` | Se convierte con `ToUniversalTime()`. |
+| `Unspecified` (caso típico al bindear una fecha `yyyy-MM-dd`) | Se asume UTC mediante `DateTime.SpecifyKind(..., Utc)`. |
+
+Las comparaciones SQL (`t.date >= @StartDate` / `t.date <= @EndDate`) se ejecutan por lo tanto siempre contra valores UTC, alineadas con el reloj UTC de la sesión de MariaDB.
 
 Interactive documentation: **Scalar** at `/scalar/v1`; the raw OpenAPI document is at
 `/openapi/v1.json`.
@@ -197,6 +212,24 @@ Para proteger la integridad de los datos y evitar vulnerabilidades de autorizaci
 3. **Administrador (`admin`)**:
    - Acceso global irrestricto de lectura y modificación sobre todos los tickets y colas de cualquier grupo.
 
+## Vista de tickets por rol (auto-scoping)
+
+La vista `/tickets` adapta sus filtros al rol del usuario autenticado:
+
+- **Técnico (`technician`)**: La vista se auto-scopea a los tickets asignados al propio técnico. El dropdown de "Técnico" **no se renderiza** (`TechnicianFilter` devuelve `null`), y `useSelectedAssignee` ignora cualquier selección previa persistida en el UI store, devolviendo siempre el `userId` de la sesión. De esta forma el técnico nunca puede caer accidentalmente en la cola de otro compañero.
+- **Supervisor (`supervisor`) y Administrador (`admin`)**: El dropdown de "Técnico" permanece visible (`Técnico #N (yo)` / técnicos con carga reportada en `GET /api/dashboard/stats`) para poder auditar el trabajo de otros técnicos.
+
+Independientemente del dropdown, el backend aplica el fix BOLA descrito arriba: el `assigneeId` provisto por el cliente se ignora y el listado siempre se filtra por el `userId` del token, por lo que ocultar el control es una mejora de UX y no la única barrera de autorización.
+
+## Filtros por fecha en la lista de tickets
+
+La lista (`frontend/src/features/tickets/List.tsx`) incorpora dos campos `<input type="date">` ("Desde" / "Hasta") junto a los filtros de Estado y Prioridad:
+
+- En **escritorio** viven en `TicketFiltersBar`, junto al botón **"Limpiar filtros"** que resetea estado, prioridad, rango de fechas y búsqueda.
+- En **móvil** se integran en `TicketFiltersSheet` (bottom sheet) como filtros de borrador que se confirman con "Aplicar filtros" o se limpian con "Limpiar todo".
+- Los valores se sincronizan con la query string (`?startDate=…&endDate=…`) mediante `react-router`, de modo que una vista filtrada es compartible y recargable.
+- Los filtros de fecha se combinan con `serviceId` y `assigneeId`; el conteo de filtros activos (`activeFiltersCount`) los incluye.
+
 ## Kanban del técnico
 
 El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 columnas de atención ágil:
@@ -279,8 +312,8 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 ## Reglas de negocio de GLPI
 
 - **Contenido obligatorio en tickets para soluciones**: Un ticket debe tener `content` (descripción) no vacío en `glpi_tickets` para poder recibir soluciones vía GLPI REST (`/apirest.php/ITILSolution`). Un ticket sin descripción no es resoluble por API (GLPI rechaza la operación con `Mandatory fields are not filled`).
-- **Validación de contenido de soluciones (H-24)**: Toda solución registrada mediante `POST /api/tickets/{id}/solutions` es validada en el backend antes de su envío a GLPI. Debe ser no vacía, contener al menos 10 caracteres significativos (`content.Trim().Length >= 10`) y no exceder los 2000 caracteres. Contenidos inválidos devuelven `400 Bad Request`.
-- **Guard estricto de resolución (`status = 5`)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido válido en `glpi_itilsolutions` (`TRIM(content) <> '' AND CHAR_LENGTH(TRIM(content)) >= 10`). Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity` ("Solution required").
+- **Validación de contenido de soluciones (H-24)**: Toda solución registrada mediante `POST /api/tickets/{id}/solutions` es validada en el backend antes de su envío a GLPI. Debe ser no vacía y no exceder los 2000 caracteres. Se permiten soluciones breves (p. ej. "OK", "Listo") para agilizar el cierre de incidencias triviales; contenidos vacíos o compuestos sólo por espacios devuelven `400 Bad Request`.
+- **Guard estricto de resolución (`status = 5`)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido no vacío en `glpi_itilsolutions` (`TRIM(content) <> ''`). Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity` ("Solution required").
 - **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
 - **Exclusión de tickets eliminados lógicamente (H-25)**: Las consultas de la cola de grupo (`TicketQueries.UnassignedByGroup` y su conteo en `TicketRepository.GetUnassignedByGroupAsync`), así como la condición de asignación (`ClaimConditionalUpdate`), filtran explícitamente `is_deleted = 0` para garantizar que tickets eliminados en GLPI no aparezcan en la bandeja de entrada ni puedan ser reclamados.

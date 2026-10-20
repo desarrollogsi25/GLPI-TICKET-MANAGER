@@ -60,10 +60,21 @@ public sealed class TicketService : ITicketService
         CancellationToken cancellationToken) =>
         GetFilteredAsync(assigneeId, serviceId, null, limit, offset, cancellationToken);
 
+    public Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, requesterId, null, null, limit, offset, cancellationToken);
+
     public async Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
         int? assigneeId,
         int? serviceId,
         int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
         int limit,
         int offset,
         CancellationToken cancellationToken)
@@ -83,13 +94,40 @@ public sealed class TicketService : ITicketService
             throw Invalid("requesterId", "requesterId must be a positive integer.");
         }
 
+        // GLPI stores `glpi_tickets.date` in UTC. Callers may send `DateTime` values with
+        // any Kind (usually Unspecified when bound from a date-only query string), so we
+        // normalize every bound to UTC before it reaches Dapper.
+        var startUtc = ToUtcBound(startDate, endOfDay: false);
+        var endUtc = ToUtcBound(endDate, endOfDay: true);
+
+        if (startUtc.HasValue && endUtc.HasValue && startUtc.Value > endUtc.Value)
+        {
+            throw Invalid("startDate", "startDate cannot be later than endDate.");
+        }
+
         var effectiveLimit = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
         var effectiveOffset = Math.Max(offset, 0);
 
-        var rows = await _tickets.GetFilteredAsync(assigneeId, serviceId, requesterId, effectiveLimit, effectiveOffset, cancellationToken);
-        var total = await _tickets.CountFilteredAsync(assigneeId, serviceId, requesterId, cancellationToken);
+        var rows = await _tickets.GetFilteredAsync(
+            assigneeId,
+            serviceId,
+            requesterId,
+            startUtc,
+            endUtc,
+            effectiveLimit,
+            effectiveOffset,
+            cancellationToken);
+        var total = await _tickets.CountFilteredAsync(
+            assigneeId,
+            serviceId,
+            requesterId,
+            startUtc,
+            endUtc,
+            cancellationToken);
 
-        if (rows.Count > 0)
+        // Only the date-aware overload is called here, so the repository is free to return
+        // `null` for a result set that has no rows (e.g. mocked/empty implementations).
+        if (rows is { Count: > 0 })
         {
             var links = await _tickets.GetUsersForTicketsAsync(
                 rows.Select(row => row.Id).ToArray(),
@@ -443,11 +481,6 @@ public sealed class TicketService : ITicketService
             throw new ValidationException("content", "Solution content cannot be empty.");
         }
 
-        if (content.Trim().Length < 10)
-        {
-            throw new ValidationException("content", "Solution content must be at least 10 characters.");
-        }
-
         if (content.Length > 2000)
         {
             throw new ValidationException("content", "Solution content exceeds maximum length.");
@@ -579,5 +612,33 @@ public sealed class TicketService : ITicketService
 
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
+
+    /// <summary>
+    /// Normalizes a date filter bound to UTC. Values without an explicit kind (typical when
+    /// bound from a `yyyy-MM-dd` query string) are treated as UTC, matching how GLPI stores
+    /// ticket dates. When <paramref name="endOfDay"/> is set and the bound is a date-only
+    /// value, it is pushed to 23:59:59.999 so a single-day range includes the whole day.
+    /// </summary>
+    private static DateTime? ToUtcBound(DateTime? value, bool endOfDay)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        var bound = value.Value.Kind switch
+        {
+            DateTimeKind.Utc => value.Value,
+            DateTimeKind.Local => value.Value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+        };
+
+        if (endOfDay && bound.TimeOfDay == TimeSpan.Zero)
+        {
+            bound = bound.Date.AddDays(1).AddTicks(-1);
+        }
+
+        return bound;
+    }
 }
 

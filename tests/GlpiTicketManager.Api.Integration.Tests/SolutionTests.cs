@@ -84,16 +84,17 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task AddSolution_WithTooShortContent_Returns400()
+    public async Task AddSolution_WithShortContent_Returns201()
     {
         var token = await AuthenticateAsTech1Async();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Content = JsonContent.Create(new { content = "123456789" });
+        // Short solutions are allowed: a technician can close a ticket with "OK".
+        request.Content = JsonContent.Create(new { content = "OK" });
 
         var response = await _client.SendAsync(request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     [Fact]
@@ -126,10 +127,10 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task PatchStatus5_WhenSolutionContentInvalid_Returns422()
+    public async Task PatchStatus5_WhenSolutionContentEmpty_Returns422()
     {
         var token = await AuthenticateAsTech1Async();
-        _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "corta");
+        _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "   ");
 
         using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/status");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -138,5 +139,20 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task PatchStatus5_WhenSolutionContentShort_Succeeds()
+    {
+        var token = await AuthenticateAsTech1Async();
+        _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "OK");
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/status");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { status = 5 });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 }

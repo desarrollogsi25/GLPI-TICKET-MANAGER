@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 
@@ -14,6 +15,10 @@ interface TicketFiltersSheetProps {
   onStatusChange: (status: string) => void
   priority: string
   onPriorityChange: (priority: string) => void
+  startDate: string
+  onStartDateChange: (value: string) => void
+  endDate: string
+  onEndDateChange: (value: string) => void
   onApply: () => void
   onReset: () => void
   activeFiltersCount: number
@@ -26,6 +31,10 @@ export function TicketFiltersSheet({
   onStatusChange,
   priority,
   onPriorityChange,
+  startDate,
+  onStartDateChange,
+  endDate,
+  onEndDateChange,
   onApply,
   onReset,
   activeFiltersCount,
@@ -202,6 +211,41 @@ export function TicketFiltersSheet({
                     </option>
                   ))}
                 </Select>
+              </div>
+
+              {/* Filtro por rango de fechas (UTC) */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                  Fecha de creación
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="sheet-start-date" className="text-xs text-muted-foreground">
+                      Desde
+                    </Label>
+                    <Input
+                      id="sheet-start-date"
+                      type="date"
+                      className="w-full h-11 text-sm bg-background"
+                      value={startDate}
+                      max={endDate || undefined}
+                      onChange={(e) => onStartDateChange(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="sheet-end-date" className="text-xs text-muted-foreground">
+                      Hasta
+                    </Label>
+                    <Input
+                      id="sheet-end-date"
+                      type="date"
+                      className="w-full h-11 text-sm bg-background"
+                      value={endDate}
+                      min={startDate || undefined}
+                      onChange={(e) => onEndDateChange(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

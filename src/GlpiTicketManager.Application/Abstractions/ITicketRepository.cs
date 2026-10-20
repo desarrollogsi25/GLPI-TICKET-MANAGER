@@ -35,6 +35,20 @@ public interface ITicketRepository
         int offset,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Filtered page. <paramref name="startDate"/>/<paramref name="endDate"/> are UTC bounds
+    /// over <c>glpi_tickets.date</c> (already normalized by the service layer).
+    /// </summary>
+    Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
     Task<long> CountFilteredAsync(
         int? assigneeId,
         int? serviceId,
@@ -44,6 +58,18 @@ public interface ITicketRepository
         int? assigneeId,
         int? serviceId,
         int? requesterId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Total count for the filtered list. <paramref name="startDate"/>/<paramref name="endDate"/>
+    /// are UTC bounds over <c>glpi_tickets.date</c>.
+    /// </summary>
+    Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
         CancellationToken cancellationToken);
 
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);

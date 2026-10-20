@@ -58,6 +58,27 @@ public sealed class TicketRepository : ITicketRepository
         int offset,
         CancellationToken cancellationToken)
     {
+        return await GetFilteredAsync(
+            assigneeId,
+            serviceId,
+            requesterId,
+            null,
+            null,
+            limit,
+            offset,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
         using var connection = _connectionFactory.CreateConnection();
 
         var (sql, parameters) = BuildFilterQuery(
@@ -65,6 +86,8 @@ public sealed class TicketRepository : ITicketRepository
             assigneeId,
             serviceId,
             requesterId,
+            startDate,
+            endDate,
             limit,
             offset);
 
@@ -90,6 +113,23 @@ public sealed class TicketRepository : ITicketRepository
         int? requesterId,
         CancellationToken cancellationToken)
     {
+        return await CountFilteredAsync(
+            assigneeId,
+            serviceId,
+            requesterId,
+            null,
+            null,
+            cancellationToken);
+    }
+
+    public async Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        CancellationToken cancellationToken)
+    {
         using var connection = _connectionFactory.CreateConnection();
 
         var (sql, parameters) = BuildFilterQuery(
@@ -97,6 +137,8 @@ public sealed class TicketRepository : ITicketRepository
             assigneeId,
             serviceId,
             requesterId,
+            startDate,
+            endDate,
             limit: null,
             offset: null);
 
@@ -114,6 +156,8 @@ public sealed class TicketRepository : ITicketRepository
         int? assigneeId,
         int? serviceId,
         int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
         int? limit,
         int? offset)
     {
@@ -155,6 +199,20 @@ public sealed class TicketRepository : ITicketRepository
                 )
                 """);
             parameters.Add("ServiceId", serviceId.Value);
+        }
+
+        // Date range over the creation date. Bounds are UTC (normalized by the service
+        // layer) so they line up with MariaDB's UTC session clock and GLPI's NOW().
+        if (startDate.HasValue)
+        {
+            conditions.Add("t.date >= @StartDate");
+            parameters.Add("StartDate", startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            conditions.Add("t.date <= @EndDate");
+            parameters.Add("EndDate", endDate.Value);
         }
 
         sql.Append("WHERE ").AppendLine(string.Join(" AND ", conditions));
