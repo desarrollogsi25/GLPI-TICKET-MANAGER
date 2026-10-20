@@ -25,8 +25,9 @@ export function ResolveTicketDialog({
 
   const trimmed = content.trim()
   const pending = createSolution.isPending || updateStatus.isPending
-  const hasError = touched && trimmed.length < 10
-  const disabled = trimmed.length < 10 || pending
+  // Short solutions are valid ("OK", "Listo"); only an empty one blocks the ticket.
+  const hasError = touched && trimmed.length === 0
+  const disabled = trimmed.length === 0 || pending
 
   const submit = () => {
     if (disabled) {
@@ -81,7 +82,7 @@ export function ResolveTicketDialog({
         }
       }}
       title={`Resolver ticket #${ticketId}`}
-      description="Escribí la solución (mínimo 10 caracteres). Sin solución el ticket no puede marcarse como resuelto."
+      description="Escribí la solución. Puede ser breve (por ejemplo «OK»), pero no puede quedar vacía: sin solución el ticket no puede marcarse como resuelto."
     >
       <div className="space-y-1.5">
         <Textarea
@@ -95,9 +96,7 @@ export function ResolveTicketDialog({
         />
         {hasError ? (
           <p id="solution-error" role="alert" className="text-xs text-destructive">
-            {trimmed.length === 0
-              ? 'La descripción de la solución es obligatoria.'
-              : `La solución debe contener al menos 10 caracteres (actualmente ${trimmed.length}).`}
+            La solución no puede estar vacía.
           </p>
         ) : null}
       </div>

@@ -7,6 +7,10 @@ import type {
 export interface TicketListParams {
   assigneeId?: number
   serviceId?: number
+  /** UTC lower bound (inclusive) over the ticket creation date, as `yyyy-MM-dd`. */
+  startDate?: string
+  /** UTC upper bound (inclusive) over the ticket creation date, as `yyyy-MM-dd`. */
+  endDate?: string
   limit?: number
   offset?: number
 }

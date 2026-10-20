@@ -35,6 +35,20 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Filtered page with optional UTC creation-date bounds. Dates are normalized to UTC
+    /// by the implementation so they match the UTC values stored in GLPI.
+    /// </summary>
+    Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken);
+
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken);

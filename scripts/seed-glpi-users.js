@@ -62,10 +62,9 @@ function runSql(sql) {
 function seedGlpiUsers() {
   console.log('--- Iniciando creación idempotente de usuarios GLPI ---');
 
-  // Asegurar que los grupos requeridos existan
+  // Asegurar que los grupos requeridos existan. Deben coincidir exactamente con la
+  // estructura de Service Desk del usuario (7 grupos, sin grupos legacy).
   const groupsToEnsure = [
-    'Soporte N1',
-    'Soporte N2',
     'Requerimiento Service Desk',
     'Requerimiento BI',
     'Aplicaciones GSI',

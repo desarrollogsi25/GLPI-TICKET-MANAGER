@@ -1,6 +1,7 @@
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
+import { useRole } from '@/hooks/useRole'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
@@ -9,8 +10,12 @@ import { useUiStore } from '@/store/uiStore'
  * Picks which technician's queue is being viewed.
  * Options come from the dashboard aggregate plus the logged-in user, since the API
  * has no dedicated technicians endpoint.
+ *
+ * Technicians always work on their own queue (the view auto-scopes to them), so the
+ * dropdown is only rendered for admins and supervisors auditing other technicians.
  */
 export function TechnicianFilter() {
+  const { isTechnician } = useRole()
   const selectedAssignee = useSelectedAssignee()
   const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const currentUserId = useAuthStore((state) => state.user?.userId ?? null)
@@ -28,6 +33,10 @@ export function TechnicianFilter() {
   }
 
   const options = [...ids].sort((a, b) => a - b)
+
+  if (isTechnician) {
+    return null
+  }
 
   return (
     <div className="space-y-1">

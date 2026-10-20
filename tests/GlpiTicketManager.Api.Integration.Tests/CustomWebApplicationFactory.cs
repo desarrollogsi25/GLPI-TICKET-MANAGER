@@ -51,6 +51,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         ResetState();
     }
 
+    /// <summary>
+    /// Gets the UTC creation timestamp assigned to ticket 12. Ticket 12 is "old"; the rest
+    /// of the fixtures hang off <see cref="RecentTicketCreatedAt"/>, so date filters can be
+    /// asserted deterministically.
+    /// </summary>
+    public static DateTime OldTicketCreatedAt { get; } = new DateTime(2026, 1, 15, 9, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>UTC creation timestamp for the remaining fixture tickets (recent).</summary>
+    public static DateTime RecentTicketCreatedAt { get; } = new DateTime(2026, 6, 10, 9, 0, 0, DateTimeKind.Utc);
+
     public void ResetState()
     {
         lock (_stateLock)
@@ -63,6 +73,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 Id = Ticket11Id,
                 Name = "Ticket 11 (Call Center unassigned)",
                 Status = (int)TicketStatus.New,
+                CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
                 AssigneeIds = Array.Empty<int>()
             };
@@ -71,6 +82,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 Id = Ticket12Id,
                 Name = "Ticket 12 (Tech1 assigned)",
                 Status = (int)TicketStatus.Assigned,
+                CreatedAt = OldTicketCreatedAt,
                 RequesterIds = new[] { 9 },
                 AssigneeIds = new[] { Tech1Id }
             };
@@ -79,6 +91,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 Id = Ticket13Id,
                 Name = "Ticket 13 (Tech2 assigned same group)",
                 Status = (int)TicketStatus.Assigned,
+                CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
                 AssigneeIds = new[] { Tech2Id }
             };
@@ -87,6 +100,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 Id = Ticket21Id,
                 Name = "Ticket 21 (Tech2 assigned)",
                 Status = (int)TicketStatus.Assigned,
+                CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
                 AssigneeIds = new[] { Tech2Id }
             };
@@ -95,6 +109,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 Id = Ticket22Id,
                 Name = "Ticket 22 (Group 2 unassigned)",
                 Status = (int)TicketStatus.New,
+                CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
                 AssigneeIds = Array.Empty<int>()
             };
@@ -103,6 +118,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 Id = Ticket31Id,
                 Name = "Ticket 31 (Group 1 unassigned concurrency test)",
                 Status = (int)TicketStatus.New,
+                CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
                 AssigneeIds = Array.Empty<int>()
             };
@@ -617,7 +633,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     {
                         if (_ticketSolutions.TryGetValue(ticketId, out var content))
                         {
-                            return !string.IsNullOrWhiteSpace(content) && content.Trim().Length >= 10;
+                            // Short solutions are valid ("OK", "Listo"); only empty ones block resolution.
+                            return !string.IsNullOrWhiteSpace(content);
                         }
                         return false;
                     }
@@ -665,6 +682,44 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     }
                 });
 
+            ticketRepoMock.Setup(t => t.GetFilteredAsync(It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int? assigneeId, int? serviceId, int? requesterId, DateTime? startDate, DateTime? endDate, int limit, int offset, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var query = _allTickets.Values.AsEnumerable();
+                        if (assigneeId.HasValue)
+                        {
+                            var ticketIdsWithAssignee = _ticketUsers
+                                .Where(u => u.UserId == assigneeId.Value && u.Type == (int)TicketUserType.Assigned)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithAssignee.Contains(t.Id));
+                        }
+                        if (requesterId.HasValue)
+                        {
+                            var ticketIdsWithRequester = _ticketUsers
+                                .Where(u => u.UserId == requesterId.Value && u.Type == (int)TicketUserType.Requester)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithRequester.Contains(t.Id));
+                        }
+                        if (serviceId.HasValue)
+                        {
+                            query = query.Where(t => t.CategoryId == serviceId.Value);
+                        }
+                        if (startDate.HasValue)
+                        {
+                            query = query.Where(t => t.CreatedAt >= startDate.Value);
+                        }
+                        if (endDate.HasValue)
+                        {
+                            query = query.Where(t => t.CreatedAt <= endDate.Value);
+                        }
+                        return query.Skip(offset).Take(limit).ToList();
+                    }
+                });
+
             ticketRepoMock.Setup(t => t.GetFilteredAsync(It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int? assigneeId, int? serviceId, int? requesterId, int limit, int offset, CancellationToken _) =>
                 {
@@ -692,6 +747,44 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                             query = query.Where(t => t.CategoryId == serviceId.Value);
                         }
                         return query.Skip(offset).Take(limit).ToList();
+                    }
+                });
+
+            ticketRepoMock.Setup(t => t.CountFilteredAsync(It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int? assigneeId, int? serviceId, int? requesterId, DateTime? startDate, DateTime? endDate, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var query = _allTickets.Values.AsEnumerable();
+                        if (assigneeId.HasValue)
+                        {
+                            var ticketIdsWithAssignee = _ticketUsers
+                                .Where(u => u.UserId == assigneeId.Value && u.Type == (int)TicketUserType.Assigned)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithAssignee.Contains(t.Id));
+                        }
+                        if (requesterId.HasValue)
+                        {
+                            var ticketIdsWithRequester = _ticketUsers
+                                .Where(u => u.UserId == requesterId.Value && u.Type == (int)TicketUserType.Requester)
+                                .Select(u => u.TicketId)
+                                .ToHashSet();
+                            query = query.Where(t => ticketIdsWithRequester.Contains(t.Id));
+                        }
+                        if (serviceId.HasValue)
+                        {
+                            query = query.Where(t => t.CategoryId == serviceId.Value);
+                        }
+                        if (startDate.HasValue)
+                        {
+                            query = query.Where(t => t.CreatedAt >= startDate.Value);
+                        }
+                        if (endDate.HasValue)
+                        {
+                            query = query.Where(t => t.CreatedAt <= endDate.Value);
+                        }
+                        return (long)query.Count();
                     }
                 });
 

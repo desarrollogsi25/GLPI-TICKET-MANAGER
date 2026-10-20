@@ -12,6 +12,11 @@ interface TicketFiltersBarProps {
   onStatusChange: (value: string) => void
   priority: string
   onPriorityChange: (value: string) => void
+  startDate: string
+  onStartDateChange: (value: string) => void
+  endDate: string
+  onEndDateChange: (value: string) => void
+  onClearFilters: () => void
   onOpenSheet: () => void
   activeFiltersCount: number
 }
@@ -23,6 +28,11 @@ export function TicketFiltersBar({
   onStatusChange,
   priority,
   onPriorityChange,
+  startDate,
+  onStartDateChange,
+  endDate,
+  onEndDateChange,
+  onClearFilters,
   onOpenSheet,
   activeFiltersCount,
 }: TicketFiltersBarProps) {
@@ -74,6 +84,40 @@ export function TicketFiltersBar({
             ))}
           </Select>
         </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="start-date-filter">Desde</Label>
+          <Input
+            id="start-date-filter"
+            type="date"
+            className="w-40"
+            value={startDate}
+            max={endDate || undefined}
+            onChange={(e) => onStartDateChange(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="end-date-filter">Hasta</Label>
+          <Input
+            id="end-date-filter"
+            type="date"
+            className="w-40"
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(e) => onEndDateChange(e.target.value)}
+          />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          data-testid="clear-filters-btn"
+          onClick={onClearFilters}
+          disabled={activeFiltersCount === 0 && !search.trim()}
+        >
+          Limpiar filtros
+        </Button>
       </div>
 
       {/* Vista Móvil (<md): Input + Botón Filtros (Bottom Sheet) */}

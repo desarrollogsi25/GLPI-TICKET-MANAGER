@@ -106,15 +106,21 @@ export function List() {
   const initialSearch = searchParams.get('q') ?? ''
   const initialStatus = searchParams.get('status') ?? 'all'
   const initialPriority = searchParams.get('priority') ?? 'all'
+  const initialStartDate = searchParams.get('startDate') ?? ''
+  const initialEndDate = searchParams.get('endDate') ?? ''
 
   const [globalFilter, setGlobalFilter] = useState(initialSearch)
   const [statusFilter, setStatusFilter] = useState(initialStatus)
   const [priorityFilter, setPriorityFilter] = useState(initialPriority)
+  const [startDate, setStartDate] = useState(initialStartDate)
+  const [endDate, setEndDate] = useState(initialEndDate)
 
   // Draft filters para el Bottom Sheet móvil
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [draftStatus, setDraftStatus] = useState(statusFilter)
   const [draftPriority, setDraftPriority] = useState(priorityFilter)
+  const [draftStartDate, setDraftStartDate] = useState(startDate)
+  const [draftEndDate, setDraftEndDate] = useState(endDate)
 
   const assigneeId = useSelectedAssignee()
   const { data: services } = useServicesQuery()
@@ -124,31 +130,55 @@ export function List() {
   const { data, isLoading, isError, error } = useTicketsQuery({
     serviceId: serviceId ?? undefined,
     assigneeId: serviceId ? null : assigneeId,
+    startDate: startDate || null,
+    endDate: endDate || null,
   })
 
   const navigate = useNavigate()
 
-  const applyCombinedFilters = (newStatus: string, newPriority: string) => {
-    setStatusFilter(newStatus)
-    setPriorityFilter(newPriority)
+  /** Rebuilds the /tickets URL from a filter snapshot, so every filter stays shareable. */
+  const buildUrl = (next: {
+    status: string
+    priority: string
+    startDate: string
+    endDate: string
+    search: string
+    serviceId?: string | null
+  }) => {
     const sp = new URLSearchParams()
-    if (newStatus && newStatus !== 'all') sp.set('status', newStatus)
-    if (newPriority && newPriority !== 'all') sp.set('priority', newPriority)
-    if (serviceIdParam) sp.set('serviceId', String(serviceIdParam))
-    if (globalFilter.trim()) sp.set('q', globalFilter.trim())
+    if (next.status && next.status !== 'all') sp.set('status', next.status)
+    if (next.priority && next.priority !== 'all') sp.set('priority', next.priority)
+    if (next.startDate) sp.set('startDate', next.startDate)
+    if (next.endDate) sp.set('endDate', next.endDate)
+    if (next.serviceId) sp.set('serviceId', String(next.serviceId))
+    if (next.search.trim()) sp.set('q', next.search.trim())
     const searchStr = sp.toString() ? `?${sp.toString()}` : ''
     navigate(`/tickets${searchStr}`, { replace: true })
   }
 
+  const applyCombinedFilters = (newStatus: string, newPriority: string) => {
+    setStatusFilter(newStatus)
+    setPriorityFilter(newPriority)
+    buildUrl({
+      status: newStatus,
+      priority: newPriority,
+      startDate,
+      endDate,
+      search: globalFilter,
+      serviceId: serviceIdParam,
+    })
+  }
+
   const handleSearchChange = (value: string) => {
     setGlobalFilter(value)
-    const sp = new URLSearchParams()
-    if (statusFilter !== 'all') sp.set('status', statusFilter)
-    if (priorityFilter !== 'all') sp.set('priority', priorityFilter)
-    if (serviceIdParam) sp.set('serviceId', String(serviceIdParam))
-    if (value.trim()) sp.set('q', value.trim())
-    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
-    navigate(`/tickets${searchStr}`, { replace: true })
+    buildUrl({
+      status: statusFilter,
+      priority: priorityFilter,
+      startDate,
+      endDate,
+      search: value,
+      serviceId: serviceIdParam,
+    })
   }
 
   const handleStatusChange = (value: string) => {
@@ -159,32 +189,93 @@ export function List() {
     applyCombinedFilters(statusFilter, value)
   }
 
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value)
+    buildUrl({
+      status: statusFilter,
+      priority: priorityFilter,
+      startDate: value,
+      endDate,
+      search: globalFilter,
+      serviceId: serviceIdParam,
+    })
+  }
+
+  const handleEndDateChange = (value: string) => {
+    setEndDate(value)
+    buildUrl({
+      status: statusFilter,
+      priority: priorityFilter,
+      startDate,
+      endDate: value,
+      search: globalFilter,
+      serviceId: serviceIdParam,
+    })
+  }
+
+  /** Clears every filter (status, priority, dates and search) back to the default view. */
+  const handleClearFilters = () => {
+    setStatusFilter('all')
+    setPriorityFilter('all')
+    setStartDate('')
+    setEndDate('')
+    setGlobalFilter('')
+    setDraftStatus('all')
+    setDraftPriority('all')
+    setDraftStartDate('')
+    setDraftEndDate('')
+    navigate('/tickets', { replace: true })
+  }
+
   const handleClearServiceFilter = () => {
-    const sp = new URLSearchParams()
-    if (statusFilter !== 'all') sp.set('status', statusFilter)
-    if (priorityFilter !== 'all') sp.set('priority', priorityFilter)
-    if (globalFilter.trim()) sp.set('q', globalFilter.trim())
-    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
-    navigate(`/tickets${searchStr}`, { replace: true })
+    buildUrl({
+      status: statusFilter,
+      priority: priorityFilter,
+      startDate,
+      endDate,
+      search: globalFilter,
+      serviceId: null,
+    })
   }
 
   const handleApplySheet = () => {
-    applyCombinedFilters(draftStatus, draftPriority)
+    setStatusFilter(draftStatus)
+    setPriorityFilter(draftPriority)
+    setStartDate(draftStartDate)
+    setEndDate(draftEndDate)
+    buildUrl({
+      status: draftStatus,
+      priority: draftPriority,
+      startDate: draftStartDate,
+      endDate: draftEndDate,
+      search: globalFilter,
+      serviceId: serviceIdParam,
+    })
   }
 
   const handleResetSheet = () => {
     setDraftStatus('all')
     setDraftPriority('all')
+    setDraftStartDate('')
+    setDraftEndDate('')
     setStatusFilter('all')
     setPriorityFilter('all')
-    const sp = new URLSearchParams()
-    if (globalFilter.trim()) sp.set('q', globalFilter.trim())
-    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
-    navigate(`/tickets${searchStr}`, { replace: true })
+    setStartDate('')
+    setEndDate('')
+    buildUrl({
+      status: 'all',
+      priority: 'all',
+      startDate: '',
+      endDate: '',
+      search: globalFilter,
+      serviceId: serviceIdParam,
+    })
   }
   const handleOpenSheet = () => {
     setDraftStatus(statusFilter)
     setDraftPriority(priorityFilter)
+    setDraftStartDate(startDate)
+    setDraftEndDate(endDate)
     setIsSheetOpen(true)
   }
 
@@ -221,7 +312,9 @@ export function List() {
   const activeFiltersCount =
     (statusFilter !== 'all' ? 1 : 0) +
     (priorityFilter !== 'all' ? 1 : 0) +
-    (serviceId != null ? 1 : 0)
+    (serviceId != null ? 1 : 0) +
+    (startDate ? 1 : 0) +
+    (endDate ? 1 : 0)
 
   return (
     <div className="space-y-4">
@@ -268,6 +361,11 @@ export function List() {
             onStatusChange={handleStatusChange}
             priority={priorityFilter}
             onPriorityChange={handlePriorityChange}
+            startDate={startDate}
+            onStartDateChange={handleStartDateChange}
+            endDate={endDate}
+            onEndDateChange={handleEndDateChange}
+            onClearFilters={handleClearFilters}
             onOpenSheet={handleOpenSheet}
             activeFiltersCount={activeFiltersCount}
           />
@@ -280,6 +378,10 @@ export function List() {
             onStatusChange={setDraftStatus}
             priority={draftPriority}
             onPriorityChange={setDraftPriority}
+            startDate={draftStartDate}
+            onStartDateChange={setDraftStartDate}
+            endDate={draftEndDate}
+            onEndDateChange={setDraftEndDate}
             onApply={handleApplySheet}
             onReset={handleResetSheet}
             activeFiltersCount={activeFiltersCount}

@@ -19,6 +19,8 @@ export const TICKETS_PAGE_LIMIT = 100
 export interface TicketFilters {
   assigneeId?: number | null
   serviceId?: number | null
+  startDate?: string | null
+  endDate?: string | null
 }
 
 export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilters) {
@@ -27,13 +29,16 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
       ? filtersOrAssigneeId
       : { assigneeId: filtersOrAssigneeId }
 
-  const { assigneeId, serviceId } = filters
+  const { assigneeId, serviceId, startDate, endDate } = filters
   const hasFilter = assigneeId != null || serviceId != null
 
-  const queryKey =
-    serviceId != null
-      ? queryKeys.tickets.list(filters)
-      : queryKeys.tickets.byAssignee(assigneeId ?? 0)
+  // Any extra filter (service or date range) switches the cache key to the generic list
+  // key so date ranges and services never collide with the plain per-assignee entry.
+  const usesListKey = serviceId != null || startDate != null || endDate != null
+
+  const queryKey = usesListKey
+    ? queryKeys.tickets.list(filters)
+    : queryKeys.tickets.byAssignee(assigneeId ?? 0)
 
   return useQuery({
     queryKey,
@@ -41,6 +46,8 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
       listTickets({
         assigneeId: assigneeId ?? undefined,
         serviceId: serviceId ?? undefined,
+        startDate: startDate ?? undefined,
+        endDate: endDate ?? undefined,
         limit: TICKETS_PAGE_LIMIT,
         offset: 0,
       }),
