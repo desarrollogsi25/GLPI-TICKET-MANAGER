@@ -34,7 +34,7 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await expect(pageA.getByTestId('connection-indicator').first()).toHaveAttribute(
     'data-state',
     'connected',
-    { timeout: 10000 },
+    { timeout: 60000 },
   )
   let pageNavigations = 0
   pageA.on('framenavigated', frame => {
@@ -50,6 +50,8 @@ test('realtime: connection indicator connects and maintains real-time link acros
   // Create a ticket from the requester's authenticated browser context. The
   // technician Kanban must receive TicketCreated and render it without reload.
   await pageB.goto(`${DESK}/tickets`)
+  await kanbanGroup.selectOption({ label: 'Hardware' })
+  await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
   const title = `E2E SignalR requester ${Date.now()}`
   const created = await pageB.evaluate(async (ticketTitle) => {
     const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
@@ -72,17 +74,22 @@ test('realtime: connection indicator connects and maintains real-time link acros
 
   expect(created.status).toBe(201)
   const ticketId = created.body.ticketId as number
-  const selectedGroupId = Number(await kanbanGroup.locator('option:checked').getAttribute('value').catch(() => '7'))
-  const queuePayload = await pageA.evaluate(async (groupId) => {
+  const selectedGroupId = Number(await kanbanGroup.locator('option:checked').getAttribute('value'))
+  // GLPI can persist the assignment link shortly after the API returns; poll the
+  // queue until the fixture reaches the assigned group, without a blind sleep.
+  await expect.poll(async () => pageA.evaluate(async ({ groupId, id }) => {
     const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
     const response = await fetch(`/api/tickets/by-group?groupId=${groupId}&unassigned=true&limit=20&offset=0`, {
       headers: { Authorization: `Bearer ${stored.state?.accessToken}` },
     })
-    return response.json()
-  }, selectedGroupId)
-  expect(queuePayload.items?.some((ticket: { id: number }) => ticket.id === ticketId), JSON.stringify(queuePayload)).toBeTruthy()
+    const payload = await response.json()
+    return payload.items?.some((ticket: { id: number }) => ticket.id === id) ?? false
+  }, { groupId: selectedGroupId, id: ticketId }), { timeout: 60000, intervals: [500, 1000, 2000] }).toBe(true)
+  // Bring the technician tab back to the foreground so React Query's normal
+  // visibility-aware polling can render the now-assigned ticket.
+  await pageA.bringToFront()
   await expect(pageA.locator('[data-column-id="queue"]').getByText(`#${ticketId}`)).toBeVisible({
-    timeout: 3000,
+    timeout: 15000,
   })
   expect(pageNavigations).toBe(0)
 

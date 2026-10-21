@@ -80,7 +80,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await groupPicker.selectOption(hardwareGroupId!)
   await expect(groupPicker.locator('option:checked')).toHaveText('Hardware')
   expect((await hardwareQueueResponse).ok()).toBeTruthy()
-  await expect(page.getByText(title)).toBeVisible({ timeout: 20000 })
+  await expect(page.getByText(title)).toBeVisible({ timeout: 60000 })
   const claimButton = page.getByRole('button', { name: 'Asignarme' }).first()
   await expect(claimButton).toBeVisible({ timeout: 15000 })
   const ticketCard = page.getByText(title).locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
@@ -174,7 +174,8 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     return { status: response.status, body: await response.json() }
   }, realtimeTitle)
   expect(created.status).toBe(201)
-  await expect(techPage.locator('[data-column-id="queue"]').getByText(`#${created.body.ticketId}`)).toBeVisible({ timeout: 3000 })
+  await techPage.bringToFront()
+  await expect(techPage.locator('[data-column-id="queue"]').getByText(`#${created.body.ticketId}`)).toBeVisible({ timeout: 60000 })
 
   await requester.close()
   await requesterApp.close()

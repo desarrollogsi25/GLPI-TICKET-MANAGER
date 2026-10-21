@@ -314,6 +314,7 @@ jobs:
       - name: Run E2E inside container
         run: >-
           docker compose exec -T
+          -e CI=true
           -e E2E_GLPI_URL=http://glpi
           -e E2E_DESK_URL=http://localhost:5173
           -e E2E_TECH_USERNAME=tech1
