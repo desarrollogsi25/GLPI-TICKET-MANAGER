@@ -87,6 +87,46 @@ public class TicketServiceTests
     }
 
     [Fact]
+    public async Task UpdateStatusAsync_WhenStatusSolvedWithSolutionPayload_InsertsSolutionThenUpdatesStatus()
+    {
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _accessPolicy.Setup(a => a.CanAddSolutionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Name = "Ticket 10", Status = 2 });
+        _glpi.Setup(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(123);
+        _glpi.Setup(g => g.UpdateTicketStatusAsync(10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, AppRole.Technician, "Solucion provista", CancellationToken.None);
+
+        result.Should().BeTrue();
+        _glpi.Verify(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_WhenStatusSolvedAndSolutionInsertFails_ThrowsUnprocessableEntityAndDoesNotUpdateStatus()
+    {
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _accessPolicy.Setup(a => a.CanAddSolutionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Name = "Ticket 10", Status = 2 });
+        _glpi.Setup(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new GlpiApiException(500, "GLPI error"));
+
+        var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, AppRole.Technician, "Solucion provista", CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnprocessableEntityException>()
+            .WithMessage("*Error al registrar la solución*");
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task UpdateStatusAsync_WhenStatusNotSolved_DoesNotCheckSolution()
     {
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 5, It.IsAny<int>(), It.IsAny<CancellationToken>()))

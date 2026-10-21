@@ -208,13 +208,17 @@ public sealed class TicketService : ITicketService
     }
 
     public Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, CancellationToken cancellationToken) =>
-        UpdateStatusAsync(ticketId, status, userId, AppRole.Technician, cancellationToken);
+        UpdateStatusAsync(ticketId, status, userId, AppRole.Technician, null, cancellationToken);
+
+    public Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, CancellationToken cancellationToken) =>
+        UpdateStatusAsync(ticketId, status, userId, role, null, cancellationToken);
 
     public async Task<bool> UpdateStatusAsync(
         int ticketId,
         int status,
         int userId,
         AppRole role,
+        string? solution,
         CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
@@ -227,20 +231,42 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
-        // Payload/state validation runs before the authorization decision so that an
-        // attempt to resolve without a written solution is always reported as 422,
-        // regardless of who is asking (ADR-006).
+        // Payload/state validation and solution insertion run before or during resolve:
+        // Strictly: 1) Create solution via SolutionInsertAsync if provided, 2) Update status to 5 (Resolved).
+        // If solution creation fails, status update is not executed.
         if (status == (int)TicketStatus.Solved)
         {
-            var solutionExists = await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
-            if (!solutionExists)
+            if (!string.IsNullOrWhiteSpace(solution))
             {
-                throw new UnprocessableEntityException("Ticket no puede marcarse como resuelto sin solución escrita.");
+                try
+                {
+                    await SolutionInsertAsync(ticketId, solution, userId, role, cancellationToken);
+                }
+                catch (ForbiddenException)
+                {
+                    throw;
+                }
+                catch (ValidationException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to insert solution before resolving ticket {TicketId}", ticketId);
+                    throw new UnprocessableEntityException($"Error al registrar la solución requerida: {ex.Message}");
+                }
+            }
+            else
+            {
+                var solutionExists = await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
+                if (!solutionExists)
+                {
+                    throw new UnprocessableEntityException("Ticket no puede marcarse como resuelto sin solución escrita.");
+                }
             }
         }
 
         // Business-rule evaluation returns a clear, operator-facing reason on rejection
-        // (e.g. "Solo un administrador puede cambiar el estado de un ticket resuelto").
         var decision = await _accessPolicy.EvaluateStatusTransitionAsync(userId, role, ticketId, status, cancellationToken);
         if (!decision.Allowed)
         {
@@ -490,6 +516,16 @@ public sealed class TicketService : ITicketService
             throw Invalid("userId", "userId must be a positive integer.");
         }
 
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new ValidationException("content", "Solution content cannot be empty.");
+        }
+
+        if (content.Length > 2000)
+        {
+            throw new ValidationException("content", "Solution content exceeds maximum length.");
+        }
+
         var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
         if (ticket is null)
         {
@@ -501,14 +537,9 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
-        if (string.IsNullOrWhiteSpace(content))
+        if (ticket.Status == (int)TicketStatus.Closed)
         {
-            throw new ValidationException("content", "Solution content cannot be empty.");
-        }
-
-        if (content.Length > 2000)
-        {
-            throw new ValidationException("content", "Solution content exceeds maximum length.");
+            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
         }
 
         var solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
@@ -605,7 +636,10 @@ public sealed class TicketService : ITicketService
 
         try
         {
-            await _audit.LogAsync(userId, "reopen", ticketId, reason, cancellationToken);
+            var auditDetails = string.IsNullOrWhiteSpace(reason)
+                ? null
+                : System.Text.Json.JsonSerializer.Serialize(new { reason });
+            await _audit.LogAsync(userId, "reopen", ticketId, auditDetails, cancellationToken);
         }
         catch (Exception ex)
         {

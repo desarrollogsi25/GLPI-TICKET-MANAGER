@@ -19,7 +19,7 @@ public static class UserQueries
             (SELECT pu.profiles_id
              FROM glpi_profiles_users pu
              WHERE pu.users_id = u.id
-             ORDER BY pu.profiles_id ASC
+             ORDER BY pu.is_default_profile DESC, pu.profiles_id DESC
              LIMIT 1)        AS ProfileId
         FROM glpi_users u
         WHERE u.name = @Username

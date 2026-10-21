@@ -6,4 +6,5 @@ namespace GlpiTicketManager.Application.Dtos.Tickets;
 public sealed record UpdateTicketStatusRequest
 {
     public int Status { get; init; }
+    public string? Solution { get; init; }
 }

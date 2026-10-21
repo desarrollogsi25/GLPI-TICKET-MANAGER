@@ -148,19 +148,18 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return StatusTransitionDecision.Allow();
         }
 
-        // 1. Resolved (5) / Closed (6) are terminal for technicians: only an admin reopens.
-        if (currentStatus == (int)TicketStatus.Solved || currentStatus == (int)TicketStatus.Closed)
+        // 1. Closed (6) is terminal for technicians: only an admin can reopen.
+        if (currentStatus == (int)TicketStatus.Closed)
         {
             return StatusTransitionDecision.Deny(
-                "Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.");
+                "Solo un administrador puede reabrir un ticket cerrado.");
         }
 
-        // 2. Technicians cannot rewind progress back to New (1).
-        if (newStatus == (int)TicketStatus.New &&
-            (currentStatus == (int)TicketStatus.Assigned || currentStatus == (int)TicketStatus.Planned))
+        // 2. Technicians cannot rewind progress to a state prior to Assigned (i.e. New = 1).
+        if (newStatus < (int)TicketStatus.Assigned)
         {
             return StatusTransitionDecision.Deny(
-                "No puedes devolver un ticket asignado o en progreso al estado Nuevo.");
+                "No puedes devolver un ticket a un estado anterior a Asignado (Nuevo).");
         }
 
         // 3. Explicit close (6) stays admin-only; resolving (5) is allowed for the assignee.
@@ -176,6 +175,7 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return StatusTransitionDecision.Deny("Solo el técnico asignado puede cambiar el estado de este ticket.");
         }
 
+        // Technicians can move tickets between states 2 (Assigned/In Progress), 3 (Planned/In Progress), 4 (Waiting/Pending), and 5 (Solved).
         return StatusTransitionDecision.Allow();
     }
 
@@ -202,8 +202,15 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // Technician: solo si asignado a él
-        return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        // Technician: asignado a él O perteneciente a su grupo
+        if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+        {
+            return true;
+        }
+
+        var userGroups2 = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+        var ticketGroups2 = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+        return userGroups2.Intersect(ticketGroups2).Any();
     }
 
     public async Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default)

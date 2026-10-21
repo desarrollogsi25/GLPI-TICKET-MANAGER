@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 5173,
+      watch: {
+        usePolling: true,
+      },
       // Same-origin in dev: the browser calls /api and Vite forwards it to the API.
       // In production Nginx plays the same role, so no CORS is required.
       proxy: {

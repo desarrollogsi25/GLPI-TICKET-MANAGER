@@ -15,11 +15,21 @@ public sealed class AuditRepository : IAuditRepository
 
     public async Task<long> LogAsync(int userId, string action, int? ticketId, string? details, CancellationToken ct = default)
     {
+        string? jsonDetails = details;
+        if (!string.IsNullOrWhiteSpace(jsonDetails))
+        {
+            var trimmed = jsonDetails.Trim();
+            if (!((trimmed.StartsWith('{') && trimmed.EndsWith('}')) || (trimmed.StartsWith('[') && trimmed.EndsWith(']'))))
+            {
+                jsonDetails = System.Text.Json.JsonSerializer.Serialize(new { message = jsonDetails });
+            }
+        }
+
         await using var conn = (DbConnection)await _factory.CreateAsync(ct);
         return await conn.ExecuteScalarAsync<long>(
             new CommandDefinition(
                 AuditQueries.Log,
-                new { UserId = userId, Action = action, TicketId = ticketId, Details = details },
+                new { UserId = userId, Action = action, TicketId = ticketId, Details = jsonDetails },
                 cancellationToken: ct));
     }
 

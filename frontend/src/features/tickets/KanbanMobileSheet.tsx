@@ -151,7 +151,7 @@ export function KanbanMobileSheet({
                     Mover a Pendiente (Pausar)
                   </Button>
                   <Button
-                    className="w-full h-12 text-sm font-medium justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="w-full h-12 text-sm font-medium justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
                     onClick={() => {
                       onClose()
                       onResolve(ticket.id)
@@ -180,7 +180,7 @@ export function KanbanMobileSheet({
                     Mover a En progreso (Retomar)
                   </Button>
                   <Button
-                    className="w-full h-12 text-sm font-medium justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="w-full h-12 text-sm font-medium justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
                     onClick={() => {
                       onClose()
                       onResolve(ticket.id)

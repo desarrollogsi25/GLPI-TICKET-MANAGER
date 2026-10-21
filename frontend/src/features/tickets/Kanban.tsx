@@ -11,6 +11,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,7 +24,8 @@ import {
   useUpdateTicketStatusMutation,
 } from '@/hooks/useTickets'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
-import { getApiErrorMessage } from '@/lib/api/errors'
+import { useRole } from '@/hooks/useRole'
+import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -113,7 +115,7 @@ function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): Tic
 
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
-  mine: ['in_progress'],
+  mine: ['in_progress', 'resolved'],
   in_progress: ['pending', 'resolved'],
   // A waiting ticket can be resumed (→ En progreso) or resolved straight away.
   pending: ['in_progress', 'resolved'],
@@ -158,6 +160,8 @@ function KanbanColumn({
   onRetry,
   emptyMessage = 'No hay tickets aquí',
   onClaim,
+  onStart,
+  onResolve,
   isClaiming,
   recentlyUpdatedIds,
   invalidDropTicketId,
@@ -170,6 +174,8 @@ function KanbanColumn({
   onRetry?: () => void
   emptyMessage?: string
   onClaim?: (ticketId: number) => void
+  onStart?: (ticketId: number) => void
+  onResolve?: (ticketId: number) => void
   isClaiming?: boolean
   recentlyUpdatedIds?: Set<number>
   invalidDropTicketId?: number | null
@@ -268,7 +274,44 @@ function KanbanColumn({
                             'Asignarme'
                           )}
                         </Button>
-                      ) : column.id === 'in_progress' || column.id === 'pending' ? (
+                      ) : column.id === 'mine' ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs w-full"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onStart?.(ticket.id)
+                          }}
+                        >
+                          Iniciar
+                        </Button>
+                      ) : column.id === 'in_progress' ? (
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <Link
+                            to={`/tickets/${ticket.id}`}
+                            className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Abrir detalle →
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onResolve?.(ticket.id)
+                            }}
+                          >
+                            Resolver
+                          </Button>
+                        </div>
+                      ) : column.id === 'pending' ? (
                         <Link
                           to={`/tickets/${ticket.id}`}
                           className="inline-flex items-center text-xs font-medium text-primary hover:underline"
@@ -290,7 +333,7 @@ function KanbanColumn({
                 transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
                 className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center"
               >
-                <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+                <p className="text-xs text-slate-800">{emptyMessage}</p>
               </motion.div>
             ) : null}
           </>
@@ -301,7 +344,9 @@ function KanbanColumn({
 }
 
 export function Kanban() {
+  const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
+  const { isTechnician } = useRole()
   const currentUser = useAuthStore((state) => state.user)
   const currentUserId = selectedAssignee ?? currentUser?.userId ?? null
 
@@ -437,7 +482,7 @@ export function Kanban() {
       },
       onError: (err) => {
         pushToast({
-          title: 'No se pudo asignar el ticket',
+          title: getApiErrorTitle(err, 'No se pudo asignar el ticket'),
           description: getApiErrorMessage(err),
           variant: 'destructive',
         })
@@ -457,7 +502,7 @@ export function Kanban() {
           }),
         onError: (err) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           }),
@@ -477,7 +522,7 @@ export function Kanban() {
           }),
         onError: (err) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           }),
@@ -497,7 +542,7 @@ export function Kanban() {
           }),
         onError: (err) =>
           pushToast({
-            title: 'No se pudo cambiar el estado',
+            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
             description: getApiErrorMessage(err),
             variant: 'destructive',
           }),
@@ -559,6 +604,11 @@ export function Kanban() {
 
     if (sourceId === 'pending' && targetId === 'in_progress') {
       handleResume(ticketId)
+      return
+    }
+
+    if (sourceId === 'mine' && targetId === 'resolved') {
+      setResolveTicketId(ticketId)
       return
     }
 
@@ -653,7 +703,7 @@ export function Kanban() {
             <Button
               size="sm"
               variant="default"
-              className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-8 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={(e) => {
                 e.stopPropagation()
                 setResolveTicketId(ticket.id)
@@ -691,9 +741,11 @@ export function Kanban() {
         description="Arrastra un ticket entre columnas para cambiar su estado según el flujo operativo."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
-          <div className="hidden md:block">
-            <TechnicianFilter />
-          </div>
+          !isTechnician ? (
+            <div className="hidden md:block">
+              <TechnicianFilter />
+            </div>
+          ) : undefined
         }
       />
 
@@ -894,6 +946,8 @@ export function Kanban() {
                   onRetry={isError ? () => void queueQuery.refetch() : undefined}
                   emptyMessage={emptyMessage}
                   onClaim={handleClaim}
+                  onStart={handleStart}
+                  onResolve={(ticketId) => setResolveTicketId(ticketId)}
                   isClaiming={claimMutation.isPending}
                   recentlyUpdatedIds={recentlyUpdatedIds}
                   invalidDropTicketId={invalidDropTicketId}
@@ -916,7 +970,10 @@ export function Kanban() {
         ticketId={resolveTicketId ?? 0}
         open={resolveTicketId !== null}
         onOpenChange={(v) => {
-          if (!v) setResolveTicketId(null)
+          if (!v) {
+            setResolveTicketId(null)
+            void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+          }
         }}
       />
 
