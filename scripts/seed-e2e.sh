@@ -75,7 +75,9 @@ VALUES
   (57, 1, 2),
   (61, 1, 2),
   (70, 1, 2),
-  (901, 1, 2)
+  (901, 1, 2),
+  (902, 1, 2),
+  (903, 1, 2)
 ON DUPLICATE KEY UPDATE groups_id = 1, type = 2;
 
 INSERT IGNORE INTO glpi_itilcategories 
@@ -116,6 +118,25 @@ ON DUPLICATE KEY UPDATE
 DELETE FROM glpi_tickets_users WHERE tickets_id=901 AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=901;
 DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=901;
+
+-- BUG-031 (H-31): fixtures for the short-solution resolve regression.
+-- #902 drives the UI flow (claimed from the group queue by the spec).
+-- #903 drives the API flow (claimed through POST /api/tickets/{id}/claim by the spec).
+INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
+VALUES (902, 0, 'QA short-solution UI fixture', NOW(), NOW(), 1, 3, 'Fixture UI para resolve-short-solution.spec.ts', 3, 3, 3, 1, 1, 2)
+ON DUPLICATE KEY UPDATE
+  status = 1, solvedate = NULL, closedate = NULL, priority = 3, itilcategories_id = 2, date_mod = NOW();
+DELETE FROM glpi_tickets_users WHERE tickets_id=902 AND type=2;
+DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=902;
+DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=902;
+
+INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
+VALUES (903, 0, 'QA short-solution API fixture', NOW(), NOW(), 1, 3, 'Fixture API para resolve-short-solution.spec.ts', 3, 3, 3, 1, 1, 2)
+ON DUPLICATE KEY UPDATE
+  status = 1, solvedate = NULL, closedate = NULL, priority = 3, itilcategories_id = 2, date_mod = NOW();
+DELETE FROM glpi_tickets_users WHERE tickets_id=903 AND type=2;
+DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=903;
+DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=903;
 
 UPDATE glpi_tickets SET status=2 WHERE status=3 AND id IN (SELECT tickets_id FROM glpi_tickets_users WHERE users_id=7 AND type=2);
 

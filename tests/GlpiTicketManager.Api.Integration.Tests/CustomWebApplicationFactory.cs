@@ -3,10 +3,12 @@ using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Dtos.Groups;
 using GlpiTicketManager.Application.Dtos.Channels;
+using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Domain.Enums;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,12 +39,62 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
+    private Mock<ITicketNotificationService>? _notificationMock;
+
+    /// <summary>
+    /// Mock of the realtime notifier, so a test can assert how many events a use case
+    /// emits (BUG-031 requires exactly one event for the atomic resolve).
+    /// </summary>
+    public Mock<ITicketNotificationService> NotificationMock =>
+        _notificationMock ?? throw new InvalidOperationException(
+            "The test host has not been created yet. Call CreateClient() before using NotificationMock.");
+
+    /// <summary>Clears the recorded realtime notifications between tests.</summary>
+    public void ResetNotifications()
+    {
+        NotificationMock.Invocations.Clear();
+    }
 
     public void SetTicketSolution(int ticketId, string content)
     {
         lock (_stateLock)
         {
             _ticketSolutions[ticketId] = content;
+        }
+    }
+
+    /// <summary>
+    /// Moves a fixture ticket to an explicit status so a test can exercise a given
+    /// state conflict (Solved, Closed, ...) without going through the whole flow.
+    /// </summary>
+    public void SetTicketStatus(int ticketId, int status)
+    {
+        lock (_stateLock)
+        {
+            if (_allTickets.TryGetValue(ticketId, out var ticket))
+            {
+                _allTickets[ticketId] = new Ticket
+                {
+                    Id = ticket.Id,
+                    Name = ticket.Name,
+                    Content = ticket.Content,
+                    Status = status,
+                    Type = ticket.Type,
+                    Priority = ticket.Priority,
+                    Urgency = ticket.Urgency,
+                    Impact = ticket.Impact,
+                    CategoryId = ticket.CategoryId,
+                    CreatedAt = ticket.CreatedAt,
+                    UpdatedAt = DateTime.UtcNow,
+                    SolvedAt = ticket.SolvedAt,
+                    ClosedAt = ticket.ClosedAt,
+                    IsDeleted = ticket.IsDeleted,
+                    HasSolution = ticket.HasSolution,
+                    AssigneeIds = ticket.AssigneeIds,
+                    RequesterIds = ticket.RequesterIds,
+                    Followups = ticket.Followups
+                };
+            }
         }
     }
 
@@ -490,7 +542,49 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
+                        // GLPI 11 side effect (verified against GLPI 11.0 in BUG-031):
+                        // creating an ITILSolution moves the ticket to Solved (5) on its
+                        // own, and a second solution for an already solved ticket is
+                        // rejected with HTTP 400 / ERROR_GLPI_ADD "El elemento ya está
+                        // resuelto". The double must reproduce both behaviours, otherwise
+                        // the tests cannot see the defects the production code has to
+                        // handle (a 400 that is really a state conflict).
+                        if (_allTickets.TryGetValue(ticketId, out var ticket)
+                            && (ticket.Status == (int)TicketStatus.Solved || ticket.Status == (int)TicketStatus.Closed))
+                        {
+                            throw new GlpiApiException(
+                                StatusCodes.Status400BadRequest,
+                                "GLPI API returned 400 for POST ITILSolution.",
+                                "[\"ERROR_GLPI_ADD\",\"El elemento ya está resuelto, ¿alguien impulsó una solución antes que usted?\"]");
+                        }
+
                         _ticketSolutions[ticketId] = content;
+
+                        if (_allTickets.TryGetValue(ticketId, out var current))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = current.Id,
+                                Name = current.Name,
+                                Content = current.Content,
+                                Status = (int)TicketStatus.Solved,
+                                Type = current.Type,
+                                Priority = current.Priority,
+                                Urgency = current.Urgency,
+                                Impact = current.Impact,
+                                CategoryId = current.CategoryId,
+                                CreatedAt = current.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow,
+                                SolvedAt = current.SolvedAt ?? DateTime.UtcNow,
+                                ClosedAt = current.ClosedAt,
+                                IsDeleted = current.IsDeleted,
+                                HasSolution = true,
+                                AssigneeIds = current.AssigneeIds,
+                                RequesterIds = current.RequesterIds,
+                                Followups = current.Followups
+                            };
+                        }
+
                         return 1;
                     }
                 });
@@ -993,6 +1087,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 });
 
             var notificationMock = new Mock<ITicketNotificationService>();
+            _notificationMock = notificationMock;
             services.AddSingleton(notificationMock.Object);
 
             services.AddSingleton(roleResolverMock.Object);

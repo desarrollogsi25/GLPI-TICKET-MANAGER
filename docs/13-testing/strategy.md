@@ -34,11 +34,16 @@ La estrategia de aseguramiento de calidad del proyecto implementa múltiples niv
   - `FollowupPrivacyTests`: Garantiza que notas privadas nunca se filtren a roles no autorizados (H-08).
   - `ReopenTests`: Valida ciclo completo de reapertura y preservación de estados (ADR-019).
   - `TicketWorkflowTests`: Transiciones de ciclo de vida de tickets y validación de solución (H-24).
+  - `SolutionQueryTests`: Fija las invariantes del **SQL de producción** (`SolutionQueries.Exists`) frente al contrato del API: exige **contenido no vacío** y **ignora** las soluciones obsoletas (`status = 4`); **no** exige una longitud mínima. Evita la divergencia con el doble de pruebas (BUG-031).
+  - `ResolveTests`: Cobertura del endpoint atómico `POST /api/tickets/{id}/resolve` (solución corta, contenido vacío/whitespace, ticket desconocido, sin permisos, ya resuelto/cerrado, doble envío → `409`, GLPI auto-resuelve → un único evento SignalR, cierre automático a `6`). 12 casos.
 
 ### 2.3 Pruebas End-to-End (Frontend & E2E)
 - **Framework:** Playwright con TypeScript.
 - **Ubicación:** `frontend/tests/e2e`
 - **Alcance:** Flujos de usuario completos en navegador real (desktop y mobile viewport), gestos táctiles, arrastre de tarjetas en Kanban, validaciones de formularios y sincronización en tiempo real vía SignalR.
+- **Suites Clave:**
+  - `resolve-ticket.spec.ts`: Flujo UI de resolución con el diálogo (cierre y movimiento a la columna «Resuelto»).
+  - `resolve-short-solution.spec.ts` (BUG-031): **Regresión contra el stack real (GLPI 11 + MariaDB)**. (1) Cadena legacy `POST /solutions` con contenido corto `"OK"` → `201` y `PATCH /status {status:5}` → **`204`** (antes era `422`). (2) Flujo UI con `POST /api/tickets/{id}/resolve` con `"OK"` → `200`, el modal se cierra y el ticket pasa a `Resuelto`. Se ejecuta contra SQL y GLPI reales, sin dobles.
 
 ## 3. Criterios de Aceptación en CI/CD
 

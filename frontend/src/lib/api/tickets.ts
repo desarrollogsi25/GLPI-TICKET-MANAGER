@@ -56,6 +56,18 @@ export async function createSolution(id: number, content: string): Promise<{ id:
   return data
 }
 
+/**
+ * Resolves a ticket in a single call (BUG-031 / H-31).
+ *
+ * The API writes the solution, drives the ticket to its resolved state and emits a
+ * single realtime event. The previous two-call sequence (POST /solutions followed by
+ * PATCH /status) answered 400/422 for the same technician action.
+ */
+export async function resolveTicket(id: number, content: string): Promise<import('@/lib/api/types').TicketDetail> {
+  const { data } = await apiClient.post(`/tickets/${id}/resolve`, { content })
+  return data
+}
+
 export async function reopenTicket(id: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.post(`/tickets/${id}/reopen`, reason ? { reason } : {})
   return data

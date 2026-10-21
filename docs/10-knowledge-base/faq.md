@@ -21,3 +21,6 @@ Solo los administradores, los supervisores asignados a los grupos del ticket y e
 
 ### ¿Cómo funciona la asignación concurrente?
 El sistema utiliza control de concurrencia optimista y transacciones atómicas. Si dos técnicos intentan asignarse el mismo ticket de forma simultánea, solo uno tiene éxito (HTTP 200) y el segundo recibe una respuesta controlada de conflicto (HTTP 409 Conflict).
+
+### ¿Por qué no podía resolver un ticket con una solución corta (como "OK")?
+Era un bug histórico ([BUG-031](../11-incidentes/BUG-031-resolucion-ticket-solucion-corta.md), corregido en H-31 / [ADR-020](../01-architecture/decisions/ADR-020-resolucion-atomic-de-ticket.md)). El servidor exigía al menos 10 caracteres y GLPI 11 resolvía el ticket al crear la solución, lo que generaba `422`. Ahora se usa `POST /api/tickets/{id}/resolve` (atómico): se permiten soluciones cortas y los errores se devuelven como `409` en español. Ver [KB — Resolución de tickets](resolucion-de-tickets.md).

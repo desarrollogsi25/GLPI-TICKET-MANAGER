@@ -17,6 +17,10 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     public SolutionTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
+        // The GLPI double reproduces the real side effect of BUG-031: writing a solution
+        // moves the ticket to Solved (5). Every test therefore starts from a clean
+        // fixture, otherwise the order of execution would change the expected status.
+        _factory.ResetState();
         _client = factory.CreateClient();
     }
 

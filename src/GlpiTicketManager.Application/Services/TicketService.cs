@@ -501,6 +501,158 @@ public sealed class TicketService : ITicketService
         return await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
     }
 
+    /// <summary>
+    /// Resolves a ticket in a single atomic operation (BUG-031 / H-31).
+    /// <para>
+    /// GLPI 11 moves a ticket to <c>Solved</c> (5) on its own as a side effect of creating
+    /// an <c>ITILSolution</c> (verified against GLPI 11.0), so the legacy two-call sequence
+    /// "POST /solutions + PATCH /status" was redundant and produced contradictory answers:
+    /// the solution write succeeded, the status write was then rejected with 422 because the
+    /// solution-presence query applied a minimum length that the API never enforced, and a
+    /// retry hit GLPI's "el elemento ya está resuelto" 400.
+    /// </para>
+    /// <para>
+    /// This method writes the solution once, verifies the resulting state, applies the
+    /// product auto-close rule and emits a single realtime event.
+    /// </para>
+    /// </summary>
+    public Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        CancellationToken cancellationToken) =>
+        ResolveAsync(ticketId, content, userId, AppRole.Technician, cancellationToken);
+
+    public async Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0)
+        {
+            throw Invalid("id", "id must be a positive integer.");
+        }
+
+        if (userId <= 0)
+        {
+            throw Invalid("userId", "userId must be a positive integer.");
+        }
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new ValidationException("content", "Solution content cannot be empty.");
+        }
+
+        if (content.Length > 2000)
+        {
+            throw new ValidationException("content", "Solution content exceeds maximum length.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        // 409: state conflict. Detecting it here avoids letting GLPI answer with an
+        // opaque 400 ("El elemento ya está resuelto") that the technician cannot act on.
+        if (ticket.Status == (int)TicketStatus.Closed)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya está cerrado y no admite una nueva solución.");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Solved)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya fue resuelto y no se puede volver a resolver.");
+        }
+
+        // 403: the caller must be allowed to both write the solution and drive the
+        // ticket to Solved. Both checks are evaluated BEFORE any write happens.
+        if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
+        {
+            throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
+        }
+
+        var transition = await _accessPolicy.EvaluateStatusTransitionAsync(
+            userId, role, ticketId, (int)TicketStatus.Solved, cancellationToken);
+        if (!transition.Allowed)
+        {
+            throw new ForbiddenException(
+                transition.Reason ?? $"User {userId} cannot resolve ticket {ticketId}");
+        }
+
+        try
+        {
+            // Writing the solution through GLPI's REST API is what moves the ticket to
+            // Solved (5); GLPI rejects a second solution for an already solved ticket.
+            await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+        }
+        catch (GlpiApiException ex) when (ex.StatusCode == 400 && IsAlreadySolvedError(ex))
+        {
+            throw new ConflictException(
+                $"El ticket {ticketId} ya fue resuelto por otra operación.");
+        }
+
+        // Read the state back: GLPI normally solved the ticket on its own. Only write
+        // the transition when it did not happen (defensive against other GLPI versions).
+        var afterSolution = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        var effectiveStatus = afterSolution?.Status ?? ticket.Status;
+        if (effectiveStatus != (int)TicketStatus.Solved)
+        {
+            await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Solved, cancellationToken);
+            effectiveStatus = (int)TicketStatus.Solved;
+        }
+
+        // Auto-close: resolving a ticket closes it (status 6) in GLPI, exactly like the
+        // legacy PATCH /status path. A failure here is logged but never rolls back the
+        // resolve that already succeeded.
+        try
+        {
+            await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Closed, cancellationToken);
+            effectiveStatus = (int)TicketStatus.Closed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
+        }
+
+        try
+        {
+            await _audit.LogAsync(userId, "resolve", ticketId, null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record audit log for resolve on ticket {TicketId}", ticketId);
+        }
+
+        try
+        {
+            var assigneeId = (afterSolution ?? ticket).AssigneeIds?.FirstOrDefault();
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId, effectiveStatus, assigneeId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for ticket {TicketId}", ticketId);
+        }
+
+        var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        return (updated ?? ticket).ToDetail();
+    }
+
+    /// <summary>
+    /// Detects GLPI's "the item is already solved" rejection. GLPI answers with HTTP 400
+    /// and the code <c>ERROR_GLPI_ADD</c> plus the message
+    /// "El elemento ya está resuelto, ¿alguien impulsó una solución antes que usted?".
+    /// </summary>
+    private static bool IsAlreadySolvedError(GlpiApiException exception)
+    {
+        var payload = $"{exception.Message} {exception.ResponseBody}";
+        return payload.Contains("ERROR_GLPI_ADD", StringComparison.OrdinalIgnoreCase)
+            && payload.Contains("ya está resuelto", StringComparison.OrdinalIgnoreCase);
+    }
+
     public Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken) =>
         SolutionInsertAsync(ticketId, content, userId, AppRole.Technician, cancellationToken);
 
@@ -532,9 +684,16 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
+        // 409: state conflicts are detected here so the caller never receives GLPI's
+        // opaque 400 ("El elemento ya está resuelto") for an already solved ticket.
         if (ticket.Status == (int)TicketStatus.Closed)
         {
             throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Solved)
+        {
+            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya fue resuelto.");
         }
 
         if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
@@ -542,12 +701,16 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
-        if (ticket.Status == (int)TicketStatus.Closed)
+        int solutionId;
+        try
         {
-            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
+            solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
         }
-
-        var solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+        catch (GlpiApiException ex) when (ex.StatusCode == 400 && IsAlreadySolvedError(ex))
+        {
+            // Concurrent double submit: the first request solved the ticket in GLPI.
+            throw new ConflictException($"El ticket {ticketId} ya fue resuelto por otra operación.");
+        }
 
         try
         {

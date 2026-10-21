@@ -11,6 +11,7 @@ import {
   claimTicket,
   createSolution,
   reopenTicket,
+  resolveTicket,
 } from '@/lib/api/tickets'
 
 /** The API caps `limit` at 100; the board and table filter client-side. */
@@ -128,6 +129,26 @@ export function useCreateSolutionMutation() {
       createSolution(ticketId, content),
     onSuccess: async (_data, variables) => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
+      ])
+    },
+  })
+}
+
+/**
+ * Resolves a ticket atomically (BUG-031 / H-31): one request writes the solution and
+ * moves the ticket to its resolved state, so the UI never has to chain two calls.
+ */
+export function useResolveTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, content }: { ticketId: number; content: string }) =>
+      resolveTicket(ticketId, content),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
       ])
