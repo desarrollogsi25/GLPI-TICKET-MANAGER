@@ -115,6 +115,7 @@ export function ResolveTicketDialog({
       <div className="space-y-1.5">
         <Textarea
           value={content}
+          maxLength={2000}
           onChange={(e) => setContent(e.target.value)}
           onBlur={() => setTouched(true)}
           placeholder="Describí la solución aplicada..."
@@ -122,11 +123,18 @@ export function ResolveTicketDialog({
           aria-invalid={hasError}
           aria-describedby={hasError ? 'solution-error' : undefined}
         />
-        {hasError ? (
-          <p id="solution-error" role="alert" className="text-xs text-destructive">
-            La solución no puede estar vacía.
-          </p>
-        ) : null}
+        <div className="flex items-center justify-between text-xs">
+          {hasError ? (
+            <p id="solution-error" role="alert" className="text-destructive">
+              La solución no puede estar vacía.
+            </p>
+          ) : (
+            <span />
+          )}
+          <span className="text-muted-foreground ml-auto">
+            {content.length} / 2000
+          </span>
+        </div>
       </div>
       <div className="mt-4 flex justify-end gap-2">
         <Button

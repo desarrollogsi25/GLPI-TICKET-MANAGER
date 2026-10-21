@@ -47,4 +47,15 @@ public sealed class TicketNotificationService : ITicketNotificationService
                 timestamp = DateTime.UtcNow
             }, ct);
     }
+
+    public async Task NotifyTicketCreatedAsync(int ticketId, int? groupId, CancellationToken ct = default)
+    {
+        await _hubContext.Clients.All
+            .SendAsync("TicketCreated", new
+            {
+                ticketId,
+                groupId,
+                timestamp = DateTime.UtcNow
+            }, ct);
+    }
 }

@@ -13,6 +13,31 @@ const STATUS_FALLBACK: Record<number, string> = {
   422: 'La solicitud no se pudo procesar. Revisá los datos e intentá de nuevo.',
 }
 
+const ERROR_TRANSLATIONS: Record<string, string> = {
+  'Solution content exceeds maximum length': 'La solución excede la longitud máxima permitida.',
+  'Solution is required': 'La solución es requerida.',
+  'Solution content cannot be empty': 'El contenido de la solución no puede estar vacío.',
+  'Ticket not found': 'Ticket no encontrado.',
+  'Invalid status transition': 'Transición de estado no válida.',
+  'Only administrators can reopen closed tickets': 'Solo los administradores pueden reabrir tickets cerrados.',
+  'Only technicians or administrators can resolve tickets': 'Solo técnicos o administradores pueden resolver tickets.',
+  'Unauthorized': 'No tienes autorización para realizar esta acción.',
+  'Forbidden': 'Acceso denegado.',
+  'Internal Server Error': 'Error interno del servidor.',
+  'Network Error': 'Error de conexión de red.',
+}
+
+function translateErrorMessage(msg: string): string {
+  if (!msg) return msg
+  const trimmed = msg.trim()
+  for (const [en, es] of Object.entries(ERROR_TRANSLATIONS)) {
+    if (trimmed.toLowerCase().includes(en.toLowerCase())) {
+      return es
+    }
+  }
+  return msg
+}
+
 /**
  * Turns an axios error into a message suitable for the UI.
  * The API answers failures with RFC 7807 ProblemDetails.
@@ -34,16 +59,16 @@ export function getApiErrorMessage(error: unknown): string {
     if (problem?.errors) {
       const firstError = Object.values(problem.errors).flat()[0]
       if (firstError) {
-        return firstError
+        return translateErrorMessage(firstError)
       }
     }
 
     if (problem?.detail) {
-      return problem.detail
+      return translateErrorMessage(problem.detail)
     }
 
     if (problem?.title) {
-      return problem.title
+      return translateErrorMessage(problem.title)
     }
 
     // 403/422 get an explicit, user-facing message when the API sent no body
@@ -56,11 +81,11 @@ export function getApiErrorMessage(error: unknown): string {
       return `El API respondió con un error (HTTP ${status}).`
     }
 
-    return error.message
+    return translateErrorMessage(error.message)
   }
 
   if (error instanceof Error) {
-    return error.message
+    return translateErrorMessage(error.message)
   }
 
   return 'Ha ocurrido un error inesperado.'

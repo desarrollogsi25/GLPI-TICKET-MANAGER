@@ -246,6 +246,11 @@ export function TicketFiltersSheet({
                     />
                   </div>
                 </div>
+                {startDate && endDate && startDate > endDate && (
+                  <div role="alert" aria-live="polite" className="text-xs text-destructive font-medium mt-1">
+                    La fecha de inicio no puede ser posterior a la fecha de fin.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -263,6 +268,7 @@ export function TicketFiltersSheet({
                 type="button"
                 variant="default"
                 className="flex-1 min-h-[44px] text-sm font-semibold"
+                disabled={Boolean(startDate && endDate && startDate > endDate)}
                 onClick={() => {
                   onApply()
                   onClose()

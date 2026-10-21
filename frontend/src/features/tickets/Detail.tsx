@@ -137,9 +137,9 @@ export function Detail() {
               )}
               {TICKET_STATUSES.map((option) => {
                 const isBackwardBlocked =
-                  (ticket.status === 5 || ticket.status === 6) &&
                   role !== 'admin' &&
-                  option.value < 5
+                  ((ticket.status === 5 && option.value < 5) ||
+                    (ticket.status === 6 && option.value <= 5))
 
                 return (
                   <Button
