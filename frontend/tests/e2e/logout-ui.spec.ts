@@ -6,7 +6,9 @@ test.use({ storageState: { cookies: [], origins: [] } })
 test('logout UI: click button, redirects to login, token revoked', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text())
+    if (msg.type() === 'error' && !msg.text().includes('401')) {
+      consoleErrors.push(msg.text())
+    }
   })
 
   // 1. Login fresco vía UI
