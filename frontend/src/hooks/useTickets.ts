@@ -21,6 +21,7 @@ export interface TicketFilters {
   serviceId?: number | null
   startDate?: string | null
   endDate?: string | null
+  enabled?: boolean
 }
 
 export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilters) {
@@ -29,7 +30,7 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
       ? filtersOrAssigneeId
       : { assigneeId: filtersOrAssigneeId }
 
-  const { assigneeId, serviceId, startDate, endDate } = filters
+  const { assigneeId, serviceId, startDate, endDate, enabled = true } = filters
   const hasFilter = assigneeId != null || serviceId != null
 
   // Any extra filter (service or date range) switches the cache key to the generic list
@@ -51,7 +52,7 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
         limit: TICKETS_PAGE_LIMIT,
         offset: 0,
       }),
-    enabled: hasFilter,
+    enabled: hasFilter && enabled,
   })
 }
 

@@ -352,8 +352,10 @@ export function Kanban() {
 
   const groupsQuery = useGroupsQuery()
   const hasNoGroups = Boolean(groupsQuery.data && groupsQuery.data.length === 0)
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const currentGroupId =
-    groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
+    groupsQuery.data?.find((group) => group.id === selectedGroupId)?.id ??
+    (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null)
 
   const queueQuery = useGroupQueueQuery(currentGroupId)
   const myTicketsQuery = useTicketsQuery(currentUserId)
@@ -747,7 +749,18 @@ export function Kanban() {
         description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
-          !isTechnician ? (
+          isTechnician && (groupsQuery.data?.length ?? 0) > 1 ? (
+            <select
+              aria-label="Seleccionar grupo de soporte"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={currentGroupId ?? ''}
+              onChange={(event) => setSelectedGroupId(Number(event.target.value))}
+            >
+              {groupsQuery.data?.map((group) => (
+                <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
+            </select>
+          ) : !isTechnician ? (
             <div className="hidden md:block">
               <TechnicianFilter />
             </div>

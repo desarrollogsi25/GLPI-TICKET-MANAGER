@@ -718,18 +718,25 @@ public sealed class TicketService : ITicketService
             throw Invalid("title", "title is required.");
         }
 
+        var assignmentGroupId = categoryId is > 0
+            ? await _tickets.GetAssignmentGroupForCategoryAsync(categoryId.Value, cancellationToken)
+            : null;
+
         var ticketId = await _glpi.CreateTicketAsync(
             title,
             description ?? string.Empty,
             urgency,
             categoryId,
             requesterUserId,
+            assignmentGroupId,
             cancellationToken);
 
         // Notify SignalR clients about the newly created ticket (Clients.All)
         try
         {
-            await _notifications.NotifyTicketCreatedAsync(ticketId, null, cancellationToken);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
+            var groupId = ticketGroups.FirstOrDefault();
+            await _notifications.NotifyTicketCreatedAsync(ticketId, groupId > 0 ? groupId : assignmentGroupId, cancellationToken);
         }
         catch (Exception ex)
         {

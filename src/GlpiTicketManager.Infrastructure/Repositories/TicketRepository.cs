@@ -490,6 +490,30 @@ public sealed class TicketRepository : ITicketRepository
         return result.AsList();
     }
 
+    public async Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            SELECT CAST(ra.value AS SIGNED)
+            FROM glpi_rules r
+            INNER JOIN glpi_rulecriterias rc ON rc.rules_id = r.id
+            INNER JOIN glpi_ruleactions ra ON ra.rules_id = r.id
+            WHERE r.sub_type = 'RuleTicket'
+              AND r.is_active = 1
+              AND rc.criteria = 'itilcategories_id'
+              AND rc.pattern = @CategoryId
+              AND ra.action_type = 'assign'
+              AND ra.field = '_groups_id_assign'
+            ORDER BY r.ranking ASC
+            LIMIT 1;
+            """;
+        return await connection.ExecuteScalarAsync<int?>(new CommandDefinition(
+            sql,
+            new { CategoryId = categoryId.ToString() },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+    }
+
     public async Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();

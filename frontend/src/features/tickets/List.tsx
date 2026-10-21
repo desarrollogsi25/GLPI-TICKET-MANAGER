@@ -136,6 +136,7 @@ export function List() {
     assigneeId: serviceId ? null : assigneeId,
     startDate: isDateRangeInvalid ? null : (startDate || null),
     endDate: isDateRangeInvalid ? null : (endDate || null),
+    enabled: !isDateRangeInvalid,
   })
 
   const navigate = useNavigate()

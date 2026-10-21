@@ -501,8 +501,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 It.IsAny<int>(),
                 It.IsAny<int?>(),
                 It.IsAny<int>(),
+                It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
-                .ReturnsAsync((string title, string description, int urgency, int? categoryId, int requesterUserId, CancellationToken _) =>
+                .ReturnsAsync((string title, string description, int urgency, int? categoryId, int requesterUserId, int? assignmentGroupId, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
