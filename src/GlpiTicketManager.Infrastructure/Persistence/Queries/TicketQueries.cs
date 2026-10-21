@@ -78,7 +78,7 @@ public static class TicketQueries
             SELECT 1 FROM glpi_tickets_users tu
             WHERE tu.tickets_id = t.id AND tu.type = 2
           )
-        ORDER BY t.date ASC
+        ORDER BY t.date DESC
         LIMIT @Limit OFFSET @Offset;
         """;
 

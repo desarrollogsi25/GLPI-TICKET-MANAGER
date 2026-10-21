@@ -20,5 +20,6 @@ public interface IGlpiApiClient
         int urgency,
         int? categoryId,
         int requesterUserId,
+        int? assignmentGroupId,
         CancellationToken cancellationToken);
 }

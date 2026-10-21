@@ -3,6 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// Keep one namespace separator in the generated HTML. JSON.stringify and the
+// SQL escaping below encode it for storage; pre-escaping it here makes GLPI
+// receive a class name with doubled backslashes and causes SubmitAnswers 500s.
+const ANSWER_TAG_PROVIDER = 'Glpi\\Form\\Tag\\AnswerTagProvider';
+
 let mariadbPassword = process.env.MARIADB_PASSWORD;
 let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
 let mariadbUser = process.env.MARIADB_USER || 'glpi';
@@ -238,11 +243,11 @@ function seedVisualForms() {
     // 2.7 Configurar destino con mapeo de Categoría hacia itilcategories_id
     const destConfig = JSON.stringify({
       "glpi-form-destination-commonitilfield-titlefield": {
-        "value": `<span data-form-tag="true" data-form-tag-value="${qTitleId}" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
+        "value": `<span data-form-tag="true" data-form-tag-value="${qTitleId}" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
       },
       "glpi-form-destination-commonitilfield-contentfield_auto": false,
       "glpi-form-destination-commonitilfield-contentfield": {
-        "value": `<span data-form-tag="true" data-form-tag-value="${qDescId}" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
+        "value": `<span data-form-tag="true" data-form-tag-value="${qDescId}" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
       },
       "glpi-form-destination-commonitilfield-itilcategoryfield": {
         "strategy": "specific_answer",
@@ -330,11 +335,11 @@ function seedVisualForms() {
   // Form 1: Categoría es question id 2
   const dest1 = JSON.stringify({
     "glpi-form-destination-commonitilfield-titlefield": {
-      "value": `<span data-form-tag="true" data-form-tag-value="6" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
+      "value": `<span data-form-tag="true" data-form-tag-value="6" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
     },
     "glpi-form-destination-commonitilfield-contentfield_auto": false,
     "glpi-form-destination-commonitilfield-contentfield": {
-      "value": `<span data-form-tag="true" data-form-tag-value="7" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
+      "value": `<span data-form-tag="true" data-form-tag-value="7" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
     },
     "glpi-form-destination-commonitilfield-itilcategoryfield": {
       "strategy": "specific_answer",
@@ -373,11 +378,11 @@ function seedVisualForms() {
   // Form 2: Categoría es question id 10
   const dest2 = JSON.stringify({
     "glpi-form-destination-commonitilfield-titlefield": {
-      "value": `<span data-form-tag="true" data-form-tag-value="14" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
+      "value": `<span data-form-tag="true" data-form-tag-value="14" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
     },
     "glpi-form-destination-commonitilfield-contentfield_auto": false,
     "glpi-form-destination-commonitilfield-contentfield": {
-      "value": `<span data-form-tag="true" data-form-tag-value="15" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
+      "value": `<span data-form-tag="true" data-form-tag-value="15" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
     },
     "glpi-form-destination-commonitilfield-itilcategoryfield": {
       "strategy": "specific_answer",

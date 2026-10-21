@@ -1,25 +1,97 @@
 import { test, expect } from '@playwright/test'
 
+const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tecnico_test1'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Tec123!'
+const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante_test'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Soli123!'
+
 test('realtime: connection indicator connects and maintains real-time link across contexts', async ({ browser }) => {
-  const contextA = await browser.newContext({ storageState: 'tests/e2e/.auth/tech1.json' })
+  test.setTimeout(90000)
+  const contextA = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const pageA = await contextA.newPage()
-  await pageA.goto('http://localhost:5173/kanban')
+  await pageA.goto(`${DESK}/login`)
+  await pageA.locator('input[name="username"]').fill(TECH_USERNAME)
+  await pageA.locator('input[name="password"]').fill(TECH_PASSWORD)
+  await pageA.locator('button[type="submit"]').click()
+  await pageA.waitForURL(/kanban|dashboard|tickets|queue/)
+  await pageA.goto(`${DESK}/kanban`)
+  const kanbanGroup = pageA.getByLabel('Seleccionar grupo de soporte')
+  if (await kanbanGroup.isVisible().catch(() => false)) {
+    await kanbanGroup.selectOption({ label: 'Hardware' })
+    await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
+  }
 
-  const contextB = await browser.newContext({ storageState: 'tests/e2e/.auth/tech1.json' })
+  const contextB = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const pageB = await contextB.newPage()
-  await pageB.goto('http://localhost:5173/queue')
+  await pageB.goto(`${DESK}/login`)
+  await pageB.locator('input[name="username"]').fill(REQUESTER_USERNAME)
+  await pageB.locator('input[name="password"]').fill(REQUESTER_PASSWORD)
+  await pageB.locator('button[type="submit"]').click()
+  await pageB.waitForURL(/\/tickets/, { timeout: 15000 })
 
-  // Ambos contextos deben alcanzar el estado 'connected' en SignalR
+  // El técnico está conectado en SignalR mientras el solicitante usa otro contexto.
   await expect(pageA.getByTestId('connection-indicator').first()).toHaveAttribute(
     'data-state',
     'connected',
-    { timeout: 10000 },
+    { timeout: 60000 },
   )
-  await expect(pageB.getByTestId('connection-indicator').first()).toHaveAttribute(
-    'data-state',
-    'connected',
-    { timeout: 10000 },
-  )
+  let pageNavigations = 0
+  pageA.on('framenavigated', frame => {
+    if (frame === pageA.mainFrame()) pageNavigations++
+  })
+
+  // Requester routes must not expose the technician board or queue.
+  await pageB.goto(`${DESK}/kanban`)
+  await expect(pageB).toHaveURL(/\/tickets$/)
+  await pageB.goto(`${DESK}/queue`)
+  await expect(pageB).toHaveURL(/\/tickets$/)
+
+  // Create a ticket from the requester's authenticated browser context. The
+  // technician Kanban must receive TicketCreated and render it without reload.
+  await pageB.goto(`${DESK}/tickets`)
+  await kanbanGroup.selectOption({ label: 'Hardware' })
+  await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
+  const title = `E2E SignalR requester ${Date.now()}`
+  const created = await pageB.evaluate(async (ticketTitle) => {
+    const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
+    const token = stored.state?.accessToken
+    const response = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title: ticketTitle,
+        description: 'Ticket de prueba automatizada del evento SignalR.',
+        urgency: 3,
+        categoryId: 11,
+      }),
+    })
+    return { status: response.status, body: await response.json() }
+  }, title)
+
+  expect(created.status).toBe(201)
+  const ticketId = created.body.ticketId as number
+  const selectedGroupId = Number(await kanbanGroup.locator('option:checked').getAttribute('value'))
+  // GLPI can persist the assignment link shortly after the API returns; poll the
+  // queue until the fixture reaches the assigned group, without a blind sleep.
+  await expect.poll(async () => pageA.evaluate(async ({ groupId, id }) => {
+    const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
+    const response = await fetch(`/api/tickets/by-group?groupId=${groupId}&unassigned=true&limit=20&offset=0`, {
+      headers: { Authorization: `Bearer ${stored.state?.accessToken}` },
+    })
+    const payload = await response.json()
+    return payload.items?.some((ticket: { id: number }) => ticket.id === id) ?? false
+  }, { groupId: selectedGroupId, id: ticketId }), { timeout: 60000, intervals: [500, 1000, 2000] }).toBe(true)
+  // Bring the technician tab back to the foreground so React Query's normal
+  // visibility-aware polling can render the now-assigned ticket.
+  await pageA.bringToFront()
+  await expect(pageA.locator('[data-column-id="queue"]').getByText(`#${ticketId}`)).toBeVisible({
+    timeout: 15000,
+  })
+  expect(pageNavigations).toBe(0)
 
   await contextA.close()
   await contextB.close()

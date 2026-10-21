@@ -48,3 +48,5 @@ logs/
 # IDE
 .idea/
 .vscode/*.local
+
+e2e-artifacts/

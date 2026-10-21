@@ -199,6 +199,7 @@ public sealed class GlpiApiClient : IGlpiApiClient
         int urgency,
         int? categoryId,
         int requesterUserId,
+        int? assignmentGroupId,
         CancellationToken cancellationToken)
     {
         var sessionToken = await InitSessionAsync(cancellationToken);
@@ -216,6 +217,11 @@ public sealed class GlpiApiClient : IGlpiApiClient
             if (categoryId.HasValue && categoryId.Value > 0)
             {
                 input["itilcategories_id"] = categoryId.Value;
+            }
+
+            if (assignmentGroupId is > 0)
+            {
+                input["_groups_id_assign"] = new[] { assignmentGroupId.Value };
             }
 
             var payload = new { input };

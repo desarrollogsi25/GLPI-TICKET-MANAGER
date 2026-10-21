@@ -48,3 +48,21 @@ Ningún código se integra a `main` si no cumple con:
 3. Verificación de tipos en frontend (`pnpm typecheck` o `tsc --noEmit`).
 4. 100% de tests E2E aprobados en Playwright.
 5. Análisis estático de secretos limpio con Gitleaks.
+6. Un test E2E que solo pasa tras reintento (flaky) cuenta como fallo: `failOnFlakyTests` está activo cuando `CI=true`.
+
+## 4. Observabilidad del E2E en CI (H-41)
+
+El job `e2e` de `.github/workflows/ci.yml` publica **siempre** (`if: always()`) el artifact `playwright-e2e-artifacts` (retención 7 días). El paso falla si el artifact queda vacío (`if-no-files-found: error`).
+
+| Ruta dentro del artifact | Contenido |
+|---|---|
+| `playwright-report/index.html` | Reporte HTML de Playwright (`open: 'never'`) |
+| `test-results/results.json` | Resultado JSON, incluye intento (`retry`) de cada test |
+| `test-results/junit.xml` | Resultado JUnit |
+| `test-results/<test>/trace.zip` | Trace por intento fallido (`trace: 'retain-on-failure'`); también screenshot y video |
+| `logs/{frontend,api,glpi,app-db}.log` | Logs completos con timestamps de cada servicio de `docker compose` |
+| `logs/compose-ps.txt` | Estado de los contenedores |
+
+Cómo leerlo: descargar el artifact desde la página del run, abrir un trace con `pnpm exec playwright show-trace test-results/<test>/trace.zip` (o `playwright-report/index.html`) y correlacionar la hora del fallo con `logs/api.log` y `logs/frontend.log` (Vite).
+
+El job e2e se fija a `ubuntu-24.04` (resto de jobs en `ubuntu-latest`) para descartar la migración de `ubuntu-latest` como variable, y tiene `timeout-minutes: 25`.

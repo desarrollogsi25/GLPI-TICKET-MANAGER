@@ -27,6 +27,10 @@ const TICKET_ID = 901
  * path documented in scripts/seed-e2e.sh, but only touches this spec's own ticket.
  */
 function resetFixtureTicket() {
+  // GitHub Actions seeds ticket 901 with scripts/seed-e2e.sh before launching
+  // Playwright inside the frontend container, which has no Docker CLI.
+  if (process.env.CI) return
+
   let password = process.env.MARIADB_PASSWORD
   if (!password) {
     const envPaths = [resolve(process.cwd(), '../.env'), resolve(process.cwd(), '.env')]

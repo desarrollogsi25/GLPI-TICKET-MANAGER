@@ -215,6 +215,19 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         .build()
 
       // Eventos
+      connection.on('TicketCreated', (payload: TicketCreatedPayload) => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
+        if (payload.groupId != null) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.tickets.byGroupQueue(payload.groupId),
+          })
+        }
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        activeListeners.forEach((l) =>
+          l.onTicketCreated?.(payload.ticketId, payload.groupId),
+        )
+      })
+
       connection.on('TicketClaimed', (payload: TicketClaimedPayload) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.tickets.byGroupQueue(payload.groupId),
