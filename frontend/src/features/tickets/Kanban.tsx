@@ -328,12 +328,12 @@ function KanbanColumn({
 
             {tickets.length === 0 ? (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
+                initial={{ scale: 0.98 }}
+                animate={{ scale: 1 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2 }}
                 className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center"
               >
-                <p className="text-xs text-slate-800">{emptyMessage}</p>
+                <p className="text-xs text-slate-800 font-medium">{emptyMessage}</p>
               </motion.div>
             ) : null}
           </>
@@ -385,6 +385,12 @@ export function Kanban() {
   }, [])
 
   useRealtimeTicketHub({
+    groupId: currentGroupId,
+    onTicketCreated: (ticketId) => {
+      markTicketUpdated(ticketId)
+      void queueQuery.refetch()
+      void myTicketsQuery.refetch()
+    },
     onTicketStatusChanged: (ticketId) => markTicketUpdated(ticketId),
     onTicketClaimed: (ticketId) => markTicketUpdated(ticketId),
   })

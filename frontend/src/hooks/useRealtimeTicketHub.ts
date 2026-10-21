@@ -30,9 +30,17 @@ export interface SolutionAddedPayload {
   timestamp: string
 }
 
+export interface TicketCreatedPayload {
+  ticketId: number
+  groupId?: number
+  timestamp?: string
+}
+
 export interface UseRealtimeTicketHubOptions {
+  groupId?: number | null
   onTicketStatusChanged?: (ticketId: number, newStatus: number) => void
   onTicketClaimed?: (ticketId: number, groupId: number) => void
+  onTicketCreated?: (ticketId: number, groupId?: number) => void
 }
 
 const signalRLogger = {
@@ -104,12 +112,22 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         optionsRef.current?.onTicketStatusChanged?.(ticketId, newStatus),
       onTicketClaimed: (ticketId, groupId) =>
         optionsRef.current?.onTicketClaimed?.(ticketId, groupId),
+      onTicketCreated: (ticketId, groupId) =>
+        optionsRef.current?.onTicketCreated?.(ticketId, groupId),
     }
     activeListeners.add(listener)
     return () => {
       activeListeners.delete(listener)
     }
   }, [options != null]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Suscripción dinámica al grupo cuando cambia el groupId en la UI
+  useEffect(() => {
+    const gid = options?.groupId
+    if (gid && sharedConnection && currentConnectionState === 'connected') {
+      sharedConnection.invoke('SubscribeToGroup', gid).catch(() => {})
+    }
+  }, [options?.groupId])
 
   // Registrar listener de estado de conexión
   useEffect(() => {
@@ -146,7 +164,8 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
           if (disposed) return
           clearNegotiationRetry()
           updateConnectionState('connected')
-          connection.invoke('SubscribeToGroup', 1).catch(() => {})
+          const initialGroup = optionsRef.current?.groupId ?? 1
+          connection.invoke('SubscribeToGroup', initialGroup).catch(() => {})
         })
         .catch((err) => {
           if (disposed) return

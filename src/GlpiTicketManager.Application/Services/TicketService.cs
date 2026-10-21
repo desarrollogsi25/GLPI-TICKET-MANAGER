@@ -704,5 +704,40 @@ public sealed class TicketService : ITicketService
 
         return bound;
     }
+
+    public async Task<int> CreateTicketAsync(
+        string title,
+        string description,
+        int urgency,
+        int? categoryId,
+        int requesterUserId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            throw Invalid("title", "title is required.");
+        }
+
+        var ticketId = await _glpi.CreateTicketAsync(
+            title,
+            description ?? string.Empty,
+            urgency,
+            categoryId,
+            requesterUserId,
+            cancellationToken);
+
+        // Notify SignalR clients about the newly created ticket (Clients.All)
+        try
+        {
+            await _notifications.NotifyTicketCreatedAsync(ticketId, null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketCreated SignalR notification for ticket {TicketId}", ticketId);
+        }
+
+        return ticketId;
+    }
 }
+
 

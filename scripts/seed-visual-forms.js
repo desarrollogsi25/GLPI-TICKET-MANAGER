@@ -92,7 +92,7 @@ function seedVisualForms() {
   // 1. Asegurar catálogo expandido en Entidad Raíz
   runSql(`UPDATE glpi_entities SET enable_helpdesk_service_catalog = 1, expand_service_catalog = 1 WHERE id = 0;`);
 
-  // 2. Vincular o crear los 7 formularios correspondientes a cada categoría
+  // 2. Configurar o actualizar los 7 formularios visuales
   for (const cfg of FORMS_CONFIG) {
     const escapedName = escapeSql(cfg.name);
     const escapedDesc = escapeSql(cfg.desc);
@@ -136,16 +136,35 @@ function seedVisualForms() {
       `);
       formId = runSql(`SELECT id FROM glpi_forms_forms WHERE uuid = '${formUuid}' LIMIT 1;`).trim();
       console.log(`✓ Formulario creado [${formId}]: "${cfg.name}" -> Categoría visual [${cfg.catId}]`);
+    }
 
-      // Crear sección para el formulario
-      const sectionUuid = crypto.randomUUID();
+    // 2.1 Asegurar permiso de acceso (AllowList para todos los usuarios)
+    const existingAccessControl = runSql(`SELECT id FROM glpi_forms_accesscontrols_formaccesscontrols WHERE forms_forms_id = ${formId} LIMIT 1;`).trim();
+    if (!existingAccessControl) {
+      runSql(`
+        INSERT INTO glpi_forms_accesscontrols_formaccesscontrols (forms_forms_id, strategy, config, is_active)
+        VALUES (${formId}, 'Glpi\\\\Form\\\\AccessControl\\\\ControlType\\\\AllowList', '{"user_ids":["all"],"group_ids":[],"profile_ids":[]}', 1);
+      `);
+      console.log(`  ✓ Política de acceso asignada a formulario ${formId} (AllowList: all)`);
+    }
+
+    // 2.2 Asegurar sección
+    let sectionId = runSql(`SELECT id FROM glpi_forms_sections WHERE forms_forms_id = ${formId} LIMIT 1;`).trim();
+    let sectionUuid;
+    if (!sectionId) {
+      sectionUuid = crypto.randomUUID();
       runSql(`
         INSERT INTO glpi_forms_sections (uuid, forms_forms_id, name, rank, conditions)
         VALUES ('${sectionUuid}', ${formId}, 'Detalles del Requerimiento', 0, '[]');
       `);
-      const sectionId = runSql(`SELECT id FROM glpi_forms_sections WHERE uuid = '${sectionUuid}' LIMIT 1;`).trim();
+      sectionId = runSql(`SELECT id FROM glpi_forms_sections WHERE uuid = '${sectionUuid}' LIMIT 1;`).trim();
+    } else {
+      sectionUuid = runSql(`SELECT uuid FROM glpi_forms_sections WHERE id = ${sectionId} LIMIT 1;`).trim();
+    }
 
-      // Crear preguntas estándar
+    // 2.3 Pregunta: Título
+    let qTitleId = runSql(`SELECT id FROM glpi_forms_questions WHERE forms_sections_id = ${sectionId} AND name = 'Título' LIMIT 1;`).trim();
+    if (!qTitleId) {
       const qTitleUuid = crypto.randomUUID();
       runSql(`
         INSERT INTO glpi_forms_questions (
@@ -156,8 +175,12 @@ function seedVisualForms() {
           'Glpi\\\\Form\\\\QuestionType\\\\QuestionTypeShortText', 1, 0, '[]', '[]'
         );
       `);
-      const qTitleId = runSql(`SELECT id FROM glpi_forms_questions WHERE uuid = '${qTitleUuid}' LIMIT 1;`).trim();
+      qTitleId = runSql(`SELECT id FROM glpi_forms_questions WHERE uuid = '${qTitleUuid}' LIMIT 1;`).trim();
+    }
 
+    // 2.4 Pregunta: Descripción
+    let qDescId = runSql(`SELECT id FROM glpi_forms_questions WHERE forms_sections_id = ${sectionId} AND name = 'Descripción' LIMIT 1;`).trim();
+    if (!qDescId) {
       const qDescUuid = crypto.randomUUID();
       runSql(`
         INSERT INTO glpi_forms_questions (
@@ -168,8 +191,12 @@ function seedVisualForms() {
           'Glpi\\\\Form\\\\QuestionType\\\\QuestionTypeLongText', 1, 1, '[]', '[]'
         );
       `);
-      const qDescId = runSql(`SELECT id FROM glpi_forms_questions WHERE uuid = '${qDescUuid}' LIMIT 1;`).trim();
+      qDescId = runSql(`SELECT id FROM glpi_forms_questions WHERE uuid = '${qDescUuid}' LIMIT 1;`).trim();
+    }
 
+    // 2.5 Pregunta: Urgencia
+    let qUrgId = runSql(`SELECT id FROM glpi_forms_questions WHERE forms_sections_id = ${sectionId} AND name = 'Urgencia' LIMIT 1;`).trim();
+    if (!qUrgId) {
       const qUrgUuid = crypto.randomUUID();
       runSql(`
         INSERT INTO glpi_forms_questions (
@@ -180,38 +207,85 @@ function seedVisualForms() {
           'Glpi\\\\Form\\\\QuestionType\\\\QuestionTypeUrgency', 0, 2, '[]', '[]'
         );
       `);
+      qUrgId = runSql(`SELECT id FROM glpi_forms_questions WHERE uuid = '${qUrgUuid}' LIMIT 1;`).trim();
+    }
 
-      const destConfig = JSON.stringify({
-        "glpi-form-destination-commonitilfield-titlefield": {
-          "value": `<span data-form-tag="true" data-form-tag-value="${qTitleId}" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
-        },
-        "glpi-form-destination-commonitilfield-contentfield_auto": false,
-        "glpi-form-destination-commonitilfield-contentfield": {
-          "value": `<span data-form-tag="true" data-form-tag-value="${qDescId}" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
-        },
-        "glpi-form-destination-commonitilfield-requesttypefield": {
-          "strategy": "specific_value",
-          "specific_question_id": null,
-          "specific_request_type": 2
-        },
-        "glpi-form-destination-commonitilfield-observerfield": {
-          "strategies": ["last_valid_answer"],
-          "specific_itilactors_ids": [],
-          "specific_question_ids": []
-        },
-        "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
-          "strategy_configs": [{
-            "strategy": null,
-            "linktype": "",
-            "specific_destination_ids": [],
-            "specific_question_ids": [],
-            "specific_itilobject": []
-          }]
-        }
+    // 2.6 Pregunta: Categoría (Dropdown ITILCategory)
+    let qCatId = runSql(`SELECT id FROM glpi_forms_questions WHERE forms_sections_id = ${sectionId} AND name = 'Categoría' LIMIT 1;`).trim();
+    if (!qCatId) {
+      const qCatUuid = crypto.randomUUID();
+      const catExtraData = JSON.stringify({
+        itemtype: "ITILCategory",
+        categories_filter: ["request", "incident", "change", "problem"],
+        root_items_id: 0,
+        subtree_depth: 0,
+        selectable_tree_root: false
       });
+      runSql(`
+        INSERT INTO glpi_forms_questions (
+          uuid, forms_sections_id, forms_sections_uuid, name, type,
+          is_mandatory, vertical_rank, conditions, validation_conditions, extra_data
+        ) VALUES (
+          '${qCatUuid}', ${sectionId}, '${sectionUuid}', 'Categoría',
+          'Glpi\\\\Form\\\\QuestionType\\\\QuestionTypeItemDropdown', 1, 3, '[]', '[]',
+          '${catExtraData}'
+        );
+      `);
+      qCatId = runSql(`SELECT id FROM glpi_forms_questions WHERE uuid = '${qCatUuid}' LIMIT 1;`).trim();
+      console.log(`  ✓ Pregunta "Categoría" añadida [${qCatId}] al formulario ${formId}`);
+    }
 
-      const escapedJsonForSql = destConfig.replace(/\\/g, '\\\\').replace(/'/g, "''");
+    // 2.7 Configurar destino con mapeo de Categoría hacia itilcategories_id
+    const destConfig = JSON.stringify({
+      "glpi-form-destination-commonitilfield-titlefield": {
+        "value": `<span data-form-tag="true" data-form-tag-value="${qTitleId}" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
+      },
+      "glpi-form-destination-commonitilfield-contentfield_auto": false,
+      "glpi-form-destination-commonitilfield-contentfield": {
+        "value": `<span data-form-tag="true" data-form-tag-value="${qDescId}" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
+      },
+      "glpi-form-destination-commonitilfield-itilcategoryfield": {
+        "strategy": "specific_answer",
+        "specific_question_id": parseInt(qCatId, 10),
+        "specific_itilcategory_id": null
+      },
+      "glpi-form-destination-commonitilfield-requesttypefield": {
+        "strategy": "specific_value",
+        "specific_question_id": null,
+        "specific_request_type": 2
+      },
+      "glpi-form-destination-commonitilfield-urgencyfield": {
+        "strategy": "last_valid_answer",
+        "specific_question_id": null,
+        "specific_urgency": null
+      },
+      "glpi-form-destination-commonitilfield-observerfield": {
+        "strategies": ["last_valid_answer"],
+        "specific_itilactors_ids": [],
+        "specific_question_ids": []
+      },
+      "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
+        "strategy_configs": [{
+          "strategy": null,
+          "linktype": "",
+          "specific_destination_ids": [],
+          "specific_question_ids": [],
+          "specific_itilobject": []
+        }]
+      }
+    });
 
+    const escapedJsonForSql = destConfig.replace(/\\/g, '\\\\').replace(/'/g, "''");
+
+    const existingDestId = runSql(`SELECT id FROM glpi_forms_destinations_formdestinations WHERE forms_forms_id = ${formId} LIMIT 1;`).trim();
+    if (existingDestId) {
+      runSql(`
+        UPDATE glpi_forms_destinations_formdestinations
+        SET config = '${escapedJsonForSql}', name = 'Solicitud'
+        WHERE id = ${existingDestId};
+      `);
+      console.log(`  ✓ Destino de ticket actualizado para formulario ${formId} con mapeo de Categoría`);
+    } else {
       runSql(`
         INSERT INTO glpi_forms_destinations_formdestinations (
           forms_forms_id, itemtype, name, config, creation_strategy, conditions
@@ -220,9 +294,10 @@ function seedVisualForms() {
           'Solicitud', '${escapedJsonForSql}', '', '[]'
         );
       `);
+      console.log(`  ✓ Destino de ticket creado para formulario ${formId} con mapeo de Categoría`);
     }
 
-    // 3. Crear ficha de mosaico (FormTile) en Helpdesk si no existe
+    // 2.8 Ficha de mosaico (FormTile)
     const existingTileId = runSql(`SELECT id FROM glpi_helpdesks_tiles_formtiles WHERE forms_forms_id = ${formId} LIMIT 1;`).trim();
     let tileId;
     if (!existingTileId) {
@@ -246,9 +321,97 @@ function seedVisualForms() {
         INSERT INTO glpi_helpdesks_tiles_items_tiles (itemtype_item, items_id_item, itemtype_tile, items_id_tile, rank)
         VALUES ('Entity', 0, 'Glpi\\\\Helpdesk\\\\Tile\\\\FormTile', ${tileId}, ${maxRank});
       `);
-      console.log(`✓ Tarjeta Helpdesk registrada para: "${cfg.name}" (Tile ID ${tileId}, Rank ${maxRank})`);
+      console.log(`  ✓ Tarjeta Helpdesk registrada para: "${cfg.name}" (Tile ID ${tileId}, Rank ${maxRank})`);
     }
   }
+
+  // 3. Mapear también los formularios estándar Form 1 ("Reportar un problema") y Form 2 ("Solicitar un servicio")
+  console.log('\n--- Actualizando destinos de Formularios Estándar (1 y 2) ---');
+  // Form 1: Categoría es question id 2
+  const dest1 = JSON.stringify({
+    "glpi-form-destination-commonitilfield-titlefield": {
+      "value": `<span data-form-tag="true" data-form-tag-value="6" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
+    },
+    "glpi-form-destination-commonitilfield-contentfield_auto": false,
+    "glpi-form-destination-commonitilfield-contentfield": {
+      "value": `<span data-form-tag="true" data-form-tag-value="7" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
+    },
+    "glpi-form-destination-commonitilfield-itilcategoryfield": {
+      "strategy": "specific_answer",
+      "specific_question_id": 2,
+      "specific_itilcategory_id": null
+    },
+    "glpi-form-destination-commonitilfield-requesttypefield": {
+      "strategy": "specific_value",
+      "specific_question_id": null,
+      "specific_request_type": 1
+    },
+    "glpi-form-destination-commonitilfield-urgencyfield": {
+      "strategy": "last_valid_answer",
+      "specific_question_id": null,
+      "specific_urgency": null
+    },
+    "glpi-form-destination-commonitilfield-observerfield": {
+      "strategies": ["last_valid_answer"],
+      "specific_itilactors_ids": [],
+      "specific_question_ids": []
+    },
+    "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
+      "strategy_configs": [{
+        "strategy": null,
+        "linktype": "",
+        "specific_destination_ids": [],
+        "specific_question_ids": [],
+        "specific_itilobject": []
+      }]
+    }
+  }).replace(/\\/g, '\\\\').replace(/'/g, "''");
+
+  runSql(`UPDATE glpi_forms_destinations_formdestinations SET config = '${dest1}' WHERE forms_forms_id = 1;`);
+  console.log('✓ Formulario 1 ("Reportar un problema") vinculado a question 2 (Categoría)');
+
+  // Form 2: Categoría es question id 10
+  const dest2 = JSON.stringify({
+    "glpi-form-destination-commonitilfield-titlefield": {
+      "value": `<span data-form-tag="true" data-form-tag-value="14" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Título</span>`
+    },
+    "glpi-form-destination-commonitilfield-contentfield_auto": false,
+    "glpi-form-destination-commonitilfield-contentfield": {
+      "value": `<span data-form-tag="true" data-form-tag-value="15" data-form-tag-provider="Glpi\\\\Form\\\\Tag\\\\AnswerTagProvider" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: Descripción</span>`
+    },
+    "glpi-form-destination-commonitilfield-itilcategoryfield": {
+      "strategy": "specific_answer",
+      "specific_question_id": 10,
+      "specific_itilcategory_id": null
+    },
+    "glpi-form-destination-commonitilfield-requesttypefield": {
+      "strategy": "specific_value",
+      "specific_question_id": null,
+      "specific_request_type": 2
+    },
+    "glpi-form-destination-commonitilfield-urgencyfield": {
+      "strategy": "last_valid_answer",
+      "specific_question_id": null,
+      "specific_urgency": null
+    },
+    "glpi-form-destination-commonitilfield-observerfield": {
+      "strategies": ["last_valid_answer"],
+      "specific_itilactors_ids": [],
+      "specific_question_ids": []
+    },
+    "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
+      "strategy_configs": [{
+        "strategy": null,
+        "linktype": "",
+        "specific_destination_ids": [],
+        "specific_question_ids": [],
+        "specific_itilobject": []
+      }]
+    }
+  }).replace(/\\/g, '\\\\').replace(/'/g, "''");
+
+  runSql(`UPDATE glpi_forms_destinations_formdestinations SET config = '${dest2}' WHERE forms_forms_id = 2;`);
+  console.log('✓ Formulario 2 ("Solicitar un servicio") vinculado a question 10 (Categoría)');
 
   console.log('--- Catálogo Visual de GLPI configurado con éxito ---\n');
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 
@@ -103,17 +103,72 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
   const logout = useLogout()
   const profile = currentUser ?? storedUser
   const visibleItems = drawerNavItems
+  const drawerRef = useRef<HTMLDivElement>(null)
 
-  // Cerrar con Escape
+  // Bloquear scroll del body al abrir el drawer
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
+  // Foco inicial y manejo de Escape / Tab trap
   useEffect(() => {
     if (!isOpen) return
+
+    // Autofocus primer elemento focusable
+    const timer = setTimeout(() => {
+      if (drawerRef.current) {
+        const focusables = drawerRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )
+        if (focusables.length > 0) {
+          focusables[0].focus()
+        }
+      }
+    }, 50)
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
+        return
+      }
+
+      if (e.key === 'Tab' && drawerRef.current) {
+        const focusables = Array.from(
+          drawerRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+        if (focusables.length === 0) return
+
+        const firstElement = focusables[0]
+        const lastElement = focusables[focusables.length - 1]
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault()
+            lastElement.focus()
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault()
+            firstElement.focus()
+          }
+        }
       }
     }
+
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [isOpen, onClose])
 
   return (
@@ -133,12 +188,17 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
 
           {/* Panel lateral deslizable (izquierdo) */}
           <motion.div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú del sistema"
+            tabIndex={-1}
             data-testid="mobile-drawer"
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-card border-r border-border shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+            className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-card border-r border-border shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none"
           >
             {/* Header del Drawer */}
             <div className="flex items-center justify-between border-b border-border p-4">

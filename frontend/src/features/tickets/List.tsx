@@ -82,7 +82,7 @@ const columns: ColumnDef<TicketSummary>[] = [
   },
   {
     id: 'actions',
-    header: '',
+    header: () => <span className="sr-only">Acciones</span>,
     enableSorting: false,
     cell: ({ row }) => (
       <div className="text-right">
@@ -117,6 +117,8 @@ export function List() {
   const [startDate, setStartDate] = useState(initialStartDate)
   const [endDate, setEndDate] = useState(initialEndDate)
 
+  const isDateRangeInvalid = Boolean(startDate && endDate && startDate > endDate)
+
   // Draft filters para el Bottom Sheet móvil
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [draftStatus, setDraftStatus] = useState(statusFilter)
@@ -132,8 +134,8 @@ export function List() {
   const { data, isLoading, isError, error } = useTicketsQuery({
     serviceId: serviceId ?? undefined,
     assigneeId: serviceId ? null : assigneeId,
-    startDate: startDate || null,
-    endDate: endDate || null,
+    startDate: isDateRangeInvalid ? null : (startDate || null),
+    endDate: isDateRangeInvalid ? null : (endDate || null),
   })
 
   const navigate = useNavigate()
@@ -394,6 +396,17 @@ export function List() {
             onReset={handleResetSheet}
             activeFiltersCount={activeFiltersCount}
           />
+
+          {isDateRangeInvalid && (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive font-medium"
+            >
+              <span aria-hidden="true">⚠️</span>
+              <span>La fecha de inicio no puede ser posterior a la fecha de fin.</span>
+            </div>
+          )}
 
           {isError ? (
             <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">

@@ -93,6 +93,15 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .RequireRateLimiting(RateLimitPolicies.PerUser);
 
+        // POST /api/tickets -> crea nuevo ticket y emite TicketCreated (SignalR)
+        group.MapPost(string.Empty, CreateTicket)
+            .WithName("CreateTicket")
+            .WithSummary("Create a new ticket and broadcast TicketCreated to connected clients")
+            .Accepts<CreateTicketRequest>("application/json")
+            .Produces<CreateTicketResponse>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         return group;
     }
 
@@ -381,6 +390,47 @@ public static class TicketEndpoints
             return Results.Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Conflicto",
+                detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> CreateTicket(
+        CreateTicketRequest request,
+        ClaimsPrincipal principal,
+        ITicketService ticketService,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Error de validación",
+                detail: "El título es obligatorio.");
+        }
+
+        try
+        {
+            var ticketId = await ticketService.CreateTicketAsync(
+                request.Title,
+                request.Description,
+                request.Urgency,
+                request.CategoryId,
+                userId.Value,
+                cancellationToken);
+
+            return Results.Created($"/api/tickets/{ticketId}", new CreateTicketResponse(ticketId));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Error de validación",
                 detail: ex.Message);
         }
     }
