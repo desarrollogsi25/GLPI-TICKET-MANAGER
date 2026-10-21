@@ -100,8 +100,19 @@ function seedGlpiUsers() {
     runInGlpi(`php bin/console user:grant ${user.username} -p ${user.profileId} -r --no-interaction`);
     console.log(`✓ Perfil asignado a ${user.username}: ${user.role} (ID ${user.profileId})`);
 
-    // 3. Si tiene grupo asignado, vincular en glpi_groups_users
-    if (user.group) {
+    // 3. Vincular técnicos a TODOS los grupos de soporte técnico
+    if (user.role === 'Technician') {
+      const linkAllSql = `
+        INSERT IGNORE INTO glpi_groups_users (users_id, groups_id, is_dynamic, is_manager, is_userdelegate)
+        SELECT u.id, g.id, 0, 0, 0
+        FROM glpi_users u
+        CROSS JOIN glpi_groups g
+        WHERE u.name = '${user.username}'
+          AND g.name IN (${groupsToEnsure.map(g => `'${g}'`).join(', ')});
+      `;
+      runSql(linkAllSql);
+      console.log(`✓ Técnico ${user.username} vinculado a todos los grupos de soporte (${groupsToEnsure.length} grupos)`);
+    } else if (user.group) {
       const linkSql = `
         INSERT INTO glpi_groups_users (users_id, groups_id)
         SELECT u.id, g.id
@@ -117,26 +128,39 @@ function seedGlpiUsers() {
   }
 
   // 4. Verificación final de la vinculación user <-> group en la BD.
-  //    Si una inserción fallara en silencio, el Kanban entraria en el estado
-  //    "Sin grupo de soporte asignado"; aqui se detiene el script en lugar de eso.
   for (const user of TEST_USERS) {
-    if (!user.group) continue;
-
-    const verifySql = `
-      SELECT COUNT(*)
-      FROM glpi_groups_users gu
-      INNER JOIN glpi_users u ON u.id = gu.users_id
-      INNER JOIN glpi_groups g ON g.id = gu.groups_id
-      WHERE u.name = '${user.username}' AND g.name = '${user.group}';
-    `;
-    const n = parseInt(String(runSql(verifySql)).trim(), 10);
-
-    if (!Number.isFinite(n) || n < 1) {
-      throw new Error(
-        `Verificación fallida: ${user.username} no está vinculado al grupo "${user.group}" en glpi_groups_users.`
-      );
+    if (user.role === 'Technician') {
+      const verifySql = `
+        SELECT COUNT(*)
+        FROM glpi_groups_users gu
+        INNER JOIN glpi_users u ON u.id = gu.users_id
+        INNER JOIN glpi_groups g ON g.id = gu.groups_id
+        WHERE u.name = '${user.username}'
+          AND g.name IN (${groupsToEnsure.map(g => `'${g}'`).join(', ')});
+      `;
+      const n = parseInt(String(runSql(verifySql)).trim(), 10);
+      if (!Number.isFinite(n) || n < groupsToEnsure.length) {
+        throw new Error(
+          `Verificación fallida: ${user.username} no está vinculado a todos los grupos (${n}/${groupsToEnsure.length}).`
+        );
+      }
+      console.log(`✓ Verificado en BD: ${user.username} -> ${n} grupos asignados.`);
+    } else if (user.group) {
+      const verifySql = `
+        SELECT COUNT(*)
+        FROM glpi_groups_users gu
+        INNER JOIN glpi_users u ON u.id = gu.users_id
+        INNER JOIN glpi_groups g ON g.id = gu.groups_id
+        WHERE u.name = '${user.username}' AND g.name = '${user.group}';
+      `;
+      const n = parseInt(String(runSql(verifySql)).trim(), 10);
+      if (!Number.isFinite(n) || n < 1) {
+        throw new Error(
+          `Verificación fallida: ${user.username} no está vinculado al grupo "${user.group}" en glpi_groups_users.`
+        );
+      }
+      console.log(`✓ Verificado en BD: ${user.username} -> ${user.group} (${n} vínculo/s)`);
     }
-    console.log(`✓ Verificado en BD: ${user.username} -> ${user.group} (${n} vínculo/s)`);
   }
 
   console.log('--- Configuración de usuarios GLPI completada con éxito ---\n');

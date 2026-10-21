@@ -120,7 +120,7 @@ export function Detail() {
               <Button
                 size="sm"
                 variant="default"
-                disabled={ticket.status === 5 || updateStatus.isPending}
+                disabled={ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
                 onClick={() => setResolveOpen(true)}
               >
                 Resolver
@@ -135,23 +135,34 @@ export function Detail() {
                   Reabrir
                 </Button>
               )}
-              {TICKET_STATUSES.map((option) => (
-                <Button
-                  key={option.value}
-                  variant={option.value === ticket.status ? 'default' : 'outline'}
-                  size="sm"
-                  disabled={option.value === ticket.status || updateStatus.isPending}
-                  onClick={() => {
-                    if (option.value === 5) {
-                      setResolveOpen(true)
-                    } else {
-                      changeStatus(option.value)
+              {TICKET_STATUSES.map((option) => {
+                const isBackwardBlocked =
+                  (ticket.status === 5 || ticket.status === 6) &&
+                  role !== 'admin' &&
+                  option.value < 5
+
+                return (
+                  <Button
+                    key={option.value}
+                    variant={option.value === ticket.status ? 'default' : 'outline'}
+                    size="sm"
+                    disabled={
+                      option.value === ticket.status ||
+                      updateStatus.isPending ||
+                      isBackwardBlocked
                     }
-                  }}
-                >
-                  {option.label}
-                </Button>
-              ))}
+                    onClick={() => {
+                      if (option.value === 5) {
+                        setResolveOpen(true)
+                      } else {
+                        changeStatus(option.value)
+                      }
+                    }}
+                  >
+                    {option.label}
+                  </Button>
+                )
+              })}
             </CardContent>
           </Card>
 

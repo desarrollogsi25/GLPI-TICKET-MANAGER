@@ -65,18 +65,28 @@ export function Dashboard() {
   const queueCount = groupQueue.data?.total ?? 0
   const groupItems = groupQueue.data?.items ?? []
 
-  if (groups.isLoading || (effectiveGroupId && groupQueue.isLoading) || assigned.isLoading) {
+  if (
+    groups.isLoading ||
+    (effectiveGroupId && groupQueue.isLoading) ||
+    assigned.isLoading ||
+    ((isAdmin || isSupervisor) && stats.isLoading)
+  ) {
     return (
       <div className="space-y-6">
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+        <PageHeader
+          title="Dashboard del agente"
+          description="Lo que requiere tu atención ahora."
+          breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
+        />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full" />
+            <Skeleton key={i} className="h-28 w-full rounded-xl" />
           ))}
         </div>
         <div className="space-y-3">
+          <Skeleton className="h-6 w-48" />
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <Skeleton key={i} className="h-16 w-full rounded-lg" />
           ))}
         </div>
       </div>

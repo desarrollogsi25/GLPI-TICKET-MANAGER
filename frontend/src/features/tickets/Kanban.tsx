@@ -738,7 +738,7 @@ export function Kanban() {
     <div className="space-y-4">
       <PageHeader
         title="Kanban"
-        description="Arrastra un ticket entre columnas para cambiar su estado según el flujo operativo."
+        description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
           !isTechnician ? (

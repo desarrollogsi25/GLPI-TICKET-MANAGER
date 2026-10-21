@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { ConnectionState } from '@/hooks/useRealtimeTicketHub'
 
 interface ConnectionIndicatorProps {
@@ -32,13 +33,29 @@ export function ConnectionIndicator({
   className = '',
   showLabel = false,
 }: ConnectionIndicatorProps) {
-  const config = stateConfig[state]
+  const [effectiveState, setEffectiveState] = useState<ConnectionState>(state)
+
+  useEffect(() => {
+    if (state === 'connected' || state === 'connecting') {
+      setEffectiveState(state)
+      return
+    }
+
+    // Only switch to 'disconnected' if disconnected remains for > 3 seconds
+    const timer = setTimeout(() => {
+      setEffectiveState('disconnected')
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [state])
+
+  const config = stateConfig[effectiveState]
 
   return (
     <div
       className={`inline-flex items-center gap-1.5 ${className}`}
       data-testid="connection-indicator"
-      data-state={state}
+      data-state={effectiveState}
       title={config.label}
     >
       <span className="relative flex h-2 w-2">
