@@ -2,8 +2,14 @@ import { test, expect } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const GLPI = 'http://localhost:8081'
-const DESK = 'http://localhost:5173'
+const GLPI = process.env.E2E_GLPI_URL ?? 'http://localhost:8081'
+const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante_test'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Soli123!'
+const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tecnico_test1'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Tec123!'
+const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin_test'
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Admin123!'
 
 test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }) => {
   test.setTimeout(120000)
@@ -18,8 +24,8 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   // Solicitante: crear desde el formulario nativo de GLPI y guardar evidencia.
   await glpi.goto(GLPI)
   if (await glpi.locator('#login_name').isVisible().catch(() => false)) {
-    await glpi.locator('#login_name').fill('solicitante_test')
-    await glpi.locator('#login_password').fill('Soli123!')
+    await glpi.locator('#login_name').fill(REQUESTER_USERNAME)
+    await glpi.locator('#login_password').fill(REQUESTER_PASSWORD)
     await glpi.locator('button[type="submit"]').click()
   }
   await glpi.getByRole('link', { name: /Reportar un problema/ }).last().click()
@@ -39,8 +45,8 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
 
   // Técnico: abrir la cola en el Service Desk, asignar e intentar resolver.
   await page.goto(`${DESK}/login`)
-  await page.locator('input[name="username"]').fill('tecnico_test1')
-  await page.locator('input[name="password"]').fill('Tec123!')
+  await page.locator('input[name="username"]').fill(TECH_USERNAME)
+  await page.locator('input[name="password"]').fill(TECH_PASSWORD)
   await page.locator('button[type="submit"]').click()
   await page.waitForURL(/kanban|dashboard|tickets|queue/, { timeout: 20000 })
   await page.goto(`${DESK}/queue`)
@@ -95,8 +101,8 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const admin = await adminContext.newPage()
   admin.setDefaultTimeout(15000)
   await admin.goto(`${DESK}/login`)
-  await admin.locator('input[name="username"]').fill('admin_test')
-  await admin.locator('input[name="password"]').fill('Admin123!')
+  await admin.locator('input[name="username"]').fill(ADMIN_USERNAME)
+  await admin.locator('input[name="password"]').fill(ADMIN_PASSWORD)
   await admin.locator('button[type="submit"]').click()
   await admin.waitForURL(/kanban|dashboard|tickets|queue/)
   await admin.goto(`${DESK}/tickets/${ticketId}`)
@@ -116,8 +122,8 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const requesterApp = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const app = await requesterApp.newPage()
   await app.goto(`${DESK}/login`)
-  await app.locator('input[name="username"]').fill('solicitante_test')
-  await app.locator('input[name="password"]').fill('Soli123!')
+  await app.locator('input[name="username"]').fill(REQUESTER_USERNAME)
+  await app.locator('input[name="password"]').fill(REQUESTER_PASSWORD)
   await app.locator('button[type="submit"]').click()
   await app.waitForURL(/tickets/)
   await app.goto(`${DESK}/kanban`)
@@ -129,8 +135,8 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const techContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const techPage = await techContext.newPage()
   await techPage.goto(`${DESK}/login`)
-  await techPage.locator('input[name="username"]').fill('tecnico_test1')
-  await techPage.locator('input[name="password"]').fill('Tec123!')
+  await techPage.locator('input[name="username"]').fill(TECH_USERNAME)
+  await techPage.locator('input[name="password"]').fill(TECH_PASSWORD)
   await techPage.locator('button[type="submit"]').click()
   await techPage.waitForURL(/kanban|dashboard|tickets|queue/)
   await techPage.goto(`${DESK}/kanban`)

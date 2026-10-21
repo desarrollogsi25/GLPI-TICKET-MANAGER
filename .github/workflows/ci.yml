@@ -309,8 +309,20 @@ jobs:
           echo "Smoke test PASSED - API can claim, update status and create solutions"
       - name: Seed E2E state
         run: ./scripts/seed-e2e.sh
+      - name: Seed GLPI visual forms and Hardware routing
+        run: node scripts/seed-visual-forms.js
       - name: Run E2E inside container
-        run: docker compose exec -T frontend pnpm exec playwright test --reporter=list
+        run: >-
+          docker compose exec -T
+          -e E2E_GLPI_URL=http://glpi
+          -e E2E_DESK_URL=http://localhost:5173
+          -e E2E_TECH_USERNAME=tech1
+          -e E2E_TECH_PASSWORD=Tech1Pass!
+          -e E2E_REQUESTER_USERNAME=user1
+          -e E2E_REQUESTER_PASSWORD=User1Pass!
+          -e E2E_ADMIN_USERNAME=admin_test
+          -e E2E_ADMIN_PASSWORD=Admin123!
+          frontend pnpm exec playwright test --reporter=list
       - name: Run audit smoke test
         run: bash scripts/test-audit.sh
         if: success()

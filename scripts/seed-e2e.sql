@@ -30,7 +30,20 @@ VALUES
 INSERT IGNORE INTO glpi_groups_users (id, users_id, groups_id, is_dynamic, is_manager, is_userdelegate)
 VALUES
   (1, 7, 1, 0, 0, 0),
+  (3, 7, 7, 0, 0, 0),
   (2, 8, 2, 0, 0, 0);
+
+-- Keep the Hardware category routed into a group visible to the E2E technician.
+INSERT INTO glpi_rules (entities_id, sub_type, ranking, name, `match`, is_active, is_recursive, `condition`)
+SELECT 0, 'RuleTicket', 1, 'E2E Hardware ticket routing', 'AND', 1, 0, 0
+WHERE NOT EXISTS (SELECT 1 FROM glpi_rules WHERE name = 'E2E Hardware ticket routing');
+SET @e2e_hardware_rule = (SELECT id FROM glpi_rules WHERE name = 'E2E Hardware ticket routing' LIMIT 1);
+INSERT INTO glpi_rulecriterias (rules_id, criteria, `condition`, pattern)
+SELECT @e2e_hardware_rule, 'itilcategories_id', 0, '11'
+WHERE NOT EXISTS (SELECT 1 FROM glpi_rulecriterias WHERE rules_id = @e2e_hardware_rule AND criteria = 'itilcategories_id');
+INSERT INTO glpi_ruleactions (rules_id, action_type, field, value)
+SELECT @e2e_hardware_rule, 'assign', '_groups_id_assign', '7'
+WHERE NOT EXISTS (SELECT 1 FROM glpi_ruleactions WHERE rules_id = @e2e_hardware_rule AND field = '_groups_id_assign');
 
 INSERT IGNORE INTO glpi_solutiontypes (id, name, comment, entities_id, is_recursive, is_incident, is_request, is_problem, is_change)
 VALUES
