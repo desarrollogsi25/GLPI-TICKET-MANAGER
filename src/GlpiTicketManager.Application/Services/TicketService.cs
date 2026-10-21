@@ -636,7 +636,10 @@ public sealed class TicketService : ITicketService
 
         try
         {
-            await _audit.LogAsync(userId, "reopen", ticketId, reason, cancellationToken);
+            var auditDetails = string.IsNullOrWhiteSpace(reason)
+                ? null
+                : System.Text.Json.JsonSerializer.Serialize(new { reason });
+            await _audit.LogAsync(userId, "reopen", ticketId, auditDetails, cancellationToken);
         }
         catch (Exception ex)
         {

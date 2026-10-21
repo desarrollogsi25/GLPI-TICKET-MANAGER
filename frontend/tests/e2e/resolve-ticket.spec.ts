@@ -55,23 +55,29 @@ function resetFixtureTicket() {
     `DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id = ${TICKET_ID};`,
   ].join('\n')
 
-  execFileSync(
-    'docker',
-    [
-      'compose',
-      'exec',
-      '-T',
-      'glpi-db',
-      'mariadb',
-      '-u',
-      'glpi',
-      `-p${password}`,
-      'glpi',
-      '-e',
-      sql,
-    ],
-    { stdio: 'pipe' },
-  )
+  try {
+    execFileSync(
+      'docker',
+      [
+        'compose',
+        'exec',
+        '-T',
+        'glpi-db',
+        'mariadb',
+        '-u',
+        'glpi',
+        `-p${password}`,
+        'glpi',
+        '-e',
+        sql,
+      ],
+      { stdio: 'pipe' },
+    )
+  } catch (err) {
+    // In CI (inside the frontend container), docker CLI is not available.
+    // Ticket 901 is already pre-seeded by scripts/seed-e2e.sh before test execution.
+    console.warn('[resolve-ticket.spec.ts] Notice: docker CLI not available in runner container; relying on pre-seeded fixture:', (err as Error)?.message)
+  }
 }
 
 test.beforeAll(() => {
