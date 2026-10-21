@@ -27,6 +27,10 @@ VALUES
   (8, 'Software', 0, 'Software', 1),
   (9, 'Informes', 0, 'Informes', 1);
 
+INSERT IGNORE INTO glpi_itilcategories
+  (id, entities_id, is_recursive, itilcategories_id, name, completename, level, is_helpdeskvisible, is_incident, is_request, is_problem, is_change)
+VALUES (11, 0, 1, 0, 'Hardware', 'Hardware', 1, 1, 1, 1, 1, 1);
+
 INSERT IGNORE INTO glpi_groups_users (id, users_id, groups_id, is_dynamic, is_manager, is_userdelegate)
 VALUES
   (1, 7, 1, 0, 0, 0),

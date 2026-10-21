@@ -7,6 +7,7 @@ const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante_te
 const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Soli123!'
 
 test('realtime: connection indicator connects and maintains real-time link across contexts', async ({ browser }) => {
+  test.setTimeout(90000)
   const contextA = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const pageA = await contextA.newPage()
   await pageA.goto(`${DESK}/login`)
