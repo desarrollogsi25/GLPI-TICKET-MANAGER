@@ -72,13 +72,14 @@ test('realtime: connection indicator connects and maintains real-time link acros
 
   expect(created.status).toBe(201)
   const ticketId = created.body.ticketId as number
+  const selectedGroupId = Number(await kanbanGroup.locator('option:checked').getAttribute('value').catch(() => '7'))
   const queuePayload = await pageA.evaluate(async (groupId) => {
     const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
     const response = await fetch(`/api/tickets/by-group?groupId=${groupId}&unassigned=true&limit=20&offset=0`, {
       headers: { Authorization: `Bearer ${stored.state?.accessToken}` },
     })
     return response.json()
-  }, Number(await kanbanGroup.locator('option:checked').getAttribute('value').catch(() => '7')))
+  }, selectedGroupId)
   expect(queuePayload.items?.some((ticket: { id: number }) => ticket.id === ticketId), JSON.stringify(queuePayload)).toBeTruthy()
   await expect(pageA.locator('[data-column-id="queue"]').getByText(`#${ticketId}`)).toBeVisible({
     timeout: 3000,

@@ -357,7 +357,7 @@ export function Kanban() {
     groupsQuery.data?.find((group) => group.id === selectedGroupId)?.id ??
     (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null)
 
-  const queueQuery = useGroupQueueQuery(currentGroupId)
+  const queueQuery = useGroupQueueQuery(currentGroupId, 1500)
   const myTicketsQuery = useTicketsQuery(currentUserId)
 
   const updateStatus = useUpdateTicketStatusMutation()

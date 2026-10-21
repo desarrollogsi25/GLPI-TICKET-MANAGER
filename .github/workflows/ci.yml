@@ -322,6 +322,7 @@ jobs:
           -e E2E_REQUESTER_PASSWORD=User1Pass!
           -e E2E_ADMIN_USERNAME=admin_test
           -e E2E_ADMIN_PASSWORD=Admin123!
+          -e E2E_GLPI_NATIVE=false
           frontend pnpm exec playwright test --reporter=list
       - name: Run audit smoke test
         run: bash scripts/test-audit.sh

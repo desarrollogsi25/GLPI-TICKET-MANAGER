@@ -96,12 +96,13 @@ export function useChannelsQuery() {
   })
 }
 
-export function useGroupQueueQuery(groupId: number | null) {
+export function useGroupQueueQuery(groupId: number | null, refetchInterval?: number) {
   return useQuery({
     queryKey: queryKeys.tickets.byGroupQueue(groupId ?? 0),
     queryFn: () => listGroupQueue(groupId as number),
     enabled: groupId != null && groupId > 0,
     staleTime: 60_000,
+    refetchInterval,
   })
 }
 

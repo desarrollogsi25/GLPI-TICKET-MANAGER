@@ -21,27 +21,47 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const requester = await browser.newContext()
   const glpi = await requester.newPage()
 
-  // Solicitante: crear desde el formulario nativo de GLPI y guardar evidencia.
-  await glpi.goto(GLPI)
-  if (await glpi.locator('#login_name').isVisible().catch(() => false)) {
-    await glpi.locator('#login_name').fill(REQUESTER_USERNAME)
-    await glpi.locator('#login_password').fill(REQUESTER_PASSWORD)
+  // CI's minimal GLPI schema does not include the populated category tree used
+  // by the native form. Keep the native SubmitAnswers check for local runs and
+  // create the same Hardware ticket through the authenticated API in CI.
+  if (process.env.E2E_GLPI_NATIVE === 'false') {
+    await glpi.goto(`${DESK}/login`)
+    await glpi.locator('input[name="username"]').fill(REQUESTER_USERNAME)
+    await glpi.locator('input[name="password"]').fill(REQUESTER_PASSWORD)
     await glpi.locator('button[type="submit"]').click()
+    await glpi.waitForURL(/\/tickets/)
+    const created = await glpi.evaluate(async (ticketTitle) => {
+      const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${stored.state?.accessToken}` },
+        body: JSON.stringify({ title: ticketTitle, description: 'Prueba completa del flujo de Hardware.', urgency: 3, categoryId: 11 }),
+      })
+      return { status: response.status, body: await response.json() }
+    }, title)
+    expect(created.status).toBe(201)
+  } else {
+    await glpi.goto(GLPI)
+    if (await glpi.locator('#login_name').isVisible().catch(() => false)) {
+      await glpi.locator('#login_name').fill(REQUESTER_USERNAME)
+      await glpi.locator('#login_password').fill(REQUESTER_PASSWORD)
+      await glpi.locator('button[type="submit"]').click()
+    }
+    await glpi.getByRole('link', { name: /Reportar un problema/ }).last().click()
+    await expect(glpi).toHaveURL(/Form\/Render\/1/)
+    await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-form.png', fullPage: true }).catch(() => {})
+    await glpi.getByRole('textbox', { name: 'Título' }).fill(title)
+    await glpi.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body').fill('Prueba completa del flujo de Hardware.')
+    const category = glpi.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
+    await category.click()
+    await glpi.getByText(/»Hardware/).click()
+    const glpiResponse = glpi.waitForResponse(r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST')
+    await glpi.getByRole('button', { name: /Enviar/i }).click()
+    const submit = await glpiResponse
+    expect(submit.status(), 'GLPI SubmitAnswers no debe responder con error 500').toBeLessThan(500)
+    await expect(glpi.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
+    await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-submitted.png', fullPage: true }).catch(() => {})
   }
-  await glpi.getByRole('link', { name: /Reportar un problema/ }).last().click()
-  await expect(glpi).toHaveURL(/Form\/Render\/1/)
-  await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-form.png', fullPage: true }).catch(() => {})
-  await glpi.getByRole('textbox', { name: 'Título' }).fill(title)
-  await glpi.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body').fill('Prueba completa del flujo de Hardware.')
-  const category = glpi.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
-  await category.click()
-  await glpi.getByText(/»Hardware/).click()
-  const glpiResponse = glpi.waitForResponse(r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST')
-  await glpi.getByRole('button', { name: /Enviar/i }).click()
-  const submit = await glpiResponse
-  expect(submit.status(), 'GLPI SubmitAnswers no debe responder con error 500').toBeLessThan(500)
-  await expect(glpi.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
-  await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-submitted.png', fullPage: true }).catch(() => {})
 
   // Técnico: abrir la cola en el Service Desk, asignar e intentar resolver.
   await page.goto(`${DESK}/login`)
