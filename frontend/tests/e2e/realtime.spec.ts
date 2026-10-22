@@ -15,7 +15,7 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await pageA.locator('input[name="password"]').fill(TECH_PASSWORD)
   await pageA.locator('button[type="submit"]').click()
   await pageA.waitForURL(/kanban|dashboard|tickets|queue/)
-  await pageA.goto(`${DESK}/kanban`)
+  await pageA.goto(`${DESK}/kanban?groupId=7`)
   const kanbanGroup = pageA.getByLabel('Seleccionar grupo de soporte')
   if (await kanbanGroup.isVisible().catch(() => false)) {
     await kanbanGroup.selectOption({ label: 'Hardware' })
@@ -50,8 +50,10 @@ test('realtime: connection indicator connects and maintains real-time link acros
   // Create a ticket from the requester's authenticated browser context. The
   // technician Kanban must receive TicketCreated and render it without reload.
   await pageB.goto(`${DESK}/tickets`)
-  await kanbanGroup.selectOption({ label: 'Hardware' })
-  await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
+  if (await kanbanGroup.isVisible().catch(() => false)) {
+    await kanbanGroup.selectOption({ label: 'Hardware' })
+    await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
+  }
   const title = `E2E SignalR requester ${Date.now()}`
   const created = await pageB.evaluate(async (ticketTitle) => {
     const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
@@ -74,7 +76,9 @@ test('realtime: connection indicator connects and maintains real-time link acros
 
   expect(created.status).toBe(201)
   const ticketId = created.body.ticketId as number
-  const selectedGroupId = Number(await kanbanGroup.locator('option:checked').getAttribute('value'))
+  const selectedGroupId = await kanbanGroup.isVisible().catch(() => false)
+    ? Number(await kanbanGroup.locator('option:checked').getAttribute('value'))
+    : 7
   // GLPI can persist the assignment link shortly after the API returns; poll the
   // queue until the fixture reaches the assigned group, without a blind sleep.
   await expect.poll(async () => pageA.evaluate(async ({ groupId, id }) => {

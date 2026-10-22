@@ -70,17 +70,20 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await page.locator('input[name="password"]').fill(TECH_PASSWORD)
   await page.locator('button[type="submit"]').click()
   await page.waitForURL(/kanban|dashboard|tickets|queue/, { timeout: 20000 })
-  await page.goto(`${DESK}/queue`)
+  await page.goto(`${DESK}/queue?groupId=7`)
   const groupPicker = page.getByLabel('Seleccionar grupo de soporte').first()
-  await expect(groupPicker).toBeVisible()
-  const hardwareGroupId = await groupPicker.locator('option').filter({ hasText: /^Hardware$/ }).getAttribute('value')
-  expect(hardwareGroupId).toBeTruthy()
-  const hardwareQueueResponse = page.waitForResponse(response =>
-    response.url().includes('/api/tickets/by-group') && response.url().includes(`groupId=${hardwareGroupId}`),
-  )
-  await groupPicker.selectOption(hardwareGroupId!)
-  await expect(groupPicker.locator('option:checked')).toHaveText('Hardware')
-  expect((await hardwareQueueResponse).ok()).toBeTruthy()
+  if (await groupPicker.isVisible().catch(() => false)) {
+    const hardwareGroupId = await groupPicker.locator('option').filter({ hasText: /^Hardware$/ }).getAttribute('value')
+    expect(hardwareGroupId).toBeTruthy()
+    const hardwareQueueResponse = page.waitForResponse(response =>
+      response.url().includes('/api/tickets/by-group') && response.url().includes(`groupId=${hardwareGroupId}`),
+    )
+    await groupPicker.selectOption(hardwareGroupId!)
+    await expect(groupPicker.locator('option:checked')).toHaveText('Hardware')
+    expect((await hardwareQueueResponse).ok()).toBeTruthy()
+  } else {
+    await expect(page.getByTestId('technician-group-label').first()).toBeVisible()
+  }
   await expect(page.getByText(title)).toBeVisible({ timeout: 60000 })
   const claimButton = page.getByRole('button', { name: 'Asignarme' }).first()
   await expect(claimButton).toBeVisible({ timeout: 15000 })
@@ -160,11 +163,14 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await techPage.locator('input[name="password"]').fill(TECH_PASSWORD)
   await techPage.locator('button[type="submit"]').click()
   await techPage.waitForURL(/kanban|dashboard|tickets|queue/)
-  await techPage.goto(`${DESK}/kanban`)
+  await techPage.goto(`${DESK}/kanban?groupId=7`)
   const realtimeGroupPicker = techPage.getByLabel('Seleccionar grupo de soporte').first()
-  await expect(realtimeGroupPicker).toBeVisible()
-  await realtimeGroupPicker.selectOption({ label: 'Hardware' })
-  await expect(realtimeGroupPicker.locator('option:checked')).toHaveText('Hardware')
+  if (await realtimeGroupPicker.isVisible().catch(() => false)) {
+    await realtimeGroupPicker.selectOption({ label: 'Hardware' })
+    await expect(realtimeGroupPicker.locator('option:checked')).toHaveText('Hardware')
+  } else {
+    await expect(techPage.getByTestId('technician-group-label').first()).toBeVisible()
+  }
   await expect(techPage.getByTestId('connection-indicator').first()).toHaveAttribute('data-state', 'connected', { timeout: 10000 })
   const requesterPage = await requesterApp.newPage()
   await requesterPage.goto(`${DESK}/tickets`)

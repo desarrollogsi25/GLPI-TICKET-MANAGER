@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
@@ -162,6 +162,7 @@ function KanbanColumn({
   emptyMessage = 'No hay tickets aquí',
   onClaim,
   onStart,
+  onResume,
   onResolve,
   isClaiming,
   recentlyUpdatedIds,
@@ -176,6 +177,7 @@ function KanbanColumn({
   emptyMessage?: string
   onClaim?: (ticketId: number) => void
   onStart?: (ticketId: number) => void
+  onResume?: (ticketId: number) => void
   onResolve?: (ticketId: number) => void
   isClaiming?: boolean
   recentlyUpdatedIds?: Set<number>
@@ -313,13 +315,28 @@ function KanbanColumn({
                           </Button>
                         </div>
                       ) : column.id === 'pending' ? (
-                        <Link
-                          to={`/tickets/${ticket.id}`}
-                          className="inline-flex items-center text-xs font-medium text-primary hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Abrir detalle →
-                        </Link>
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <Link
+                            to={`/tickets/${ticket.id}`}
+                            className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Abrir detalle →
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-3 text-xs"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onResume?.(ticket.id)
+                            }}
+                          >
+                            Retomar
+                          </Button>
+                        </div>
                       ) : null
                     }
                   />
@@ -356,9 +373,11 @@ export function Kanban() {
   // H-36: technicians get no selector (see header); supervisors/admins can switch
   // group. `GET /api/groups` returns only the groups the user belongs to
   // (glpi_groups_users), and a technician defaults to the first one.
+  const [searchParams] = useSearchParams()
+  const paramGroupId = searchParams.get('groupId') ? Number(searchParams.get('groupId')) : null
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const currentGroup =
-    groupsQuery.data?.find((group) => group.id === selectedGroupId) ??
+    groupsQuery.data?.find((group) => group.id === (selectedGroupId ?? paramGroupId)) ??
     (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0] : null)
   const currentGroupId = currentGroup?.id ?? null
   const currentGroupName = currentGroup?.name ?? null
@@ -993,6 +1012,7 @@ export function Kanban() {
                   emptyMessage={emptyMessage}
                   onClaim={handleClaim}
                   onStart={handleStart}
+                  onResume={handleResume}
                   onResolve={(ticketId) => setResolveTicketId(ticketId)}
                   isClaiming={claimMutation.isPending}
                   recentlyUpdatedIds={recentlyUpdatedIds}

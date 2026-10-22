@@ -73,15 +73,19 @@ function GroupQueueCard({
   )
 }
 
+import { useSearchParams } from 'react-router-dom'
+
 export function GroupQueuePage() {
   const toast = useToastStore((state) => state.push)
   const groups = useGroupsQuery()
   const { isTechnician } = useRole()
+  const [searchParams] = useSearchParams()
+  const paramGroupId = searchParams.get('groupId') ? Number(searchParams.get('groupId')) : null
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [claimingTicketId, setClaimingTicketId] = useState<number | null>(null)
 
   const effectiveGroupId =
-    selectedGroupId ?? (groups.data && groups.data.length > 0 ? groups.data[0].id : null)
+    selectedGroupId ?? paramGroupId ?? (groups.data && groups.data.length > 0 ? groups.data[0].id : null)
 
   const effectiveGroup = groups.data?.find((g) => g.id === effectiveGroupId)
 
