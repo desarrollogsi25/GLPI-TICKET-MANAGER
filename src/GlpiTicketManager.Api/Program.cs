@@ -107,6 +107,7 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ITicketNotificationService, TicketNotificationService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // ---- Rate limiting (native .NET 9) --------------------------------------
 builder.Services.AddRateLimiter(options =>
@@ -218,6 +219,7 @@ app.MapGroupEndpoints();
 app.MapChannelEndpoints();
 app.MapPreferencesEndpoints();
 app.MapServicesEndpoints();
+app.MapNotificationEndpoints();
 
 app.MapHub<TicketHub>("/hubs/tickets").RequireAuthorization();
 

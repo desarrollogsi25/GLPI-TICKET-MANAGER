@@ -995,6 +995,129 @@ public sealed class TicketService : ITicketService
 
         return ticketId;
     }
+
+    /// <summary>
+    /// Sets a ticket to Pending (Waiting = 4) status with a private followup (H-34).
+    /// </summary>
+    public Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        CancellationToken cancellationToken) =>
+        SetPendingAsync(ticketId, reasonId, comment, userId, AppRole.Technician, cancellationToken);
+
+    /// <inheritdoc cref="SetPendingAsync(int, int, string, int, CancellationToken)"/>
+    public async Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0)
+        {
+            throw Invalid("id", "id must be a positive integer.");
+        }
+
+        if (userId <= 0)
+        {
+            throw Invalid("userId", "userId must be a positive integer.");
+        }
+
+        if (string.IsNullOrWhiteSpace(comment?.Trim()))
+        {
+            throw new UnprocessableEntityException("El comentario es obligatorio para poner el ticket en pendiente.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Closed)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya está cerrado.");
+        }
+
+        // Valida permisos (técnico asignado o supervisor)
+        if (role == AppRole.Admin)
+        {
+            // Admin siempre tiene acceso
+        }
+        else if (role == AppRole.Supervisor)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
+            if (!userGroups.Intersect(ticketGroups).Any())
+            {
+                throw new ForbiddenException("El supervisor no pertenece al grupo asignado a este ticket.");
+            }
+        }
+        else if (role == AppRole.Technician)
+        {
+            var isAssigned = await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, cancellationToken);
+            if (!isAssigned)
+            {
+                throw new ForbiddenException("Solo el técnico asignado puede poner el ticket en pendiente.");
+            }
+        }
+        else
+        {
+            throw new ForbiddenException("No tienes permisos para poner este ticket en pendiente.");
+        }
+
+        // 1. Llama a GLPI REST: crea un seguimiento privado (ITILFollowup con is_private: 1) con el comentario
+        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, cancellationToken);
+
+        // 2. Llama a GLPI REST: actualiza estado a 4 (Pendiente)
+        await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Waiting, cancellationToken);
+
+        // 3. Lee de vuelta el ticket (GET /Ticket/{id}) para confirmar
+        var finalState = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
+        var effectiveStatus = finalState?.Status ?? (int)TicketStatus.Waiting;
+
+        // 4. Guarda auditoría en PostgreSQL
+        try
+        {
+            var auditDetails = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                reasonId,
+                comment = comment.Trim()
+            });
+            await _audit.LogAsync(userId, "pending", ticketId, auditDetails, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record audit log for pending on ticket {TicketId}", ticketId);
+        }
+
+        // 5. Emite un evento SignalR TicketStatusChanged al grupo
+        var latest = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        var assigneeId = (latest ?? ticket).AssigneeIds?.FirstOrDefault();
+
+        try
+        {
+            await _notifications.NotifyTicketStatusChangedAsync(
+                ticketId,
+                effectiveStatus,
+                assigneeId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for ticket {TicketId}", ticketId);
+        }
+
+        var detail = (latest ?? ticket).ToDetail();
+        return detail with
+        {
+            Status = effectiveStatus,
+            StatusLabel = TicketLabels.Status(effectiveStatus)
+        };
+    }
 }
 
 

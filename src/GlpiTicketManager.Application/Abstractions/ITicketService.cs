@@ -125,4 +125,23 @@ public interface ITicketService
         int? categoryId,
         int requesterUserId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sets a ticket into Pending (Waiting = 4) status with a private followup (H-34).
+    /// </summary>
+    Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        CancellationToken cancellationToken);
+
+    /// <inheritdoc cref="SetPendingAsync(int, int, string, int, CancellationToken)"/>
+    Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken);
 }

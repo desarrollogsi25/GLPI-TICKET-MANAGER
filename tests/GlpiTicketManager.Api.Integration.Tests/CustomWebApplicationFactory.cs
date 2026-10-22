@@ -39,6 +39,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
+    private readonly List<Notification> _notificationsList = new();
 
     /// <summary>
     /// The state GLPI reports on <c>GET /Ticket/{id}</c>, kept apart from
@@ -182,6 +183,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         lock (_stateLock)
         {
             SimulateInsertFailure = false;
+            _notificationsList.Clear();
             _ticketSolutions.Clear();
             _glpiTicketStates.Clear();
             _glpiStatusOverrides.Clear();
@@ -387,6 +389,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IGroupRepository) ||
                 d.ServiceType == typeof(IChannelRepository) ||
                 d.ServiceType == typeof(ITicketNotificationService) ||
+                d.ServiceType == typeof(INotificationRepository) ||
                 d.ServiceType == typeof(IUserRoleResolver)).ToList();
 
             foreach (var d in descriptors)
@@ -1222,6 +1225,46 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var notificationMock = new Mock<ITicketNotificationService>();
             _notificationMock = notificationMock;
             services.AddSingleton(notificationMock.Object);
+
+            var notificationRepoMock = new Mock<INotificationRepository>();
+            notificationRepoMock.Setup(n => n.CreateAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Notification n, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        n.Id = _notificationsList.Count + 1;
+                        _notificationsList.Add(n);
+                        return n.Id;
+                    }
+                });
+            notificationRepoMock.Setup(n => n.GetByUserAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int userId, int limit, int offset, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _notificationsList.Where(n => n.UserId == userId).Skip(offset).Take(limit).ToList();
+                    }
+                });
+            notificationRepoMock.Setup(n => n.GetUnreadCountAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int userId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _notificationsList.Count(n => n.UserId == userId && !n.IsRead);
+                    }
+                });
+            notificationRepoMock.Setup(n => n.MarkAsReadAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((long id, int userId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var item = _notificationsList.FirstOrDefault(n => n.Id == id && n.UserId == userId);
+                        if (item == null) return false;
+                        item.IsRead = true;
+                        return true;
+                    }
+                });
+            services.AddSingleton(notificationRepoMock.Object);
 
             services.AddSingleton(roleResolverMock.Object);
             services.AddSingleton(userRepoMock.Object);

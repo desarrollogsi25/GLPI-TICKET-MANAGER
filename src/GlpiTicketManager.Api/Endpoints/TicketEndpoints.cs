@@ -108,6 +108,19 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .RequireRateLimiting(RateLimitPolicies.PerUser);
 
+        // POST /api/tickets/{id}/pending -> pone ticket en pendiente con seguimiento privado (H-34)
+        group.MapPost("/{id:int}/pending", SetPending)
+            .WithName("SetPendingTicket")
+            .WithSummary("Put a ticket into pending status with a private followup")
+            .Accepts<PendingTicketRequest>("application/json")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         // POST /api/tickets -> crea nuevo ticket y emite TicketCreated (SignalR)
         group.MapPost(string.Empty, CreateTicket)
             .WithName("CreateTicket")
@@ -521,6 +534,74 @@ public static class TicketEndpoints
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Error de validación",
+                detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> SetPending(
+        int id,
+        PendingTicketRequest? request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "Usuario no autenticado",
+                detail: "No se encontro el userId en el token JWT.");
+        }
+
+        var role = principal.GetRole();
+
+        try
+        {
+            var ticket = await ticketService.SetPendingAsync(
+                id,
+                request?.ReasonId ?? 0,
+                request?.Comment ?? string.Empty,
+                userId.Value,
+                role,
+                cancellationToken);
+
+            return Results.Ok(ticket);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Solicitud inválida",
+                detail: ex.Message,
+                extensions: new Dictionary<string, object?> { ["errors"] = ex.Errors });
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado",
+                detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado",
+                detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflicto de estado",
+                detail: ex.Message);
+        }
+        catch (UnprocessableEntityException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "Operación no válida",
                 detail: ex.Message);
         }
     }
