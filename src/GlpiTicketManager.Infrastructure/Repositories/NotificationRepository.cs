@@ -63,4 +63,14 @@ public sealed class NotificationRepository : INotificationRepository
                 cancellationToken: ct));
         return rows > 0;
     }
+
+    public async Task<int> MarkAllAsReadAsync(int userId, CancellationToken ct = default)
+    {
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        return await conn.ExecuteAsync(
+            new CommandDefinition(
+                NotificationQueries.MarkAllAsRead,
+                new { UserId = userId },
+                cancellationToken: ct));
+    }
 }

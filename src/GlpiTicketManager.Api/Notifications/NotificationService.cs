@@ -107,4 +107,9 @@ public sealed class NotificationService : INotificationService
     {
         return await _repository.MarkAsReadAsync(id, userId, ct);
     }
+
+    public async Task<int> MarkAllAsReadAsync(int userId, CancellationToken ct = default)
+    {
+        return await _repository.MarkAllAsReadAsync(userId, ct);
+    }
 }

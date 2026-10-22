@@ -43,6 +43,13 @@ public static class NotificationEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        // PUT /api/notifications/read-all
+        group.MapPut("/read-all", MarkAllAsRead)
+            .WithName("MarkAllNotificationsAsRead")
+            .WithSummary("Mark all notifications as read for the authenticated user")
+            .Produces<MarkAllReadResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         return app;
     }
 
@@ -106,4 +113,21 @@ public static class NotificationEndpoints
 
         return Results.Ok(new { id, isRead = true });
     }
+
+    private static async Task<IResult> MarkAllAsRead(
+        INotificationService notificationService,
+        ClaimsPrincipal principal,
+        CancellationToken ct)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var count = await notificationService.MarkAllAsReadAsync(userId.Value, ct);
+        return Results.Ok(new MarkAllReadResponse(count));
+    }
 }
+
+internal sealed record MarkAllReadResponse(int Count);

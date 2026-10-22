@@ -164,6 +164,7 @@ function KanbanColumn({
   onStart,
   onResume,
   onResolve,
+  onPause,
   isClaiming,
   recentlyUpdatedIds,
   invalidDropTicketId,
@@ -179,6 +180,7 @@ function KanbanColumn({
   onStart?: (ticketId: number) => void
   onResume?: (ticketId: number) => void
   onResolve?: (ticketId: number) => void
+  onPause?: (ticketId: number) => void
   isClaiming?: boolean
   recentlyUpdatedIds?: Set<number>
   invalidDropTicketId?: number | null
@@ -302,6 +304,19 @@ function KanbanColumn({
                           </Link>
                           <Button
                             size="sm"
+                            variant="outline"
+                            className="h-7 px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onPause?.(ticket.id)
+                            }}
+                          >
+                            Pausar
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="default"
                             className="h-7 px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
                             onPointerDown={(e) => e.stopPropagation()}
@@ -398,6 +413,10 @@ export function Kanban() {
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
+
+  const handlePauseWithModal = (ticketId: number) => {
+    setPendingTicketId(ticketId)
+  }
 
   const shouldReduceMotion = useReducedMotion()
   const springTransition: Transition = shouldReduceMotion
@@ -569,26 +588,6 @@ export function Kanban() {
     )
   }
 
-  const handlePause = (ticketId: number) => {
-    updateStatus.mutate(
-      { ticketId, status: 4 },
-      {
-        onSuccess: () =>
-          pushToast({
-            title: `Ticket #${ticketId} marcado como pendiente`,
-            description: 'En espera de respuesta externa o proveedor.',
-            variant: 'success',
-          }),
-        onError: (err) =>
-          pushToast({
-            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          }),
-      },
-    )
-  }
-
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(Number(event.active.id))
   }
@@ -637,7 +636,7 @@ export function Kanban() {
     }
 
     if (sourceId === 'in_progress' && targetId === 'pending') {
-      handlePause(ticketId)
+      handlePauseWithModal(ticketId)
       return
     }
 
@@ -734,7 +733,7 @@ export function Kanban() {
               disabled={updateStatus.isPending}
               onClick={(e) => {
                 e.stopPropagation()
-                handlePause(ticket.id)
+                handlePauseWithModal(ticket.id)
               }}
             >
               Pausar
@@ -1014,6 +1013,7 @@ export function Kanban() {
                   onStart={handleStart}
                   onResume={handleResume}
                   onResolve={(ticketId) => setResolveTicketId(ticketId)}
+                  onPause={handlePauseWithModal}
                   isClaiming={claimMutation.isPending}
                   recentlyUpdatedIds={recentlyUpdatedIds}
                   invalidDropTicketId={invalidDropTicketId}
@@ -1060,7 +1060,7 @@ export function Kanban() {
         onClose={() => setSelectedMobileTicket(null)}
         onClaim={handleClaim}
         onStart={handleStart}
-        onPause={handlePause}
+        onPause={handlePauseWithModal}
         onResume={handleResume}
         onResolve={(ticketId) => setResolveTicketId(ticketId)}
       />

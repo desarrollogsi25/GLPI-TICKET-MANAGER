@@ -175,6 +175,13 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return StatusTransitionDecision.Deny("Solo el técnico asignado puede cambiar el estado de este ticket.");
         }
 
+        // Direct transition from Waiting (4) to Solved (5) is blocked: must resume to In Progress first.
+        if (currentStatus == (int)TicketStatus.Waiting && newStatus == (int)TicketStatus.Solved)
+        {
+            return StatusTransitionDecision.Deny(
+                "No se puede resolver un ticket en estado Pendiente directamente. Debe pasar primero por En Progreso.");
+        }
+
         // Technicians can move tickets between states 2 (Assigned/In Progress), 3 (Planned/In Progress), 4 (Waiting/Pending), and 5 (Solved).
         return StatusTransitionDecision.Allow();
     }

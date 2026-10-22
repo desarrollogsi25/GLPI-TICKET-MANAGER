@@ -35,4 +35,10 @@ public static class NotificationQueries
         SET is_read = TRUE
         WHERE id = @Id AND user_id = @UserId;
         """;
+
+    public const string MarkAllAsRead = """
+        UPDATE notifications
+        SET is_read = TRUE
+        WHERE user_id = @UserId AND is_read = FALSE;
+        """;
 }

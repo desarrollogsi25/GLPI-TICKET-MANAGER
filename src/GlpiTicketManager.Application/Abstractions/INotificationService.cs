@@ -26,4 +26,8 @@ public interface INotificationService
         long id,
         int userId,
         CancellationToken ct = default);
+
+    Task<int> MarkAllAsReadAsync(
+        int userId,
+        CancellationToken ct = default);
 }
