@@ -8,6 +8,7 @@ import { AppSidebar } from './AppSidebar'
 import { BottomTabBar } from './BottomTabBar'
 import { ConnectionIndicator } from './ConnectionIndicator'
 import { MobileDrawer } from './MobileDrawer'
+import { NotificationBell } from './NotificationBell'
 import { PageTransition } from './PageTransition'
 
 export function AppLayout() {
@@ -60,8 +61,9 @@ export function AppLayout() {
           <ConnectionIndicator state={connectionState} />
         </div>
 
-        {/* Right: Quick actions (Logout button) */}
+        {/* Right: Quick actions (Notifications + Logout) */}
         <div className="ml-auto flex items-center gap-2">
+          <NotificationBell />
           <Button
             variant="outline"
             size="sm"

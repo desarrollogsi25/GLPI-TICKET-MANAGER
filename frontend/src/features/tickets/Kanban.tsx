@@ -33,6 +33,7 @@ import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
+import { PendingTicketDialog } from './PendingTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
@@ -369,6 +370,7 @@ export function Kanban() {
 
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
+  const [pendingTicketId, setPendingTicketId] = useState<number | null>(null)
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
@@ -996,6 +998,16 @@ export function Kanban() {
         onOpenChange={(v) => {
           if (!v) {
             setResolveTicketId(null)
+            void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+          }
+        }}
+      />
+      <PendingTicketDialog
+        ticketId={pendingTicketId ?? 0}
+        open={pendingTicketId !== null}
+        onOpenChange={(v) => {
+          if (!v) {
+            setPendingTicketId(null)
             void queryClient.invalidateQueries({ queryKey: ['tickets'] })
           }
         }}

@@ -6,7 +6,9 @@ import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { ProtectedRouteWithRole } from '@/components/layout/ProtectedRouteWithRole'
 import { Toaster } from '@/components/ui/toast'
 import { Login } from '@/features/auth/Login'
+import { AdminDashboard } from '@/features/dashboard/AdminDashboard'
 import { Dashboard } from '@/features/dashboard/Dashboard'
+import { TeamDashboard } from '@/features/dashboard/TeamDashboard'
 import { AgentGuide } from '@/features/help/AgentGuide'
 import { PreferencesPage } from '@/features/preferences/PreferencesPage'
 import { ServicesPage } from '@/features/services/ServicesPage'
@@ -119,6 +121,22 @@ export default function App() {
             element={
               <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
                 <Dashboard />
+              </ProtectedRouteWithRole>
+            }
+          />
+          <Route
+            path="/equipo"
+            element={
+              <ProtectedRouteWithRole allowedRoles={['supervisor', 'admin']}>
+                <TeamDashboard />
+              </ProtectedRouteWithRole>
+            }
+          />
+          <Route
+            path="/administracion"
+            element={
+              <ProtectedRouteWithRole allowedRoles={['admin']}>
+                <AdminDashboard />
               </ProtectedRouteWithRole>
             }
           />

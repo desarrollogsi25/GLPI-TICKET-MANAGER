@@ -50,6 +50,7 @@ export interface UseRealtimeTicketHubOptions {
   onTicketStatusChanged?: (ticketId: number, newStatus: number) => void
   onTicketClaimed?: (ticketId: number, groupId: number) => void
   onTicketCreated?: (ticketId: number, groupId?: number) => void
+  onNotificationReceived?: () => void
 }
 
 const signalRLogger = {
@@ -196,6 +197,8 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         optionsRef.current?.onTicketClaimed?.(ticketId, groupId),
       onTicketCreated: (ticketId, groupId) =>
         optionsRef.current?.onTicketCreated?.(ticketId, groupId),
+      onNotificationReceived: () =>
+        optionsRef.current?.onNotificationReceived?.(),
     }
     activeListeners.add(listener)
     return () => {
@@ -348,6 +351,10 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         queryClient.invalidateQueries({
           queryKey: queryKeys.tickets.detail(payload.ticketId),
         })
+      })
+
+      connection.on('NotificationReceived', () => {
+        activeListeners.forEach((l) => l.onNotificationReceived?.())
       })
 
       connection.onreconnecting(() => {

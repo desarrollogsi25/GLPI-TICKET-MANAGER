@@ -12,6 +12,7 @@ import {
   createSolution,
   reopenTicket,
   resolveTicket,
+  putPendingTicket,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
@@ -208,6 +209,22 @@ export function useReopenTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, reason }: { ticketId: number; reason?: string }) =>
       reopenTicket(ticketId, reason),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
+      ])
+    },
+  })
+}
+
+export function usePutPendingMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, reasonId, comment }: { ticketId: number; reasonId: number; comment: string }) =>
+      putPendingTicket(ticketId, { reasonId, comment }),
     onSuccess: async (_data, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),

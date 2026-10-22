@@ -72,3 +72,13 @@ export async function reopenTicket(id: number, reason?: string): Promise<import(
   const { data } = await apiClient.post(`/tickets/${id}/reopen`, reason ? { reason } : {})
   return data
 }
+
+export interface PutPendingRequest {
+  reasonId: number
+  comment: string
+}
+
+export async function putPendingTicket(id: number, payload: PutPendingRequest): Promise<import('@/lib/api/types').TicketDetail> {
+  const { data } = await apiClient.post(`/tickets/${id}/pending`, payload)
+  return data
+}

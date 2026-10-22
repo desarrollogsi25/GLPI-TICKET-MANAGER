@@ -12,6 +12,7 @@ import { useToastStore } from '@/store/toastStore'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useAuthStore } from '@/store/authStore'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
+import { PendingTicketDialog } from './PendingTicketDialog'
 import { ReopenTicketDialog } from './ReopenTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
@@ -25,6 +26,7 @@ export function Detail() {
   const role = useAuthStore((state) => state.role ?? state.user?.role)
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
+  const [pendingOpen, setPendingOpen] = useState(false)
 
   const changeStatus = (status: number) => {
     updateStatus.mutate(
@@ -124,6 +126,15 @@ export function Detail() {
                 onClick={() => setResolveOpen(true)}
               >
                 Resolver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                onClick={() => setPendingOpen(true)}
+                data-testid="pending-ticket-btn"
+              >
+                Poner en pendiente
               </Button>
               {canReopen && (
                 <Button
@@ -249,6 +260,7 @@ export function Detail() {
       </div>
       <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />
       <ReopenTicketDialog ticketId={ticketId} open={reopenOpen} onOpenChange={setReopenOpen} />
+      <PendingTicketDialog ticketId={ticketId} open={pendingOpen} onOpenChange={setPendingOpen} />
     </div>
   )
 }
