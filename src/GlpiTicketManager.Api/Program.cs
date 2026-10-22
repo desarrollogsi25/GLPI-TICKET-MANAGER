@@ -220,6 +220,8 @@ app.MapChannelEndpoints();
 app.MapPreferencesEndpoints();
 app.MapServicesEndpoints();
 app.MapNotificationEndpoints();
+app.MapAdminEndpoints();
+app.MapGlpiIntegrationEndpoints();
 
 app.MapHub<TicketHub>("/hubs/tickets").RequireAuthorization();
 

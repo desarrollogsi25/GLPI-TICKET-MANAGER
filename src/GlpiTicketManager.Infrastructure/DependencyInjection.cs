@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IGroupRepository, GroupRepository>();
         services.AddScoped<IChannelRepository, ChannelRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddHostedService<RevokedTokenCleanupService>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 

@@ -372,7 +372,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["RateLimiting:ExpensiveTokensPerPeriod"] = "1",
                 ["RateLimiting:ExpensiveReplenishmentSeconds"] = "3",
                 ["RateLimiting:PerUserRequestLimit"] = "100",
-                ["RateLimiting:LoginAttemptLimit"] = "5"
+                ["RateLimiting:LoginAttemptLimit"] = "100"
             });
         });
 
@@ -390,6 +390,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IChannelRepository) ||
                 d.ServiceType == typeof(ITicketNotificationService) ||
                 d.ServiceType == typeof(INotificationRepository) ||
+                d.ServiceType == typeof(IDashboardRepository) ||
                 d.ServiceType == typeof(IUserRoleResolver)).ToList();
 
             foreach (var d in descriptors)
@@ -1275,6 +1276,52 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(ticketRepoMock.Object);
             services.AddSingleton(groupRepoMock.Object);
             services.AddSingleton(channelRepoMock.Object);
+
+            var dashboardRepoMock = new Mock<IDashboardRepository>();
+            dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(Group1Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TeamMemberDto>
+                {
+                    new(Tech1Id, "Technician 1", 1, 0, Ticket12Id),
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket13Id)
+                });
+            dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(Group2Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TeamMemberDto>
+                {
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket21Id)
+                });
+            dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(It.Is<int>(g => g != Group1Id && g != Group2Id), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TeamMemberDto>());
+
+            dashboardRepoMock.Setup(d => d.GetAdminGroupSummariesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<GroupSummaryDto>
+                {
+                    new(Group1Id, "Call Center", 4, 1, 2),
+                    new(Group2Id, "Soporte Nivel 1", 2, 0, 1)
+                });
+
+            dashboardRepoMock.Setup(d => d.GetTicketGroupAssignmentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            int gid = (ticketId == Ticket21Id || ticketId == Ticket22Id) ? Group2Id : Group1Id;
+                            return new GlpiTicketGroupInfo(ticketId, ticket.Name, gid);
+                        }
+                        return new GlpiTicketGroupInfo(ticketId, $"Ticket #{ticketId}", Group1Id);
+                    }
+                });
+
+            dashboardRepoMock.Setup(d => d.GetTechnicianUserIdsInGroupAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int groupId, CancellationToken _) =>
+                {
+                    if (groupId == Group1Id) return new List<int> { Tech1Id, Tech2Id };
+                    if (groupId == Group2Id) return new List<int> { Tech2Id };
+                    return new List<int>();
+                });
+
+            services.AddSingleton(dashboardRepoMock.Object);
         });
     }
 }
