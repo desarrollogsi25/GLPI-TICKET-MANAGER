@@ -1,43 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '@/lib/apiClient'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGroupsQuery } from '@/hooks/useTickets'
-
-interface GroupSummary {
-  groupId: number
-  groupName: string
-  totalTickets: number
-  pendingTickets: number
-  activeTechnicians: number
-}
+import { useAdminDashboardQuery } from '@/hooks/useTickets'
 
 /**
  * Admin view: "Administración" — global overview of all groups.
- * Consumes GET /api/admin/groups-summary (mock fallback while backend is in progress).
+ * Consumes GET /api/admin/groups-summary.
  */
 export function AdminDashboard() {
-  const groups = useGroupsQuery()
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'groups-summary'],
-    queryFn: async () => {
-      try {
-        const { data } = await apiClient.get<GroupSummary[]>('/admin/groups-summary')
-        return Array.isArray(data) ? data : []
-      } catch {
-        // Mock fallback while the backend endpoint is not ready.
-        return (groups.data ?? []).map((g, i) => ({
-          groupId: g.id,
-          groupName: g.name,
-          totalTickets: 10 + i * 3,
-          pendingTickets: i,
-          activeTechnicians: 2 + i,
-        }))
-      }
-    },
-  })
+  const { data, isLoading, isError } = useAdminDashboardQuery()
 
   return (
     <div className="space-y-4">
@@ -57,6 +28,8 @@ export function AdminDashboard() {
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
             </div>
+          ) : isError ? (
+            <p className="text-sm text-destructive">Error al cargar el resumen de administración.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

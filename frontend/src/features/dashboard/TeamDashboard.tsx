@@ -1,46 +1,17 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '@/lib/apiClient'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGroupsQuery } from '@/hooks/useTickets'
-
-
-interface TeamMember {
-  userId: number
-  name: string
-  activeTickets: number
-  pendingTickets: number
-  currentTicketId: number | null
-}
+import { useGroupsQuery, useTeamDashboardQuery } from '@/hooks/useTickets'
 
 /**
  * Supervisor view: "Mi Equipo" — live table of technicians in the group.
- * Consumes GET /api/groups/{groupId}/dashboard; falls back to mock data if the
- * endpoint is not yet available (backend in progress).
+ * Consumes GET /api/groups/{groupId}/dashboard.
  */
 export function TeamDashboard() {
   const groups = useGroupsQuery()
   const groupId = groups.data && groups.data.length > 0 ? groups.data[0].id : null
-  // (useAuthStore available for future per-technician filtering)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['groups', 'dashboard', groupId],
-    queryFn: async () => {
-      if (groupId == null) return []
-      try {
-        const { data } = await apiClient.get<TeamMember[]>(`/groups/${groupId}/dashboard`)
-        return Array.isArray(data) ? data : []
-      } catch {
-        // Mock fallback while the backend endpoint is not ready.
-        return [
-          { userId: 7, name: 'tech1', activeTickets: 3, pendingTickets: 1, currentTicketId: 11 },
-          { userId: 8, name: 'tech2', activeTickets: 2, pendingTickets: 0, currentTicketId: 57 },
-        ]
-      }
-    },
-    enabled: groupId != null,
-  })
+  const { data, isLoading, isError } = useTeamDashboardQuery(groupId)
 
   return (
     <div className="space-y-4">
@@ -60,6 +31,8 @@ export function TeamDashboard() {
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
             </div>
+          ) : isError ? (
+            <p className="text-sm text-destructive">Error al cargar el dashboard del equipo.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

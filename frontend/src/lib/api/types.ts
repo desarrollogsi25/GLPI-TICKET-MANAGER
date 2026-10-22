@@ -134,3 +134,19 @@ export interface Service {
   completeName: string
   level: number
 }
+
+export interface TeamMember {
+  userId: number
+  name: string
+  activeTickets: number
+  pendingTickets: number
+  currentTicketId: number | null
+}
+
+export interface GroupSummary {
+  groupId: number
+  groupName: string
+  totalTickets: number
+  pendingTickets: number
+  activeTechnicians: number
+}

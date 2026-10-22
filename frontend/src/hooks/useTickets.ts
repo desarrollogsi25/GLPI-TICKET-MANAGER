@@ -13,6 +13,8 @@ import {
   reopenTicket,
   resolveTicket,
   putPendingTicket,
+  getTeamDashboard,
+  getAdminDashboard,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
@@ -233,5 +235,20 @@ export function usePutPendingMutation() {
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
       ])
     },
+  })
+}
+
+export function useTeamDashboardQuery(groupId: number | null) {
+  return useQuery({
+    queryKey: ['groups', 'dashboard', groupId],
+    queryFn: () => getTeamDashboard(groupId as number),
+    enabled: groupId != null && groupId > 0,
+  })
+}
+
+export function useAdminDashboardQuery() {
+  return useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: getAdminDashboard,
   })
 }

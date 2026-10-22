@@ -2,6 +2,8 @@ import { apiClient } from '@/lib/apiClient'
 import type {
   PagedResult,
   TicketSummary,
+  TeamMember,
+  GroupSummary,
 } from '@/lib/api/types'
 
 export interface TicketListParams {
@@ -80,5 +82,15 @@ export interface PutPendingRequest {
 
 export async function putPendingTicket(id: number, payload: PutPendingRequest): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.post(`/tickets/${id}/pending`, payload)
+  return data
+}
+
+export async function getTeamDashboard(groupId: number): Promise<TeamMember[]> {
+  const { data } = await apiClient.get<TeamMember[]>(`/groups/${groupId}/dashboard`)
+  return data
+}
+
+export async function getAdminDashboard(): Promise<GroupSummary[]> {
+  const { data } = await apiClient.get<GroupSummary[]>('/admin/groups-summary')
   return data
 }
