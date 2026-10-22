@@ -34,8 +34,15 @@ VALUES (11, 0, 1, 0, 'Hardware', 'Hardware', 1, 1, 1, 1, 1, 1);
 INSERT IGNORE INTO glpi_groups_users (id, users_id, groups_id, is_dynamic, is_manager, is_userdelegate)
 VALUES
   (1, 7, 1, 0, 0, 0),
-  (3, 7, 7, 0, 0, 0),
   (2, 8, 2, 0, 0, 0);
+
+-- tech1 (id 7) must also be a member of the Hardware group (id 7) so the E2E
+-- specs can select that group in the Kanban/queue. Idempotent: only inserts if
+-- the (users_id, groups_id) pair is not already present.
+INSERT INTO glpi_groups_users (users_id, groups_id, is_dynamic, is_manager, is_userdelegate)
+SELECT 7, 7, 0, 0, 0
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM glpi_groups_users WHERE users_id = 7 AND groups_id = 7);
 
 -- Keep the Hardware category routed into a group visible to the E2E technician.
 INSERT INTO glpi_rules (entities_id, sub_type, ranking, name, `match`, is_active, is_recursive, `condition`)

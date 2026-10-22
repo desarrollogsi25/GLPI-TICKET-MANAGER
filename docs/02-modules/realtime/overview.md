@@ -224,3 +224,12 @@ Con el orden correcto, el servidor nunca llega a ver un token revocado.
 > porque multiplica por diez la dependencia del socket en el flujo de cierre de
 > sesión. Ver [BUG-032 §6.4](../../11-incidents/BUG-032.md).
 
+### 7. Escalado horizontal (ADR-021)
+
+La implementación actual asume **una sola instancia** del backend. Si el despliegue
+supera una instancia, SignalR necesita un backplane de Redis; sin él, los eventos
+emitidos en una instancia no llegan a los clientes conectados a otra. La decisión
+está documentada en [ADR-021 — Escalado horizontal de SignalR](../../01-architecture/decisions/ADR-021-signalr-scale-out.md)
+y es **bloqueante** para el escalado: no se puede escalar sin implementar el
+backplane.
+

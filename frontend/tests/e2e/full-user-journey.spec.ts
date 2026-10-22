@@ -18,7 +18,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const serviceDesk = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const page = await serviceDesk.newPage()
   page.setDefaultTimeout(15000)
-  const requester = await browser.newContext()
+  const requester = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const glpi = await requester.newPage()
 
   // CI's minimal GLPI schema does not include the populated category tree used
@@ -26,10 +26,11 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   // create the same Hardware ticket through the authenticated API in CI.
   if (process.env.E2E_GLPI_NATIVE === 'false') {
     await glpi.goto(`${DESK}/login`)
+    await glpi.waitForSelector('input[name="username"]', { timeout: 15000 })
     await glpi.locator('input[name="username"]').fill(REQUESTER_USERNAME)
     await glpi.locator('input[name="password"]').fill(REQUESTER_PASSWORD)
     await glpi.locator('button[type="submit"]').click()
-    await glpi.waitForURL(/\/tickets/)
+    await glpi.waitForURL(/\/(tickets|kanban)/, { timeout: 15000 })
     const created = await glpi.evaluate(async (ticketTitle) => {
       const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
       const response = await fetch('/api/tickets', {
