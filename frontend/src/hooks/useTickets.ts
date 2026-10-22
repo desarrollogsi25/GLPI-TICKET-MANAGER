@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import { queryKeys } from '@/lib/api/queryKeys'
 import {
@@ -70,18 +70,27 @@ export function useTicketQuery(ticketId: number) {
   })
 }
 
+/**
+ * H-36: `queryKeys.tickets.all` is a prefix of the detail, list, assignee AND
+ * group-queue keys, so a single invalidation refreshes all of them. Invalidating
+ * `['tickets', 'group-queue']` as well made TanStack cancel the in-flight
+ * `GET /tickets/by-group` and fire it again, burning rate-limit tokens for nothing.
+ */
+function invalidateTicketCaches(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }, { cancelRefetch: false }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }, { cancelRefetch: false }),
+  ])
+}
+
 export function useUpdateTicketStatusMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ ticketId, status }: { ticketId: number; status: number }) =>
       updateTicketStatus(ticketId, status),
-    onSuccess: async (_data, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
-      ])
+    onSuccess: async () => {
+      await invalidateTicketCaches(queryClient)
     },
   })
 }
@@ -161,13 +170,8 @@ export function useClaimTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (ticketId: number) => claimTicket(ticketId),
-    onSuccess: async (_data, ticketId) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
-        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(ticketId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
-      ])
+    onSuccess: async () => {
+      await invalidateTicketCaches(queryClient)
     },
   })
 }
@@ -195,13 +199,8 @@ export function useResolveTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, content }: { ticketId: number; content: string }) =>
       resolveTicket(ticketId, content),
-    onSuccess: async (_data, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
-        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
-      ])
+    onSuccess: async () => {
+      await invalidateTicketCaches(queryClient)
     },
   })
 }
@@ -211,13 +210,8 @@ export function useReopenTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, reason }: { ticketId: number; reason?: string }) =>
       reopenTicket(ticketId, reason),
-    onSuccess: async (_data, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
-        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
-      ])
+    onSuccess: async () => {
+      await invalidateTicketCaches(queryClient)
     },
   })
 }
@@ -227,13 +221,8 @@ export function usePutPendingMutation() {
   return useMutation({
     mutationFn: ({ ticketId, reasonId, comment }: { ticketId: number; reasonId: number; comment: string }) =>
       putPendingTicket(ticketId, { reasonId, comment }),
-    onSuccess: async (_data, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
-        queryClient.invalidateQueries({ queryKey: ['tickets', 'group-queue'] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(variables.ticketId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }),
-      ])
+    onSuccess: async () => {
+      await invalidateTicketCaches(queryClient)
     },
   })
 }

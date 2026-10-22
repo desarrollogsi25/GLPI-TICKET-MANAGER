@@ -4,7 +4,7 @@ import {
   LogLevel,
 } from '@microsoft/signalr'
 import { useEffect, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { queryKeys } from '@/lib/api/queryKeys'
 
@@ -100,6 +100,91 @@ function clearNegotiationRetry() {
   }
 }
 
+/**
+ * Quiet period after the LAST realtime event before the caches are invalidated.
+ *
+ * BUG-032 / H-36: every SignalR event used to call `invalidateQueries` right away. A
+ * burst of N events therefore refetched `GET /tickets/by-group` N times (several
+ * invalidations per event, and TanStack cancels + restarts an in-flight refetch by
+ * default), draining the `Expensive` token bucket (20 req/min, 1 token / 3 s) and
+ * producing 429. Events now only mark the caches as dirty; one trailing flush runs
+ * once the burst has settled.
+ */
+export const REALTIME_INVALIDATION_DEBOUNCE_MS = 800
+/**
+ * Upper bound on how long a continuous stream of events can postpone the flush, so a
+ * busy board still refreshes at least this often instead of starving.
+ */
+export const REALTIME_INVALIDATION_MAX_WAIT_MS = 3000
+/** Minimum spacing between two flushes: caps the realtime refetch rate at ~1/s. */
+const REALTIME_INVALIDATION_MIN_INTERVAL_MS = 1000
+
+let invalidationTimer: ReturnType<typeof setTimeout> | null = null
+let invalidationQueryClient: QueryClient | null = null
+let pendingTicketsInvalidation = false
+let pendingDashboardInvalidation = false
+let firstPendingAt = 0
+let lastFlushAt = 0
+
+function flushRealtimeInvalidation() {
+  invalidationTimer = null
+  const client = invalidationQueryClient
+  const tickets = pendingTicketsInvalidation
+  const dashboard = pendingDashboardInvalidation
+  pendingTicketsInvalidation = false
+  pendingDashboardInvalidation = false
+  firstPendingAt = 0
+  if (!client || (!tickets && !dashboard)) return
+
+  lastFlushAt = Date.now()
+  // `queryKeys.tickets.all` is a prefix of the detail, list, assignee and group-queue
+  // keys, so ONE invalidation covers them all. `cancelRefetch: false` keeps an
+  // in-flight request instead of cancelling it and firing a duplicate.
+  if (tickets) {
+    void client.invalidateQueries({ queryKey: queryKeys.tickets.all }, { cancelRefetch: false })
+  }
+  if (dashboard) {
+    void client.invalidateQueries({ queryKey: ['dashboard'] }, { cancelRefetch: false })
+  }
+}
+
+/**
+ * Coalesces realtime-driven invalidations (trailing debounce with a max wait and a
+ * minimum spacing between flushes).
+ */
+export function scheduleRealtimeInvalidation(
+  client: QueryClient,
+  scope: { tickets?: boolean; dashboard?: boolean },
+) {
+  invalidationQueryClient = client
+  if (scope.tickets) pendingTicketsInvalidation = true
+  if (scope.dashboard) pendingDashboardInvalidation = true
+
+  const now = Date.now()
+  if (firstPendingAt === 0) firstPendingAt = now
+
+  if (invalidationTimer !== null) clearTimeout(invalidationTimer)
+
+  const untilMaxWait = Math.max(0, firstPendingAt + REALTIME_INVALIDATION_MAX_WAIT_MS - now)
+  const untilMinInterval = Math.max(0, lastFlushAt + REALTIME_INVALIDATION_MIN_INTERVAL_MS - now)
+  const delay = Math.max(
+    untilMinInterval,
+    Math.min(REALTIME_INVALIDATION_DEBOUNCE_MS, untilMaxWait),
+  )
+  invalidationTimer = setTimeout(flushRealtimeInvalidation, delay)
+}
+
+/** Drops any pending invalidation (logout / connection teardown). */
+function cancelRealtimeInvalidation() {
+  if (invalidationTimer !== null) {
+    clearTimeout(invalidationTimer)
+    invalidationTimer = null
+  }
+  pendingTicketsInvalidation = false
+  pendingDashboardInvalidation = false
+  firstPendingAt = 0
+}
+
 /** True when an error is the expected "stopped during negotiation" AbortError. */
 function isAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return true
@@ -131,6 +216,7 @@ export async function stopRealtimeConnection(): Promise<void> {
   sharedConnection = null
   sharedToken = null
   clearNegotiationRetry()
+  cancelRealtimeInvalidation()
 
   if (!connection) return
 
@@ -312,45 +398,31 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         .build()
 
       // Eventos
+      // H-36: handlers only mark caches dirty; the refetch is debounced (see
+      // `scheduleRealtimeInvalidation`) so an event burst yields a single request.
       connection.on('TicketCreated', (payload: TicketCreatedPayload) => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
-        if (payload.groupId != null) {
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.tickets.byGroupQueue(payload.groupId),
-          })
-        }
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
         activeListeners.forEach((l) =>
           l.onTicketCreated?.(payload.ticketId, payload.groupId),
         )
       })
 
       connection.on('TicketClaimed', (payload: TicketClaimedPayload) => {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.tickets.byGroupQueue(payload.groupId),
-        })
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
         activeListeners.forEach((l) =>
           l.onTicketClaimed?.(payload.ticketId, payload.groupId),
         )
       })
 
       connection.on('TicketStatusChanged', (payload: TicketStatusChangedPayload) => {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.tickets.detail(payload.ticketId),
-        })
-        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all })
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
         activeListeners.forEach((l) =>
           l.onTicketStatusChanged?.(payload.ticketId, payload.newStatus),
         )
       })
 
-      connection.on('SolutionAdded', (payload: SolutionAddedPayload) => {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.tickets.detail(payload.ticketId),
-        })
+      connection.on('SolutionAdded', () => {
+        scheduleRealtimeInvalidation(queryClient, { tickets: true })
       })
 
       connection.on('NotificationReceived', () => {
@@ -375,13 +447,8 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
 
         // Events raised while the socket was down were never delivered. Reconciling
         // the cached queue with the server closes that gap without resorting to the
-        // aggressive polling this incident removed.
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.tickets.byGroupQueue(groupId),
-          }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
-        ])
+        // aggressive polling this incident removed (debounced like any other event).
+        scheduleRealtimeInvalidation(queryClient, { tickets: true })
       })
       connection.onclose(() => {
         updateConnectionState('disconnected')

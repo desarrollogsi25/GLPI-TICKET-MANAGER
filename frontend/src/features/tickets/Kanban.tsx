@@ -353,10 +353,15 @@ export function Kanban() {
 
   const groupsQuery = useGroupsQuery()
   const hasNoGroups = Boolean(groupsQuery.data && groupsQuery.data.length === 0)
+  // H-36: technicians get no selector (see header); supervisors/admins can switch
+  // group. `GET /api/groups` returns only the groups the user belongs to
+  // (glpi_groups_users), and a technician defaults to the first one.
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
-  const currentGroupId =
-    groupsQuery.data?.find((group) => group.id === selectedGroupId)?.id ??
-    (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null)
+  const currentGroup =
+    groupsQuery.data?.find((group) => group.id === selectedGroupId) ??
+    (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0] : null)
+  const currentGroupId = currentGroup?.id ?? null
+  const currentGroupName = currentGroup?.name ?? null
 
   // BUG-032 / H-32: the queue is refreshed by SignalR. The hook only falls back to a
   // slow poll (30 s) while the realtime connection is down, so the board no longer
@@ -393,10 +398,10 @@ export function Kanban() {
 
   useRealtimeTicketHub({
     groupId: currentGroupId,
+    // H-36: no `refetch()` here. The hub already schedules ONE debounced invalidation
+    // for the burst; refetching per event would bypass it and re-trigger the 429.
     onTicketCreated: (ticketId) => {
       markTicketUpdated(ticketId)
-      void queueQuery.refetch()
-      void myTicketsQuery.refetch()
     },
     onTicketStatusChanged: (ticketId) => markTicketUpdated(ticketId),
     onTicketClaimed: (ticketId) => markTicketUpdated(ticketId),
@@ -756,22 +761,37 @@ export function Kanban() {
         description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
-          isTechnician && (groupsQuery.data?.length ?? 0) > 1 ? (
-            <select
-              aria-label="Seleccionar grupo de soporte"
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={currentGroupId ?? ''}
-              onChange={(event) => setSelectedGroupId(Number(event.target.value))}
-            >
-              {groupsQuery.data?.map((group) => (
-                <option key={group.id} value={group.id}>{group.name}</option>
-              ))}
-            </select>
-          ) : !isTechnician ? (
-            <div className="hidden md:block">
-              <TechnicianFilter />
+          isTechnician ? (
+            // H-36: a technician belongs to a single support group, so there is nothing
+            // to choose. Show the group as fixed text; supervisors/admins keep the
+            // technician filter below.
+            currentGroupName ? (
+              <span
+                className="inline-flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium"
+                data-testid="technician-group-label"
+              >
+                Grupo: {currentGroupName}
+              </span>
+            ) : undefined
+          ) : (
+            <div className="flex items-center gap-2">
+              {(groupsQuery.data?.length ?? 0) > 1 ? (
+                <select
+                  aria-label="Seleccionar grupo de soporte"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={currentGroupId ?? ''}
+                  onChange={(event) => setSelectedGroupId(Number(event.target.value))}
+                >
+                  {groupsQuery.data?.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              ) : null}
+              <div className="hidden md:block">
+                <TechnicianFilter />
+              </div>
             </div>
-          ) : undefined
+          )
         }
       />
 

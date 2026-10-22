@@ -11,6 +11,7 @@ import {
   useGroupQueueQuery,
   useGroupsQuery,
 } from '@/hooks/useTickets'
+import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
@@ -75,6 +76,7 @@ function GroupQueueCard({
 export function GroupQueuePage() {
   const toast = useToastStore((state) => state.push)
   const groups = useGroupsQuery()
+  const { isTechnician } = useRole()
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [claimingTicketId, setClaimingTicketId] = useState<number | null>(null)
 
@@ -115,7 +117,17 @@ export function GroupQueuePage() {
         description="Tickets sin asignar del grupo seleccionado."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Cola' }]}
         actions={
-          groups.data && groups.data.length > 1 ? (
+          isTechnician ? (
+            // H-36: a technician belongs to a single group; no selector, fixed label.
+            effectiveGroup ? (
+              <span
+                className="inline-flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium"
+                data-testid="technician-group-label"
+              >
+                Grupo: {effectiveGroup.name}
+              </span>
+            ) : undefined
+          ) : groups.data && groups.data.length > 1 ? (
             <Select
               aria-label="Seleccionar grupo de soporte"
               value={effectiveGroupId ? String(effectiveGroupId) : undefined}
