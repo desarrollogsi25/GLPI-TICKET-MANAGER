@@ -39,7 +39,39 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
+
+    /// <summary>
+    /// The state GLPI reports on <c>GET /Ticket/{id}</c>, kept apart from
+    /// <see cref="_allTickets"/> on purpose.
+    /// </summary>
+    /// <remarks>
+    /// BUG-032 / H-31: the application reads tickets from MariaDB but owns the status
+    /// through GLPI's REST API. If the double used a single object for both, a
+    /// read-back could never disagree with the write and the tests would pass even if
+    /// the production code read the wrong source. Two stores let a test reproduce the
+    /// real divergence.
+    /// </remarks>
+    private readonly Dictionary<int, GlpiTicketState> _glpiTicketStates = new();
+
+    /// <summary>
+    /// Statuses GLPI refuses to move away from, per ticket.
+    /// </summary>
+    /// <remarks>
+    /// GLPI workflow rules can reject a transition: the REST API answers 200 but the
+    /// ticket keeps its status. This models that behaviour for the tests.
+    /// </remarks>
+    private readonly Dictionary<int, int> _glpiStatusOverrides = new();
+
     private Mock<ITicketNotificationService>? _notificationMock;
+    private Mock<IGlpiApiClient>? _glpiMock;
+
+    /// <summary>
+    /// The GLPI REST double, so a test can assert that the application really reads
+    /// the ticket state back from GLPI (BUG-032 / H-31).
+    /// </summary>
+    public Mock<IGlpiApiClient> GlpiMock =>
+        _glpiMock ?? throw new InvalidOperationException(
+            "The test host has not been created yet. Call CreateClient() before using GlpiMock.");
 
     /// <summary>
     /// Mock of the realtime notifier, so a test can assert how many events a use case
@@ -60,6 +92,38 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         lock (_stateLock)
         {
             _ticketSolutions[ticketId] = content;
+        }
+    }
+
+    /// <summary>
+    /// Makes GLPI report a fixed status for a ticket and refuse every transition away
+    /// from it, the way a GLPI workflow rule that blocks the transition would.
+    /// </summary>
+    /// <remarks>
+    /// BUG-032 / H-31: this is the lever that proves the read-back really comes from
+    /// GLPI. With this override in place the GLPI state and the MariaDB read model
+    /// disagree, and the API must answer with what GLPI reports.
+    /// </remarks>
+    public void SetGlpiReportedStatus(int ticketId, int status)
+    {
+        lock (_stateLock)
+        {
+            _glpiStatusOverrides[ticketId] = status;
+            _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, status);
+        }
+    }
+
+    /// <summary>The status GLPI currently reports for a ticket, or null if unknown.</summary>
+    public int? GetGlpiReportedStatus(int ticketId)
+    {
+        lock (_stateLock)
+        {
+            if (_glpiStatusOverrides.TryGetValue(ticketId, out var forced))
+            {
+                return forced;
+            }
+
+            return _glpiTicketStates.TryGetValue(ticketId, out var state) ? state.Status : null;
         }
     }
 
@@ -119,6 +183,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             SimulateInsertFailure = false;
             _ticketSolutions.Clear();
+            _glpiTicketStates.Clear();
+            _glpiStatusOverrides.Clear();
             _allTickets.Clear();
             _allTickets[Ticket11Id] = new Ticket
             {
@@ -448,11 +514,27 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             // Mock IGlpiApiClient
             var glpiMock = new Mock<IGlpiApiClient>();
+            _glpiMock = glpiMock;
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, int status, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
+                        // GLPI 11 refuses the transition when a workflow rule blocks it:
+                        // the REST API answers 200 and the ticket keeps its status.
+                        if (_glpiStatusOverrides.ContainsKey(ticketId))
+                        {
+                            return Task.CompletedTask;
+                        }
+
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(
+                            ticketId,
+                            status,
+                            SolvedAt: status == (int)TicketStatus.Solved || status == (int)TicketStatus.Closed
+                                ? DateTime.UtcNow
+                                : null,
+                            ClosedAt: status == (int)TicketStatus.Closed ? DateTime.UtcNow : null);
+
                         if (_allTickets.TryGetValue(ticketId, out var ticket))
                         {
                             _allTickets[ticketId] = new Ticket
@@ -484,11 +566,52 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     }
                     return Task.CompletedTask;
                 });
+
+            // BUG-032 / H-31: the read-back of the ticket state. GLPI is the owner of
+            // the status, so this is what the application has to consult to confirm
+            // that a write was persisted.
+            glpiMock.Setup(g => g.GetTicketStateAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_glpiStatusOverrides.TryGetValue(ticketId, out var forced))
+                        {
+                            return Task.FromResult<GlpiTicketState?>(
+                                new GlpiTicketState(ticketId, forced));
+                        }
+
+                        if (_glpiTicketStates.TryGetValue(ticketId, out var state))
+                        {
+                            return Task.FromResult<GlpiTicketState?>(state);
+                        }
+
+                        // No explicit state yet: GLPI reports what it holds, which for
+                        // an untouched ticket is the state of the read model.
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            return Task.FromResult<GlpiTicketState?>(new GlpiTicketState(
+                                ticketId,
+                                ticket.Status,
+                                ticket.SolvedAt,
+                                ticket.ClosedAt));
+                        }
+
+                        return Task.FromResult<GlpiTicketState?>(null);
+                    }
+                });
             glpiMock.Setup(g => g.ReopenTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
+                        if (!_glpiStatusOverrides.ContainsKey(ticketId))
+                        {
+                            _glpiTicketStates[ticketId] = new GlpiTicketState(
+                                ticketId,
+                                (int)TicketStatus.Assigned);
+                        }
+
                         if (_allTickets.TryGetValue(ticketId, out var ticket))
                         {
                             _allTickets[ticketId] = new Ticket
@@ -559,6 +682,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                         }
 
                         _ticketSolutions[ticketId] = content;
+
+                        if (_glpiStatusOverrides.ContainsKey(ticketId))
+                        {
+                            return 1;
+                        }
+
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(
+                            ticketId,
+                            (int)TicketStatus.Solved,
+                            SolvedAt: DateTime.UtcNow);
 
                         if (_allTickets.TryGetValue(ticketId, out var current))
                         {

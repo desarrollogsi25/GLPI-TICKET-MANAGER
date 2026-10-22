@@ -301,6 +301,37 @@ public sealed class TicketService : ITicketService
             }
         }
 
+        // BUG-032 / H-31: confirm the transition with GLPI.
+        //
+        // The writes above are only "attempted" until GLPI reports the resulting
+        // status back. Publishing an event with the requested status would tell the
+        // other sessions about a transition the server never applied (GLPI workflow
+        // rules can refuse it). The read-back failure is logged and never undoes a
+        // write that already succeeded.
+        GlpiTicketState? persistedState = null;
+        try
+        {
+            persistedState = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not confirm the status of ticket {TicketId} with GLPI", ticketId);
+        }
+
+        if (persistedState is not null && persistedState.Status != effectiveStatus)
+        {
+            _logger.LogWarning(
+                "GLPI reports ticket {TicketId} as status {PersistedStatus} but {RequestedStatus} was requested",
+                ticketId,
+                persistedState.Status,
+                effectiveStatus);
+        }
+
+        if (persistedState is not null)
+        {
+            effectiveStatus = persistedState.Status;
+        }
+
         if (status == (int)TicketStatus.Solved)
         {
             try
@@ -595,12 +626,18 @@ public sealed class TicketService : ITicketService
                 $"El ticket {ticketId} ya fue resuelto por otra operación.");
         }
 
-        // Read the state back: GLPI normally solved the ticket on its own. Only write
-        // the transition when it did not happen (defensive against other GLPI versions).
-        var afterSolution = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        // BUG-032 / H-31: read the state back FROM GLPI.
+        //
+        // Creating a solution normally solves the ticket on its own (GLPI 11), but that
+        // has to be confirmed against GLPI, not inferred from the MariaDB read model:
+        // the read model can still be showing the previous status, and GLPI workflow
+        // rules can refuse the transition.
+        var afterSolution = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
         var effectiveStatus = afterSolution?.Status ?? ticket.Status;
+
         if (effectiveStatus != (int)TicketStatus.Solved)
         {
+            // Defensive against GLPI versions that do not auto-solve on solution.
             await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Solved, cancellationToken);
             effectiveStatus = (int)TicketStatus.Solved;
         }
@@ -618,6 +655,24 @@ public sealed class TicketService : ITicketService
             _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
         }
 
+        // Confirm the final state with GLPI: until GLPI reports it back, the writes
+        // above are only "attempted". The response must describe what GLPI really
+        // holds, not what the code intended to write.
+        var finalState = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
+        if (finalState is not null)
+        {
+            if (finalState.Status != effectiveStatus)
+            {
+                _logger.LogWarning(
+                    "GLPI reports ticket {TicketId} as status {PersistedStatus} but {RequestedStatus} was requested",
+                    ticketId,
+                    finalState.Status,
+                    effectiveStatus);
+            }
+
+            effectiveStatus = finalState.Status;
+        }
+
         try
         {
             await _audit.LogAsync(userId, "resolve", ticketId, null, cancellationToken);
@@ -627,9 +682,11 @@ public sealed class TicketService : ITicketService
             _logger.LogWarning(ex, "Failed to record audit log for resolve on ticket {TicketId}", ticketId);
         }
 
+        var latest = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+
         try
         {
-            var assigneeId = (afterSolution ?? ticket).AssigneeIds?.FirstOrDefault();
+            var assigneeId = (latest ?? ticket).AssigneeIds?.FirstOrDefault();
             await _notifications.NotifyTicketStatusChangedAsync(ticketId, effectiveStatus, assigneeId, cancellationToken);
         }
         catch (Exception ex)
@@ -637,8 +694,38 @@ public sealed class TicketService : ITicketService
             _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for ticket {TicketId}", ticketId);
         }
 
-        var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
-        return (updated ?? ticket).ToDetail();
+        var detail = (latest ?? ticket).ToDetail();
+
+        return detail with
+        {
+            Status = effectiveStatus,
+            StatusLabel = TicketLabels.Status(effectiveStatus),
+            SolvedAt = finalState?.SolvedAt ?? detail.SolvedAt,
+            ClosedAt = finalState?.ClosedAt ?? detail.ClosedAt
+        };
+    }
+
+    /// <summary>
+    /// Reads the ticket state back from GLPI, tolerating a verification failure.
+    /// </summary>
+    /// <remarks>
+    /// BUG-032 / H-31: GLPI owns the status and the solutions of a ticket, so the only
+    /// reliable confirmation that a write landed is to ask GLPI. If GLPI cannot be
+    /// reached the caller keeps its previous assumption and the failure is logged: a
+    /// write that already succeeded must not be turned into an error because the
+    /// verification could not run.
+    /// </remarks>
+    private async Task<GlpiTicketState?> ReadStateFromGlpiAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not confirm the state of ticket {TicketId} with GLPI", ticketId);
+            return null;
+        }
     }
 
     /// <summary>

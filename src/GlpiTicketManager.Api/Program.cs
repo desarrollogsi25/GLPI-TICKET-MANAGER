@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -14,6 +15,7 @@ using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Infrastructure;
 using GlpiTicketManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using MySqlConnector;
 using Npgsql;
@@ -151,6 +153,43 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         });
     });
+
+    // BUG-032 / H-32: tell the client when it may retry.
+    //
+    // The 429 answers used to be empty, with no `Retry-After` header, so a client
+    // that polled too fast had no way to know how long to wait and simply retried,
+    // which kept the bucket empty. The header does not relax the policy in any way:
+    // the limits above stay exactly as they are.
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        TimeSpan retryAfter;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var metadata))
+        {
+            retryAfter = metadata;
+        }
+        else
+        {
+            // Fallback: the `Expensive` bucket refills one token per replenishment
+            // period, so that is the earliest a rejected request could succeed.
+            retryAfter = TimeSpan.FromSeconds(rateLimitOptions.ExpensiveReplenishmentSeconds);
+        }
+
+        var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+
+        context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "Demasiadas solicitudes",
+            Detail = $"Se alcanzó el límite de solicitudes. Intentá de nuevo en {seconds} s.",
+            Instance = context.HttpContext.Request.Path
+        };
+        problem.Extensions["retryAfterSeconds"] = seconds;
+
+        await context.HttpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
+    };
 });
 
 // ---- Error handling (ProblemDetails) ------------------------------------

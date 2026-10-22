@@ -20,6 +20,14 @@ const stateConfig = {
     label: 'Conectando al servidor...',
     badgeText: 'Conectando',
   },
+  // BUG-032 / H-32: a reconnect means the group subscription was lost and has to be
+  // restored, so the board falls back to polling until the hub is back.
+  reconnecting: {
+    color: 'bg-amber-500',
+    ping: 'bg-amber-400',
+    label: 'Reconectando al servidor...',
+    badgeText: 'Reconectando',
+  },
   disconnected: {
     color: 'bg-rose-500',
     ping: '',
@@ -36,7 +44,7 @@ export function ConnectionIndicator({
   const [effectiveState, setEffectiveState] = useState<ConnectionState>(state)
 
   useEffect(() => {
-    if (state === 'connected' || state === 'connecting') {
+    if (state === 'connected' || state === 'connecting' || state === 'reconnecting') {
       setEffectiveState(state)
       return
     }

@@ -357,7 +357,10 @@ export function Kanban() {
     groupsQuery.data?.find((group) => group.id === selectedGroupId)?.id ??
     (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null)
 
-  const queueQuery = useGroupQueueQuery(currentGroupId, 1500)
+  // BUG-032 / H-32: the queue is refreshed by SignalR. The hook only falls back to a
+  // slow poll (30 s) while the realtime connection is down, so the board no longer
+  // doubles the rate limit quota of `GET /tickets/by-group`.
+  const queueQuery = useGroupQueueQuery(currentGroupId)
   const myTicketsQuery = useTicketsQuery(currentUserId)
 
   const updateStatus = useUpdateTicketStatusMutation()
@@ -430,14 +433,16 @@ export function Kanban() {
   const [userSelectedTab, setUserSelectedTab] = useState<ColumnId | null>(null)
   const activeTab: ColumnId = userSelectedTab ?? defaultTab
 
-  // Auto-refresh en cola cada 30 segundos si la tab activa es 'queue'
-  useEffect(() => {
-    if (activeTab !== 'queue') return
-    const interval = setInterval(() => {
-      void queueQuery.refetch()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [activeTab, queueQuery])
+  // BUG-032 / H-32: there is no auto-refresh timer here any more.
+  //
+  // The board used to run its own `setInterval` that called `queueQuery.refetch()`
+  // every 30 s, unconditionally, even while SignalR was connected. That second
+  // poller was invisible in the query options and it kept hitting the protected
+  // `GET /tickets/by-group` endpoint for the whole session.
+  //
+  // The cadence now lives in a single place, `useGroupQueueQuery`, which only
+  // polls when the realtime connection is down (see QUEUE_FALLBACK_POLL_MS). While
+  // SignalR is connected the board is refreshed by the hub events.
 
   // Badge pulsante: detectar nuevos tickets en la cola
   const [lastSeenQueueCount, setLastSeenQueueCount] = useState<number>(() => {

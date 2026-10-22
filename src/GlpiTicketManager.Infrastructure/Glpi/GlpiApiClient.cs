@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Exceptions;
+using GlpiTicketManager.Application.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -112,6 +114,84 @@ public sealed class GlpiApiClient : IGlpiApiClient
         {
             await KillSessionAsync(sessionToken, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Reads the ticket state back from GLPI.
+    ///
+    /// BUG-032 / H-31: GLPI is the owner of the status and the solutions. After a
+    /// write, this is the only source that can confirm the change was persisted.
+    /// </summary>
+    public async Task<GlpiTicketState?> GetTicketStateAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"Ticket/{ticketId}");
+
+            request.Headers.TryAddWithoutValidation("Session-Token", sessionToken);
+            if (!string.IsNullOrWhiteSpace(_options.AppToken))
+            {
+                request.Headers.TryAddWithoutValidation("App-Token", _options.AppToken);
+            }
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    $"GLPI API returned {(int)response.StatusCode} for GET Ticket/{ticketId}.",
+                    body);
+            }
+
+            var ticket = await response.Content
+                .ReadFromJsonAsync<TicketStateResponse>(SerializerOptions, cancellationToken);
+
+            if (ticket is null || ticket.Status is null)
+            {
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    $"GLPI did not return a status for ticket {ticketId}.");
+            }
+
+            return new GlpiTicketState(
+                TicketId: ticket.Id ?? ticketId,
+                Status: ticket.Status.Value,
+                SolvedAt: ParseGlpiDate(ticket.SolvedAt),
+                ClosedAt: ParseGlpiDate(ticket.ClosedAt));
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Parses the date format GLPI uses in its REST payloads ("YYYY-MM-DD HH:MM:SS").
+    /// An empty or malformed value means "not set" and is reported as null.
+    /// </summary>
+    private static DateTime? ParseGlpiDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return DateTime.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : null;
     }
 
     public async Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken)
@@ -358,4 +438,14 @@ public sealed class GlpiApiClient : IGlpiApiClient
     private sealed record CreateItemResponse(
         [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("message")] string? Message);
+
+    /// <summary>
+    /// The shape of `GET Ticket/{id}` as GLPI 11 answers it. Only the fields the API
+    /// needs to confirm a write are modelled; GLPI sends many more.
+    /// </summary>
+    private sealed record TicketStateResponse(
+        [property: JsonPropertyName("id")] int? Id,
+        [property: JsonPropertyName("status")] int? Status,
+        [property: JsonPropertyName("solvedate")] string? SolvedAt,
+        [property: JsonPropertyName("closedate")] string? ClosedAt);
 }

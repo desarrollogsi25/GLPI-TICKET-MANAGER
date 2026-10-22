@@ -12,6 +12,8 @@ const STATUS_FALLBACK: Record<number, string> = {
   403: 'No tienes permiso para realizar esta acción.',
   409: 'El ticket ya no está en un estado que permita esta operación.',
   422: 'La solicitud no se pudo procesar. Revisá los datos e intentá de nuevo.',
+  // BUG-032 / H-32: the API answers 429 with a Retry-After header.
+  429: 'Se alcanzó el límite de solicitudes. Intentá de nuevo en unos segundos.',
 }
 
 const ERROR_TRANSLATIONS: Record<string, string> = {

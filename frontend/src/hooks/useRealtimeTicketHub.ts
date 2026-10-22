@@ -8,7 +8,16 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { queryKeys } from '@/lib/api/queryKeys'
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected'
+/**
+ * Lifecycle of the realtime connection.
+ *
+ * `reconnecting` is distinct from `connecting`: the first one means "the hub was
+ * working and we are recovering it" (the group membership is lost and has to be
+ * restored), the second one means "we are establishing the connection for the first
+ * time". BUG-032 / H-32 uses the distinction to decide when the Kanban is allowed to
+ * fall back to polling.
+ */
+export type ConnectionState = 'disconnected' | 'connecting' | 'reconnecting' | 'connected'
 
 export interface TicketClaimedPayload {
   ticketId: number
@@ -71,6 +80,17 @@ const stateListeners = new Set<(state: ConnectionState) => void>()
 const NEGOTIATION_RETRY_MS = 5000
 /** Timer handle for the pending negotiation retry, if any. */
 let negotiationRetryTimer: ReturnType<typeof setTimeout> | null = null
+/** Upper bound for waiting on a pending WebSocket handshake while stopping. */
+const REALTIME_STOP_TIMEOUT_MS = 5000
+/**
+ * The in-flight `connection.start()` handshake, if any.
+ *
+ * BUG-032 / H-32: the logout flow used to revoke the JWT while the WebSocket upgrade
+ * was still on the wire. The server answered that upgrade with `401` and the browser
+ * reported "HTTP Authentication failed" in the console. Keeping a handle on the
+ * handshake lets the logout flow close the socket on a clean boundary instead.
+ */
+let pendingStart: Promise<void> | null = null
 
 function clearNegotiationRetry() {
   if (negotiationRetryTimer !== null) {
@@ -91,6 +111,68 @@ function isAbortError(error: unknown): boolean {
 function updateConnectionState(newState: ConnectionState) {
   currentConnectionState = newState
   stateListeners.forEach((cb) => cb(newState))
+}
+
+/**
+ * Stops the shared realtime connection, waiting for a pending handshake to settle.
+ *
+ * BUG-032 / H-32: the session must be closed in the right order. The logout flow
+ * revokes the JWT, so any WebSocket upgrade still in flight would be rejected with
+ * `401` and the browser would log the failure as a console error the user never
+ * caused. Closing the socket FIRST removes that window.
+ *
+ * The handshake is awaited instead of being aborted on purpose: aborting a WebSocket
+ * mid-upgrade makes the browser log "WebSocket is closed before the connection was
+ * established", which is exactly the noise this function exists to remove.
+ */
+export async function stopRealtimeConnection(): Promise<void> {
+  const connection = sharedConnection
+  sharedConnection = null
+  sharedToken = null
+  clearNegotiationRetry()
+
+  if (!connection) return
+
+  const pending = pendingStart
+  if (pending) {
+    await Promise.race([
+      pending,
+      new Promise((resolve) => setTimeout(resolve, REALTIME_STOP_TIMEOUT_MS)),
+    ])
+  }
+
+  try {
+    await connection.stop()
+  } catch {
+    // The connection may already be closed: nothing else to do.
+  }
+  updateConnectionState('disconnected')
+}
+
+/**
+ * Subscribes to the state of the shared connection WITHOUT taking part in its
+ * lifecycle.
+ *
+ * `useRealtimeTicketHub` opens and closes the connection (it is reference counted),
+ * so components that only need to know whether realtime is alive use this hook
+ * instead. BUG-032 / H-32: the Kanban queue query reads this state to decide between
+ * "trust SignalR" and "fall back to polling".
+ */
+export function useRealtimeConnectionState(): ConnectionState {
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>(currentConnectionState)
+
+  useEffect(() => {
+    stateListeners.add(setConnectionState)
+    // The shared connection may have changed state between the render and this
+    // effect (e.g. it connected while this component was mounting).
+    setConnectionState(currentConnectionState)
+    return () => {
+      stateListeners.delete(setConnectionState)
+    }
+  }, [])
+
+  return connectionState
 }
 
 export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
@@ -158,8 +240,20 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
       if (disposed) return
       updateConnectionState('connecting')
 
-      connection
-        .start()
+      const start = connection.start()
+
+      // BUG-032: keep a handle on the handshake so `stopRealtimeConnection()` can wait
+      // for it to settle instead of aborting a WebSocket upgrade mid-flight.
+      const settled = start.then(
+        () => undefined,
+        () => undefined,
+      )
+      pendingStart = settled
+      void settled.then(() => {
+        if (pendingStart === settled) pendingStart = null
+      })
+
+      start
         .then(() => {
           if (disposed) return
           clearNegotiationRetry()
@@ -257,10 +351,30 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
       })
 
       connection.onreconnecting(() => {
-        updateConnectionState('connecting')
+        updateConnectionState('reconnecting')
       })
-      connection.onreconnected(() => {
+      connection.onreconnected(async () => {
         updateConnectionState('connected')
+
+        // A reconnected SignalR connection starts with NO group membership: the server
+        // dropped the subscription when the socket went down. Without re-joining, the
+        // board would silently stop receiving events for the group it is showing.
+        const groupId = optionsRef.current?.groupId ?? 1
+        try {
+          await connection.invoke('SubscribeToGroup', groupId)
+        } catch (error) {
+          console.warn('SignalR: could not re-subscribe to group', groupId, error)
+        }
+
+        // Events raised while the socket was down were never delivered. Reconciling
+        // the cached queue with the server closes that gap without resorting to the
+        // aggressive polling this incident removed.
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.tickets.byGroupQueue(groupId),
+          }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        ])
       })
       connection.onclose(() => {
         updateConnectionState('disconnected')
