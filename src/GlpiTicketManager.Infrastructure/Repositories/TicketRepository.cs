@@ -329,7 +329,7 @@ public sealed class TicketRepository : ITicketRepository
         using var connection = _connectionFactory.CreateConnection();
 
         var countCommand = new CommandDefinition(
-            "SELECT COUNT(*) FROM glpi_tickets t INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id WHERE gt.groups_id = @GroupId AND gt.type = 2 AND t.status = 1 AND t.is_deleted = 0 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2)",
+            "SELECT COUNT(*) FROM glpi_tickets t INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id WHERE gt.groups_id = @GroupId AND gt.type = 2 AND t.status IN (1, 2) AND t.is_deleted = 0 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2)",
             new { GroupId = groupId },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);

@@ -5,8 +5,8 @@ namespace GlpiTicketManager.Application.Dtos.Dashboard;
 /// Matches frontend GroupSummary interface in AdminDashboard.tsx.
 /// </summary>
 public sealed record GroupSummaryDto(
-    int GroupId,
+    long GroupId,
     string GroupName,
-    int TotalTickets,
-    int PendingTickets,
-    int ActiveTechnicians);
+    long TotalTickets,
+    long PendingTickets,
+    long ActiveTechnicians);

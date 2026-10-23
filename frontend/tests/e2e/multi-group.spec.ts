@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test.use({ storageState: 'tests/e2e/.auth/tech1.json' })
 
-test('multi-group: tech1 can access Hardware group', async ({ page }) => {
+test('multi-group: tech1 can access Desarrollo group', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
@@ -12,10 +12,10 @@ test('multi-group: tech1 can access Hardware group', async ({ page }) => {
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
-  // Check group selector shows Hardware
+  // tech1 belongs to Desarrollo first, so that is the default group.
   const groupSelect = page.getByLabel('Seleccionar grupo de soporte')
   if (await groupSelect.isVisible().catch(() => false)) {
-    await expect(groupSelect.locator('option:checked')).toHaveText('Hardware')
+    await expect(groupSelect.locator('option:checked')).toHaveText('Desarrollo')
   }
 
   // Check Kanban loads without errors
@@ -24,7 +24,7 @@ test('multi-group: tech1 can access Hardware group', async ({ page }) => {
   expect(consoleErrors).toEqual([])
 })
 
-test('multi-group: tech1 can switch to Call Center group', async ({ page }) => {
+test('multi-group: tech1 can switch to Service Desk group', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
@@ -34,11 +34,11 @@ test('multi-group: tech1 can switch to Call Center group', async ({ page }) => {
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
-  // Check group selector exists and switch to Call Center
+  // Check group selector exists and switch to Service Desk
   const groupSelect = page.getByLabel('Seleccionar grupo de soporte')
   if (await groupSelect.isVisible().catch(() => false)) {
-    await groupSelect.selectOption({ label: 'Call Center' })
-    await expect(groupSelect.locator('option:checked')).toHaveText('Call Center')
+    await groupSelect.selectOption({ label: 'Service Desk' })
+    await expect(groupSelect.locator('option:checked')).toHaveText('Service Desk')
     
     // Wait for queue to load
     await page.waitForResponse((r) => r.url().includes('/api/tickets/by-group') && r.status() === 200)

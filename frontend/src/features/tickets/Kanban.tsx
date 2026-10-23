@@ -982,7 +982,12 @@ export function Kanban() {
          ========================================================================= */}
       <div className="hidden md:block">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div
+            className="flex gap-4 overflow-x-auto pb-4"
+            role="region"
+            aria-label="Tablero Kanban"
+            tabIndex={0}
+          >
             {COLUMNS.map((column) => {
               const isLoading =
                 column.id === 'queue'

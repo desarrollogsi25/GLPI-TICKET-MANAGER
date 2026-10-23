@@ -472,9 +472,12 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
-        if (ticket.Status != (int)TicketStatus.New)
+        // A ticket routed to a group by a GLPI business rule is stored as
+        // "Assigned" (2) even though no technician owns it yet, so both 1 and 2
+        // are claimable as long as there is no technician link (checked below).
+        if (ticket.Status is not (int)TicketStatus.New and not (int)TicketStatus.Assigned)
         {
-            throw new ConflictException("El ticket debe estar en estado 'Nuevo' (1) y sin asignar.");
+            throw new ConflictException("El ticket debe estar en estado 'Nuevo' o 'Asignado' y sin técnico.");
         }
 
         var links = await _tickets.GetUsersForTicketsAsync(

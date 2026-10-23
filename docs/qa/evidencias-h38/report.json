@@ -1,0 +1,203 @@
+{
+  "startedAt": "2026-10-23T14:28:05.695Z",
+  "checks": [
+    {
+      "name": "tech_dev: el Kanban muestra solo el grupo Desarrollo",
+      "ok": true,
+      "detail": "Grupo: Desarrollo"
+    },
+    {
+      "name": "tech_dev: la campana abre el panel de notificaciones",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: el ticket #11 está en la cola de Desarrollo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: #11 se asigna con un clic",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: #11 pasa a En Progreso",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente: el modal exige motivo y comentario (Confirmar deshabilitado)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente: solo con motivo sigue deshabilitado",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente: con motivo + comentario se habilita",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente: POST /pending responde 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente: el comentario aparece en el seguimiento",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente → Resuelto bloqueado: botón Resolver deshabilitado",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente → Resuelto bloqueado: aviso en español visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Pendiente: «Retomar» devuelve el ticket a En Progreso",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Resuelto: el ticket se resuelve tras reanudar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Resuelto: #11 aparece en la columna Resuelto",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: sin errores 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: sin peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: sin errores de consola",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_bi: solo ve el grupo BI",
+      "ok": true,
+      "detail": "Grupo: BI"
+    },
+    {
+      "name": "tech_bi: el Kanban carga sin errores",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_bi: sin errores 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_bi: sin peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_bi: sin errores de consola",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: /equipo lista a tech_dev",
+      "ok": true,
+      "detail": "TécnicoTickets activosPendientesTicket actuallider_dev00—tech_dev00—"
+    },
+    {
+      "name": "lider_dev: /equipo no muestra \"Error al cargar\"",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: sin errores 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: sin peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: sin errores de consola",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: /administracion muestra Desarrollo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: /administracion muestra BI",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: /administracion muestra Service Desk",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: sin errores 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: sin peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: sin errores de consola",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "user_test: puede crear un ticket (201)",
+      "ok": true,
+      "detail": "{\"ticketId\":15}"
+    },
+    {
+      "name": "Enrutamiento: el ticket #15 de categoría \"software\" aparece en la cola de Desarrollo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "routing: sin errores 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "routing: sin peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "routing: sin errores de consola",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "failures": [],
+  "finishedAt": "2026-10-23T14:28:48.952Z",
+  "ok": true
+}

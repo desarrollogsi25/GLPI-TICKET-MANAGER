@@ -122,7 +122,17 @@ export function Detail() {
               <Button
                 size="sm"
                 variant="default"
-                disabled={ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                disabled={
+                  ticket.status === 4 ||
+                  ticket.status === 5 ||
+                  ticket.status === 6 ||
+                  updateStatus.isPending
+                }
+                title={
+                  ticket.status === 4
+                    ? 'Retoma el ticket (En Progreso) antes de resolverlo.'
+                    : undefined
+                }
                 onClick={() => setResolveOpen(true)}
               >
                 Resolver
@@ -160,7 +170,8 @@ export function Detail() {
                     disabled={
                       option.value === ticket.status ||
                       updateStatus.isPending ||
-                      isBackwardBlocked
+                      isBackwardBlocked ||
+                      (ticket.status === 4 && option.value === 5)
                     }
                     onClick={() => {
                       if (option.value === 5) {
@@ -174,6 +185,11 @@ export function Detail() {
                   </Button>
                 )
               })}
+              {ticket.status === 4 && (
+                <p className="w-full text-xs text-muted-foreground">
+                  Ticket en Pendiente: usa «Retomar» para volver a En Progreso antes de resolverlo.
+                </p>
+              )}
             </CardContent>
           </Card>
 

@@ -35,7 +35,7 @@ public static class DashboardQueries
 
     public const string AdminGroupSummaries = """
         SELECT
-            CAST(g.id AS SIGNED) AS GroupId,
+            CAST(g.id AS INT) AS GroupId,
             g.name               AS GroupName,
             CAST(COALESCE((
                 SELECT COUNT(1)
@@ -44,7 +44,7 @@ public static class DashboardQueries
                 WHERE gt.groups_id = g.id
                   AND gt.type = 2
                   AND t.is_deleted = 0
-            ), 0) AS SIGNED) AS TotalTickets,
+            ), 0) AS INT) AS TotalTickets,
             CAST(COALESCE((
                 SELECT COUNT(1)
                 FROM glpi_groups_tickets gt
@@ -53,14 +53,14 @@ public static class DashboardQueries
                   AND gt.type = 2
                   AND t.status = 4
                   AND t.is_deleted = 0
-            ), 0) AS SIGNED) AS PendingTickets,
+            ), 0) AS INT) AS PendingTickets,
             CAST(COALESCE((
                 SELECT COUNT(DISTINCT gu.users_id)
                 FROM glpi_groups_users gu
                 INNER JOIN glpi_users u ON u.id = gu.users_id
                 WHERE gu.groups_id = g.id
                   AND u.is_deleted = 0
-            ), 0) AS SIGNED) AS ActiveTechnicians
+            ), 0) AS INT) AS ActiveTechnicians
         FROM glpi_groups g
         WHERE g.is_assign = 1
         ORDER BY g.name ASC;

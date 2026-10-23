@@ -4,12 +4,12 @@ import { resolve } from 'node:path'
 
 const GLPI = process.env.E2E_GLPI_URL ?? 'http://localhost:8081'
 const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
-const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante_test'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Soli123!'
-const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tecnico_test1'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Tec123!'
+const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
+const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_sd'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin_test'
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Admin123!'
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Password123!'
 
 test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }) => {
   test.setTimeout(120000)
@@ -36,7 +36,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
       const response = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${stored.state?.accessToken}` },
-        body: JSON.stringify({ title: ticketTitle, description: 'Prueba completa del flujo de Hardware.', urgency: 3, categoryId: 11 }),
+        body: JSON.stringify({ title: ticketTitle, description: 'Prueba completa del flujo de Hardware.', urgency: 3, categoryId: 16 }),
       })
       return { status: response.status, body: await response.json() }
     }, title)
@@ -70,16 +70,16 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await page.locator('input[name="password"]').fill(TECH_PASSWORD)
   await page.locator('button[type="submit"]').click()
   await page.waitForURL(/kanban|dashboard|tickets|queue/, { timeout: 20000 })
-  await page.goto(`${DESK}/queue?groupId=7`)
+  await page.goto(`${DESK}/queue?groupId=3`)
   const groupPicker = page.getByLabel('Seleccionar grupo de soporte').first()
   if (await groupPicker.isVisible().catch(() => false)) {
-    const hardwareGroupId = await groupPicker.locator('option').filter({ hasText: /^Hardware$/ }).getAttribute('value')
-    expect(hardwareGroupId).toBeTruthy()
+    const serviceDeskGroupId = await groupPicker.locator('option').filter({ hasText: /^Service Desk$/ }).getAttribute('value')
+    expect(serviceDeskGroupId).toBeTruthy()
     const hardwareQueueResponse = page.waitForResponse(response =>
-      response.url().includes('/api/tickets/by-group') && response.url().includes(`groupId=${hardwareGroupId}`),
+      response.url().includes('/api/tickets/by-group') && response.url().includes(`groupId=${serviceDeskGroupId}`),
     )
-    await groupPicker.selectOption(hardwareGroupId!)
-    await expect(groupPicker.locator('option:checked')).toHaveText('Hardware')
+    await groupPicker.selectOption(serviceDeskGroupId!)
+    await expect(groupPicker.locator('option:checked')).toHaveText('Service Desk')
     expect((await hardwareQueueResponse).ok()).toBeTruthy()
   } else {
     await expect(page.getByTestId('technician-group-label').first()).toBeVisible()
@@ -163,11 +163,11 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await techPage.locator('input[name="password"]').fill(TECH_PASSWORD)
   await techPage.locator('button[type="submit"]').click()
   await techPage.waitForURL(/kanban|dashboard|tickets|queue/)
-  await techPage.goto(`${DESK}/kanban?groupId=7`)
+  await techPage.goto(`${DESK}/kanban?groupId=3`)
   const realtimeGroupPicker = techPage.getByLabel('Seleccionar grupo de soporte').first()
   if (await realtimeGroupPicker.isVisible().catch(() => false)) {
-    await realtimeGroupPicker.selectOption({ label: 'Hardware' })
-    await expect(realtimeGroupPicker.locator('option:checked')).toHaveText('Hardware')
+    await realtimeGroupPicker.selectOption({ label: 'Service Desk' })
+    await expect(realtimeGroupPicker.locator('option:checked')).toHaveText('Service Desk')
   } else {
     await expect(techPage.getByTestId('technician-group-label').first()).toBeVisible()
   }
@@ -177,7 +177,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const realtimeTitle = `E2E SignalR ${Date.now()}`
   const created = await requesterPage.evaluate(async ticketTitle => {
     const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
-    const response = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${stored.state?.accessToken}` }, body: JSON.stringify({ title: ticketTitle, description: 'SignalR journey', urgency: 3, categoryId: 11 }) })
+    const response = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${stored.state?.accessToken}` }, body: JSON.stringify({ title: ticketTitle, description: 'SignalR journey', urgency: 3, categoryId: 16 }) })
     return { status: response.status, body: await response.json() }
   }, realtimeTitle)
   expect(created.status).toBe(201)

@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test'
 
 const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
-const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_hardware'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Tech1Pass!'
-const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Tech1Pass!'
+const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_dev'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
+const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
 
 test('realtime: connection indicator connects and maintains real-time link across contexts', async ({ browser }) => {
   test.setTimeout(90000)
@@ -15,11 +15,11 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await pageA.locator('input[name="password"]').fill(TECH_PASSWORD)
   await pageA.locator('button[type="submit"]').click()
   await pageA.waitForURL(/kanban|dashboard|tickets|queue/)
-  await pageA.goto(`${DESK}/kanban?groupId=7`)
+  await pageA.goto(`${DESK}/kanban?groupId=1`)
   const kanbanGroup = pageA.getByLabel('Seleccionar grupo de soporte')
   if (await kanbanGroup.isVisible().catch(() => false)) {
-    await kanbanGroup.selectOption({ label: 'Hardware' })
-    await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
+    await kanbanGroup.selectOption({ label: 'Desarrollo' })
+    await expect(kanbanGroup.locator('option:checked')).toHaveText('Desarrollo')
   }
 
   const contextB = await browser.newContext({ storageState: { cookies: [], origins: [] } })
@@ -46,8 +46,8 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await pageB.goto(`${DESK}/tickets`)
   await pageB.waitForLoadState('networkidle')
   if (await kanbanGroup.isVisible().catch(() => false)) {
-    await kanbanGroup.selectOption({ label: 'Hardware' })
-    await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')
+    await kanbanGroup.selectOption({ label: 'Desarrollo' })
+    await expect(kanbanGroup.locator('option:checked')).toHaveText('Desarrollo')
   }
   const title = `E2E SignalR requester ${Date.now()}`
   const created = await pageB.evaluate(async (ticketTitle) => {
@@ -73,7 +73,7 @@ test('realtime: connection indicator connects and maintains real-time link acros
   const ticketId = created.body.ticketId as number
   const selectedGroupId = await kanbanGroup.isVisible().catch(() => false)
     ? Number(await kanbanGroup.locator('option:checked').getAttribute('value'))
-    : 7
+    : 1
   // GLPI can persist the assignment link shortly after the API returns; poll the
   // queue until the fixture reaches the assigned group, without a blind sleep.
   await expect.poll(async () => pageA.evaluate(async ({ groupId, id }) => {
