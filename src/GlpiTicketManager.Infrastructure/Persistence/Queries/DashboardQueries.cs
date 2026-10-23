@@ -7,21 +7,22 @@ public static class DashboardQueries
 {
     public const string TeamMembersByGroup = """
         SELECT
-            CAST(u.id AS SIGNED) AS UserId,
+            CAST(u.id AS INT) AS UserId,
             u.name               AS Name,
-            CAST(COALESCE(SUM(CASE WHEN t.status IN (2, 3) AND t.is_deleted = 0 THEN 1 ELSE 0 END), 0) AS SIGNED) AS ActiveTickets,
-            CAST(COALESCE(SUM(CASE WHEN t.status = 4 AND t.is_deleted = 0 THEN 1 ELSE 0 END), 0) AS SIGNED)       AS PendingTickets,
-            (
-                SELECT t2.id
-                FROM glpi_tickets t2
-                INNER JOIN glpi_tickets_users tu2 ON tu2.tickets_id = t2.id
-                WHERE tu2.users_id = u.id
-                  AND tu2.type = 2
-                  AND t2.status IN (2, 3)
-                  AND t2.is_deleted = 0
-                ORDER BY t2.date_mod DESC, t2.id DESC
-                LIMIT 1
-            ) AS CurrentTicketId
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (2, 3) AND t.is_deleted = 0 THEN 1 ELSE 0 END), 0) AS INT) AS ActiveTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 4 AND t.is_deleted = 0 THEN 1 ELSE 0 END), 0) AS INT)       AS PendingTickets,
+            CAST(
+                COALESCE((
+                    SELECT CAST(t2.id AS SIGNED)
+                    FROM glpi_tickets t2
+                    INNER JOIN glpi_tickets_users tu2 ON tu2.tickets_id = t2.id
+                    WHERE tu2.users_id = u.id
+                      AND tu2.type = 2
+                      AND t2.status IN (2, 3)
+                      AND t2.is_deleted = 0
+                    ORDER BY t2.date_mod DESC, t2.id DESC
+                    LIMIT 1
+                ), 0) AS SIGNED) AS CurrentTicketId
         FROM glpi_groups_users gu
         INNER JOIN glpi_users u ON u.id = gu.users_id
         LEFT JOIN glpi_tickets_users tu ON tu.users_id = u.id AND tu.type = 2

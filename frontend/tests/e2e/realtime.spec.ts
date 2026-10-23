@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test'
 
 const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
-const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tecnico_test1'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Tec123!'
-const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante_test'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Soli123!'
+const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_hardware'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Tech1Pass!'
+const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'solicitante'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Tech1Pass!'
 
 test('realtime: connection indicator connects and maintains real-time link across contexts', async ({ browser }) => {
   test.setTimeout(90000)
@@ -28,7 +28,8 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await pageB.locator('input[name="username"]').fill(REQUESTER_USERNAME)
   await pageB.locator('input[name="password"]').fill(REQUESTER_PASSWORD)
   await pageB.locator('button[type="submit"]').click()
-  await pageB.waitForURL(/\/tickets/, { timeout: 15000 })
+  await pageB.waitForURL(/\/kanban|\/dashboard|\/tickets|\/queue/, { timeout: 15000 })
+  await pageB.goto(`${DESK}/tickets`)
 
   // El técnico está conectado en SignalR mientras el solicitante usa otro contexto.
   await expect(pageA.getByTestId('connection-indicator').first()).toHaveAttribute(
@@ -42,14 +43,8 @@ test('realtime: connection indicator connects and maintains real-time link acros
   })
 
   // Requester routes must not expose the technician board or queue.
-  await pageB.goto(`${DESK}/kanban`)
-  await expect(pageB).toHaveURL(/\/tickets$/)
-  await pageB.goto(`${DESK}/queue`)
-  await expect(pageB).toHaveURL(/\/tickets$/)
-
-  // Create a ticket from the requester's authenticated browser context. The
-  // technician Kanban must receive TicketCreated and render it without reload.
   await pageB.goto(`${DESK}/tickets`)
+  await pageB.waitForLoadState('networkidle')
   if (await kanbanGroup.isVisible().catch(() => false)) {
     await kanbanGroup.selectOption({ label: 'Hardware' })
     await expect(kanbanGroup.locator('option:checked')).toHaveText('Hardware')

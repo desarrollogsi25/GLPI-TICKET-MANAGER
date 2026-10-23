@@ -1,0 +1,1 @@
+UPDATE glpi_users SET password = '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW' WHERE id = 10;

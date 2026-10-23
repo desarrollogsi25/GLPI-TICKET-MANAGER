@@ -5,8 +5,8 @@ namespace GlpiTicketManager.Application.Dtos.Dashboard;
 /// Matches frontend TeamMember interface in TeamDashboard.tsx.
 /// </summary>
 public sealed record TeamMemberDto(
-    int UserId,
+    long UserId,
     string Name,
-    int ActiveTickets,
-    int PendingTickets,
-    int? CurrentTicketId);
+    long ActiveTickets,
+    long PendingTickets,
+    long? CurrentTicketId);
