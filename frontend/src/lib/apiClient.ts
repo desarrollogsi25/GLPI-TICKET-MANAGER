@@ -5,6 +5,7 @@ import { useToastStore } from '@/store/toastStore'
 
 let lastNetworkToastTime = 0
 let lastRateLimitToastTime = 0
+let isRedirecting401 = false
 
 /**
  * Single axios instance for the whole app.
@@ -23,9 +24,11 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token
+  const state = useAuthStore.getState()
+  const token = state.accessToken ?? state.token
 
   if (token) {
+    isRedirecting401 = false
     config.headers.Authorization = `Bearer ${token}`
   }
 
@@ -37,7 +40,17 @@ apiClient.interceptors.response.use(
   (error) => {
     // A rejected token means the session is no longer usable.
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      useAuthStore.getState().clear()
+      const requestUrl = error.config?.url ?? ''
+      const isAuthEndpoint =
+        requestUrl.includes('/auth/login') || requestUrl.includes('/auth/logout')
+
+      if (!isAuthEndpoint && !isRedirecting401) {
+        isRedirecting401 = true
+        useAuthStore.getState().clear()
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.history.replaceState(null, '', '/login')
+        }
+      }
     }
 
     // BUG-032 / H-32: a 429 is a rate-limit rejection, NOT an authentication

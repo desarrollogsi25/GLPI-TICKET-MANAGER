@@ -63,11 +63,12 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var members = await response.Content.ReadFromJsonAsync<List<TeamMemberDto>>();
-        members.Should().NotBeNull();
-        members!.Should().HaveCount(2);
-        members!.Select(m => m.Name).Should().Contain(new[] { "Technician 1", "Technician 2" });
-        members!.First(m => m.UserId == CustomWebApplicationFactory.Tech1Id).ActiveTickets.Should().Be(1);
+        var dashboard = await response.Content.ReadFromJsonAsync<GroupDashboardDto>();
+        dashboard.Should().NotBeNull();
+        dashboard!.TotalTickets.Should().Be(4);
+        dashboard.Technicians.Should().HaveCount(2);
+        dashboard.Technicians.Select(m => m.Name).Should().Contain(new[] { "Technician 1", "Technician 2" });
+        dashboard.Technicians.First(m => m.UserId == CustomWebApplicationFactory.Tech1Id).ActiveTickets.Should().Be(1);
     }
 
     [Fact]
@@ -94,10 +95,11 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var members = await response.Content.ReadFromJsonAsync<List<TeamMemberDto>>();
-        members.Should().NotBeNull();
-        members!.Should().HaveCount(1);
-        members!.First().UserId.Should().Be(CustomWebApplicationFactory.Tech2Id);
+        var dashboard = await response.Content.ReadFromJsonAsync<GroupDashboardDto>();
+        dashboard.Should().NotBeNull();
+        dashboard!.TotalTickets.Should().Be(2);
+        dashboard.Technicians.Should().HaveCount(1);
+        dashboard.Technicians.First().UserId.Should().Be(CustomWebApplicationFactory.Tech2Id);
     }
 
     [Fact]

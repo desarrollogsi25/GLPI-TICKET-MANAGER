@@ -19,6 +19,12 @@ interface DialogProps {
 export function Dialog({ open, onClose, title, description, children, className }: DialogProps) {
   const prefersReduced = useReducedMotion()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  // Keep the latest onClose reference without triggering effect re-runs
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) {
@@ -28,7 +34,7 @@ export function Dialog({ open, onClose, title, description, children, className 
     const timeout = setTimeout(() => {
       if (dialogRef.current) {
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
         if (focusables.length > 0) {
           focusables[0].focus()
@@ -38,15 +44,15 @@ export function Dialog({ open, onClose, title, description, children, className 
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
 
       if (event.key === 'Tab' && dialogRef.current) {
         const focusables = Array.from(
           dialogRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ),
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
         )
         if (focusables.length === 0) return
 
@@ -72,7 +78,7 @@ export function Dialog({ open, onClose, title, description, children, className 
       clearTimeout(timeout)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, onClose])
+  }, [open])
 
   return (
     <AnimatePresence>

@@ -130,7 +130,7 @@ export function Detail() {
                 }
                 title={
                   ticket.status === 4
-                    ? 'Retoma el ticket (En Progreso) antes de resolverlo.'
+                    ? 'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.'
                     : undefined
                 }
                 onClick={() => setResolveOpen(true)}
@@ -175,6 +175,11 @@ export function Detail() {
                       // Resolver (5) and Cerrar (6) must be rejected up front.
                       (ticket.status === 4 && option.value >= 5)
                     }
+                    title={
+                      ticket.status === 4 && option.value >= 5
+                        ? 'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.'
+                        : undefined
+                    }
                     onClick={() => {
                       if (option.value === 5) {
                         setResolveOpen(true)
@@ -189,7 +194,7 @@ export function Detail() {
               })}
               {ticket.status === 4 && (
                 <p className="w-full text-xs text-muted-foreground">
-                  Ticket en Pendiente: usa «Retomar» para volver a En Progreso antes de resolverlo.
+                  No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.
                 </p>
               )}
             </CardContent>

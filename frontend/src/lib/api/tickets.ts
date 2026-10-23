@@ -3,7 +3,10 @@ import type {
   PagedResult,
   TicketSummary,
   TeamMember,
+  GroupDashboard,
   GroupSummary,
+  CreateTicketRequest,
+  CreateTicketResponse,
 } from '@/lib/api/types'
 
 export interface TicketListParams {
@@ -85,8 +88,25 @@ export async function putPendingTicket(id: number, payload: PutPendingRequest): 
   return data
 }
 
-export async function getTeamDashboard(groupId: number): Promise<TeamMember[]> {
-  const { data } = await apiClient.get<TeamMember[]>(`/groups/${groupId}/dashboard`)
+export async function createTicket(payload: CreateTicketRequest): Promise<CreateTicketResponse> {
+  const { data } = await apiClient.post<CreateTicketResponse>('/tickets', payload)
+  return data
+}
+
+export async function getTeamDashboard(groupId: number): Promise<GroupDashboard> {
+  const { data } = await apiClient.get<GroupDashboard | TeamMember[]>(`/groups/${groupId}/dashboard`)
+  if (Array.isArray(data)) {
+    return {
+      totalTickets: 0,
+      queuedTickets: 0,
+      assignedTickets: 0,
+      inProgressTickets: 0,
+      pendingTickets: 0,
+      resolvedTickets: 0,
+      closedTickets: 0,
+      technicians: data,
+    }
+  }
   return data
 }
 

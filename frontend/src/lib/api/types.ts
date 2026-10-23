@@ -136,11 +136,36 @@ export interface Service {
 }
 
 export interface TeamMember {
+  id?: number
   userId: number
   name: string
   activeTickets: number
   pendingTickets: number
+  resolvedToday?: number
   currentTicketId: number | null
+  currentTicket?: number | null
+}
+
+export interface GroupDashboard {
+  totalTickets: number
+  queuedTickets: number
+  assignedTickets: number
+  inProgressTickets: number
+  pendingTickets: number
+  resolvedTickets: number
+  closedTickets: number
+  technicians: TeamMember[]
+}
+
+export interface CreateTicketRequest {
+  title: string
+  description: string
+  urgency?: number
+  categoryId?: number | null
+}
+
+export interface CreateTicketResponse {
+  ticketId: number
 }
 
 export interface GroupSummary {

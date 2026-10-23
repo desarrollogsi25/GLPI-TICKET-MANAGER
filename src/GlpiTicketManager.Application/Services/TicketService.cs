@@ -32,6 +32,8 @@ public sealed class TicketService : ITicketService
     private readonly IAuditRepository _audit;
     private readonly ITicketAccessPolicy _accessPolicy;
     private readonly ITicketNotificationService _notifications;
+    private readonly INotificationService? _persistentNotifications;
+    private readonly IDashboardRepository? _dashboard;
     private readonly ILogger<TicketService> _logger;
 
     public TicketService(
@@ -40,7 +42,9 @@ public sealed class TicketService : ITicketService
         IAuditRepository audit,
         ITicketAccessPolicy accessPolicy,
         ITicketNotificationService notifications,
-        ILogger<TicketService> logger)
+        ILogger<TicketService> logger,
+        INotificationService? persistentNotifications = null,
+        IDashboardRepository? dashboard = null)
     {
         _tickets = tickets;
         _glpi = glpi;
@@ -48,6 +52,8 @@ public sealed class TicketService : ITicketService
         _accessPolicy = accessPolicy;
         _notifications = notifications;
         _logger = logger;
+        _persistentNotifications = persistentNotifications;
+        _dashboard = dashboard;
     }
 
     public Task<PagedResult<TicketSummaryDto>> GetByAssigneeAsync(
@@ -1009,6 +1015,16 @@ public sealed class TicketService : ITicketService
             ? await _tickets.GetAssignmentGroupForCategoryAsync(categoryId.Value, cancellationToken)
             : null;
 
+        if (assignmentGroupId is null or <= 0)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(requesterUserId, cancellationToken);
+            assignmentGroupId = userGroups.FirstOrDefault();
+            if (assignmentGroupId <= 0)
+            {
+                assignmentGroupId = 1; // Default fallback group (Desarrollo)
+            }
+        }
+
         var ticketId = await _glpi.CreateTicketAsync(
             title,
             description ?? string.Empty,
@@ -1018,12 +1034,35 @@ public sealed class TicketService : ITicketService
             assignmentGroupId,
             cancellationToken);
 
-        // Notify SignalR clients about the newly created ticket (Clients.All)
+        // Notify SignalR clients and create persistent notifications for the group's technicians
         try
         {
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
-            var groupId = ticketGroups.FirstOrDefault();
-            await _notifications.NotifyTicketCreatedAsync(ticketId, groupId > 0 ? groupId : assignmentGroupId, cancellationToken);
+            var effectiveGroupId = ticketGroups.FirstOrDefault() > 0 ? ticketGroups.First() : (assignmentGroupId ?? 1);
+
+            if (_persistentNotifications is not null && _dashboard is not null && effectiveGroupId > 0)
+            {
+                var techIds = await _dashboard.GetTechnicianUserIdsInGroupAsync(effectiveGroupId, cancellationToken);
+                foreach (var techId in techIds)
+                {
+                    try
+                    {
+                        await _persistentNotifications.CreateAsync(
+                            techId,
+                            "TicketCreated",
+                            ticketId,
+                            $"Nuevo ticket #{ticketId}",
+                            $"Se ha asignado el ticket '{title}' a tu grupo.",
+                            cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create persistent notification for technician {TechId}", techId);
+                    }
+                }
+            }
+
+            await _notifications.NotifyTicketCreatedAsync(ticketId, effectiveGroupId, cancellationToken);
         }
         catch (Exception ex)
         {

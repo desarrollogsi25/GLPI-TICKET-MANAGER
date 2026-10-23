@@ -28,6 +28,7 @@ public sealed record GlpiTicketGroupInfo
 public interface IDashboardRepository
 {
     Task<IReadOnlyList<TeamMemberDto>> GetTeamMembersByGroupAsync(int groupId, CancellationToken ct = default);
+    Task<GroupDashboardDto> GetGroupDashboardAsync(int groupId, CancellationToken ct = default);
     Task<IReadOnlyList<GroupSummaryDto>> GetAdminGroupSummariesAsync(CancellationToken ct = default);
     Task<GlpiTicketGroupInfo?> GetTicketGroupAssignmentAsync(int ticketId, CancellationToken ct = default);
     Task<IReadOnlyList<int>> GetTechnicianUserIdsInGroupAsync(int groupId, CancellationToken ct = default);

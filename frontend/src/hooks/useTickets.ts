@@ -13,6 +13,7 @@ import {
   reopenTicket,
   resolveTicket,
   putPendingTicket,
+  createTicket,
   getTeamDashboard,
   getAdminDashboard,
 } from '@/lib/api/tickets'
@@ -31,6 +32,7 @@ export interface TicketFilters {
 }
 
 export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilters) {
+  const sessionValid = useIsSessionValid()
   const filters: TicketFilters =
     typeof filtersOrAssigneeId === 'object' && filtersOrAssigneeId !== null
       ? filtersOrAssigneeId
@@ -58,15 +60,16 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
         limit: TICKETS_PAGE_LIMIT,
         offset: 0,
       }),
-    enabled: hasFilter && enabled,
+    enabled: hasFilter && enabled && sessionValid,
   })
 }
 
 export function useTicketQuery(ticketId: number) {
+  const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: queryKeys.tickets.detail(ticketId),
     queryFn: () => getTicket(ticketId),
-    enabled: Number.isInteger(ticketId) && ticketId > 0,
+    enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
 
@@ -96,17 +99,21 @@ export function useUpdateTicketStatusMutation() {
 }
 
 export function useGroupsQuery() {
+  const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: queryKeys.groups.all,
     queryFn: listGroups,
+    enabled: sessionValid,
     staleTime: 5 * 60_000,
   })
 }
 
 export function useChannelsQuery() {
+  const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: queryKeys.channels.all,
     queryFn: listChannels,
+    enabled: sessionValid,
     staleTime: 5 * 60_000,
   })
 }
@@ -227,17 +234,35 @@ export function usePutPendingMutation() {
   })
 }
 
+export function useCreateTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { title: string; description: string; urgency?: number; categoryId?: number | null }) =>
+      createTicket(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateTicketCaches(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['groups', 'dashboard'] }, { cancelRefetch: false }),
+        queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] }, { cancelRefetch: false }),
+      ])
+    },
+  })
+}
+
 export function useTeamDashboardQuery(groupId: number | null) {
+  const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: ['groups', 'dashboard', groupId],
     queryFn: () => getTeamDashboard(groupId as number),
-    enabled: groupId != null && groupId > 0,
+    enabled: groupId != null && groupId > 0 && sessionValid,
   })
 }
 
 export function useAdminDashboardQuery() {
+  const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: ['admin', 'dashboard'],
     queryFn: getAdminDashboard,
+    enabled: sessionValid,
   })
 }

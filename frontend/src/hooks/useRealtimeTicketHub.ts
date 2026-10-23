@@ -121,6 +121,8 @@ const REALTIME_INVALIDATION_MIN_INTERVAL_MS = 1000
 
 let invalidationTimer: ReturnType<typeof setTimeout> | null = null
 let invalidationQueryClient: QueryClient | null = null
+const subscribedGroupIds = new Set<number>()
+let pendingNotificationsInvalidation = false
 let pendingTicketsInvalidation = false
 let pendingDashboardInvalidation = false
 let firstPendingAt = 0
@@ -131,10 +133,12 @@ function flushRealtimeInvalidation() {
   const client = invalidationQueryClient
   const tickets = pendingTicketsInvalidation
   const dashboard = pendingDashboardInvalidation
+  const notifications = pendingNotificationsInvalidation
   pendingTicketsInvalidation = false
   pendingDashboardInvalidation = false
+  pendingNotificationsInvalidation = false
   firstPendingAt = 0
-  if (!client || (!tickets && !dashboard)) return
+  if (!client || (!tickets && !dashboard && !notifications)) return
 
   lastFlushAt = Date.now()
   // `queryKeys.tickets.all` is a prefix of the detail, list, assignee and group-queue
@@ -145,6 +149,11 @@ function flushRealtimeInvalidation() {
   }
   if (dashboard) {
     void client.invalidateQueries({ queryKey: ['dashboard'] }, { cancelRefetch: false })
+    void client.invalidateQueries({ queryKey: ['groups', 'dashboard'] }, { cancelRefetch: false })
+    void client.invalidateQueries({ queryKey: ['admin', 'dashboard'] }, { cancelRefetch: false })
+  }
+  if (notifications) {
+    void client.invalidateQueries({ queryKey: ['notifications'] }, { cancelRefetch: false })
   }
 }
 
@@ -154,11 +163,12 @@ function flushRealtimeInvalidation() {
  */
 export function scheduleRealtimeInvalidation(
   client: QueryClient,
-  scope: { tickets?: boolean; dashboard?: boolean },
+  scope: { tickets?: boolean; dashboard?: boolean; notifications?: boolean },
 ) {
   invalidationQueryClient = client
   if (scope.tickets) pendingTicketsInvalidation = true
   if (scope.dashboard) pendingDashboardInvalidation = true
+  if (scope.notifications) pendingNotificationsInvalidation = true
 
   const now = Date.now()
   if (firstPendingAt === 0) firstPendingAt = now
@@ -182,6 +192,7 @@ function cancelRealtimeInvalidation() {
   }
   pendingTicketsInvalidation = false
   pendingDashboardInvalidation = false
+  pendingNotificationsInvalidation = false
   firstPendingAt = 0
 }
 
@@ -295,8 +306,11 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
   // Suscripción dinámica al grupo cuando cambia el groupId en la UI
   useEffect(() => {
     const gid = options?.groupId
-    if (gid && sharedConnection && currentConnectionState === 'connected') {
-      sharedConnection.invoke('SubscribeToGroup', gid).catch(() => {})
+    if (gid && gid > 0) {
+      subscribedGroupIds.add(gid)
+      if (sharedConnection && currentConnectionState === 'connected') {
+        sharedConnection.invoke('SubscribeToGroup', gid).catch(() => {})
+      }
     }
   }, [options?.groupId])
 
@@ -347,8 +361,14 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
           if (disposed) return
           clearNegotiationRetry()
           updateConnectionState('connected')
-          const initialGroup = optionsRef.current?.groupId ?? 1
-          connection.invoke('SubscribeToGroup', initialGroup).catch(() => {})
+          const initialGroup = optionsRef.current?.groupId
+          if (initialGroup && initialGroup > 0) {
+            subscribedGroupIds.add(initialGroup)
+          }
+          const groupsToSubscribe = subscribedGroupIds.size > 0 ? Array.from(subscribedGroupIds) : [1]
+          groupsToSubscribe.forEach((gid) => {
+            connection.invoke('SubscribeToGroup', gid).catch(() => {})
+          })
         })
         .catch((err) => {
           if (disposed) return
@@ -398,34 +418,47 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         .build()
 
       // Eventos
-      // H-36: handlers only mark caches dirty; the refetch is debounced (see
+      // H-36 / H-40: handlers mark caches dirty; the refetch is debounced (see
       // `scheduleRealtimeInvalidation`) so an event burst yields a single request.
       connection.on('TicketCreated', (payload: TicketCreatedPayload) => {
-        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
+        scheduleRealtimeInvalidation(queryClient, {
+          tickets: true,
+          dashboard: true,
+          notifications: true,
+        })
         activeListeners.forEach((l) =>
           l.onTicketCreated?.(payload.ticketId, payload.groupId),
         )
       })
 
       connection.on('TicketClaimed', (payload: TicketClaimedPayload) => {
-        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
+        scheduleRealtimeInvalidation(queryClient, {
+          tickets: true,
+          dashboard: true,
+          notifications: true,
+        })
         activeListeners.forEach((l) =>
           l.onTicketClaimed?.(payload.ticketId, payload.groupId),
         )
       })
 
       connection.on('TicketStatusChanged', (payload: TicketStatusChangedPayload) => {
-        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
+        scheduleRealtimeInvalidation(queryClient, {
+          tickets: true,
+          dashboard: true,
+          notifications: true,
+        })
         activeListeners.forEach((l) =>
           l.onTicketStatusChanged?.(payload.ticketId, payload.newStatus),
         )
       })
 
       connection.on('SolutionAdded', () => {
-        scheduleRealtimeInvalidation(queryClient, { tickets: true })
+        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
       })
 
       connection.on('NotificationReceived', () => {
+        void queryClient.invalidateQueries({ queryKey: ['notifications'] })
         activeListeners.forEach((l) => l.onNotificationReceived?.())
       })
 
@@ -438,17 +471,27 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         // A reconnected SignalR connection starts with NO group membership: the server
         // dropped the subscription when the socket went down. Without re-joining, the
         // board would silently stop receiving events for the group it is showing.
-        const groupId = optionsRef.current?.groupId ?? 1
-        try {
-          await connection.invoke('SubscribeToGroup', groupId)
-        } catch (error) {
-          console.warn('SignalR: could not re-subscribe to group', groupId, error)
+        const initialGroup = optionsRef.current?.groupId
+        if (initialGroup && initialGroup > 0) {
+          subscribedGroupIds.add(initialGroup)
+        }
+        const groupsToSubscribe = subscribedGroupIds.size > 0 ? Array.from(subscribedGroupIds) : [1]
+        for (const gid of groupsToSubscribe) {
+          try {
+            await connection.invoke('SubscribeToGroup', gid)
+          } catch (error) {
+            console.warn('SignalR: could not re-subscribe to group', gid, error)
+          }
         }
 
         // Events raised while the socket was down were never delivered. Reconciling
         // the cached queue with the server closes that gap without resorting to the
         // aggressive polling this incident removed (debounced like any other event).
-        scheduleRealtimeInvalidation(queryClient, { tickets: true })
+        scheduleRealtimeInvalidation(queryClient, {
+          tickets: true,
+          dashboard: true,
+          notifications: true,
+        })
       })
       connection.onclose(() => {
         updateConnectionState('disconnected')

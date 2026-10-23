@@ -22,11 +22,11 @@ public static class GroupEndpoints
             .Produces<GroupDto[]>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
-        // GET /api/groups/{groupId:int}/dashboard -> supervisor del grupo o admin (H-35)
+        // GET /api/groups/{groupId:int}/dashboard -> supervisor del grupo o admin (H-35 / H-40)
         group.MapGet("/{groupId:int}/dashboard", GetGroupDashboard)
             .WithName("GetGroupDashboard")
-            .WithSummary("Lista de técnicos del grupo con carga activa y pendientes (H-35)")
-            .Produces<IReadOnlyList<TeamMemberDto>>(StatusCodes.Status200OK)
+            .WithSummary("Resumen de estados del grupo y lista de técnicos con carga activa (H-35 / H-40)")
+            .Produces<GroupDashboardDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
@@ -45,6 +45,13 @@ public static class GroupEndpoints
                 statusCode: StatusCodes.Status401Unauthorized,
                 title: "Usuario no autenticado",
                 detail: "No se encontro el userId en el token JWT.");
+        }
+
+        var role = principal.GetRole();
+        if (role == AppRole.Admin)
+        {
+            var allGroups = await repository.GetByEntityAsync(0, cancellationToken);
+            return Results.Ok(allGroups);
         }
 
         var groups = await repository.GetByUserAsync(userId.Value, cancellationToken);
@@ -91,7 +98,7 @@ public static class GroupEndpoints
                 detail: "Solo supervisores o administradores pueden acceder a este dashboard.");
         }
 
-        var members = await dashboardRepository.GetTeamMembersByGroupAsync(groupId, cancellationToken);
-        return Results.Ok(members);
+        var dashboard = await dashboardRepository.GetGroupDashboardAsync(groupId, cancellationToken);
+        return Results.Ok(dashboard);
     }
 }

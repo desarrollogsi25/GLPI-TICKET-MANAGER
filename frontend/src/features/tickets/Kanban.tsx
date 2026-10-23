@@ -32,6 +32,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CreateTicketDialog } from './CreateTicketDialog'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
 import { PendingTicketDialog } from './PendingTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
@@ -332,27 +333,54 @@ function KanbanColumn({
                           </Button>
                         </div>
                       ) : column.id === 'pending' ? (
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <Link
-                            to={`/tickets/${ticket.id}`}
-                            className="inline-flex items-center text-xs font-medium text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Abrir detalle →
-                          </Link>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-3 text-xs"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onResume?.(ticket.id)
-                            }}
-                          >
-                            Retomar
-                          </Button>
+                        <div className="flex flex-col w-full gap-1.5">
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <Link
+                              to={`/tickets/${ticket.id}`}
+                              className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Abrir detalle →
+                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onResume?.(ticket.id)
+                                }}
+                              >
+                                Retomar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                data-testid="pending-resolve-blocked-trigger"
+                                title="No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso."
+                                className="h-7 px-2.5 text-xs opacity-50 cursor-not-allowed"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  useToastStore.getState().push({
+                                    title: 'Transición bloqueada',
+                                    description:
+                                      'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.',
+                                    variant: 'destructive',
+                                  })
+                                }}
+                              >
+                                Resolver
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-tight">
+                            No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.
+                          </p>
                         </div>
                       ) : null
                     }
@@ -412,6 +440,7 @@ export function Kanban() {
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
   const [pendingTicketId, setPendingTicketId] = useState<number | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
@@ -623,6 +652,20 @@ export function Kanban() {
     if (!allowedTargets.includes(targetId)) {
       setInvalidDropTicketId(ticketId)
       setTimeout(() => setInvalidDropTicketId(null), 400)
+      if (sourceId === 'pending' && targetId === 'resolved') {
+        pushToast({
+          title: 'Transición bloqueada',
+          description:
+            'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.',
+          variant: 'destructive',
+        })
+      } else {
+        pushToast({
+          title: 'Transición no permitida',
+          description: 'No se puede mover el ticket directamente a esta columna.',
+          variant: 'destructive',
+        })
+      }
       return
     }
 
@@ -805,6 +848,13 @@ export function Kanban() {
               <div className="hidden md:block">
                 <TechnicianFilter />
               </div>
+              <Button
+                size="sm"
+                onClick={() => setCreateOpen(true)}
+                data-testid="kanban-create-ticket-btn"
+              >
+                + Crear ticket
+              </Button>
             </div>
           )
         }
@@ -1054,6 +1104,7 @@ export function Kanban() {
           }
         }}
       />
+      <CreateTicketDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <KanbanMobileSheet
         ticket={selectedMobileTicket}

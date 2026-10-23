@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
+import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { formatRelative } from '@/lib/format'
 
 interface Notification {
@@ -28,8 +29,8 @@ interface Notification {
  */
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([])
   const queryClient = useQueryClient()
+  const sessionValid = useIsSessionValid()
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -41,7 +42,23 @@ export function NotificationBell() {
         return 0
       }
     },
+    enabled: sessionValid,
     refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+
+  const { data: notifications = [], refetch: refetchNotifications } = useQuery({
+    queryKey: ['notifications', 'list'],
+    queryFn: async () => {
+      try {
+        const { data } = await apiClient.get<Notification[]>('/notifications')
+        return Array.isArray(data) ? data : []
+      } catch {
+        return []
+      }
+    },
+    enabled: open && sessionValid,
+    refetchOnWindowFocus: true,
   })
 
   const markAsReadMutation = useMutation({
@@ -50,30 +67,26 @@ export function NotificationBell() {
       return id
     },
     onSuccess: (id) => {
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true, isRead: true } : n)))
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
+      queryClient.setQueryData<Notification[]>(['notifications', 'list'], (prev) =>
+        (prev ?? []).map((n) => (n.id === id ? { ...n, read: true, isRead: true } : n)),
+      )
+      void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
     },
   })
 
   // Escuchar evento SignalR NotificationReceived para actualizar en tiempo real.
   useRealtimeTicketHub({
     onNotificationReceived: () => {
-      void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 
-  const loadNotifications = useCallback(async () => {
-    try {
-      const { data } = await apiClient.get<Notification[]>('/notifications')
-      setNotifications(Array.isArray(data) ? data : [])
-    } catch {
-      setNotifications([])
-    }
-  }, [])
-
   const handleToggle = () => {
-    if (!open) void loadNotifications()
-    setOpen((v) => !v)
+    const nextOpen = !open
+    setOpen(nextOpen)
+    if (nextOpen) {
+      void refetchNotifications()
+    }
   }
 
   const handleNotificationClick = (notification: Notification) => {
@@ -170,8 +183,7 @@ export function NotificationBell() {
                   // Mark all as read
                   try {
                     await apiClient.put('/notifications/read-all')
-                    queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
-                    setNotifications((prev) => prev.map((n) => ({ ...n, read: true, isRead: true })))
+                    void queryClient.invalidateQueries({ queryKey: ['notifications'] })
                   } catch {
                     // ignore
                   }

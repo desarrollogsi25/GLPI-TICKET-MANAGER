@@ -22,7 +22,8 @@ public static class DashboardQueries
                       AND t2.is_deleted = 0
                     ORDER BY t2.date_mod DESC, t2.id DESC
                     LIMIT 1
-                ), 0) AS SIGNED) AS CurrentTicketId
+                ), 0) AS SIGNED) AS CurrentTicketId,
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (5, 6) AND t.is_deleted = 0 AND (DATE(t.solvedate) = UTC_DATE() OR DATE(t.closedate) = UTC_DATE() OR DATE(t.date_mod) = UTC_DATE()) THEN 1 ELSE 0 END), 0) AS INT) AS ResolvedToday
         FROM glpi_groups_users gu
         INNER JOIN glpi_users u ON u.id = gu.users_id
         LEFT JOIN glpi_tickets_users tu ON tu.users_id = u.id AND tu.type = 2
@@ -31,6 +32,26 @@ public static class DashboardQueries
           AND u.is_deleted = 0
         GROUP BY u.id, u.name
         ORDER BY u.name ASC;
+        """;
+
+    public const string GroupTicketTotals = """
+        SELECT
+            CAST(COUNT(1) AS INT) AS TotalTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (1, 2) AND NOT EXISTS (
+                SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2
+            ) THEN 1 ELSE 0 END), 0) AS INT) AS QueuedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (1, 2) AND EXISTS (
+                SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2
+            ) THEN 1 ELSE 0 END), 0) AS INT) AS AssignedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 3 THEN 1 ELSE 0 END), 0) AS INT) AS InProgressTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS INT) AS PendingTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END), 0) AS INT) AS ResolvedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END), 0) AS INT) AS ClosedTickets
+        FROM glpi_groups_tickets gt
+        INNER JOIN glpi_tickets t ON t.id = gt.tickets_id
+        WHERE gt.groups_id = @GroupId
+          AND gt.type = 2
+          AND t.is_deleted = 0;
         """;
 
     public const string AdminGroupSummaries = """

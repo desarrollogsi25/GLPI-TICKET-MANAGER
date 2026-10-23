@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -84,17 +84,19 @@ export function PendingTicketDialog({
     }
   }
 
+  const handleClose = useCallback(() => {
+    if (!pending) {
+      setReasonId('')
+      setComment('')
+      setTouched(false)
+      onOpenChange(false)
+    }
+  }, [pending, onOpenChange])
+
   return (
     <Dialog
       open={open}
-      onClose={() => {
-        if (!pending) {
-          setReasonId('')
-          setComment('')
-          setTouched(false)
-          onOpenChange(false)
-        }
-      }}
+      onClose={handleClose}
       title={`Poner en pendiente ticket #${ticketId}`}
       description="Seleccioná el motivo y agregá un comentario explicativo. El ticket pasará a estado Pendiente."
     >

@@ -1278,6 +1278,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(channelRepoMock.Object);
 
             var dashboardRepoMock = new Mock<IDashboardRepository>();
+            dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(Group1Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GroupDashboardDto(4, 1, 1, 1, 1, 0, 0, new List<TeamMemberDto>
+                {
+                    new(Tech1Id, "Technician 1", 1, 0, Ticket12Id, 2),
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket13Id, 1)
+                }));
+            dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(Group2Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GroupDashboardDto(2, 1, 1, 0, 0, 0, 0, new List<TeamMemberDto>
+                {
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket21Id, 0)
+                }));
+            dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(It.Is<int>(g => g != Group1Id && g != Group2Id), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GroupDashboardDto(0, 0, 0, 0, 0, 0, 0, new List<TeamMemberDto>()));
             dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(Group1Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<TeamMemberDto>
                 {
