@@ -97,7 +97,8 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
     /// <list type="bullet">
     /// <item>Technicians cannot leave Resolved (5) or Closed (6): only an admin reopens.</item>
     /// <item>Technicians cannot move work backwards: In-Progress (2/3) cannot go to New (1).</item>
-    /// <item>Technicians can move Waiting (4) forward to In-Progress (3) or Resolved (5).</item>
+    /// <item>Waiting (4) can only be resumed to In-Progress (3): resolving or closing it
+    /// directly is rejected (H-39).</item>
     /// </list>
     /// Admins and supervisors bypass the transition graph (supervisors already scoped to
     /// their groups by the underlying assignment checks).
@@ -162,7 +163,16 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
                 "No puedes devolver un ticket a un estado anterior a Asignado (Nuevo).");
         }
 
-        // 3. Explicit close (6) stays admin-only; resolving (5) is allowed for the assignee.
+        // 3. Waiting (4) is an interrupted state: it can only be resumed to In-Progress
+        // (3). Resolving (5) or closing (6) it directly is forbidden (H-39).
+        if (currentStatus == (int)TicketStatus.Waiting
+            && (newStatus == (int)TicketStatus.Solved || newStatus == (int)TicketStatus.Closed))
+        {
+            return StatusTransitionDecision.Deny(
+                "No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.");
+        }
+
+        // 4. Explicit close (6) stays admin-only; resolving (5) is allowed for the assignee.
         if (newStatus == (int)TicketStatus.Closed)
         {
             return StatusTransitionDecision.Deny(
@@ -173,13 +183,6 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
         if (!await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
         {
             return StatusTransitionDecision.Deny("Solo el técnico asignado puede cambiar el estado de este ticket.");
-        }
-
-        // Direct transition from Waiting (4) to Solved (5) is blocked: must resume to In Progress first.
-        if (currentStatus == (int)TicketStatus.Waiting && newStatus == (int)TicketStatus.Solved)
-        {
-            return StatusTransitionDecision.Deny(
-                "No se puede resolver un ticket en estado Pendiente directamente. Debe pasar primero por En Progreso.");
         }
 
         // Technicians can move tickets between states 2 (Assigned/In Progress), 3 (Planned/In Progress), 4 (Waiting/Pending), and 5 (Solved).

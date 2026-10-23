@@ -118,8 +118,10 @@ const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
   mine: ['in_progress', 'resolved'],
   in_progress: ['pending', 'resolved'],
-  // A waiting ticket can be resumed (→ En progreso) or resolved straight away.
-  pending: ['in_progress', 'resolved'],
+  // H-39: un ticket Pendiente solo puede reanudarse (→ En progreso). Resolverlo
+  // directamente está prohibido por el backend (422), así que el tablero tampoco
+  // ofrece esa transición.
+  pending: ['in_progress'],
   // Resolved is terminal in the board: only an admin reopens via the detail view.
   resolved: [],
 }
@@ -651,11 +653,6 @@ export function Kanban() {
     }
 
     if (sourceId === 'in_progress' && targetId === 'resolved') {
-      setResolveTicketId(ticketId)
-      return
-    }
-
-    if (sourceId === 'pending' && targetId === 'resolved') {
       setResolveTicketId(ticketId)
       return
     }

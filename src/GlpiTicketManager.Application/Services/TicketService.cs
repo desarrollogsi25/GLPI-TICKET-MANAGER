@@ -20,6 +20,13 @@ public sealed class TicketService : ITicketService
     private const int DefaultLimit = 20;
     private const int MaxLimit = 100;
 
+    /// <summary>
+    /// H-39: strict workflow invariant. A Waiting (4) ticket cannot jump straight to
+    /// Solved (5) or Closed (6); it must be resumed to In-Progress (3) first.
+    /// </summary>
+    internal const string PendingResolveBlockedMessage =
+        "No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.";
+
     private readonly ITicketRepository _tickets;
     private readonly IGlpiApiClient _glpi;
     private readonly IAuditRepository _audit;
@@ -229,6 +236,19 @@ public sealed class TicketService : ITicketService
         if (!Enum.IsDefined((TicketStatus)status))
         {
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
+        }
+
+        // H-39: a Waiting (4) ticket cannot be resolved (5) or closed (6) directly. The
+        // check must run BEFORE the solution insert below: otherwise a rejected request
+        // would still write a solution (and GLPI would auto-solve the ticket as a side
+        // effect). Return 422, not 403, because the payload is valid but the transition
+        // violates the workflow contract.
+        var currentTicket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (currentTicket is not null
+            && currentTicket.Status == (int)TicketStatus.Waiting
+            && (status == (int)TicketStatus.Solved || status == (int)TicketStatus.Closed))
+        {
+            throw new UnprocessableEntityException(PendingResolveBlockedMessage);
         }
 
         // Payload/state validation and solution insertion run before or during resolve:
@@ -590,6 +610,13 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
+        // H-39: resolving a Waiting (4) ticket directly is forbidden; it must be resumed
+        // to In-Progress (3) first. 422 so the UI can show the exact reason.
+        if (ticket.Status == (int)TicketStatus.Waiting)
+        {
+            throw new UnprocessableEntityException(PendingResolveBlockedMessage);
+        }
+
         // 409: state conflict. Detecting it here avoids letting GLPI answer with an
         // opaque 400 ("El elemento ya está resuelto") that the technician cannot act on.
         if (ticket.Status == (int)TicketStatus.Closed)
@@ -784,6 +811,13 @@ public sealed class TicketService : ITicketService
         if (ticket.Status == (int)TicketStatus.Solved)
         {
             throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya fue resuelto.");
+        }
+
+        // H-39: adding a solution in GLPI moves the ticket to Solved (5) on its own.
+        // A Waiting (4) ticket must be resumed before it can be solved.
+        if (ticket.Status == (int)TicketStatus.Waiting)
+        {
+            throw new UnprocessableEntityException(PendingResolveBlockedMessage);
         }
 
         if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))

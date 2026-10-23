@@ -96,17 +96,29 @@ VALUES
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- 5. USUARIOS DE LA ESTRUCTURA (contraseÃ±a: Password123!) --------------------
-INSERT INTO glpi_users (id, name, password, is_active, profiles_id, entities_id)
+-- H-39: GLPI 11 only authenticates users with authtype = 1 (DB_GLPI) AND
+-- auths_id = 0. Rows inserted without these columns default to authtype = 0 and
+-- are invisible to Auth::connection_db() (HTTP 400 "Usuario o contraseÃ±a
+-- incorrecto"). Keep both columns explicit here so re-seeding never breaks login.
+INSERT INTO glpi_users
+  (id, name, password, password_last_update, authtype, auths_id, is_active, is_deleted, profiles_id, entities_id, date_creation, date_mod)
 VALUES
-  (10, 'admin_test', '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (11, 'lider_dev',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (12, 'lider_bi',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (13, 'lider_sd',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (14, 'tech_dev',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (15, 'tech_bi',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (16, 'tech_sd',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0),
-  (17, 'user_test',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', 1, 0, 0)
-ON DUPLICATE KEY UPDATE password = VALUES(password), is_active = 1, is_deleted = 0;
+  (10, 'admin_test', '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (11, 'lider_dev',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (12, 'lider_bi',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (13, 'lider_sd',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (14, 'tech_dev',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (15, 'tech_bi',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (16, 'tech_sd',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (17, 'user_test',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  password = VALUES(password),
+  password_last_update = VALUES(password_last_update),
+  authtype = 1,
+  auths_id = 0,
+  is_active = 1,
+  is_deleted = 0,
+  date_mod = NOW();
 
 -- Perfiles GLPI: 4 = Super-Admin, 6 = Technician, 1 = Self-Service
 -- (los lÃ­deres obtienen el rol app "supervisor" mediante user_role_overrides
@@ -167,12 +179,20 @@ ALTER TABLE glpi_users AUTO_INCREMENT = 18;
 -- ============================================================================
 
 -- Usuarios de fixture
-INSERT INTO glpi_users (id, name, password, is_active, profiles_id, entities_id)
+INSERT INTO glpi_users
+  (id, name, password, password_last_update, authtype, auths_id, is_active, is_deleted, profiles_id, entities_id, date_creation, date_mod)
 VALUES
-  (7,  'tech1',            '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', 1, 0, 0),
-  (8,  'tech2',            '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', 1, 0, 0),
-  (18, 'solicitante_test', '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', 1, 0, 0)
-ON DUPLICATE KEY UPDATE password = VALUES(password), is_active = 1, is_deleted = 0;
+  (7,  'tech1',            '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (8,  'tech2',            '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (18, 'solicitante_test', '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  password = VALUES(password),
+  password_last_update = VALUES(password_last_update),
+  authtype = 1,
+  auths_id = 0,
+  is_active = 1,
+  is_deleted = 0,
+  date_mod = NOW();
 
 DELETE FROM glpi_profiles_users WHERE users_id IN (7, 8, 18);
 INSERT INTO glpi_profiles_users (users_id, profiles_id, entities_id, is_recursive, is_dynamic, is_default_profile) VALUES
@@ -185,6 +205,21 @@ INSERT INTO glpi_groups_users (users_id, groups_id, is_dynamic, is_manager, is_u
   (7, 1, 0, 0, 0),  -- tech1 -> Desarrollo
   (7, 3, 0, 0, 0),  -- tech1 -> Service Desk (selector multi-grupo)
   (8, 1, 0, 0, 0);  -- tech2 -> Desarrollo
+
+-- Correos por defecto de todos los usuarios de seed (H-39).
+DELETE FROM glpi_useremails WHERE users_id IN (7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18);
+INSERT INTO glpi_useremails (users_id, is_default, is_dynamic, email) VALUES
+  (7,  1, 0, 'tech1@example.test'),
+  (8,  1, 0, 'tech2@example.test'),
+  (10, 1, 0, 'admin_test@example.test'),
+  (11, 1, 0, 'lider_dev@example.test'),
+  (12, 1, 0, 'lider_bi@example.test'),
+  (13, 1, 0, 'lider_sd@example.test'),
+  (14, 1, 0, 'tech_dev@example.test'),
+  (15, 1, 0, 'tech_bi@example.test'),
+  (16, 1, 0, 'tech_sd@example.test'),
+  (17, 1, 0, 'user_test@example.test'),
+  (18, 1, 0, 'solicitante_test@example.test');
 
 -- Tickets de cola: #11 (kanban-flow), #57 (self-assign), #61 (kanban-mobile),
 -- #70 (realtime-reopen), #901/#902/#903 (resolve / short-solution).

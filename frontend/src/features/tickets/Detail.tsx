@@ -171,7 +171,9 @@ export function Detail() {
                       option.value === ticket.status ||
                       updateStatus.isPending ||
                       isBackwardBlocked ||
-                      (ticket.status === 4 && option.value === 5)
+                      // H-39: from Pendiente only Retomar (En Progreso) is valid.
+                      // Resolver (5) and Cerrar (6) must be rejected up front.
+                      (ticket.status === 4 && option.value >= 5)
                     }
                     onClick={() => {
                       if (option.value === 5) {

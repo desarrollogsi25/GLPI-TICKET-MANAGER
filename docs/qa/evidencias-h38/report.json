@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-23T14:28:05.695Z",
+  "startedAt": "2026-10-23T15:07:19.376Z",
   "checks": [
     {
       "name": "tech_dev: el Kanban muestra solo el grupo Desarrollo",
@@ -119,7 +119,7 @@
     {
       "name": "lider_dev: /equipo lista a tech_dev",
       "ok": true,
-      "detail": "TécnicoTickets activosPendientesTicket actuallider_dev00—tech_dev00—"
+      "detail": "TécnicoTickets activosPendientesTicket actuallider_dev00—tech_dev00—tech122#82tech200—"
     },
     {
       "name": "lider_dev: /equipo no muestra \"Error al cargar\"",
@@ -174,10 +174,10 @@
     {
       "name": "user_test: puede crear un ticket (201)",
       "ok": true,
-      "detail": "{\"ticketId\":15}"
+      "detail": "{\"ticketId\":1000}"
     },
     {
-      "name": "Enrutamiento: el ticket #15 de categoría \"software\" aparece en la cola de Desarrollo",
+      "name": "Enrutamiento: el ticket #1000 de categoría \"software\" aparece en la cola de Desarrollo",
       "ok": true,
       "detail": ""
     },
@@ -198,6 +198,6 @@
     }
   ],
   "failures": [],
-  "finishedAt": "2026-10-23T14:28:48.952Z",
+  "finishedAt": "2026-10-23T15:07:58.536Z",
   "ok": true
 }

@@ -182,16 +182,47 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Technician_CanMoveWaitingForwardToResolved()
+    public async Task Technician_CannotMoveWaitingStraightToResolved_Returns422()
     {
+        // H-39: a Waiting (4) ticket must be resumed to In-Progress (3) first.
         ArrangeTicket((int)TicketStatus.Waiting);
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "Listo");
 
         var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
         var response = await PatchStatusAsync(token, (int)TicketStatus.Solved);
 
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
+        problem!.Detail.Should().Be(
+            "No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.");
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Waiting);
+    }
+
+    [Fact]
+    public async Task Technician_CannotCloseWaitingTicket_Returns422()
+    {
+        ArrangeTicket((int)TicketStatus.Waiting);
+
+        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var response = await PatchStatusAsync(token, (int)TicketStatus.Closed);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsResponse>();
+        problem!.Detail.Should().Be(
+            "No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.");
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Waiting);
+    }
+
+    [Fact]
+    public async Task Technician_CanResumeWaitingToInProgress()
+    {
+        ArrangeTicket((int)TicketStatus.Waiting);
+
+        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var response = await PatchStatusAsync(token, (int)TicketStatus.Planned);
+
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Closed);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Planned);
     }
 
     [Fact]
