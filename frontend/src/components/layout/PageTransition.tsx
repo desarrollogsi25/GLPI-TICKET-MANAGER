@@ -1,8 +1,8 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 
-const CUBIC_BEZIER: [number, number, number, number] = [0.16, 1, 0.3, 1]
+const EASE_OUT_STRONG: [number, number, number, number] = [0.23, 1, 0.32, 1]
 
 export function PageTransition({ children }: { children: ReactNode }) {
   const location = useLocation()
@@ -10,17 +10,19 @@ export function PageTransition({ children }: { children: ReactNode }) {
 
   const transition = prefersReduced
     ? { duration: 0 }
-    : { duration: 0.2, ease: CUBIC_BEZIER }
+    : { duration: 0.18, ease: EASE_OUT_STRONG }
 
   return (
-    <motion.div
-      key={location.pathname}
-      initial={prefersReduced ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={prefersReduced ? undefined : { opacity: 0 }}
-      transition={transition}
-    >
-      {children}
-    </motion.div>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={location.pathname}
+        initial={prefersReduced ? false : { opacity: 0, transform: 'translateY(6px)' }}
+        animate={{ opacity: 1, transform: 'translateY(0px)' }}
+        exit={prefersReduced ? undefined : { opacity: 0, transform: 'translateY(-4px)' }}
+        transition={transition}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
   )
 }

@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { Bell, CheckCheck, Clock, RefreshCw, TicketCheck, UserCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -21,14 +23,16 @@ interface Notification {
 }
 
 /**
- * NotificationBell — campana de notificaciones en el navbar.
+ * NotificationBell — campana de notificaciones unificada (H-42).
  *
- * Consume `GET /api/notifications/unread-count` para el badge y
- * `GET /api/notifications` para el panel. Si el backend no está disponible,
- * degrada a 0 sin romper la UI.
+ * - Badge con contador animado (scale pulse en cambio de valor, respetando reduced motion).
+ * - Dropdown origin-aware (`origin-top-right`) con transición rápida (< 200ms).
  */
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
+  const [pulseBadge, setPulseBadge] = useState(false)
+  const prevCountRef = useRef<number>(0)
+  const prefersReduced = useReducedMotion()
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
 
@@ -46,6 +50,16 @@ export function NotificationBell() {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
+
+  useEffect(() => {
+    if (unreadCount !== prevCountRef.current && unreadCount > 0) {
+      setPulseBadge(true)
+      const timer = window.setTimeout(() => setPulseBadge(false), 260)
+      prevCountRef.current = unreadCount
+      return () => window.clearTimeout(timer)
+    }
+    prevCountRef.current = unreadCount
+  }, [unreadCount])
 
   const { data: notifications = [], refetch: refetchNotifications } = useQuery({
     queryKey: ['notifications', 'list'],
@@ -74,7 +88,6 @@ export function NotificationBell() {
     },
   })
 
-  // Escuchar evento SignalR NotificationReceived para actualizar en tiempo real.
   useRealtimeTicketHub({
     onNotificationReceived: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -93,8 +106,6 @@ export function NotificationBell() {
     if (!notification.read && !notification.isRead) {
       markAsReadMutation.mutate(notification.id)
     }
-    // If there's a ticketId, we could navigate to it
-    // For now, just close the panel
     setOpen(false)
   }
 
@@ -102,16 +113,16 @@ export function NotificationBell() {
     switch (type) {
       case 'TicketAssigned':
       case 'TicketClaimed':
-        return 'border-l-2 border-blue-500 bg-blue-50/50'
+        return 'border-l-2 border-blue-500 bg-blue-50/40 dark:bg-blue-950/30'
       case 'TicketPending':
-        return 'border-l-2 border-amber-500 bg-amber-50/50'
+        return 'border-l-2 border-amber-500 bg-amber-50/40 dark:bg-amber-950/30'
       case 'TicketResolved':
       case 'TicketSolved':
-        return 'border-l-2 border-emerald-500 bg-emerald-50/50'
+        return 'border-l-2 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30'
       case 'TicketReopened':
-        return 'border-l-2 border-indigo-500 bg-indigo-50/50'
+        return 'border-l-2 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30'
       default:
-        return 'border-l-2 border-slate-500 bg-slate-50/50'
+        return 'border-l-2 border-slate-400 bg-muted/20'
     }
   }
 
@@ -119,16 +130,16 @@ export function NotificationBell() {
     switch (type) {
       case 'TicketAssigned':
       case 'TicketClaimed':
-        return '👤'
+        return <UserCheck className="size-4 text-blue-600 dark:text-blue-400" />
       case 'TicketPending':
-        return '⏳'
+        return <Clock className="size-4 text-amber-600 dark:text-amber-400" />
       case 'TicketResolved':
       case 'TicketSolved':
-        return '✅'
+        return <TicketCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
       case 'TicketReopened':
-        return '🔄'
+        return <RefreshCw className="size-4 text-indigo-600 dark:text-indigo-400" />
       default:
-        return '🔔'
+        return <Bell className="size-4 text-muted-foreground" />
     }
   }
 
@@ -140,99 +151,138 @@ export function NotificationBell() {
         onClick={handleToggle}
         aria-label="Notificaciones"
         data-testid="notification-bell"
-        className="relative h-8 w-8 p-0"
+        className="relative h-9 w-9 p-0 rounded-lg"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
+        <Bell className="size-4 text-foreground/85" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span
+          <motion.span
+            key={unreadCount}
             data-testid="notification-badge"
-            className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground"
+            initial={
+              prefersReduced
+                ? false
+                : { transform: 'scale(0.85)', opacity: 0.9 }
+            }
+            animate={{
+              transform:
+                !prefersReduced && pulseBadge ? 'scale(1.18)' : 'scale(1)',
+              opacity: 1,
+            }}
+            transition={
+              prefersReduced
+                ? { duration: 0 }
+                : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
+            }
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground tabular-nums shadow-xs"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          </motion.span>
         )}
       </Button>
 
-      {open && (
-        <div
-          data-testid="notification-panel"
-          className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto rounded-xl border border-border bg-card shadow-xl z-50"
-        >
-          <div className="p-3 border-b border-border flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Notificaciones</h3>
-            {unreadCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs h-6 px-2"
-                onClick={async () => {
-                  // Mark all as read
-                  try {
-                    await apiClient.put('/notifications/read-all')
-                    void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-                  } catch {
-                    // ignore
-                  }
-                }}
-              >
-                Marcar todas como leídas
-              </Button>
-            )}
-          </div>
-          {notifications.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground text-center">Sin notificaciones.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {notifications.map((n) => (
-                <li
-                  key={n.id}
-                  className={cn(
-                    'p-3 text-sm transition-colors cursor-pointer hover:bg-muted/30',
-                    (!n.read && !n.isRead) ? 'bg-primary/5 font-medium' : 'opacity-70',
-                    getNotificationTypeClass(n.type)
-                  )}
-                  onClick={() => handleNotificationClick(n)}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            data-testid="notification-panel"
+            initial={
+              prefersReduced
+                ? false
+                : { opacity: 0, transform: 'scale(0.96) translateY(-4px)' }
+            }
+            animate={{ opacity: 1, transform: 'scale(1) translateY(0px)' }}
+            exit={
+              prefersReduced
+                ? undefined
+                : { opacity: 0, transform: 'scale(0.97) translateY(-4px)' }
+            }
+            transition={
+              prefersReduced
+                ? { duration: 0 }
+                : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
+            }
+            className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+          >
+            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  Notificaciones
+                </h3>
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary tabular-nums">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[11px] h-6 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                  onClick={async () => {
+                    try {
+                      await apiClient.put('/notifications/read-all')
+                      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+                    } catch {
+                      // ignore
+                    }
+                  }}
                 >
-                  <div className="flex items-start gap-2">
-                    <span className="text-base mt-0.5 flex-shrink-0" aria-hidden="true">
-                      {getNotificationIcon(n.type)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium truncate">{n.title}</p>
-                        <p className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                          {formatRelative(n.createdAt)}
+                  <CheckCheck className="size-3" />
+                  Marcar leídas
+                </Button>
+              )}
+            </div>
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center">
+                <Bell className="mx-auto size-6 text-muted-foreground/40 mb-1.5" />
+                <p className="text-xs text-muted-foreground">Sin notificaciones recientes.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {notifications.map((n) => (
+                  <li
+                    key={n.id}
+                    className={cn(
+                      'p-3 text-sm transition-colors duration-150 cursor-pointer hover:bg-muted/40',
+                      !n.read && !n.isRead ? 'bg-primary/5 font-medium' : 'opacity-75',
+                      getNotificationTypeClass(n.type),
+                    )}
+                    onClick={() => handleNotificationClick(n)}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex-shrink-0" aria-hidden="true">
+                        {getNotificationIcon(n.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold truncate text-foreground">{n.title}</p>
+                          <p className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+                            {formatRelative(n.createdAt)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {n.body || n.message}
                         </p>
+                        {n.ticketId && (
+                          <p className="text-[10px] text-primary mt-1 font-semibold font-mono">
+                            Ticket #{n.ticketId}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body || n.message}</p>
-                      {n.ticketId && (
-                        <p className="text-[10px] text-primary mt-1 font-medium">Ticket #{n.ticketId}</p>
+                      {!n.read && !n.isRead && (
+                        <span
+                          className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-1.5"
+                          aria-label="No leída"
+                        />
                       )}
                     </div>
-                    {(!n.read && !n.isRead) && (
-                      <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-1" aria-label="No leída" />
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

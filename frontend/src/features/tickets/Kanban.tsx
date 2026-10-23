@@ -196,14 +196,14 @@ function KanbanColumn({
 
   return (
     <div data-column-id={column.id} className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
+      <div className="mb-2.5 flex items-center justify-between px-1.5">
         <div>
-          <span className="text-sm font-semibold">{column.title}</span>
+          <span className="text-sm font-semibold tracking-tight text-foreground">{column.title}</span>
           <p className="text-[11px] text-muted-foreground">{column.description}</p>
         </div>
         <span
           className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-medium',
+            'text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums',
             isError ? 'bg-destructive/15 text-destructive font-bold' : column.badgeClass,
           )}
         >
@@ -214,9 +214,9 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-36 flex-col gap-2 rounded-lg border border-dashed p-2 transition-colors flex-1',
+          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-colors duration-150 flex-1 bg-muted/50',
           column.bgClass,
-          isOver ? 'border-primary ring-2 ring-primary/20' : 'border-border',
+          isOver ? 'border-primary ring-2 ring-primary/20' : 'border-border/60',
         )}
       >
         {isLoading ? (
@@ -391,12 +391,22 @@ function KanbanColumn({
 
             {tickets.length === 0 ? (
               <motion.div
-                initial={{ scale: 0.98 }}
-                animate={{ scale: 1 }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2 }}
-                className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center"
+                initial={shouldReduceMotion ? false : { opacity: 0, transform: 'scale(0.97)' }}
+                animate={{ opacity: 1, transform: 'scale(1)' }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                className="flex flex-col h-36 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/40 p-4 text-center"
               >
-                <p className="text-xs text-slate-800 font-medium">{emptyMessage}</p>
+                <span className="text-xl mb-1.5" aria-hidden="true">
+                  {EMPTY_MESSAGES[column.id]?.icon ?? '📭'}
+                </span>
+                <p className="text-xs text-foreground font-semibold">
+                  {emptyMessage === 'No hay tickets aquí'
+                    ? 'No hay tickets en esta columna'
+                    : emptyMessage}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                  {EMPTY_MESSAGES[column.id]?.subtitle}
+                </p>
               </motion.div>
             ) : null}
           </>
@@ -728,7 +738,7 @@ export function Kanban() {
           <Button
             size="sm"
             variant="default"
-            className="h-8 px-3 text-xs"
+            className="min-h-[44px] px-3.5 text-xs"
             disabled={claimMutation.isPending}
             onClick={(e) => {
               e.stopPropagation()
@@ -753,7 +763,7 @@ export function Kanban() {
           <Button
             size="sm"
             variant="default"
-            className="h-8 px-3 text-xs"
+            className="min-h-[44px] px-3.5 text-xs"
             disabled={updateStatus.isPending}
             onClick={(e) => {
               e.stopPropagation()
@@ -769,7 +779,7 @@ export function Kanban() {
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+              className="min-h-[44px] px-3 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
               disabled={updateStatus.isPending}
               onClick={(e) => {
                 e.stopPropagation()
@@ -781,7 +791,7 @@ export function Kanban() {
             <Button
               size="sm"
               variant="default"
-              className="h-8 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+              className="min-h-[44px] px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={(e) => {
                 e.stopPropagation()
                 setResolveTicketId(ticket.id)
@@ -796,7 +806,7 @@ export function Kanban() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 px-3 text-xs"
+            className="min-h-[44px] px-3.5 text-xs"
             disabled={updateStatus.isPending}
             onClick={(e) => {
               e.stopPropagation()
@@ -1076,8 +1086,8 @@ export function Kanban() {
 
           <DragOverlay>
             {activeTicket ? (
-              <div className="w-72">
-                <TicketCard ticket={activeTicket} draggable={false} />
+              <div className="w-72 rotate-2 shadow-2xl">
+                <TicketCard ticket={activeTicket} draggable={false} isOverlay={true} />
               </div>
             ) : null}
           </DragOverlay>

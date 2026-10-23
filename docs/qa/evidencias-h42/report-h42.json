@@ -1,0 +1,66 @@
+{
+  "results": [
+    {
+      "step": "Desktop Header Breadcrumb",
+      "pass": true,
+      "detail": "Workspace\nKanban"
+    },
+    {
+      "step": "Desktop Collapsible Sidebar",
+      "pass": true,
+      "detail": "data-collapsed=true"
+    },
+    {
+      "step": "Global Command Palette (cmdk)",
+      "pass": true,
+      "detail": "Opened via header trigger & closed with Escape"
+    },
+    {
+      "step": "Sonner Toast System (Desktop top-right)",
+      "pass": true,
+      "detail": "Rendered via Sonner with Lucide icons"
+    },
+    {
+      "step": "Axe Accessibility (Desktop Kanban)",
+      "pass": true,
+      "detail": "0 critical violations"
+    },
+    {
+      "step": "Leader Dashboard (Desktop 1440px)",
+      "pass": true,
+      "detail": "7 KPI cards with NumberTicker + Technician Table visible"
+    },
+    {
+      "step": "Admin Dashboard (Desktop 1440px)",
+      "pass": true,
+      "detail": "4 KPI cards + Group Summary Table"
+    },
+    {
+      "step": "Mobile Kanban (390px) — Zero Horizontal Overflow",
+      "pass": true,
+      "detail": "scrollWidth <= innerWidth (true)"
+    },
+    {
+      "step": "Mobile Header Username & Bell",
+      "pass": true,
+      "detail": "Visible in mobile sticky header"
+    },
+    {
+      "step": "Mobile Drawer (Sheet)",
+      "pass": true,
+      "detail": "Opens with hamburger button and traps focus"
+    },
+    {
+      "step": "Mobile Leader Dashboard (390px) — Stacked Cards & Zero Overflow",
+      "pass": true,
+      "detail": "Stacked technician cards visible, overflow=false"
+    },
+    {
+      "step": "Zero Console & HTTP Errors (F12)",
+      "pass": true,
+      "detail": "consoleErrors=0, httpErrors=0"
+    }
+  ],
+  "consoleErrors": [],
+  "httpErrors": []
+}
