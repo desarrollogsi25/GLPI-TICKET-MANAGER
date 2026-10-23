@@ -23,7 +23,42 @@ public static class DashboardQueries
                     ORDER BY t2.date_mod DESC, t2.id DESC
                     LIMIT 1
                 ), 0) AS SIGNED) AS CurrentTicketId,
-            CAST(COALESCE(SUM(CASE WHEN t.status IN (5, 6) AND t.is_deleted = 0 AND (DATE(t.solvedate) = UTC_DATE() OR DATE(t.closedate) = UTC_DATE() OR DATE(t.date_mod) = UTC_DATE()) THEN 1 ELSE 0 END), 0) AS INT) AS ResolvedToday
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (5, 6) AND t.is_deleted = 0 AND (DATE(t.solvedate) = UTC_DATE() OR DATE(t.closedate) = UTC_DATE() OR DATE(t.date_mod) = UTC_DATE()) THEN 1 ELSE 0 END), 0) AS INT) AS ResolvedToday,
+            CAST(COALESCE((
+                SELECT COUNT(1)
+                FROM glpi_groups_tickets gt_q
+                INNER JOIN glpi_tickets t_q ON t_q.id = gt_q.tickets_id
+                WHERE gt_q.groups_id = @GroupId
+                  AND gt_q.type = 2
+                  AND t_q.is_deleted = 0
+                  AND t_q.status IN (1, 2)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM glpi_tickets_users tu_q
+                      WHERE tu_q.tickets_id = t_q.id
+                        AND tu_q.type = 2
+                  )
+            ), 0) AS INT) AS QueuedCount,
+            COALESCE(
+                (
+                    SELECT f.content
+                    FROM glpi_itilfollowups f
+                    INNER JOIN glpi_tickets_users tu_f ON tu_f.tickets_id = f.items_id AND tu_f.type = 2
+                    WHERE f.itemtype = 'Ticket'
+                      AND (f.users_id = u.id OR tu_f.users_id = u.id)
+                    ORDER BY f.date_creation DESC, f.id DESC
+                    LIMIT 1
+                ),
+                (
+                    SELECT s.content
+                    FROM glpi_itilsolutions s
+                    INNER JOIN glpi_tickets_users tu_s ON tu_s.tickets_id = s.items_id AND tu_s.type = 2
+                    WHERE s.itemtype = 'Ticket'
+                      AND (s.users_id = u.id OR tu_s.users_id = u.id)
+                    ORDER BY s.date_creation DESC, s.id DESC
+                    LIMIT 1
+                )
+            ) AS LastComment
         FROM glpi_groups_users gu
         INNER JOIN glpi_users u ON u.id = gu.users_id
         LEFT JOIN glpi_tickets_users tu ON tu.users_id = u.id AND tu.type = 2

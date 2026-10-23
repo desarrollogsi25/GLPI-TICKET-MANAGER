@@ -1040,6 +1040,11 @@ public sealed class TicketService : ITicketService
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
             var effectiveGroupId = ticketGroups.FirstOrDefault() > 0 ? ticketGroups.First() : (assignmentGroupId ?? 1);
 
+            if (effectiveGroupId > 0 && ticketGroups.Count == 0)
+            {
+                await _tickets.EnsureTicketGroupAssignedAsync(ticketId, effectiveGroupId, cancellationToken);
+            }
+
             if (_persistentNotifications is not null && _dashboard is not null && effectiveGroupId > 0)
             {
                 var techIds = await _dashboard.GetTechnicianUserIdsInGroupAsync(effectiveGroupId, cancellationToken);

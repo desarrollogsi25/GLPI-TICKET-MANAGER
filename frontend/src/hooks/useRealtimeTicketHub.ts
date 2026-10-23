@@ -6,7 +6,9 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
+import { useToastStore } from '@/store/toastStore'
 import { queryKeys } from '@/lib/api/queryKeys'
+import type { PagedResult, TicketDetail, TicketSummary } from '@/lib/api/types'
 
 /**
  * Lifecycle of the realtime connection.
@@ -53,6 +55,88 @@ export interface UseRealtimeTicketHubOptions {
   onNotificationReceived?: () => void
 }
 
+const STATUS_LABELS: Record<number, string> = {
+  1: 'Nuevo',
+  2: 'Asignado',
+  3: 'En Progreso',
+  4: 'Pendiente',
+  5: 'Resuelto',
+  6: 'Cerrado',
+}
+
+function getStatusLabel(status: number): string {
+  return STATUS_LABELS[status] ?? `Estado ${status}`
+}
+
+/**
+ * H-41 Golden Rule 1: Optimistically updates cached ticket lists and detail queries
+ * using `queryClient.setQueryData` so Kanban cards move between columns immediately
+ * without triggering a full `invalidateQueries` on every status change.
+ */
+export function applyOptimisticTicketStatusUpdate(
+  client: QueryClient,
+  payload: TicketStatusChangedPayload,
+) {
+  const statusLabel = getStatusLabel(payload.newStatus)
+  const updatedAt = payload.timestamp || new Date().toISOString()
+
+  // 1. Update any paged TicketSummary cache (byAssignee, list, byGroupQueue)
+  client.setQueriesData<PagedResult<TicketSummary>>(
+    { queryKey: queryKeys.tickets.all },
+    (old) => {
+      if (!old || !Array.isArray(old.items)) return old
+      const hasTicket = old.items.some((item) => item.id === payload.ticketId)
+      if (!hasTicket) return old
+
+      const nextItems = old.items.map((item) =>
+        item.id === payload.ticketId
+          ? {
+              ...item,
+              status: payload.newStatus,
+              statusLabel,
+              updatedAt,
+            }
+          : item,
+      )
+      return {
+        ...old,
+        items: nextItems,
+      }
+    },
+  )
+
+  // 2. If the ticket moved out of New/Assigned (status > 2), remove it from group queues
+  if (payload.newStatus > 2) {
+    client.setQueriesData<PagedResult<TicketSummary>>(
+      { queryKey: ['tickets', 'group-queue'] },
+      (old) => {
+        if (!old || !Array.isArray(old.items)) return old
+        if (!old.items.some((item) => item.id === payload.ticketId)) return old
+        const filtered = old.items.filter((item) => item.id !== payload.ticketId)
+        return {
+          ...old,
+          items: filtered,
+          total: Math.max(0, (old.total ?? filtered.length + 1) - 1),
+        }
+      },
+    )
+  }
+
+  // 3. Update ticket detail cache if loaded
+  client.setQueryData<TicketDetail>(
+    queryKeys.tickets.detail(payload.ticketId),
+    (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        status: payload.newStatus,
+        statusLabel,
+        updatedAt,
+      }
+    },
+  )
+}
+
 const signalRLogger = {
   log(logLevel: LogLevel, message: string) {
     if (
@@ -85,11 +169,6 @@ let negotiationRetryTimer: ReturnType<typeof setTimeout> | null = null
 const REALTIME_STOP_TIMEOUT_MS = 5000
 /**
  * The in-flight `connection.start()` handshake, if any.
- *
- * BUG-032 / H-32: the logout flow used to revoke the JWT while the WebSocket upgrade
- * was still on the wire. The server answered that upgrade with `401` and the browser
- * reported "HTTP Authentication failed" in the console. Keeping a handle on the
- * handshake lets the logout flow close the socket on a clean boundary instead.
  */
 let pendingStart: Promise<void> | null = null
 
@@ -100,23 +179,8 @@ function clearNegotiationRetry() {
   }
 }
 
-/**
- * Quiet period after the LAST realtime event before the caches are invalidated.
- *
- * BUG-032 / H-36: every SignalR event used to call `invalidateQueries` right away. A
- * burst of N events therefore refetched `GET /tickets/by-group` N times (several
- * invalidations per event, and TanStack cancels + restarts an in-flight refetch by
- * default), draining the `Expensive` token bucket (20 req/min, 1 token / 3 s) and
- * producing 429. Events now only mark the caches as dirty; one trailing flush runs
- * once the burst has settled.
- */
 export const REALTIME_INVALIDATION_DEBOUNCE_MS = 800
-/**
- * Upper bound on how long a continuous stream of events can postpone the flush, so a
- * busy board still refreshes at least this often instead of starving.
- */
 export const REALTIME_INVALIDATION_MAX_WAIT_MS = 3000
-/** Minimum spacing between two flushes: caps the realtime refetch rate at ~1/s. */
 const REALTIME_INVALIDATION_MIN_INTERVAL_MS = 1000
 
 let invalidationTimer: ReturnType<typeof setTimeout> | null = null
@@ -125,6 +189,7 @@ const subscribedGroupIds = new Set<number>()
 let pendingNotificationsInvalidation = false
 let pendingTicketsInvalidation = false
 let pendingDashboardInvalidation = false
+const pendingGroupQueueIds = new Set<number>()
 let firstPendingAt = 0
 let lastFlushAt = 0
 
@@ -134,19 +199,28 @@ function flushRealtimeInvalidation() {
   const tickets = pendingTicketsInvalidation
   const dashboard = pendingDashboardInvalidation
   const notifications = pendingNotificationsInvalidation
+  const groupQueueIds = Array.from(pendingGroupQueueIds)
   pendingTicketsInvalidation = false
   pendingDashboardInvalidation = false
   pendingNotificationsInvalidation = false
+  pendingGroupQueueIds.clear()
   firstPendingAt = 0
-  if (!client || (!tickets && !dashboard && !notifications)) return
+  if (!client || (!tickets && !dashboard && !notifications && groupQueueIds.length === 0)) return
 
   lastFlushAt = Date.now()
-  // `queryKeys.tickets.all` is a prefix of the detail, list, assignee and group-queue
-  // keys, so ONE invalidation covers them all. `cancelRefetch: false` keeps an
-  // in-flight request instead of cancelling it and firing a duplicate.
+
   if (tickets) {
     void client.invalidateQueries({ queryKey: queryKeys.tickets.all }, { cancelRefetch: false })
+  } else if (groupQueueIds.length > 0) {
+    // H-41 Golden Rule 1: For TicketCreated, invalidate ONLY the affected group's queue
+    for (const gid of groupQueueIds) {
+      void client.invalidateQueries(
+        { queryKey: queryKeys.tickets.byGroupQueue(gid) },
+        { cancelRefetch: false },
+      )
+    }
   }
+
   if (dashboard) {
     void client.invalidateQueries({ queryKey: ['dashboard'] }, { cancelRefetch: false })
     void client.invalidateQueries({ queryKey: ['groups', 'dashboard'] }, { cancelRefetch: false })
@@ -163,10 +237,16 @@ function flushRealtimeInvalidation() {
  */
 export function scheduleRealtimeInvalidation(
   client: QueryClient,
-  scope: { tickets?: boolean; dashboard?: boolean; notifications?: boolean },
+  scope: {
+    tickets?: boolean
+    groupQueueId?: number
+    dashboard?: boolean
+    notifications?: boolean
+  },
 ) {
   invalidationQueryClient = client
   if (scope.tickets) pendingTicketsInvalidation = true
+  if (scope.groupQueueId && scope.groupQueueId > 0) pendingGroupQueueIds.add(scope.groupQueueId)
   if (scope.dashboard) pendingDashboardInvalidation = true
   if (scope.notifications) pendingNotificationsInvalidation = true
 
@@ -193,6 +273,7 @@ function cancelRealtimeInvalidation() {
   pendingTicketsInvalidation = false
   pendingDashboardInvalidation = false
   pendingNotificationsInvalidation = false
+  pendingGroupQueueIds.clear()
   firstPendingAt = 0
 }
 
@@ -210,18 +291,6 @@ function updateConnectionState(newState: ConnectionState) {
   stateListeners.forEach((cb) => cb(newState))
 }
 
-/**
- * Stops the shared realtime connection, waiting for a pending handshake to settle.
- *
- * BUG-032 / H-32: the session must be closed in the right order. The logout flow
- * revokes the JWT, so any WebSocket upgrade still in flight would be rejected with
- * `401` and the browser would log the failure as a console error the user never
- * caused. Closing the socket FIRST removes that window.
- *
- * The handshake is awaited instead of being aborted on purpose: aborting a WebSocket
- * mid-upgrade makes the browser log "WebSocket is closed before the connection was
- * established", which is exactly the noise this function exists to remove.
- */
 export async function stopRealtimeConnection(): Promise<void> {
   const connection = sharedConnection
   sharedConnection = null
@@ -247,23 +316,12 @@ export async function stopRealtimeConnection(): Promise<void> {
   updateConnectionState('disconnected')
 }
 
-/**
- * Subscribes to the state of the shared connection WITHOUT taking part in its
- * lifecycle.
- *
- * `useRealtimeTicketHub` opens and closes the connection (it is reference counted),
- * so components that only need to know whether realtime is alive use this hook
- * instead. BUG-032 / H-32: the Kanban queue query reads this state to decide between
- * "trust SignalR" and "fall back to polling".
- */
 export function useRealtimeConnectionState(): ConnectionState {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>(currentConnectionState)
 
   useEffect(() => {
     stateListeners.add(setConnectionState)
-    // The shared connection may have changed state between the render and this
-    // effect (e.g. it connected while this component was mounting).
     setConnectionState(currentConnectionState)
     return () => {
       stateListeners.delete(setConnectionState)
@@ -332,11 +390,6 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
 
     connectionRefCount++
 
-    // Generation guard: any async callback created by this effect (negotiation retry,
-    // start().then/catch) becomes a no-op once the effect is torn down. This is what
-    // prevents the "AbortError: The connection was stopped during negotiation" from
-    // surfacing when a component mounts/unmounts quickly (React 19 StrictMode, route
-    // transitions or a token refresh).
     let disposed = false
 
     const startConnection = (connection: HubConnection) => {
@@ -345,8 +398,6 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
 
       const start = connection.start()
 
-      // BUG-032: keep a handle on the handshake so `stopRealtimeConnection()` can wait
-      // for it to settle instead of aborting a WebSocket upgrade mid-flight.
       const settled = start.then(
         () => undefined,
         () => undefined,
@@ -365,7 +416,8 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
           if (initialGroup && initialGroup > 0) {
             subscribedGroupIds.add(initialGroup)
           }
-          const groupsToSubscribe = subscribedGroupIds.size > 0 ? Array.from(subscribedGroupIds) : [1]
+          const groupsToSubscribe =
+            subscribedGroupIds.size > 0 ? Array.from(subscribedGroupIds) : [1]
           groupsToSubscribe.forEach((gid) => {
             connection.invoke('SubscribeToGroup', gid).catch(() => {})
           })
@@ -373,8 +425,6 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         .catch((err) => {
           if (disposed) return
           if (isAbortError(err)) {
-            // Expected during fast mount/unmount or a token swap. Retry after 5s
-            // instead of surfacing the error, and never block the UI on it.
             updateConnectionState('connecting')
             clearNegotiationRetry()
             negotiationRetryTimer = setTimeout(() => {
@@ -395,7 +445,6 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
 
     if (!sharedConnection || sharedToken !== token) {
       if (sharedConnection) {
-        // stop() may reject with an AbortError mid-negotiation; swallow it.
         sharedConnection.stop().catch(() => {})
       }
 
@@ -417,48 +466,119 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         .configureLogging(signalRLogger)
         .build()
 
-      // Eventos
-      // H-36 / H-40: handlers mark caches dirty; the refetch is debounced (see
-      // `scheduleRealtimeInvalidation`) so an event burst yields a single request.
+      // H-41 Point 2 & 3:
+      // - TicketCreated: invalidate ONLY the affected group's queue + show toast
       connection.on('TicketCreated', (payload: TicketCreatedPayload) => {
+        const targetGroupId =
+          payload.groupId && payload.groupId > 0
+            ? payload.groupId
+            : optionsRef.current?.groupId ?? 1
+
+        void queryClient.invalidateQueries(
+          { queryKey: queryKeys.tickets.byGroupQueue(targetGroupId) },
+          { cancelRefetch: false },
+        )
         scheduleRealtimeInvalidation(queryClient, {
-          tickets: true,
+          groupQueueId: targetGroupId,
           dashboard: true,
           notifications: true,
         })
+
+        useToastStore.getState().push({
+          title: `Nuevo ticket #${payload.ticketId} en tu cola`,
+          description: 'Se ha recibido un nuevo ticket en la cola del grupo.',
+          variant: 'info',
+        })
+
         activeListeners.forEach((l) =>
           l.onTicketCreated?.(payload.ticketId, payload.groupId),
         )
       })
 
-      connection.on('TicketClaimed', (payload: TicketClaimedPayload) => {
+      // - TicketClaimed / TicketAssigned: remove from group queue via setQueryData + invalidate assignee list
+      const handleTicketClaimed = (payload: TicketClaimedPayload) => {
+        queryClient.setQueriesData<PagedResult<TicketSummary>>(
+          { queryKey: queryKeys.tickets.byGroupQueue(payload.groupId) },
+          (old) => {
+            if (!old || !Array.isArray(old.items)) return old
+            const filtered = old.items.filter((t) => t.id !== payload.ticketId)
+            return {
+              ...old,
+              items: filtered,
+              total: Math.max(0, (old.total ?? filtered.length + 1) - 1),
+            }
+          },
+        )
+        if (payload.assignedUserId > 0) {
+          void queryClient.invalidateQueries(
+            { queryKey: queryKeys.tickets.byAssignee(payload.assignedUserId) },
+            { cancelRefetch: false },
+          )
+        }
         scheduleRealtimeInvalidation(queryClient, {
-          tickets: true,
           dashboard: true,
           notifications: true,
         })
+
+        const currentUserId = useAuthStore.getState().user?.userId
+        if (currentUserId && Number(currentUserId) === Number(payload.assignedUserId)) {
+          const existing = useToastStore.getState().toasts
+          if (!existing.some((t) => t.description?.includes(`#${payload.ticketId}`) || t.title.includes(`#${payload.ticketId}`))) {
+            useToastStore.getState().push({
+              title: `Te has asignado el ticket #${payload.ticketId}`,
+              variant: 'success',
+            })
+          }
+        }
+
         activeListeners.forEach((l) =>
           l.onTicketClaimed?.(payload.ticketId, payload.groupId),
         )
-      })
+      }
 
+      connection.on('TicketClaimed', handleTicketClaimed)
+      connection.on('TicketAssigned', handleTicketClaimed)
+
+      // - TicketStatusChanged: use queryClient.setQueryData to move the card immediately (Golden Rule 1)
       connection.on('TicketStatusChanged', (payload: TicketStatusChangedPayload) => {
+        applyOptimisticTicketStatusUpdate(queryClient, payload)
         scheduleRealtimeInvalidation(queryClient, {
-          tickets: true,
           dashboard: true,
           notifications: true,
         })
+
+        const statusLabel = getStatusLabel(payload.newStatus)
+        const existing = useToastStore.getState().toasts
+        const alreadyShown = existing.some(
+          (t) =>
+            t.title.includes(`#${payload.ticketId}`) ||
+            (t.description?.includes(`#${payload.ticketId}`) ?? false),
+        )
+        if (!alreadyShown) {
+          useToastStore.getState().push({
+            title: `El ticket #${payload.ticketId} pasó a ${statusLabel}`,
+            variant: 'info',
+          })
+        }
+
         activeListeners.forEach((l) =>
           l.onTicketStatusChanged?.(payload.ticketId, payload.newStatus),
         )
       })
 
       connection.on('SolutionAdded', () => {
-        scheduleRealtimeInvalidation(queryClient, { tickets: true, dashboard: true })
+        scheduleRealtimeInvalidation(queryClient, { dashboard: true })
       })
 
       connection.on('NotificationReceived', () => {
         void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+        const existing = useToastStore.getState().toasts
+        if (!existing.some((t) => t.title.includes('Nuevo ticket') || t.title.includes('nueva notificación'))) {
+          useToastStore.getState().push({
+            title: 'Tienes una nueva notificación',
+            variant: 'info',
+          })
+        }
         activeListeners.forEach((l) => l.onNotificationReceived?.())
       })
 
@@ -468,14 +588,13 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
       connection.onreconnected(async () => {
         updateConnectionState('connected')
 
-        // A reconnected SignalR connection starts with NO group membership: the server
-        // dropped the subscription when the socket went down. Without re-joining, the
-        // board would silently stop receiving events for the group it is showing.
+        // Re-subscribe to all active groups upon reconnection (H-41 Point 2.2)
         const initialGroup = optionsRef.current?.groupId
         if (initialGroup && initialGroup > 0) {
           subscribedGroupIds.add(initialGroup)
         }
-        const groupsToSubscribe = subscribedGroupIds.size > 0 ? Array.from(subscribedGroupIds) : [1]
+        const groupsToSubscribe =
+          subscribedGroupIds.size > 0 ? Array.from(subscribedGroupIds) : [1]
         for (const gid of groupsToSubscribe) {
           try {
             await connection.invoke('SubscribeToGroup', gid)
@@ -484,9 +603,7 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
           }
         }
 
-        // Events raised while the socket was down were never delivered. Reconciling
-        // the cached queue with the server closes that gap without resorting to the
-        // aggressive polling this incident removed (debounced like any other event).
+        // General invalidateQueries on reconnect to recover missed state
         scheduleRealtimeInvalidation(queryClient, {
           tickets: true,
           dashboard: true,

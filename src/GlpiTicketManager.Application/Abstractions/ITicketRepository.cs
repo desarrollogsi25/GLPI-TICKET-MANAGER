@@ -104,4 +104,5 @@ public interface ITicketRepository
     Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> HasAssigneeAsync(int ticketId, CancellationToken cancellationToken);
+    Task EnsureTicketGroupAssignedAsync(int ticketId, int groupId, CancellationToken cancellationToken);
 }

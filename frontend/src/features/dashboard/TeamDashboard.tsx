@@ -12,8 +12,8 @@ import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useGroupsQuery, useTeamDashboardQuery } from '@/hooks/useTickets'
 
 /**
- * Supervisor view: "Mi Equipo" — live status cards and table of technicians in the group.
- * Consumes GET /api/groups/{groupId}/dashboard and subscribes to SignalR for real-time updates (H-40).
+ * Supervisor view: "Mi Equipo" — live status cards and detailed technician table.
+ * Consumes GET /api/groups/{groupId}/dashboard and subscribes to SignalR for real-time updates (H-40 / H-41).
  */
 export function TeamDashboard() {
   const groups = useGroupsQuery()
@@ -31,49 +31,50 @@ export function TeamDashboard() {
 
   const { data, isLoading, isError } = useTeamDashboardQuery(groupId)
   const technicians = data?.technicians ?? []
+  const summary = data?.summary
 
   const statCards = [
     {
       id: 'total',
       label: 'Total tickets',
-      value: data?.totalTickets ?? 0,
-      accent: 'border-slate-200 bg-slate-50/60 text-slate-900 dark:bg-slate-900/40 dark:text-slate-100',
+      value: summary?.total ?? data?.totalTickets ?? 0,
+      accent: 'border-slate-200 bg-slate-50/70 text-slate-900 dark:bg-slate-900/50 dark:text-slate-100',
     },
     {
       id: 'queued',
       label: 'En cola',
-      value: data?.queuedTickets ?? 0,
-      accent: 'border-blue-200 bg-blue-50/60 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200',
+      value: summary?.queued ?? data?.queuedTickets ?? 0,
+      accent: 'border-blue-200 bg-blue-50/70 text-blue-900 dark:bg-blue-950/50 dark:text-blue-200',
     },
     {
       id: 'assigned',
       label: 'Asignados',
-      value: data?.assignedTickets ?? 0,
-      accent: 'border-sky-200 bg-sky-50/60 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200',
+      value: summary?.assigned ?? data?.assignedTickets ?? 0,
+      accent: 'border-sky-200 bg-sky-50/70 text-sky-900 dark:bg-sky-950/50 dark:text-sky-200',
     },
     {
       id: 'in-progress',
       label: 'En progreso',
-      value: data?.inProgressTickets ?? 0,
-      accent: 'border-indigo-200 bg-indigo-50/60 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200',
+      value: summary?.inProgress ?? data?.inProgressTickets ?? 0,
+      accent: 'border-indigo-200 bg-indigo-50/70 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-200',
     },
     {
       id: 'pending',
       label: 'Pendientes',
-      value: data?.pendingTickets ?? 0,
-      accent: 'border-amber-200 bg-amber-50/60 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200',
+      value: summary?.pending ?? data?.pendingTickets ?? 0,
+      accent: 'border-amber-200 bg-amber-50/70 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200',
     },
     {
       id: 'resolved',
       label: 'Resueltos',
-      value: data?.resolvedTickets ?? 0,
-      accent: 'border-emerald-200 bg-emerald-50/60 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200',
+      value: summary?.resolved ?? data?.resolvedTickets ?? 0,
+      accent: 'border-emerald-200 bg-emerald-50/70 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200',
     },
     {
       id: 'closed',
       label: 'Cerrados',
-      value: data?.closedTickets ?? 0,
-      accent: 'border-teal-200 bg-teal-50/60 text-teal-900 dark:bg-teal-950/40 dark:text-teal-200',
+      value: summary?.closed ?? data?.closedTickets ?? 0,
+      accent: 'border-teal-200 bg-teal-50/70 text-teal-900 dark:bg-teal-950/50 dark:text-teal-200',
     },
   ]
 
@@ -130,7 +131,7 @@ export function TeamDashboard() {
         ))}
       </div>
 
-      {/* Tabla detallada de técnicos */}
+      {/* Tabla detallada de técnicos (H-41: Técnico | Ticket Actual | En Cola | Pendientes | Resueltos Hoy | Último Comentario) */}
       <Card>
         <CardHeader>
           <CardTitle>Técnicos — {groupName}</CardTitle>
@@ -150,15 +151,23 @@ export function TeamDashboard() {
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="py-2.5 pr-4">Técnico</th>
                     <th className="py-2.5 pr-4">Ticket Actual</th>
-                    <th className="py-2.5 pr-4">En Progreso</th>
+                    <th className="py-2.5 pr-4">En Cola</th>
                     <th className="py-2.5 pr-4">Pendientes</th>
-                    <th className="py-2.5">Resueltos Hoy</th>
+                    <th className="py-2.5 pr-4">Resueltos Hoy</th>
+                    <th className="py-2.5">Último Comentario</th>
                   </tr>
                 </thead>
                 <tbody>
                   {technicians.map((m) => {
                     const techId = m.id ?? m.userId
-                    const currentTicket = m.currentTicket ?? (m.currentTicketId && m.currentTicketId > 0 ? m.currentTicketId : null)
+                    const currentTicket =
+                      m.activeTicket ??
+                      m.currentTicket ??
+                      (m.currentTicketId && m.currentTicketId > 0 ? m.currentTicketId : null)
+                    const queuedCount = m.queuedCount ?? summary?.queued ?? data?.queuedTickets ?? 0
+                    const pendingCount = m.pendingCount ?? m.pendingTickets ?? 0
+                    const lastComment = m.lastComment?.trim() || null
+
                     return (
                       <tr key={techId} className="border-b border-border/50" data-testid={`tech-row-${m.name}`}>
                         <td className="py-2.5 pr-4 font-medium">{m.name}</td>
@@ -175,22 +184,40 @@ export function TeamDashboard() {
                           )}
                         </td>
                         <td className="py-2.5 pr-4">
-                          <Badge variant="secondary">{m.activeTickets}</Badge>
+                          <Badge variant="secondary" data-testid={`tech-queued-${m.name}`}>
+                            {queuedCount}
+                          </Badge>
                         </td>
                         <td className="py-2.5 pr-4">
-                          <Badge variant="outline">{m.pendingTickets}</Badge>
+                          <Badge variant="outline" data-testid={`tech-pending-${m.name}`}>
+                            {pendingCount}
+                          </Badge>
                         </td>
-                        <td className="py-2.5">
-                          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                        <td className="py-2.5 pr-4">
+                          <Badge
+                            className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                            data-testid={`tech-resolved-${m.name}`}
+                          >
                             {m.resolvedToday ?? 0}
                           </Badge>
+                        </td>
+                        <td
+                          className="py-2.5 max-w-xs truncate text-xs text-muted-foreground"
+                          title={lastComment ?? undefined}
+                          data-testid={`tech-comment-${m.name}`}
+                        >
+                          {lastComment ? (
+                            <span className="text-foreground">{lastComment}</span>
+                          ) : (
+                            <span>—</span>
+                          )}
                         </td>
                       </tr>
                     )
                   })}
                   {technicians.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-4 text-center text-muted-foreground">
+                      <td colSpan={6} className="py-4 text-center text-muted-foreground">
                         Sin datos de equipo.
                       </td>
                     </tr>

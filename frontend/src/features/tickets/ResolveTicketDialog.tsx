@@ -93,7 +93,7 @@ export function ResolveTicketDialog({
     void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     pushToast({
       title: 'Ticket resuelto correctamente',
-      description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
+      description: `El ticket #${ticketId} pasó a Resuelto`,
       variant: 'success',
     })
   }

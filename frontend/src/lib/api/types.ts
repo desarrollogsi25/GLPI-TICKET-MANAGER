@@ -135,15 +135,29 @@ export interface Service {
   level: number
 }
 
+export interface GroupDashboardSummary {
+  total: number
+  queued: number
+  assigned: number
+  inProgress: number
+  pending: number
+  resolved: number
+  closed: number
+}
+
 export interface TeamMember {
   id?: number
   userId: number
   name: string
   activeTickets: number
   pendingTickets: number
+  pendingCount?: number
+  queuedCount?: number
   resolvedToday?: number
   currentTicketId: number | null
   currentTicket?: number | null
+  activeTicket?: number | null
+  lastComment?: string | null
 }
 
 export interface GroupDashboard {
@@ -154,6 +168,7 @@ export interface GroupDashboard {
   pendingTickets: number
   resolvedTickets: number
   closedTickets: number
+  summary?: GroupDashboardSummary | null
   technicians: TeamMember[]
 }
 

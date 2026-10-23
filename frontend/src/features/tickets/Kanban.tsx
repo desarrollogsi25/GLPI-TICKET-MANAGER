@@ -565,7 +565,7 @@ export function Kanban() {
       onSuccess: () => {
         pushToast({
           title: 'Ticket asignado correctamente',
-          description: `Ticket #${ticketId} asignado a vos.`,
+          description: `Te has asignado el ticket #${ticketId}`,
           variant: 'success',
         })
       },
@@ -586,7 +586,7 @@ export function Kanban() {
         onSuccess: () =>
           pushToast({
             title: `Ticket #${ticketId} en progreso`,
-            description: 'Se cambió el estado a Planificado / En progreso.',
+            description: `El ticket #${ticketId} pasó a En Progreso`,
             variant: 'success',
           }),
         onError: (err) =>
@@ -606,7 +606,7 @@ export function Kanban() {
         onSuccess: () =>
           pushToast({
             title: `Ticket #${ticketId} retomado`,
-            description: 'Se reanudó el trabajo en progreso.',
+            description: `El ticket #${ticketId} pasó a En Progreso`,
             variant: 'success',
           }),
         onError: (err) =>

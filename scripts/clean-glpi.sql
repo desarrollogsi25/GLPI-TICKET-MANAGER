@@ -30,7 +30,10 @@ DELETE FROM glpi_groups_users   WHERE groups_id NOT IN (1, 2, 3);
 DELETE FROM glpi_groups_tickets WHERE groups_id NOT IN (1, 2, 3);
 DELETE FROM glpi_groups         WHERE id NOT IN (1, 2, 3);
 
--- 4. Reglas de enrutamiento antiguas (se recrean limpia y únicamente en el seed).
+-- 4. Categorías huérfanas o duplicadas (se reconstruyen jerárquicamente en seed).
+DELETE FROM glpi_itilcategories WHERE id IN (8, 9, 10, 12, 13, 14) OR id > 19;
+
+-- 5. Reglas de enrutamiento antiguas (se recrean limpia y únicamente en el seed).
 DELETE FROM glpi_ruleactions    WHERE rules_id IN (SELECT id FROM glpi_rules WHERE name IN
   ('Route Desarrollo', 'Route BI', 'Route Service Desk', 'E2E Hardware ticket routing', 'H38 Route Desarrollo', 'H38 Route BI', 'H38 Route Service Desk'));
 DELETE FROM glpi_rulecriterias  WHERE rules_id IN (SELECT id FROM glpi_rules WHERE name IN

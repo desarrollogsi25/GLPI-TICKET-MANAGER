@@ -120,6 +120,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 builder.Services.AddScoped<ITicketNotificationService, TicketNotificationService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddHostedService<GlpiNativeTicketWatcher>();
 
 // ---- Rate limiting (native .NET 9) --------------------------------------
 builder.Services.AddRateLimiter(options =>

@@ -19,35 +19,63 @@ VALUES
   (3, 'Service Desk', 0, 'Service Desk', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name), completename = VALUES(completename), is_assign = 1;
 
--- 2. CATEGORÍAS ITIL --------------------------------------------------------
--- Categorías "de servicio" usadas por /services y por las pruebas E2E.
-INSERT INTO glpi_itilcategories
-  (id, entities_id, is_recursive, itilcategories_id, name, completename, level, is_helpdeskvisible, is_incident, is_request, is_problem, is_change)
+-- 2. UNICIDAD Y CATEGORÍAS ITIL JERÁRQUICAS (H-41) ---------------------------
+-- Regla de unicidad en GLPI 11 (Configuración > Unicidad) para ITILCategory
+-- basada en `name,itilcategories_id` con rechazo de duplicados (action_refuse = 1).
+INSERT INTO glpi_fieldunicities
+  (id, name, is_recursive, itemtype, entities_id, fields, is_active, action_refuse, action_notify, comment, date_mod, date_creation)
 VALUES
-  (2, 0, 1, 0, 'Requerimiento', 'Requerimiento', 1, 1, 1, 1, 1, 1),
-  (3, 0, 1, 2, 'Acceso a sistema', 'Requerimiento > Acceso a sistema', 2, 1, 1, 1, 1, 1),
-  (4, 0, 1, 2, 'Software', 'Requerimiento > Software', 2, 1, 1, 1, 1, 1),
-  (5, 0, 1, 0, 'Aplicaciones', 'Aplicaciones', 1, 1, 1, 1, 1, 1),
-  (6, 0, 1, 0, 'Sistema', 'Sistema', 1, 1, 1, 1, 1, 1)
-ON DUPLICATE KEY UPDATE name = VALUES(name), completename = VALUES(completename);
+  (1, 'Unicidad Categorías ITIL', 1, 'ITILCategory', 0, 'name,itilcategories_id', 1, 1, 0, 'H-41: Rechazar categorías ITIL duplicadas', NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  is_recursive = 1,
+  itemtype = 'ITILCategory',
+  fields = 'name,itilcategories_id',
+  is_active = 1,
+  action_refuse = 1,
+  date_mod = NOW();
 
--- Categorías funcionales de la nueva estructura.
+-- Eliminar duplicados actuales (conservando el ID más bajo de cada par duplicado).
+DELETE FROM glpi_itilcategories WHERE id IN (8, 9, 10, 12, 13, 14) OR id > 19;
+
+-- Estructura jerárquica limpia sin nombres repetidos:
+-- Raíces por grupo/servicio:
+--   1 = Desarrollo (raíz grupo Desarrollo)
+--   2 = Requerimiento (raíz histórica E2E)
+--   5 = Aplicaciones (raíz de aplicaciones)
+--   6 = Sistema (raíz de infraestructura/sistema)
+--   7 = Service Desk (raíz grupo Service Desk)
+--  10 = BI (raíz grupo BI)
 INSERT INTO glpi_itilcategories
   (id, entities_id, is_recursive, itilcategories_id, name, completename, level, is_helpdeskvisible, is_incident, is_request, is_problem, is_change)
 VALUES
-  -- Desarrollo
-  (11, 0, 1, 0, 'dev',              'dev',              1, 1, 1, 1, 1, 1),
-  (12, 0, 1, 0, 'aplicaciones gsi', 'aplicaciones gsi', 1, 1, 1, 1, 1, 1),
-  (13, 0, 1, 0, 'software',         'software',         1, 1, 1, 1, 1, 1),
-  -- BI
-  (14, 0, 1, 0, 'requerimiento BI', 'requerimiento BI', 1, 1, 1, 1, 1, 1),
-  -- Service Desk
-  (15, 0, 1, 0, 'Call Center',      'Call Center',      1, 1, 1, 1, 1, 1),
-  (16, 0, 1, 0, 'Hardware',         'Hardware',         1, 1, 1, 1, 1, 1),
-  (17, 0, 1, 0, 'Soporte Nivel 1',  'Soporte Nivel 1',  1, 1, 1, 1, 1, 1),
-  (18, 0, 1, 0, 'Informes',         'Informes',         1, 1, 1, 1, 1, 1),
-  (19, 0, 1, 0, 'Periféricos',      'Periféricos',      1, 1, 1, 1, 1, 1)
-ON DUPLICATE KEY UPDATE name = VALUES(name), completename = VALUES(completename), level = 1;
+  -- Raíces (Nivel 1)
+  (1,  0, 1, 0,  'Desarrollo',       'Desarrollo',                         1, 1, 1, 1, 1, 1),
+  (2,  0, 1, 0,  'Requerimiento',    'Requerimiento',                      1, 1, 1, 1, 1, 1),
+  (5,  0, 1, 0,  'Aplicaciones',     'Aplicaciones',                       1, 1, 1, 1, 1, 1),
+  (6,  0, 1, 0,  'Sistema',          'Sistema',                            1, 1, 1, 1, 1, 1),
+  (7,  0, 1, 0,  'Service Desk',     'Service Desk',                       1, 1, 1, 1, 1, 1),
+  (10, 0, 1, 0,  'BI',               'BI',                                 1, 1, 1, 1, 1, 1),
+  -- Subcategorías de Requerimiento (2)
+  (3,  0, 1, 2,  'Acceso a sistema', 'Requerimiento > Acceso a sistema',   2, 1, 1, 1, 1, 1),
+  -- Subcategorías de Desarrollo (1)
+  (4,  0, 1, 1,  'Software',         'Desarrollo > Software',              2, 1, 1, 1, 1, 1),
+  (9,  0, 1, 1,  'Aplicaciones GSI', 'Desarrollo > Aplicaciones GSI',      2, 1, 1, 1, 1, 1),
+  (11, 0, 1, 1,  'Dev',              'Desarrollo > Dev',                   2, 1, 1, 1, 1, 1),
+  -- Subcategorías de BI (10)
+  (14, 0, 1, 10, 'Requerimiento BI', 'BI > Requerimiento BI',              2, 1, 1, 1, 1, 1),
+  (18, 0, 1, 10, 'Informes',         'BI > Informes',                      2, 1, 1, 1, 1, 1),
+  -- Subcategorías de Service Desk (7)
+  (15, 0, 1, 7,  'Call Center',      'Service Desk > Call Center',         2, 1, 1, 1, 1, 1),
+  (16, 0, 1, 7,  'Hardware',         'Service Desk > Hardware',            2, 1, 1, 1, 1, 1),
+  (17, 0, 1, 7,  'Soporte Nivel 1',  'Service Desk > Soporte Nivel 1',     2, 1, 1, 1, 1, 1),
+  (19, 0, 1, 7,  'Periféricos',      'Service Desk > Periféricos',         2, 1, 1, 1, 1, 1)
+ON DUPLICATE KEY UPDATE
+  itilcategories_id = VALUES(itilcategories_id),
+  name = VALUES(name),
+  completename = VALUES(completename),
+  level = VALUES(level),
+  is_helpdeskvisible = 1;
 
 -- 3. ENRUTAMIENTO CATEGORÍA -> GRUPO (reglas de negocio de GLPI) -------------
 -- La API resuelve el grupo destino leyendo estas reglas
@@ -71,16 +99,22 @@ SET @rule_sd = (SELECT id FROM glpi_rules WHERE name = 'H38 Route Service Desk' 
 -- Criterios (condition = 0 -> "es")
 DELETE FROM glpi_rulecriterias WHERE rules_id IN (@rule_dev, @rule_bi, @rule_sd);
 INSERT INTO glpi_rulecriterias (rules_id, criteria, `condition`, pattern) VALUES
-  (@rule_dev, 'itilcategories_id', 0, '11'),  -- dev
-  (@rule_dev, 'itilcategories_id', 0, '12'),  -- aplicaciones gsi
-  (@rule_dev, 'itilcategories_id', 0, '13'),  -- software
-  (@rule_bi,  'itilcategories_id', 0, '14'),  -- requerimiento BI
-  (@rule_sd,  'itilcategories_id', 0, '15'),  -- Call Center
-  (@rule_sd,  'itilcategories_id', 0, '16'),  -- Hardware
-  (@rule_sd,  'itilcategories_id', 0, '17'),  -- Soporte Nivel 1
-  (@rule_sd,  'itilcategories_id', 0, '18'),  -- Informes
-  (@rule_sd,  'itilcategories_id', 0, '19'),  -- Periféricos
-  (@rule_sd,  'itilcategories_id', 0, '2');   -- Requerimiento (genérica)
+  (@rule_dev, 'itilcategories_id', 0, '1'),   -- Desarrollo (raíz)
+  (@rule_dev, 'itilcategories_id', 0, '4'),   -- Desarrollo > Software
+  (@rule_dev, 'itilcategories_id', 0, '5'),   -- Aplicaciones
+  (@rule_dev, 'itilcategories_id', 0, '9'),   -- Desarrollo > Aplicaciones GSI
+  (@rule_dev, 'itilcategories_id', 0, '11'),  -- Desarrollo > Dev
+  (@rule_bi,  'itilcategories_id', 0, '10'),  -- BI (raíz)
+  (@rule_bi,  'itilcategories_id', 0, '14'),  -- BI > Requerimiento BI
+  (@rule_bi,  'itilcategories_id', 0, '18'),  -- BI > Informes
+  (@rule_sd,  'itilcategories_id', 0, '2'),   -- Requerimiento
+  (@rule_sd,  'itilcategories_id', 0, '3'),   -- Requerimiento > Acceso a sistema
+  (@rule_sd,  'itilcategories_id', 0, '6'),   -- Sistema
+  (@rule_sd,  'itilcategories_id', 0, '7'),   -- Service Desk (raíz)
+  (@rule_sd,  'itilcategories_id', 0, '15'),  -- Service Desk > Call Center
+  (@rule_sd,  'itilcategories_id', 0, '16'),  -- Service Desk > Hardware
+  (@rule_sd,  'itilcategories_id', 0, '17'),  -- Service Desk > Soporte Nivel 1
+  (@rule_sd,  'itilcategories_id', 0, '19');  -- Service Desk > Periféricos
 
 DELETE FROM glpi_ruleactions WHERE rules_id IN (@rule_dev, @rule_bi, @rule_sd);
 INSERT INTO glpi_ruleactions (rules_id, action_type, field, value) VALUES
@@ -162,12 +196,12 @@ INSERT INTO glpi_useremails (users_id, is_default, is_dynamic, email) VALUES
 INSERT INTO glpi_tickets
   (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)
 VALUES
-  (11, 0, '[Dev] Error en modulo de facturacion', NOW(), NOW(), 1, 3, 'Error 500 al procesar facturas.', 3, 3, 4, 1, 1, 13),
+  (11, 0, '[Dev] Error en modulo de facturacion', NOW(), NOW(), 1, 3, 'Error 500 al procesar facturas.', 3, 3, 4, 1, 1, 4),
   (12, 0, '[BI] Dashboard no actualiza datos',    NOW(), NOW(), 1, 3, 'El dashboard de ventas no refresca desde ayer.', 3, 3, 3, 1, 1, 14),
   (13, 0, '[SD] Monitor no enciende',             NOW(), NOW(), 1, 3, 'Monitor Dell sin senal de video.', 3, 3, 3, 1, 1, 16),
   (14, 0, '[SD] Solicitud nuevo auricular',       NOW(), NOW(), 1, 3, 'Auricular Jabra roto.', 2, 2, 2, 1, 1, 15)
 ON DUPLICATE KEY UPDATE
-  status = 1, solvedate = NULL, closedate = NULL, date_mod = NOW(), is_deleted = 0;
+  status = 1, solvedate = NULL, closedate = NULL, date_mod = NOW(), is_deleted = 0, itilcategories_id = VALUES(itilcategories_id);
 
 DELETE FROM glpi_groups_tickets WHERE tickets_id IN (11, 12, 13, 14);
 INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) VALUES

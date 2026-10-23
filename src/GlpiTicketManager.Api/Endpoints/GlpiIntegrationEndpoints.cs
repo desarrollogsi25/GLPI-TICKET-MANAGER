@@ -20,7 +20,6 @@ public static class GlpiIntegrationEndpoints
             .WithName("GlpiTicketCreatedWebhook")
             .WithSummary("Webhook receptor de eventos de creación de tickets en GLPI (H-35)")
             .AllowAnonymous()
-            .Accepts<GlpiTicketCreatedWebhookPayload>("application/json")
             .Produces(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized);
@@ -29,7 +28,6 @@ public static class GlpiIntegrationEndpoints
     }
 
     private static async Task<IResult> HandleTicketCreated(
-        [FromBody] GlpiTicketCreatedWebhookPayload? payload,
         HttpContext httpContext,
         IConfiguration configuration,
         IDashboardRepository dashboardRepository,
@@ -42,13 +40,36 @@ public static class GlpiIntegrationEndpoints
         var configuredSecret = configuration["GlpiWebhook:Secret"] ?? DefaultWebhookSecret;
 
         // Validar firma o secreto en los headers
-        if (!ValidateSignature(httpContext, configuredSecret))
+        if (!ValidateSignature(httpContext, configuredSecret, logger))
         {
             logger.LogWarning("GLPI webhook rejected: missing or invalid signature header.");
             return Results.Problem(
                 statusCode: StatusCodes.Status401Unauthorized,
                 title: "Firma o secreto inválido",
                 detail: "El header de autenticación del webhook no es válido o está ausente.");
+        }
+
+        // Leer el body crudo como string y luego deserializar
+        string requestBody;
+        using (var reader = new StreamReader(httpContext.Request.Body))
+        {
+            requestBody = await reader.ReadToEndAsync(cancellationToken);
+        }
+
+        logger.LogInformation("Raw request body: {RequestBody}", requestBody);
+
+        GlpiTicketCreatedWebhookPayload? payload;
+        try
+        {
+            payload = System.Text.Json.JsonSerializer.Deserialize<GlpiTicketCreatedWebhookPayload>(requestBody);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to deserialize GLPI webhook payload from raw body: {RequestBody}", requestBody);
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Payload inválido",
+                detail: "No se pudo deserializar el JSON del webhook.");
         }
 
         var ticketId = payload?.ResolvedTicketId ?? 0;
@@ -69,10 +90,19 @@ public static class GlpiIntegrationEndpoints
         {
             var fallbackGroups = await ticketRepository.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
             groupId = fallbackGroups.FirstOrDefault();
+            var ticket = await ticketRepository.GetByIdAsync(ticketId, cancellationToken);
             if (string.IsNullOrEmpty(ticketTitle))
             {
-                var ticket = await ticketRepository.GetByIdAsync(ticketId, cancellationToken);
                 ticketTitle = ticket?.Name ?? $"Ticket #{ticketId}";
+            }
+
+            if ((groupId is null || groupId <= 0) && ticket?.CategoryId is > 0)
+            {
+                groupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(ticket.CategoryId.Value, cancellationToken);
+                if (groupId is > 0)
+                {
+                    await ticketRepository.EnsureTicketGroupAssignedAsync(ticketId, groupId.Value, cancellationToken);
+                }
             }
         }
 
@@ -85,18 +115,22 @@ public static class GlpiIntegrationEndpoints
         // Buscar técnicos del grupo
         var techIds = await dashboardRepository.GetTechnicianUserIdsInGroupAsync(groupId.Value, cancellationToken);
 
-        // Emitir notificación persistente a cada técnico del grupo
+        // Emitir notificación persistente a cada técnico del grupo (idempotente por ticketId)
         foreach (var techId in techIds)
         {
             try
             {
-                await notificationService.CreateAsync(
-                    techId,
-                    "TicketCreated",
-                    ticketId,
-                    $"Nuevo ticket #{ticketId}",
-                    $"Se ha asignado el ticket '{ticketTitle}' a tu grupo.",
-                    cancellationToken);
+                var existing = await notificationService.GetByUserAsync(techId, 10, 0, cancellationToken);
+                if (!existing.Any(n => n.TicketId == ticketId && n.Type == "TicketCreated"))
+                {
+                    await notificationService.CreateAsync(
+                        techId,
+                        "TicketCreated",
+                        ticketId,
+                        $"Nuevo ticket #{ticketId}",
+                        $"Se ha asignado el ticket '{ticketTitle}' a tu grupo.",
+                        cancellationToken);
+                }
             }
             catch (Exception ex)
             {
@@ -123,52 +157,76 @@ public static class GlpiIntegrationEndpoints
         });
     }
 
-    private static bool ValidateSignature(HttpContext context, string expectedSecret)
+    private static bool ValidateSignature(HttpContext context, string expectedSecret, ILogger<Program> logger)
     {
-        // 1. Cabeceras directas de secreto
-        var directHeaders = new[] { "X-Webhook-Secret", "X-Glpi-Secret", "X-Glpi-Signature" };
-        foreach (var header in directHeaders)
+        // GLPI sends HMAC-SHA256 signature of (body + timestamp) using the secret
+        // Headers: X-GLPI-signature and X-GLPI-timestamp
+        if (!context.Request.Headers.TryGetValue("X-GLPI-signature", out var signatureHeader) ||
+            !context.Request.Headers.TryGetValue("X-GLPI-timestamp", out var timestampHeader))
         {
-            if (context.Request.Headers.TryGetValue(header, out var val))
+            // Fallback: Check for direct secret headers (for manual testing)
+            var directHeaders = new[] { "X-Webhook-Secret", "X-Glpi-Secret" };
+            foreach (var header in directHeaders)
             {
-                var headerVal = val.ToString().Trim();
-                if (CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(headerVal),
-                    Encoding.UTF8.GetBytes(expectedSecret)))
+                if (context.Request.Headers.TryGetValue(header, out var val))
                 {
-                    return true;
-                }
-
-                // Si viene como "sha256=<hex>", verificar prefijo
-                if (headerVal.StartsWith("sha256=", StringComparison.OrdinalIgnoreCase))
-                {
-                    var tokenOnly = headerVal["sha256=".Length..].Trim();
+                    var headerVal = val.ToString().Trim();
                     if (CryptographicOperations.FixedTimeEquals(
-                        Encoding.UTF8.GetBytes(tokenOnly),
+                        Encoding.UTF8.GetBytes(headerVal),
                         Encoding.UTF8.GetBytes(expectedSecret)))
                     {
                         return true;
                     }
                 }
             }
-        }
 
-        // 2. Authorization: Bearer <secret>
-        if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
-        {
-            var authVal = authHeader.ToString().Trim();
-            if (authVal.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            // Fallback: Authorization: Bearer <secret>
+            if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
             {
-                var bearer = authVal["Bearer ".Length..].Trim();
-                if (CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(bearer),
-                    Encoding.UTF8.GetBytes(expectedSecret)))
+                var authVal = authHeader.ToString().Trim();
+                if (authVal.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 {
-                    return true;
+                    var bearer = authVal["Bearer ".Length..].Trim();
+                    if (CryptographicOperations.FixedTimeEquals(
+                        Encoding.UTF8.GetBytes(bearer),
+                        Encoding.UTF8.GetBytes(expectedSecret)))
+                    {
+                        return true;
+                    }
                 }
             }
+
+            logger.LogWarning("GLPI webhook rejected: missing X-GLPI-signature or X-GLPI-timestamp headers.");
+            return false;
         }
 
-        return false;
+        var signature = signatureHeader.ToString().Trim();
+        var timestamp = timestampHeader.ToString().Trim();
+
+        // Read the body to compute the HMAC
+        context.Request.EnableBuffering();
+        string requestBody;
+        using (var reader = new StreamReader(context.Request.Body, leaveOpen: true))
+        {
+            requestBody = reader.ReadToEndAsync().GetAwaiter().GetResult();
+        }
+        context.Request.Body.Position = 0;
+
+        // Compute HMAC-SHA256 of (body + timestamp) using the secret
+        var keyBytes = Encoding.UTF8.GetBytes(expectedSecret);
+        var messageBytes = Encoding.UTF8.GetBytes(requestBody + timestamp);
+        var computedHash = HMACSHA256.HashData(keyBytes, messageBytes);
+        var computedSignature = Convert.ToHexString(computedHash).ToLowerInvariant();
+
+        // Compare signatures using constant-time comparison
+        var signatureBytes = Encoding.UTF8.GetBytes(signature.ToLowerInvariant());
+        var computedSignatureBytes = Encoding.UTF8.GetBytes(computedSignature);
+
+        var result = CryptographicOperations.FixedTimeEquals(signatureBytes, computedSignatureBytes);
+        if (!result)
+        {
+            logger.LogWarning("GLPI webhook signature validation failed for timestamp {Timestamp}", timestamp);
+        }
+        return result;
     }
 }

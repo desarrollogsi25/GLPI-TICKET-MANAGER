@@ -53,7 +53,7 @@ export function PendingTicketDialog({
       await putPending.mutateAsync({ ticketId, reasonId: Number(reasonId), comment: trimmed })
       pushToast({
         title: 'Ticket puesto en pendiente',
-        description: `El ticket #${ticketId} quedó en estado Pendiente.`,
+        description: `El ticket #${ticketId} pasó a Pendiente`,
         variant: 'success',
       })
       setReasonId('')

@@ -99,7 +99,7 @@ export function GroupQueuePage() {
         setClaimingTicketId(null)
         toast({
           title: 'Ticket asignado correctamente',
-          description: `Ticket #${ticketId} asignado a vos.`,
+          description: `Te has asignado el ticket #${ticketId}`,
           variant: 'success',
         })
       },

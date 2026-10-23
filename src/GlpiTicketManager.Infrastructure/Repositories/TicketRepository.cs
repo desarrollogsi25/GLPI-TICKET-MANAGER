@@ -563,4 +563,30 @@ public sealed class TicketRepository : ITicketRepository
         var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
         return result;
     }
+
+    public async Task EnsureTicketGroupAssignedAsync(int ticketId, int groupId, CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0 || groupId <= 0)
+        {
+            return;
+        }
+
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type)
+            SELECT @TicketId, @GroupId, 2
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM glpi_groups_tickets
+                WHERE tickets_id = @TicketId
+                  AND type = 2
+            );
+            """;
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            sql,
+            new { TicketId = ticketId, GroupId = groupId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+    }
 }
