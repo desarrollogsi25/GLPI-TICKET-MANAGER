@@ -20,6 +20,12 @@ SQL
 
 for migration in $(ls "${MIGRATIONS_DIR}"/*.sql | sort); do
     version=$(basename "${migration}" .sql)
+
+    # Excluir migraciones no pertenecientes a PostgreSQL (ej. scripts GLPI MariaDB)
+    if [ "${version}" = "007_glpi_webhook_config" ] || [[ "${migration}" =~ glpi_webhook ]]; then
+        echo "Skipping non-PostgreSQL migration: ${migration}"
+        continue
+    fi
     
     checksum=$(sha256sum "${migration}" | cut -d' ' -f1)
     
