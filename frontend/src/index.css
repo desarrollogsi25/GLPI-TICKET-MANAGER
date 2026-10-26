@@ -240,6 +240,22 @@
     animation: toast-shake 260ms var(--ease-out);
   }
 
+  /* Pulse sutil para badges de prioridad alta/crítica */
+  @keyframes badge-glow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: scale(1.04);
+    }
+  }
+
+  .badge-pulse-subtle {
+    animation: badge-glow 2.4s ease-in-out infinite;
+  }
+
   /* Gate card hover elevation behind fine pointer media query (Emil Kowalski rule) */
   @media (hover: hover) and (pointer: fine) {
     .kanban-card-hover:hover {
@@ -253,6 +269,9 @@
       display: none;
     }
     .toast-error-shake {
+      animation: none;
+    }
+    .badge-pulse-subtle {
       animation: none;
     }
     .kanban-card-hover:hover {

@@ -48,7 +48,7 @@ export function TicketFiltersSheet({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        setTimeout(onClose, 0)
         return
       }
 

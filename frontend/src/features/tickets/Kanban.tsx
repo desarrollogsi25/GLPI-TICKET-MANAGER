@@ -219,9 +219,11 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-colors duration-150 flex-1 bg-muted/50',
+          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-all duration-150 flex-1 bg-muted/50',
           column.bgClass,
-          isOver ? 'border-primary ring-2 ring-primary/20' : 'border-border/60',
+          isOver
+            ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
+            : 'border-border/60',
         )}
       >
         {isLoading ? (
