@@ -1,0 +1,123 @@
+{
+  "startedAt": "2026-10-26T15:54:04.917Z",
+  "checks": [
+    {
+      "name": "Sección A: Tarjeta Tickets Activos presente",
+      "ok": true,
+      "detail": "Tickets Activos13"
+    },
+    {
+      "name": "Sección A: Tarjeta Tickets en Pausa presente",
+      "ok": true,
+      "detail": "Tickets en Pausa5"
+    },
+    {
+      "name": "Sección A: Tarjeta Resueltos Hoy presente",
+      "ok": true,
+      "detail": "Resueltos Hoy6"
+    },
+    {
+      "name": "Sección A: Tarjeta MTTR presente",
+      "ok": true,
+      "detail": "Tiempo Medio (MTTR)843h"
+    },
+    {
+      "name": "Sección A: Tarjeta Tickets Estancados presente",
+      "ok": true,
+      "detail": "Estancados (>24h)5"
+    },
+    {
+      "name": "Sección B: tech_dev visible en la tabla de técnicos",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Sección B: tech_dev muestra última actividad",
+      "ok": true,
+      "detail": "Ttech_devTickets estancados (>24h)Esperando validación de QA para ticket #1003—020hace 3 días"
+    },
+    {
+      "name": "Sección C: Tablero muestra tickets del grupo",
+      "ok": true,
+      "detail": "Total tickets: 26"
+    },
+    {
+      "name": "Sección C: Filtro por técnico funcional (tech_dev)",
+      "ok": true,
+      "detail": "Filtrados: 2"
+    },
+    {
+      "name": "Sección C: Filtro por estado funcional (Pendiente)",
+      "ok": true,
+      "detail": "Tickets pendientes de tech_dev: 2"
+    },
+    {
+      "name": "Sección C: Comentario de pausa visible en ticket pendiente",
+      "ok": true,
+      "detail": "Esperando validación de QA para ticket #1003"
+    },
+    {
+      "name": "Sección C (Tiempo Real): lider_dev recibe actualización y comentario de pausa vía SignalR sin F5",
+      "ok": true,
+      "detail": "Comentario detectado en vivo: \"Pausa en vivo H45 [1793030058645]\""
+    },
+    {
+      "name": "Aislamiento: lider_bi tiene acceso a su grupo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Aislamiento: lider_bi NO ve a los técnicos de Desarrollo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_bi: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_bi: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_bi: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "failures": [],
+  "finishedAt": "2026-10-26T15:54:32.148Z",
+  "success": true
+}

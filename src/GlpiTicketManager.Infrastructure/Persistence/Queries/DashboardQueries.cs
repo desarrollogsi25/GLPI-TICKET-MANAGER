@@ -58,7 +58,23 @@ public static class DashboardQueries
                     ORDER BY s.date_creation DESC, s.id DESC
                     LIMIT 1
                 )
-            ) AS LastComment
+            ) AS LastComment,
+            NULLIF(
+                GREATEST(
+                    COALESCE((
+                        SELECT MAX(t_act.date_mod)
+                        FROM glpi_tickets_users tu_act
+                        INNER JOIN glpi_tickets t_act ON t_act.id = tu_act.tickets_id
+                        WHERE tu_act.users_id = u.id AND tu_act.type = 2 AND t_act.is_deleted = 0
+                    ), '1970-01-01 00:00:00'),
+                    COALESCE((
+                        SELECT MAX(f_act.date_creation)
+                        FROM glpi_itilfollowups f_act
+                        WHERE f_act.users_id = u.id
+                    ), '1970-01-01 00:00:00')
+                ),
+                '1970-01-01 00:00:00'
+            ) AS LastActivity
         FROM glpi_groups_users gu
         INNER JOIN glpi_users u ON u.id = gu.users_id
         LEFT JOIN glpi_tickets_users tu ON tu.users_id = u.id AND tu.type = 2
@@ -132,6 +148,35 @@ public static class DashboardQueries
         WHERE t.id = @TicketId
           AND t.is_deleted = 0
         LIMIT 1;
+        """;
+
+    public const string GroupTickets = """
+        SELECT
+            CAST(t.id AS SIGNED)       AS Id,
+            t.name                      AS Title,
+            CAST(t.status AS INT)       AS Status,
+            CAST(tu.users_id AS SIGNED) AS AssigneeId,
+            u.name                      AS AssigneeName,
+            CAST(t.priority AS INT)     AS Priority,
+            t.date                      AS CreatedAt,
+            t.date_mod                  AS UpdatedAt,
+            COALESCE(
+                (SELECT f.content FROM glpi_itilfollowups f WHERE f.itemtype = 'Ticket' AND f.items_id = t.id ORDER BY f.date_creation DESC, f.id DESC LIMIT 1),
+                (SELECT s.content FROM glpi_itilsolutions s WHERE s.itemtype = 'Ticket' AND s.items_id = t.id ORDER BY s.date_creation DESC, s.id DESC LIMIT 1)
+            )                           AS LastComment
+        FROM glpi_groups_tickets gt
+        INNER JOIN glpi_tickets t ON t.id = gt.tickets_id
+        LEFT JOIN (
+            SELECT tickets_id, MIN(users_id) AS users_id
+            FROM glpi_tickets_users
+            WHERE type = 2
+            GROUP BY tickets_id
+        ) tu ON tu.tickets_id = t.id
+        LEFT JOIN glpi_users u ON u.id = tu.users_id
+        WHERE gt.groups_id = @GroupId
+          AND gt.type = 2
+          AND t.is_deleted = 0
+        ORDER BY t.date_mod DESC, t.id DESC;
         """;
 
     public const string TechnicianUserIdsInGroup = """
