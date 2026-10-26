@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -6,18 +6,27 @@ import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { ProtectedRouteWithRole } from '@/components/layout/ProtectedRouteWithRole'
 import { Toaster } from '@/components/ui/toast'
 import { Login } from '@/features/auth/Login'
-import { AdminDashboard } from '@/features/dashboard/AdminDashboard'
-import { Dashboard } from '@/features/dashboard/Dashboard'
-import { TeamDashboard } from '@/features/dashboard/TeamDashboard'
-import { AgentGuide } from '@/features/help/AgentGuide'
-import { PreferencesPage } from '@/features/preferences/PreferencesPage'
-import { ServicesPage } from '@/features/services/ServicesPage'
-import { GroupQueuePage } from '@/features/tickets/GroupQueuePage'
-import { Detail } from '@/features/tickets/Detail'
-import { Kanban } from '@/features/tickets/Kanban'
-import { List } from '@/features/tickets/List'
 import { usePreferencesQuery } from '@/hooks/usePreferences'
 import { useAuthStore } from '@/store/authStore'
+
+const Kanban = lazy(() => import('@/features/tickets/Kanban').then((m) => ({ default: m.Kanban })))
+const TeamDashboard = lazy(() => import('@/features/dashboard/TeamDashboard').then((m) => ({ default: m.TeamDashboard })))
+const AdminDashboard = lazy(() => import('@/features/dashboard/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
+const Dashboard = lazy(() => import('@/features/dashboard/Dashboard').then((m) => ({ default: m.Dashboard })))
+const List = lazy(() => import('@/features/tickets/List').then((m) => ({ default: m.List })))
+const Detail = lazy(() => import('@/features/tickets/Detail').then((m) => ({ default: m.Detail })))
+const GroupQueuePage = lazy(() => import('@/features/tickets/GroupQueuePage').then((m) => ({ default: m.GroupQueuePage })))
+const ServicesPage = lazy(() => import('@/features/services/ServicesPage').then((m) => ({ default: m.ServicesPage })))
+const PreferencesPage = lazy(() => import('@/features/preferences/PreferencesPage').then((m) => ({ default: m.PreferencesPage })))
+const AgentGuide = lazy(() => import('@/features/help/AgentGuide').then((m) => ({ default: m.AgentGuide })))
+
+function LoadingFallback() {
+  return (
+    <div className="flex h-64 w-full items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  )
+}
 
 function GlobalThemeSync() {
   const token = useAuthStore((s) => s.token)
@@ -78,74 +87,75 @@ export default function App() {
   return (
     <>
       <GlobalThemeSync />
-      <Routes>
-        <Route path="/login" element={<Login />} />
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        <Route
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<RootRedirect />} />
           <Route
-            path="/kanban"
             element={
-              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
-                <Kanban />
-              </ProtectedRouteWithRole>
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
             }
-          />
-          <Route path="/tickets" element={<List />} />
-          <Route path="/tickets/:id" element={<Detail />} />
-          <Route
-            path="/queue"
-            element={
-              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
-                <GroupQueuePage />
-              </ProtectedRouteWithRole>
-            }
-          />
-          <Route
-            path="/services"
-            element={
-              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
-                <ServicesPage />
-              </ProtectedRouteWithRole>
-            }
-          />
-          <Route path="/preferences" element={<PreferencesPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
-                <Dashboard />
-              </ProtectedRouteWithRole>
-            }
-          />
-          <Route
-            path="/equipo"
-            element={
-              <ProtectedRouteWithRole allowedRoles={['supervisor', 'admin']}>
-                <TeamDashboard />
-              </ProtectedRouteWithRole>
-            }
-          />
-          <Route
-            path="/administracion"
-            element={
-              <ProtectedRouteWithRole allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRouteWithRole>
-            }
-          />
-          <Route path="/ayuda" element={<AgentGuide />} />
+          >
+            <Route index element={<RootRedirect />} />
+            <Route
+              path="/kanban"
+              element={
+                <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                  <Kanban />
+                </ProtectedRouteWithRole>
+              }
+            />
+            <Route path="/tickets" element={<List />} />
+            <Route path="/tickets/:id" element={<Detail />} />
+            <Route
+              path="/queue"
+              element={
+                <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                  <GroupQueuePage />
+                </ProtectedRouteWithRole>
+              }
+            />
+            <Route
+              path="/services"
+              element={
+                <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                  <ServicesPage />
+                </ProtectedRouteWithRole>
+              }
+            />
+            <Route path="/preferences" element={<PreferencesPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRouteWithRole allowedRoles={['technician', 'supervisor', 'admin']}>
+                  <Dashboard />
+                </ProtectedRouteWithRole>
+              }
+            />
+            <Route
+              path="/equipo"
+              element={
+                <ProtectedRouteWithRole allowedRoles={['supervisor', 'admin']}>
+                  <TeamDashboard />
+                </ProtectedRouteWithRole>
+              }
+            />
+            <Route
+              path="/administracion"
+              element={
+                <ProtectedRouteWithRole allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRouteWithRole>
+              }
+            />
+            <Route path="/ayuda" element={<AgentGuide />} />
+          </Route>
 
-        </Route>
-
-        <Route path="*" element={<RootRedirect />} />
-      </Routes>
+          <Route path="*" element={<RootRedirect />} />
+        </Routes>
+      </Suspense>
 
       <Toaster />
     </>
