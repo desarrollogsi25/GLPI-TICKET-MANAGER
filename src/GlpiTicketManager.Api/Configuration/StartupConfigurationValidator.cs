@@ -31,6 +31,16 @@ public static class StartupConfigurationValidator
         "placeholder"
     };
 
+    private static readonly string[] ForbiddenWebhookSecrets =
+    {
+        "glpi-webhook-secret-token-32-chars-minimum!!",
+        "changeme",
+        "12345678901234567890123456789012",
+        "secret",
+        "placeholder",
+        "default-webhook-secret"
+    };
+
     public static void Validate(IConfiguration configuration)
     {
         var invalid = new List<string>();
@@ -98,6 +108,17 @@ public static class StartupConfigurationValidator
         else if (jwtKey.Distinct().Count() < 16)
         {
             invalid.Add($"{JwtOptions.SectionName}:Key (baja entropía: requiere al menos 16 caracteres distintos)");
+        }
+
+        // (e) GLPI Webhook secret.
+        var webhookSecret = configuration["GlpiWebhook:Secret"] ?? string.Empty;
+        if (webhookSecret.Length < MinimumSecretLength)
+        {
+            invalid.Add($"GlpiWebhook:Secret (mínimo {MinimumSecretLength} caracteres)");
+        }
+        else if (ForbiddenWebhookSecrets.Any(s => webhookSecret.Equals(s, StringComparison.OrdinalIgnoreCase)))
+        {
+            invalid.Add("GlpiWebhook:Secret (valor por defecto o inseguro)");
         }
 
         if (invalid.Count > 0)

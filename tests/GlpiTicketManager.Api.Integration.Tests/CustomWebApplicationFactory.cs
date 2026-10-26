@@ -372,7 +372,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["RateLimiting:ExpensiveTokensPerPeriod"] = "1",
                 ["RateLimiting:ExpensiveReplenishmentSeconds"] = "3",
                 ["RateLimiting:PerUserRequestLimit"] = "100",
-                ["RateLimiting:LoginAttemptLimit"] = "100"
+                ["RateLimiting:LoginAttemptLimit"] = "100",
+                ["GlpiWebhook:Secret"] = "integration-test-webhook-secret-32-chars-minimum!!"
             });
         });
 

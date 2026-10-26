@@ -17,7 +17,7 @@ namespace GlpiTicketManager.Api.Integration.Tests;
 /// </summary>
 public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private const string ExpectedSecret = "glpi-webhook-secret-token-32-chars-minimum!!";
+    private const string ExpectedSecret = "integration-test-webhook-secret-32-chars-minimum!!";
     private readonly HttpClient _client;
     private readonly CustomWebApplicationFactory _factory;
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using GlpiTicketManager.Application.Abstractions;
@@ -8,7 +9,7 @@ namespace GlpiTicketManager.Api.Endpoints;
 
 public static class GlpiIntegrationEndpoints
 {
-    public const string DefaultWebhookSecret = "glpi-webhook-secret-token-32-chars-minimum!!";
+    private static readonly ConcurrentDictionary<string, DateTimeOffset> ProcessedSignatures = new();
 
     public static RouteGroupBuilder MapGlpiIntegrationEndpoints(this IEndpointRouteBuilder app)
     {
@@ -37,16 +38,56 @@ public static class GlpiIntegrationEndpoints
         ILogger<Program> logger,
         CancellationToken cancellationToken)
     {
-        var configuredSecret = configuration["GlpiWebhook:Secret"] ?? DefaultWebhookSecret;
+        var configuredSecret = configuration["GlpiWebhook:Secret"];
+        if (string.IsNullOrWhiteSpace(configuredSecret))
+        {
+            logger.LogWarning("GLPI webhook rejected: GlpiWebhook:Secret is not configured.");
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "Webhook no configurado",
+                detail: "El secreto del webhook no está configurado en el servidor.");
+        }
 
-        // Validar firma o secreto en los headers
-        if (!ValidateSignature(httpContext, configuredSecret, logger))
+        // 1. Validar timestamp si está presente
+        if (httpContext.Request.Headers.TryGetValue("X-GLPI-timestamp", out var tsHeader) ||
+            httpContext.Request.Headers.TryGetValue("X-Webhook-Timestamp", out tsHeader))
+        {
+            if (long.TryParse(tsHeader.ToString().Trim(), out var parsedTimestamp))
+            {
+                var driftSeconds = Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - parsedTimestamp);
+                if (driftSeconds >= 300)
+                {
+                    logger.LogWarning("GLPI webhook rejected: timestamp {Timestamp} differs by {Drift}s (limit 300s).", tsHeader, driftSeconds);
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status401Unauthorized,
+                        title: "Timestamp expirado",
+                        detail: "El timestamp del webhook difiere en más de 5 minutos.");
+                }
+            }
+        }
+
+        // 2. Validar firma o secreto en los headers
+        if (!ValidateSignature(httpContext, configuredSecret, logger, out var signatureKey))
         {
             logger.LogWarning("GLPI webhook rejected: missing or invalid signature header.");
             return Results.Problem(
                 statusCode: StatusCodes.Status401Unauthorized,
                 title: "Firma o secreto inválido",
                 detail: "El header de autenticación del webhook no es válido o está ausente.");
+        }
+
+        // 3. Idempotencia: Si la firma ya fue procesada dentro de la ventana de tiempo, responder 200 sin reprocesar
+        if (!string.IsNullOrEmpty(signatureKey) &&
+            ProcessedSignatures.TryGetValue(signatureKey, out var processedAt) &&
+            DateTimeOffset.UtcNow - processedAt < TimeSpan.FromMinutes(10))
+        {
+            logger.LogInformation("GLPI webhook signature {Signature} was already processed at {ProcessedAt}. Skipping duplicate execution.", signatureKey, processedAt);
+            return Results.Ok(new
+            {
+                success = true,
+                duplicate = true,
+                message = "Webhook ya procesado previamente (idempotente)."
+            });
         }
 
         // Leer el body crudo como string y luego deserializar
@@ -148,6 +189,11 @@ public static class GlpiIntegrationEndpoints
             logger.LogWarning(ex, "Failed to emit TicketCreated SignalR event for ticket {TicketId}", ticketId);
         }
 
+        if (!string.IsNullOrEmpty(signatureKey))
+        {
+            ProcessedSignatures[signatureKey] = DateTimeOffset.UtcNow;
+        }
+
         return Results.Ok(new
         {
             success = true,
@@ -157,8 +203,27 @@ public static class GlpiIntegrationEndpoints
         });
     }
 
-    private static bool ValidateSignature(HttpContext context, string expectedSecret, ILogger<Program> logger)
+    private static bool ValidateSignature(
+        HttpContext context,
+        string expectedSecret,
+        ILogger<Program> logger,
+        out string? signatureKey)
     {
+        signatureKey = null;
+
+        if (context.Request.Headers.TryGetValue("X-GLPI-signature", out var sigH))
+        {
+            signatureKey = sigH.ToString().Trim();
+        }
+        else if (context.Request.Headers.TryGetValue("X-Glpi-Signature", out sigH))
+        {
+            signatureKey = sigH.ToString().Trim();
+        }
+        else if (context.Request.Headers.TryGetValue("X-Webhook-Signature", out sigH))
+        {
+            signatureKey = sigH.ToString().Trim();
+        }
+
         // GLPI sends HMAC-SHA256 signature of (body + timestamp) using the secret
         // Headers: X-GLPI-signature and X-GLPI-timestamp
         if (!context.Request.Headers.TryGetValue("X-GLPI-signature", out var signatureHeader) ||
@@ -206,6 +271,7 @@ public static class GlpiIntegrationEndpoints
 
         var signature = signatureHeader.ToString().Trim();
         var timestamp = timestampHeader.ToString().Trim();
+        signatureKey = signature;
 
         // Read the body to compute the HMAC
         context.Request.EnableBuffering();
