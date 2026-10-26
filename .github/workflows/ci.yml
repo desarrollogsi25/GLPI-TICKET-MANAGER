@@ -178,14 +178,14 @@ jobs:
       - name: Verify app-db migrations
         run: |
           TABLES=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('app_settings','user_preferences','audit_log','revoked_tokens');")
-          echo "Tables found: ${TABLES} / 4"
-          if [ "${TABLES}" != "4" ]; then
-            echo "ERROR: Expected 4 tables, found ${TABLES}"
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('app_settings','user_preferences','audit_log','revoked_tokens','notifications');")
+          echo "Tables found: ${TABLES} / 5"
+          if [ "${TABLES}" != "5" ]; then
+            echo "ERROR: Expected 5 tables, found ${TABLES}"
             docker compose logs app-db --tail=50
             exit 1
           fi
-          echo "app-db migrations verified: 4 tables present."
+          echo "app-db migrations verified: 5 tables present."
       - name: Start full stack
         run: docker compose up -d --build
       - name: Copy GLPI configuration and encryption key
