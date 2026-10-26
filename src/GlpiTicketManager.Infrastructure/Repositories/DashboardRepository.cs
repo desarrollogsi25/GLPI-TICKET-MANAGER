@@ -77,6 +77,16 @@ public sealed class DashboardRepository : IDashboardRepository
                 new { GroupId = groupId },
                 cancellationToken: ct));
 
+        var rawTickets = await conn.QueryAsync<GroupTicketDetailDto>(
+            new CommandDefinition(
+                DashboardQueries.GroupTickets,
+                new { GroupId = groupId },
+                cancellationToken: ct));
+
+        var tickets = rawTickets
+            .Select(t => t with { LastComment = CleanComment(t.LastComment) })
+            .ToList();
+
         var total = totals?.TotalTickets ?? 0;
         var queued = totals?.QueuedTickets ?? 0;
         var assigned = totals?.AssignedTickets ?? 0;
@@ -103,7 +113,8 @@ public sealed class DashboardRepository : IDashboardRepository
             resolved,
             closed,
             technicians.Select(m => m with { LastComment = CleanComment(m.LastComment) }).ToList(),
-            summary);
+            summary,
+            tickets);
     }
 
     public async Task<IReadOnlyList<GroupSummaryDto>> GetAdminGroupSummariesAsync(CancellationToken ct = default)
