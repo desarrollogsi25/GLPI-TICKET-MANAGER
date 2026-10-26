@@ -156,13 +156,13 @@ public class TicketServiceTests
     [Fact]
     public async Task ClaimAsync_WhenStatusIsNotNew_Throws409()
     {
-        var ticket = new Ticket { Id = 10, Status = (int)TicketStatus.Assigned };
+        var ticket = new Ticket { Id = 10, Status = (int)TicketStatus.Planned };
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
 
         var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("El ticket debe estar en estado 'Nuevo' (1) y sin asignar.");
+            .WithMessage("El ticket debe estar en estado 'Nuevo' o 'Asignado' y sin técnico.");
     }
 
     [Fact]

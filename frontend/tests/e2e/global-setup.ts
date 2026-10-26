@@ -30,6 +30,21 @@ export default async function globalSetup(_config: FullConfig) {
       },
     )
     console.log('[e2e] GLPI fixtures reset from scripts/seed-e2e.sql')
+
+    try {
+      execFileSync(
+        'docker',
+        [
+          'exec', '-i', 'glpi-app-db', 'psql',
+          '-U', 'app', '-d', 'glpi_ticket_manager',
+          '-c', 'DELETE FROM user_preferences WHERE user_id IN (7, 18); DELETE FROM revoked_tokens WHERE user_id IN (7, 18);',
+        ],
+        { stdio: ['ignore', 'inherit', 'inherit'] }
+      )
+      console.log('[e2e] app-db preferences reset for test users')
+    } catch {
+      // ignore if app-db container not running with that name
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       // CI runners can have fixtures injected by their own service setup.

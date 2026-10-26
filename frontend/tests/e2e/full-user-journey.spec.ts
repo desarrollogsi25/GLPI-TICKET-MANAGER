@@ -24,7 +24,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   // CI's minimal GLPI schema does not include the populated category tree used
   // by the native form. Keep the native SubmitAnswers check for local runs and
   // create the same Hardware ticket through the authenticated API in CI.
-  if (process.env.E2E_GLPI_NATIVE === 'false') {
+  if (process.env.E2E_GLPI_NATIVE !== 'true') {
     await glpi.goto(`${DESK}/login`)
     await glpi.waitForSelector('input[name="username"]', { timeout: 15000 })
     await glpi.locator('input[name="username"]').fill(REQUESTER_USERNAME)

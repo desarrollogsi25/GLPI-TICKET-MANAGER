@@ -7,48 +7,78 @@ come straight from the GLPI MariaDB database through Dapper (fast, SQL-shaped), 
 **every mutation** goes through GLPI's REST API (`apirest.php`) so notifications, logs,
 SLA rules and plugins keep working. Authentication is the API's own JWT.
 
-## Stack
+## Stack Tecnológico
 
-| Layer | Technology |
-|---|---|
-| API | .NET 10 Minimal API, Dapper (reads), typed `HttpClient` (GLPI writes), Serilog, Scalar, native rate limiting, own JWT |
-| Frontend | React 19 + Vite + pnpm, TanStack Query/Table, zustand, @dnd-kit/core, react-router-dom 7, React Hook Form + zod, axios, Tailwind CSS v4 |
-| Platform | GLPI 11.0 + MariaDB 10.11 (Docker Compose) |
+La plataforma está construida con una arquitectura desacoplada y moderna optimizada para alto rendimiento, responsividad y experiencia de usuario fluida:
 
-## Prerequisites
+| Componente | Tecnología | Rol y Características Clave |
+|---|---|---|
+| **Backend Core** | **.NET 10** Minimal API | C# 13, endpoints de alto rendimiento, validación nativa, typed `HttpClient`, Serilog, OpenAPI/Scalar |
+| **Persistencia & Lecturas** | **Dapper** (MariaDB) | Consultas SQL directas y eficientes a la base de datos de GLPI para lecturas ultrarrápidas |
+| **Mutaciones Seguras** | **GLPI REST API** | Todas las escrituras pasan por `apirest.php`, garantizando auditoría, historial, plugins y reglas SLA de GLPI |
+| **Tiempo Real** | **SignalR** | WebSockets bidireccionales para actualización instantánea de tableros, cambios de estado y push notifications |
+| **Frontend Core** | **React 19** + Vite | React Server/Client paradigms, TypeScript estricto, bundle optimizado con pnpm |
+| **Estilos & Diseño** | **Tailwind CSS v4** | Motor de estilos de última generación basado en CSS variables, OKLCH y diseño responsive fluido |
+| **Estado del Servidor** | **TanStack Query v5** | Cache distribuido, invalidación por eventos SignalR, mutaciones optimistas y background refetching |
+| **Estado del Cliente** | **Zustand v5** | Gestión atómica y ultraligera de estado local (autenticación, filtros activos, UI state) |
+| **Notificaciones** | **Sonner** | Toasts animados con feedback háptico visual y soporte multi-evento |
+| **Drag and Drop** | **@dnd-kit** | Tablero Kanban interactivo con sensores accesibles para puntero, táctil y teclado |
+| **Command Palette** | **cmdk** | Búsqueda y navegación global ultra-rápida accionable mediante `Ctrl + K` / `Cmd + K` |
+| **Plataforma Base** | **GLPI 11.0 + MariaDB 10.11** | Motor ITIL de tickets y base de datos relacional sobre Docker Compose |
 
-- [.NET SDK 10](https://dotnet.microsoft.com/download/dotnet/10.0) (see `global.json`)
-- [Node.js 22](https://nodejs.org/) and [pnpm](https://pnpm.io/) (`corepack enable pnpm`)
-- [Docker](https://www.docker.com/) with the Compose plugin
+---
 
-## Getting started
+## Cómo levantar el proyecto
 
-### Option A — the whole stack in Docker (single command)
+### Opción A — Todo el stack en Docker (Recomendado)
+
+Inicia todos los contenedores de forma orquestada (MariaDB, GLPI, PostgreSQL de preferencias, API .NET 10 y Frontend React 19):
 
 ```powershell
-# 1. Clone
+# 1. Clonar el repositorio
 git clone https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER.git
 cd GLPI-TICKET-MANAGER
 
-# 2. Create the environment file and fill in the secrets (git-ignored).
-#    Set the MARIADB_* passwords, the GLPI_* tokens and JWT_SECRET.
+# 2. Configurar variables de entorno
 Copy-Item .env.example .env
 
-# 3. Build and start the whole stack: MariaDB + GLPI + API + frontend.
+# 3. Compilar e iniciar todo el stack con Docker Compose
 docker compose up -d --build
-#    frontend        -> http://localhost:5173
-#    API             -> http://localhost:8080   (/health, /openapi/v1.json, /scalar)
-#    GLPI web UI     -> http://localhost:8081
-#    MariaDB         -> 127.0.0.1:3306
-
-# Subsequent starts reuse the built images (no recompilation, ~17 s):
-docker compose up -d
 ```
 
-`docker compose down` stops everything but keeps the named volumes (GLPI install and
-database survive); `docker compose down -v` wipes them. See
-[`docs/06-infrastructure/docker.md`](docs/06-infrastructure/docker.md) for the service map,
-the network diagram and the log commands.
+**Servicios disponibles una vez levantado:**
+- **Frontend SPA:** [http://localhost:5173](http://localhost:5173)
+- **API Backend (.NET 10):** [http://localhost:8080](http://localhost:8080) (Documentación en `/scalar` o `/openapi/v1.json`)
+- **Health Check API:** [http://localhost:8080/health](http://localhost:8080/health)
+- **GLPI Web UI:** [http://localhost:8081](http://localhost:8081)
+- **MariaDB GLPI:** `127.0.0.1:3306`
+
+> **Detener los servicios:**  
+> - Detener contenedores manteniendo volúmenes y datos: `docker compose down`  
+> - Detener y reiniciar limpiando volúmenes: `docker compose down -v`
+
+---
+
+## Credenciales de prueba
+
+Para facilitar las pruebas funcionales, QA y evaluación del sistema, se encuentran preconfigurados los siguientes usuarios con sus respectivos roles y grupos en GLPI.
+
+> **Contraseña universal para todos los usuarios de prueba:**  
+> `Password123!`
+
+| Usuario | Contraseña | Rol en la App | Grupo GLPI | Propósito / Funcionalidad |
+|---|---|---|---|---|
+| `admin_test` | `Password123!` | Administrador | Todos (Global) | Control total, gestión de roles, métricas de todos los grupos y supervisión |
+| `lider_dev` | `Password123!` | Supervisor | **Desarrollo** | Vista de cola grupal, asignación de tickets, métricas de rendimiento del grupo Desarrollo |
+| `lider_bi` | `Password123!` | Supervisor | **BI** | Supervisión y gestión de tickets del grupo Business Intelligence |
+| `lider_sd` | `Password123!` | Supervisor | **Service Desk** | Supervisión y despacho de tickets del grupo Service Desk |
+| `tech_dev` | `Password123!` | Técnico | **Desarrollo** | Autoasignación de tickets, actualización de estados, notas técnicas y resolución de incidentes |
+| `tech_bi` | `Password123!` | Técnico | **BI** | Atención técnica de solicitudes del grupo BI |
+| `tech_sd` | `Password123!` | Técnico | **Service Desk** | Atención de soporte nivel 1, hardware y accesos en Service Desk |
+| `user_test` | `Password123!` | Solicitante (Self-Service) | Solicitante | Creación y seguimiento de tickets como usuario final en GLPI |
+| `glpi` | `glpi` | Super-Admin Nativo | GLPI Native | Administración directa de la consola GLPI (http://localhost:8081) |
+
+---
 
 ### Option B — API + frontend on the host, only GLPI in Docker
 
@@ -214,6 +244,8 @@ The web application is audited and verified against **WCAG 2.1 Level AA** standa
 
 Start at [`docs/`](docs/):
 
+- [`docs/user-guide.md`](docs/user-guide.md) — Guía básica de usuario (creación de tickets en GLPI, autoasignación, ciclo de vida de estados y Command Palette `Ctrl+K`)
+- [`docs/01-architecture/decisions/ADR-022-realtime-and-ui-engineering.md`](docs/01-architecture/decisions/ADR-022-realtime-and-ui-engineering.md) — Arquitectura de tiempo real (SignalR + TanStack Query) y principios de ingeniería de UI (Emil Kowalski)
 - [`docs/09-visual-docs/accessibility.md`](docs/09-visual-docs/accessibility.md) — WCAG 2.1 AA audit, fixes, and multi-viewport QA
 - [`docs/02-modules/tickets/overview.md`](docs/02-modules/tickets/overview.md) — endpoints, GLPI write chain, frontend write flows
 - [`docs/01-architecture/ADR-002-api-glpi-integration.md`](docs/01-architecture/ADR-002-api-glpi-integration.md) — why Dapper reads + REST writes

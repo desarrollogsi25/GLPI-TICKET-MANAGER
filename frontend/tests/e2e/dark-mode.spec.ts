@@ -36,4 +36,11 @@ test('dark mode toggle actually changes html class', async ({ page }) => {
     document.documentElement.classList.contains('dark'),
   )
   expect(stillDark).toBe(true)
+
+  // Restaurar a light para no contaminar el resto de suites
+  await themeSelect.selectOption('light').catch(async () => {
+    await themeSelect.check()
+  })
+  await saveBtn.click()
+  await page.waitForTimeout(500)
 })

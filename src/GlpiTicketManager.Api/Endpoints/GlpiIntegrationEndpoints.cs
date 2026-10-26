@@ -165,12 +165,16 @@ public static class GlpiIntegrationEndpoints
             !context.Request.Headers.TryGetValue("X-GLPI-timestamp", out var timestampHeader))
         {
             // Fallback: Check for direct secret headers (for manual testing)
-            var directHeaders = new[] { "X-Webhook-Secret", "X-Glpi-Secret" };
+            var directHeaders = new[] { "X-Webhook-Secret", "X-Glpi-Secret", "X-Glpi-Signature", "X-GLPI-signature" };
             foreach (var header in directHeaders)
             {
                 if (context.Request.Headers.TryGetValue(header, out var val))
                 {
                     var headerVal = val.ToString().Trim();
+                    if (headerVal.StartsWith("sha256=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        headerVal = headerVal["sha256=".Length..].Trim();
+                    }
                     if (CryptographicOperations.FixedTimeEquals(
                         Encoding.UTF8.GetBytes(headerVal),
                         Encoding.UTF8.GetBytes(expectedSecret)))

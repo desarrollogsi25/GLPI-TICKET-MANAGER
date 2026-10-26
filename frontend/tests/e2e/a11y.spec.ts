@@ -14,6 +14,11 @@ const PAGES = [
 
 for (const path of PAGES) {
   test(`a11y: ${path} (light mode)`, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('theme', 'light')
+      document.documentElement.classList.remove('dark')
+      document.documentElement.setAttribute('data-theme', 'light')
+    })
     await page.goto(`http://localhost:5173${path}`)
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)

@@ -173,7 +173,7 @@ export function NotificationBell() {
                 ? { duration: 0 }
                 : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground tabular-nums shadow-xs"
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white tabular-nums shadow-xs"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </motion.span>

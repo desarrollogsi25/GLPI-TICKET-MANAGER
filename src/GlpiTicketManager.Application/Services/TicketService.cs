@@ -510,7 +510,7 @@ public sealed class TicketService : ITicketService
             new[] { ticketId },
             cancellationToken);
 
-        if (links.Any(l => l.Type == (int)TicketUserType.Assigned))
+        if (links != null && links.Any(l => l.Type == (int)TicketUserType.Assigned))
         {
             throw new ConflictException("El ticket ya está asignado a un técnico.");
         }

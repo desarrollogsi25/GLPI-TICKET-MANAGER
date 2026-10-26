@@ -81,6 +81,8 @@ ON DUPLICATE KEY UPDATE
 -- La API resuelve el grupo destino leyendo estas reglas
 -- (TicketRepository.GetAssignmentGroupForCategoryAsync), por lo que son la
 -- fuente de verdad del enrutamiento.
+UPDATE glpi_rules SET is_active = 0 WHERE name LIKE 'Enrutamiento ITIL%';
+
 INSERT INTO glpi_rules (entities_id, sub_type, ranking, name, `match`, is_active, is_recursive, `condition`)
 SELECT 0, 'RuleTicket', 1, 'H38 Route Desarrollo', 'OR', 1, 0, 0
 WHERE NOT EXISTS (SELECT 1 FROM glpi_rules WHERE name = 'H38 Route Desarrollo');
