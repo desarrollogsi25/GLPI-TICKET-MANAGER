@@ -29,3 +29,9 @@
 ### 1.4 Inconsistencia de Datos en Caché
 - **Síntoma:** La lista de tickets no refleja un cambio efectuado directamente en la base de datos de GLPI.
 - **Solución:** Invocar el endpoint de invalidación de caché o reiniciar el pod/contenedor de la API (`docker restart glpi-api`).
+
+### 1.5 No se puede resolver un ticket con solución corta (BUG-031)
+- **Síntoma:** Al escribir `OK` o una solución breve y pulsar «Resolver», el sistema responde `422 "Ticket no puede marcarse como resuelto sin solución escrita"`, o tras un reintento `400 "El elemento ya está resuelto"`.
+- **Causa:** Corregida en H-31 / [ADR-020](../01-architecture/decisions/ADR-020-resolucion-atomic-de-ticket.md). El guard exigía al menos 10 caracteres y GLPI 11 marca el ticket como Resuelto al crear la `ITILSolution`.
+- **Solución:** Actualizar a la versión con la corrección. Usar el botón **«Resolver»** del Kanban (flujo atómico `POST /api/tickets/{id}/resolve`). Las soluciones cortas ya son válidas y los errores se traducen a `409 Conflict` en español.
+- **Referencias:** [BUG-031](../11-incidents/BUG-031-resolucion-ticket-solucion-corta.md) · [KB — Resolución de tickets](resolucion-de-tickets.md)

@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+
+import { resetFixtureTicket } from './support/ticket-fixtures'
 
 /**
  * QA audit spec for the resolve-dialog hotfix.
@@ -21,67 +20,11 @@ import { resolve } from 'node:path'
 
 const TICKET_ID = 901
 
-/**
- * Resets the dedicated fixture ticket to "Nuevo / unassigned in the group queue"
- * so the spec is idempotent across repeated runs. Uses the same MariaDB access
- * path documented in scripts/seed-e2e.sh, but only touches this spec's own ticket.
- */
-function resetFixtureTicket() {
-  let password = process.env.MARIADB_PASSWORD
-  if (!password) {
-    const envPaths = [resolve(process.cwd(), '../.env'), resolve(process.cwd(), '.env')]
-    for (const p of envPaths) {
-      if (existsSync(p)) {
-        const match = readFileSync(p, 'utf8').match(/^MARIADB_PASSWORD=(.*)$/m)
-        if (match) {
-          password = match[1].trim()
-          break
-        }
-      }
-    }
-  }
-
-  if (!password) {
-    password = 'VW9Qr7m2XSkGd0tHegGGq3hhrHcD'
-  }
-
-  const sql = [
-    `INSERT INTO glpi_tickets (id, entities_id, name, date, date_mod, status, requesttypes_id, content, urgency, impact, priority, type, global_validation, itilcategories_id)`,
-    `VALUES (${TICKET_ID}, 0, 'QA resolve-ticket fixture', NOW(), NOW(), 1, 3, 'Fixture para resolve-ticket.spec.ts', 3, 3, 3, 1, 1, 2)`,
-    `ON DUPLICATE KEY UPDATE status = 1, solvedate = NULL, closedate = NULL, date_mod = NOW();`,
-    `INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) VALUES (${TICKET_ID}, 1, 2)`,
-    `ON DUPLICATE KEY UPDATE groups_id = 1, type = 2;`,
-    `DELETE FROM glpi_tickets_users WHERE tickets_id = ${TICKET_ID} AND type = 2;`,
-    `DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id = ${TICKET_ID};`,
-  ].join('\n')
-
-  try {
-    execFileSync(
-      'docker',
-      [
-        'compose',
-        'exec',
-        '-T',
-        'glpi-db',
-        'mariadb',
-        '-u',
-        'glpi',
-        `-p${password}`,
-        'glpi',
-        '-e',
-        sql,
-      ],
-      { stdio: 'pipe' },
-    )
-  } catch (err) {
-    // In CI (inside the frontend container), docker CLI is not available.
-    // Ticket 901 is already pre-seeded by scripts/seed-e2e.sh before test execution.
-    console.warn('[resolve-ticket.spec.ts] Notice: docker CLI not available in runner container; relying on pre-seeded fixture:', (err as Error)?.message)
-  }
-}
-
 test.beforeAll(() => {
-  resetFixtureTicket()
+  // Resets the dedicated fixture ticket to "Nuevo / unassigned in the group queue"
+  // so the spec is idempotent across repeated runs. Uses the same MariaDB access
+  // path documented in scripts/seed-e2e.sh, but only touches this spec's own ticket.
+  resetFixtureTicket(TICKET_ID, 'QA resolve-ticket fixture')
 })
 
 test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({ page }) => {

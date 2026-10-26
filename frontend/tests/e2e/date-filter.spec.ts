@@ -78,6 +78,22 @@ test.describe('ticket date filters', () => {
       timeout: 10000,
     })
 
+    // An inverted range is shown inline in Spanish and must not issue a new
+    // ticket-list request with an accidentally widened (unfiltered) range.
+    let invertedRangeRequests = 0
+    page.on('request', (request) => {
+      if (request.url().includes('/api/tickets?')) invertedRangeRequests += 1
+    })
+    await startInput.fill('2026-06-02')
+    await endInput.fill('2026-06-01')
+    await expect(page.getByRole('alert')).toContainText(
+      'La fecha de inicio no puede ser posterior a la fecha de fin.',
+    )
+    await page.waitForTimeout(300)
+    expect(invertedRangeRequests).toBe(0)
+    await expect(page).toHaveURL(/startDate=2026-06-02/)
+    await expect(page).toHaveURL(/endDate=2026-06-01/)
+
     const clearButton = page.getByTestId('clear-filters-btn')
     await expect(clearButton).toBeEnabled()
     await clearButton.click()

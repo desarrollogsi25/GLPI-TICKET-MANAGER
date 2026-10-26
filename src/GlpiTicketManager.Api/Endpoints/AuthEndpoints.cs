@@ -5,6 +5,7 @@ using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Auth;
 using GlpiTicketManager.Domain.Enums;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -18,8 +19,10 @@ public static class AuthEndpoints
             .WithName("Login")
             .WithSummary("Exchange credentials for a JWT issued by this API")
             .AllowAnonymous()
+            .Accepts<LoginRequest>("application/json")
             .RequireRateLimiting(RateLimitPolicies.Login)
             .Produces<LoginResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status429TooManyRequests);
 
@@ -41,11 +44,19 @@ public static class AuthEndpoints
     }
 
     private static async Task<IResult> Login(
-        LoginRequest request,
+        [FromBody] LoginRequest? request,
         IAuthService authService,
         IJwtTokenService tokenService,
         CancellationToken cancellationToken)
     {
+        if (request is null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Solicitud inválida",
+                detail: "El cuerpo de la solicitud debe contener 'username' y 'password'.");
+        }
+
         var user = await authService.AuthenticateAsync(request, cancellationToken);
 
         if (user is null)

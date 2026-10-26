@@ -329,7 +329,7 @@ public sealed class TicketRepository : ITicketRepository
         using var connection = _connectionFactory.CreateConnection();
 
         var countCommand = new CommandDefinition(
-            "SELECT COUNT(*) FROM glpi_tickets t INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id WHERE gt.groups_id = @GroupId AND gt.type = 2 AND t.status = 1 AND t.is_deleted = 0 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2)",
+            "SELECT COUNT(*) FROM glpi_tickets t INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id WHERE gt.groups_id = @GroupId AND gt.type = 2 AND t.status IN (1, 2) AND t.is_deleted = 0 AND NOT EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.type = 2)",
             new { GroupId = groupId },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
@@ -490,6 +490,30 @@ public sealed class TicketRepository : ITicketRepository
         return result.AsList();
     }
 
+    public async Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            SELECT CAST(ra.value AS SIGNED)
+            FROM glpi_rules r
+            INNER JOIN glpi_rulecriterias rc ON rc.rules_id = r.id
+            INNER JOIN glpi_ruleactions ra ON ra.rules_id = r.id
+            WHERE r.sub_type = 'RuleTicket'
+              AND r.is_active = 1
+              AND rc.criteria = 'itilcategories_id'
+              AND rc.pattern = @CategoryId
+              AND ra.action_type = 'assign'
+              AND ra.field = '_groups_id_assign'
+            ORDER BY r.ranking ASC
+            LIMIT 1;
+            """;
+        return await connection.ExecuteScalarAsync<int?>(new CommandDefinition(
+            sql,
+            new { CategoryId = categoryId.ToString() },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+    }
+
     public async Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -538,5 +562,31 @@ public sealed class TicketRepository : ITicketRepository
 
         var result = await connection.QueryFirstOrDefaultAsync<bool>(command);
         return result;
+    }
+
+    public async Task EnsureTicketGroupAssignedAsync(int ticketId, int groupId, CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0 || groupId <= 0)
+        {
+            return;
+        }
+
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type)
+            SELECT @TicketId, @GroupId, 2
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM glpi_groups_tickets
+                WHERE tickets_id = @TicketId
+                  AND type = 2
+            );
+            """;
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            sql,
+            new { TicketId = ticketId, GroupId = groupId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
     }
 }

@@ -20,11 +20,20 @@ public sealed class TicketService : ITicketService
     private const int DefaultLimit = 20;
     private const int MaxLimit = 100;
 
+    /// <summary>
+    /// H-39: strict workflow invariant. A Waiting (4) ticket cannot jump straight to
+    /// Solved (5) or Closed (6); it must be resumed to In-Progress (3) first.
+    /// </summary>
+    internal const string PendingResolveBlockedMessage =
+        "No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.";
+
     private readonly ITicketRepository _tickets;
     private readonly IGlpiApiClient _glpi;
     private readonly IAuditRepository _audit;
     private readonly ITicketAccessPolicy _accessPolicy;
     private readonly ITicketNotificationService _notifications;
+    private readonly INotificationService? _persistentNotifications;
+    private readonly IDashboardRepository? _dashboard;
     private readonly ILogger<TicketService> _logger;
 
     public TicketService(
@@ -33,7 +42,9 @@ public sealed class TicketService : ITicketService
         IAuditRepository audit,
         ITicketAccessPolicy accessPolicy,
         ITicketNotificationService notifications,
-        ILogger<TicketService> logger)
+        ILogger<TicketService> logger,
+        INotificationService? persistentNotifications = null,
+        IDashboardRepository? dashboard = null)
     {
         _tickets = tickets;
         _glpi = glpi;
@@ -41,6 +52,8 @@ public sealed class TicketService : ITicketService
         _accessPolicy = accessPolicy;
         _notifications = notifications;
         _logger = logger;
+        _persistentNotifications = persistentNotifications;
+        _dashboard = dashboard;
     }
 
     public Task<PagedResult<TicketSummaryDto>> GetByAssigneeAsync(
@@ -231,6 +244,19 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
+        // H-39: a Waiting (4) ticket cannot be resolved (5) or closed (6) directly. The
+        // check must run BEFORE the solution insert below: otherwise a rejected request
+        // would still write a solution (and GLPI would auto-solve the ticket as a side
+        // effect). Return 422, not 403, because the payload is valid but the transition
+        // violates the workflow contract.
+        var currentTicket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (currentTicket is not null
+            && currentTicket.Status == (int)TicketStatus.Waiting
+            && (status == (int)TicketStatus.Solved || status == (int)TicketStatus.Closed))
+        {
+            throw new UnprocessableEntityException(PendingResolveBlockedMessage);
+        }
+
         // Payload/state validation and solution insertion run before or during resolve:
         // Strictly: 1) Create solution via SolutionInsertAsync if provided, 2) Update status to 5 (Resolved).
         // If solution creation fails, status update is not executed.
@@ -299,6 +325,37 @@ public sealed class TicketService : ITicketService
                 _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
                 effectiveStatus = status;
             }
+        }
+
+        // BUG-032 / H-31: confirm the transition with GLPI.
+        //
+        // The writes above are only "attempted" until GLPI reports the resulting
+        // status back. Publishing an event with the requested status would tell the
+        // other sessions about a transition the server never applied (GLPI workflow
+        // rules can refuse it). The read-back failure is logged and never undoes a
+        // write that already succeeded.
+        GlpiTicketState? persistedState = null;
+        try
+        {
+            persistedState = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not confirm the status of ticket {TicketId} with GLPI", ticketId);
+        }
+
+        if (persistedState is not null && persistedState.Status != effectiveStatus)
+        {
+            _logger.LogWarning(
+                "GLPI reports ticket {TicketId} as status {PersistedStatus} but {RequestedStatus} was requested",
+                ticketId,
+                persistedState.Status,
+                effectiveStatus);
+        }
+
+        if (persistedState is not null)
+        {
+            effectiveStatus = persistedState.Status;
         }
 
         if (status == (int)TicketStatus.Solved)
@@ -441,16 +498,19 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
-        if (ticket.Status != (int)TicketStatus.New)
+        // A ticket routed to a group by a GLPI business rule is stored as
+        // "Assigned" (2) even though no technician owns it yet, so both 1 and 2
+        // are claimable as long as there is no technician link (checked below).
+        if (ticket.Status is not (int)TicketStatus.New and not (int)TicketStatus.Assigned)
         {
-            throw new ConflictException("El ticket debe estar en estado 'Nuevo' (1) y sin asignar.");
+            throw new ConflictException("El ticket debe estar en estado 'Nuevo' o 'Asignado' y sin técnico.");
         }
 
         var links = await _tickets.GetUsersForTicketsAsync(
             new[] { ticketId },
             cancellationToken);
 
-        if (links.Any(l => l.Type == (int)TicketUserType.Assigned))
+        if (links != null && links.Any(l => l.Type == (int)TicketUserType.Assigned))
         {
             throw new ConflictException("El ticket ya está asignado a un técnico.");
         }
@@ -501,6 +561,221 @@ public sealed class TicketService : ITicketService
         return await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
     }
 
+    /// <summary>
+    /// Resolves a ticket in a single atomic operation (BUG-031 / H-31).
+    /// <para>
+    /// GLPI 11 moves a ticket to <c>Solved</c> (5) on its own as a side effect of creating
+    /// an <c>ITILSolution</c> (verified against GLPI 11.0), so the legacy two-call sequence
+    /// "POST /solutions + PATCH /status" was redundant and produced contradictory answers:
+    /// the solution write succeeded, the status write was then rejected with 422 because the
+    /// solution-presence query applied a minimum length that the API never enforced, and a
+    /// retry hit GLPI's "el elemento ya está resuelto" 400.
+    /// </para>
+    /// <para>
+    /// This method writes the solution once, verifies the resulting state, applies the
+    /// product auto-close rule and emits a single realtime event.
+    /// </para>
+    /// </summary>
+    public Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        CancellationToken cancellationToken) =>
+        ResolveAsync(ticketId, content, userId, AppRole.Technician, cancellationToken);
+
+    public async Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0)
+        {
+            throw Invalid("id", "id must be a positive integer.");
+        }
+
+        if (userId <= 0)
+        {
+            throw Invalid("userId", "userId must be a positive integer.");
+        }
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new ValidationException("content", "Solution content cannot be empty.");
+        }
+
+        if (content.Length > 2000)
+        {
+            throw new ValidationException("content", "Solution content exceeds maximum length.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        // H-39: resolving a Waiting (4) ticket directly is forbidden; it must be resumed
+        // to In-Progress (3) first. 422 so the UI can show the exact reason.
+        if (ticket.Status == (int)TicketStatus.Waiting)
+        {
+            throw new UnprocessableEntityException(PendingResolveBlockedMessage);
+        }
+
+        // 409: state conflict. Detecting it here avoids letting GLPI answer with an
+        // opaque 400 ("El elemento ya está resuelto") that the technician cannot act on.
+        if (ticket.Status == (int)TicketStatus.Closed)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya está cerrado y no admite una nueva solución.");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Solved)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya fue resuelto y no se puede volver a resolver.");
+        }
+
+        // 403: the caller must be allowed to both write the solution and drive the
+        // ticket to Solved. Both checks are evaluated BEFORE any write happens.
+        if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
+        {
+            throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
+        }
+
+        var transition = await _accessPolicy.EvaluateStatusTransitionAsync(
+            userId, role, ticketId, (int)TicketStatus.Solved, cancellationToken);
+        if (!transition.Allowed)
+        {
+            throw new ForbiddenException(
+                transition.Reason ?? $"User {userId} cannot resolve ticket {ticketId}");
+        }
+
+        try
+        {
+            // Writing the solution through GLPI's REST API is what moves the ticket to
+            // Solved (5); GLPI rejects a second solution for an already solved ticket.
+            await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+        }
+        catch (GlpiApiException ex) when (ex.StatusCode == 400 && IsAlreadySolvedError(ex))
+        {
+            throw new ConflictException(
+                $"El ticket {ticketId} ya fue resuelto por otra operación.");
+        }
+
+        // BUG-032 / H-31: read the state back FROM GLPI.
+        //
+        // Creating a solution normally solves the ticket on its own (GLPI 11), but that
+        // has to be confirmed against GLPI, not inferred from the MariaDB read model:
+        // the read model can still be showing the previous status, and GLPI workflow
+        // rules can refuse the transition.
+        var afterSolution = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
+        var effectiveStatus = afterSolution?.Status ?? ticket.Status;
+
+        if (effectiveStatus != (int)TicketStatus.Solved)
+        {
+            // Defensive against GLPI versions that do not auto-solve on solution.
+            await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Solved, cancellationToken);
+            effectiveStatus = (int)TicketStatus.Solved;
+        }
+
+        // Auto-close: resolving a ticket closes it (status 6) in GLPI, exactly like the
+        // legacy PATCH /status path. A failure here is logged but never rolls back the
+        // resolve that already succeeded.
+        try
+        {
+            await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Closed, cancellationToken);
+            effectiveStatus = (int)TicketStatus.Closed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
+        }
+
+        // Confirm the final state with GLPI: until GLPI reports it back, the writes
+        // above are only "attempted". The response must describe what GLPI really
+        // holds, not what the code intended to write.
+        var finalState = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
+        if (finalState is not null)
+        {
+            if (finalState.Status != effectiveStatus)
+            {
+                _logger.LogWarning(
+                    "GLPI reports ticket {TicketId} as status {PersistedStatus} but {RequestedStatus} was requested",
+                    ticketId,
+                    finalState.Status,
+                    effectiveStatus);
+            }
+
+            effectiveStatus = finalState.Status;
+        }
+
+        try
+        {
+            await _audit.LogAsync(userId, "resolve", ticketId, null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record audit log for resolve on ticket {TicketId}", ticketId);
+        }
+
+        var latest = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+
+        try
+        {
+            var assigneeId = (latest ?? ticket).AssigneeIds?.FirstOrDefault();
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId, effectiveStatus, assigneeId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for ticket {TicketId}", ticketId);
+        }
+
+        var detail = (latest ?? ticket).ToDetail();
+
+        return detail with
+        {
+            Status = effectiveStatus,
+            StatusLabel = TicketLabels.Status(effectiveStatus),
+            SolvedAt = finalState?.SolvedAt ?? detail.SolvedAt,
+            ClosedAt = finalState?.ClosedAt ?? detail.ClosedAt
+        };
+    }
+
+    /// <summary>
+    /// Reads the ticket state back from GLPI, tolerating a verification failure.
+    /// </summary>
+    /// <remarks>
+    /// BUG-032 / H-31: GLPI owns the status and the solutions of a ticket, so the only
+    /// reliable confirmation that a write landed is to ask GLPI. If GLPI cannot be
+    /// reached the caller keeps its previous assumption and the failure is logged: a
+    /// write that already succeeded must not be turned into an error because the
+    /// verification could not run.
+    /// </remarks>
+    private async Task<GlpiTicketState?> ReadStateFromGlpiAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not confirm the state of ticket {TicketId} with GLPI", ticketId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Detects GLPI's "the item is already solved" rejection. GLPI answers with HTTP 400
+    /// and the code <c>ERROR_GLPI_ADD</c> plus the message
+    /// "El elemento ya está resuelto, ¿alguien impulsó una solución antes que usted?".
+    /// </summary>
+    private static bool IsAlreadySolvedError(GlpiApiException exception)
+    {
+        var payload = $"{exception.Message} {exception.ResponseBody}";
+        return payload.Contains("ERROR_GLPI_ADD", StringComparison.OrdinalIgnoreCase)
+            && payload.Contains("ya está resuelto", StringComparison.OrdinalIgnoreCase);
+    }
+
     public Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken) =>
         SolutionInsertAsync(ticketId, content, userId, AppRole.Technician, cancellationToken);
 
@@ -532,9 +807,23 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
+        // 409: state conflicts are detected here so the caller never receives GLPI's
+        // opaque 400 ("El elemento ya está resuelto") for an already solved ticket.
         if (ticket.Status == (int)TicketStatus.Closed)
         {
             throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Solved)
+        {
+            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya fue resuelto.");
+        }
+
+        // H-39: adding a solution in GLPI moves the ticket to Solved (5) on its own.
+        // A Waiting (4) ticket must be resumed before it can be solved.
+        if (ticket.Status == (int)TicketStatus.Waiting)
+        {
+            throw new UnprocessableEntityException(PendingResolveBlockedMessage);
         }
 
         if (!await _accessPolicy.CanAddSolutionAsync(userId, role, ticketId, cancellationToken))
@@ -542,12 +831,16 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
-        if (ticket.Status == (int)TicketStatus.Closed)
+        int solutionId;
+        try
         {
-            throw new ConflictException($"No se puede agregar una solución al ticket {ticketId} porque ya está cerrado.");
+            solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
         }
-
-        var solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+        catch (GlpiApiException ex) when (ex.StatusCode == 400 && IsAlreadySolvedError(ex))
+        {
+            // Concurrent double submit: the first request solved the ticket in GLPI.
+            throw new ConflictException($"El ticket {ticketId} ya fue resuelto por otra operación.");
+        }
 
         try
         {
@@ -718,18 +1011,63 @@ public sealed class TicketService : ITicketService
             throw Invalid("title", "title is required.");
         }
 
+        var assignmentGroupId = categoryId is > 0
+            ? await _tickets.GetAssignmentGroupForCategoryAsync(categoryId.Value, cancellationToken)
+            : null;
+
+        if (assignmentGroupId is null or <= 0)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(requesterUserId, cancellationToken);
+            assignmentGroupId = userGroups.FirstOrDefault();
+            if (assignmentGroupId <= 0)
+            {
+                assignmentGroupId = 1; // Default fallback group (Desarrollo)
+            }
+        }
+
         var ticketId = await _glpi.CreateTicketAsync(
             title,
             description ?? string.Empty,
             urgency,
             categoryId,
             requesterUserId,
+            assignmentGroupId,
             cancellationToken);
 
-        // Notify SignalR clients about the newly created ticket (Clients.All)
+        // Notify SignalR clients and create persistent notifications for the group's technicians
         try
         {
-            await _notifications.NotifyTicketCreatedAsync(ticketId, null, cancellationToken);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
+            var effectiveGroupId = ticketGroups.FirstOrDefault() > 0 ? ticketGroups.First() : (assignmentGroupId ?? 1);
+
+            if (effectiveGroupId > 0 && ticketGroups.Count == 0)
+            {
+                await _tickets.EnsureTicketGroupAssignedAsync(ticketId, effectiveGroupId, cancellationToken);
+            }
+
+            if (_persistentNotifications is not null && _dashboard is not null && effectiveGroupId > 0)
+            {
+                var techIds = await _dashboard.GetTechnicianUserIdsInGroupAsync(effectiveGroupId, cancellationToken);
+                foreach (var techId in techIds)
+                {
+                    try
+                    {
+                        await _persistentNotifications.CreateAsync(
+                            techId,
+                            "TicketCreated",
+                            ticketId,
+                            $"Nuevo ticket #{ticketId}",
+                            $"Se ha asignado el ticket '{title}' a tu grupo.",
+                            cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create persistent notification for technician {TechId}", techId);
+                    }
+                }
+            }
+
+            await _notifications.NotifyTicketCreatedAsync(ticketId, effectiveGroupId, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -737,6 +1075,129 @@ public sealed class TicketService : ITicketService
         }
 
         return ticketId;
+    }
+
+    /// <summary>
+    /// Sets a ticket to Pending (Waiting = 4) status with a private followup (H-34).
+    /// </summary>
+    public Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        CancellationToken cancellationToken) =>
+        SetPendingAsync(ticketId, reasonId, comment, userId, AppRole.Technician, cancellationToken);
+
+    /// <inheritdoc cref="SetPendingAsync(int, int, string, int, CancellationToken)"/>
+    public async Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0)
+        {
+            throw Invalid("id", "id must be a positive integer.");
+        }
+
+        if (userId <= 0)
+        {
+            throw Invalid("userId", "userId must be a positive integer.");
+        }
+
+        if (string.IsNullOrWhiteSpace(comment?.Trim()))
+        {
+            throw new UnprocessableEntityException("El comentario es obligatorio para poner el ticket en pendiente.");
+        }
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            throw new NotFoundException($"Ticket {ticketId} not found.");
+        }
+
+        if (ticket.Status == (int)TicketStatus.Closed)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya está cerrado.");
+        }
+
+        // Valida permisos (técnico asignado o supervisor)
+        if (role == AppRole.Admin)
+        {
+            // Admin siempre tiene acceso
+        }
+        else if (role == AppRole.Supervisor)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
+            if (!userGroups.Intersect(ticketGroups).Any())
+            {
+                throw new ForbiddenException("El supervisor no pertenece al grupo asignado a este ticket.");
+            }
+        }
+        else if (role == AppRole.Technician)
+        {
+            var isAssigned = await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, cancellationToken);
+            if (!isAssigned)
+            {
+                throw new ForbiddenException("Solo el técnico asignado puede poner el ticket en pendiente.");
+            }
+        }
+        else
+        {
+            throw new ForbiddenException("No tienes permisos para poner este ticket en pendiente.");
+        }
+
+        // 1. Llama a GLPI REST: crea un seguimiento privado (ITILFollowup con is_private: 1) con el comentario
+        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, cancellationToken);
+
+        // 2. Llama a GLPI REST: actualiza estado a 4 (Pendiente)
+        await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Waiting, cancellationToken);
+
+        // 3. Lee de vuelta el ticket (GET /Ticket/{id}) para confirmar
+        var finalState = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
+        var effectiveStatus = finalState?.Status ?? (int)TicketStatus.Waiting;
+
+        // 4. Guarda auditoría en PostgreSQL
+        try
+        {
+            var auditDetails = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                reasonId,
+                comment = comment.Trim()
+            });
+            await _audit.LogAsync(userId, "pending", ticketId, auditDetails, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record audit log for pending on ticket {TicketId}", ticketId);
+        }
+
+        // 5. Emite un evento SignalR TicketStatusChanged al grupo
+        var latest = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        var assigneeId = (latest ?? ticket).AssigneeIds?.FirstOrDefault();
+
+        try
+        {
+            await _notifications.NotifyTicketStatusChangedAsync(
+                ticketId,
+                effectiveStatus,
+                assigneeId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit TicketStatusChanged notification for ticket {TicketId}", ticketId);
+        }
+
+        var detail = (latest ?? ticket).ToDetail();
+        return detail with
+        {
+            Status = effectiveStatus,
+            StatusLabel = TicketLabels.Status(effectiveStatus)
+        };
     }
 }
 

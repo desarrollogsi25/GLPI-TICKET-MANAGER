@@ -10,7 +10,10 @@ interface ProblemDetails {
 /** Fallbacks for status codes whose ProblemDetails detail/title may be missing. */
 const STATUS_FALLBACK: Record<number, string> = {
   403: 'No tienes permiso para realizar esta acción.',
+  409: 'El ticket ya no está en un estado que permita esta operación.',
   422: 'La solicitud no se pudo procesar. Revisá los datos e intentá de nuevo.',
+  // BUG-032 / H-32: the API answers 429 with a Retry-After header.
+  429: 'Se alcanzó el límite de solicitudes. Intentá de nuevo en unos segundos.',
 }
 
 const ERROR_TRANSLATIONS: Record<string, string> = {
@@ -25,6 +28,16 @@ const ERROR_TRANSLATIONS: Record<string, string> = {
   'Forbidden': 'Acceso denegado.',
   'Internal Server Error': 'Error interno del servidor.',
   'Network Error': 'Error de conexión de red.',
+  // BUG-031 / H-31: GLPI answers a second solution write on an already solved
+  // ticket with this message. It must never reach the technician verbatim.
+  'El elemento ya está resuelto': 'Este ticket ya fue resuelto por otra operación.',
+  'ya está resuelto': 'Este ticket ya fue resuelto por otra operación.',
+  'ya fue resuelto': 'Este ticket ya fue resuelto por otra operación.',
+  'ya está cerrado': 'Este ticket ya está cerrado.',
+  'Ticket no puede marcarse como resuelto sin solución escrita.':
+    'No se puede resolver el ticket sin escribir una solución.',
+  'Solo el técnico asignado puede cambiar el estado de este ticket.':
+    'Solo el técnico asignado al ticket puede resolverlo.',
 }
 
 function translateErrorMessage(msg: string): string {
@@ -116,6 +129,9 @@ export function getApiErrorTitle(error: unknown, fallback: string): string {
   const status = getApiErrorStatus(error)
   if (status === 403) {
     return 'No tienes permiso para realizar esta acción'
+  }
+  if (status === 409) {
+    return 'El ticket ya no está en un estado que permita esta operación'
   }
   if (status === 422) {
     return fallback

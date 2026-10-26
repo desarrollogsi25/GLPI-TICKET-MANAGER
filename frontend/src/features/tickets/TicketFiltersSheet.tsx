@@ -115,13 +115,13 @@ export function TicketFiltersSheet({
             role="dialog"
             aria-modal="true"
             aria-label="Filtros de tickets"
-            initial={prefersReduced ? false : { y: '100%' }}
-            animate={{ y: 0 }}
-            exit={prefersReduced ? undefined : { y: '100%' }}
+            initial={prefersReduced ? false : { y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={prefersReduced ? { opacity: 0 } : { y: '100%', opacity: 0 }}
             transition={
               prefersReduced
                 ? { duration: 0 }
-                : { type: 'spring', damping: 28, stiffness: 320 }
+                : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
             }
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}

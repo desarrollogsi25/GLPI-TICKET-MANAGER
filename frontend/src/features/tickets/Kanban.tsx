@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
@@ -32,7 +32,9 @@ import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CreateTicketDialog } from './CreateTicketDialog'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
+import { PendingTicketDialog } from './PendingTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
@@ -117,8 +119,10 @@ const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
   mine: ['in_progress', 'resolved'],
   in_progress: ['pending', 'resolved'],
-  // A waiting ticket can be resumed (→ En progreso) or resolved straight away.
-  pending: ['in_progress', 'resolved'],
+  // H-39: un ticket Pendiente solo puede reanudarse (→ En progreso). Resolverlo
+  // directamente está prohibido por el backend (422), así que el tablero tampoco
+  // ofrece esa transición.
+  pending: ['in_progress'],
   // Resolved is terminal in the board: only an admin reopens via the detail view.
   resolved: [],
 }
@@ -161,7 +165,9 @@ function KanbanColumn({
   emptyMessage = 'No hay tickets aquí',
   onClaim,
   onStart,
+  onResume,
   onResolve,
+  onPause,
   isClaiming,
   recentlyUpdatedIds,
   invalidDropTicketId,
@@ -175,7 +181,9 @@ function KanbanColumn({
   emptyMessage?: string
   onClaim?: (ticketId: number) => void
   onStart?: (ticketId: number) => void
+  onResume?: (ticketId: number) => void
   onResolve?: (ticketId: number) => void
+  onPause?: (ticketId: number) => void
   isClaiming?: boolean
   recentlyUpdatedIds?: Set<number>
   invalidDropTicketId?: number | null
@@ -188,14 +196,14 @@ function KanbanColumn({
 
   return (
     <div data-column-id={column.id} className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
+      <div className="mb-2.5 flex items-center justify-between px-1.5">
         <div>
-          <span className="text-sm font-semibold">{column.title}</span>
+          <span className="text-sm font-semibold tracking-tight text-foreground">{column.title}</span>
           <p className="text-[11px] text-muted-foreground">{column.description}</p>
         </div>
         <span
           className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-medium',
+            'text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums',
             isError ? 'bg-destructive/15 text-destructive font-bold' : column.badgeClass,
           )}
         >
@@ -206,9 +214,9 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-36 flex-col gap-2 rounded-lg border border-dashed p-2 transition-colors flex-1',
+          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-colors duration-150 flex-1 bg-muted/50',
           column.bgClass,
-          isOver ? 'border-primary ring-2 ring-primary/20' : 'border-border',
+          isOver ? 'border-primary ring-2 ring-primary/20' : 'border-border/60',
         )}
       >
         {isLoading ? (
@@ -299,6 +307,19 @@ function KanbanColumn({
                           </Link>
                           <Button
                             size="sm"
+                            variant="outline"
+                            className="h-7 px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onPause?.(ticket.id)
+                            }}
+                          >
+                            Pausar
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="default"
                             className="h-7 px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
                             onPointerDown={(e) => e.stopPropagation()}
@@ -312,13 +333,56 @@ function KanbanColumn({
                           </Button>
                         </div>
                       ) : column.id === 'pending' ? (
-                        <Link
-                          to={`/tickets/${ticket.id}`}
-                          className="inline-flex items-center text-xs font-medium text-primary hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Abrir detalle →
-                        </Link>
+                        <div className="flex flex-col w-full gap-1.5">
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <Link
+                              to={`/tickets/${ticket.id}`}
+                              className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Abrir detalle →
+                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onResume?.(ticket.id)
+                                }}
+                              >
+                                Retomar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                aria-disabled="true"
+                                data-testid="pending-resolve-blocked-trigger"
+                                title="No se puede resolver un ticket desde este estado. Primero debe reanudarse a En Progreso."
+                                className="h-7 px-2.5 text-xs opacity-50 cursor-not-allowed"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  useToastStore.getState().push({
+                                    title: 'Transición bloqueada',
+                                    description:
+                                      'No se puede resolver un ticket en este estado. Primero debe reanudarse a En Progreso.',
+                                    variant: 'destructive',
+                                  })
+                                }}
+                              >
+                                Resolver
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-tight">
+                            No se puede resolver un ticket en este estado. Primero debe reanudarse a En Progreso.
+                          </p>
+                        </div>
                       ) : null
                     }
                   />
@@ -328,12 +392,22 @@ function KanbanColumn({
 
             {tickets.length === 0 ? (
               <motion.div
-                initial={{ scale: 0.98 }}
-                animate={{ scale: 1 }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2 }}
-                className="flex h-28 items-center justify-center rounded border border-dashed border-border/40 p-4 text-center"
+                initial={shouldReduceMotion ? false : { opacity: 0, transform: 'scale(0.97)' }}
+                animate={{ opacity: 1, transform: 'scale(1)' }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                className="flex flex-col h-36 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/40 p-4 text-center"
               >
-                <p className="text-xs text-slate-800 font-medium">{emptyMessage}</p>
+                <span className="text-xl mb-1.5" aria-hidden="true">
+                  {EMPTY_MESSAGES[column.id]?.icon ?? '📭'}
+                </span>
+                <p className="text-xs text-foreground font-semibold">
+                  {emptyMessage === 'No hay tickets aquí'
+                    ? 'No hay tickets en esta columna'
+                    : emptyMessage}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                  {EMPTY_MESSAGES[column.id]?.subtitle}
+                </p>
               </motion.div>
             ) : null}
           </>
@@ -352,9 +426,21 @@ export function Kanban() {
 
   const groupsQuery = useGroupsQuery()
   const hasNoGroups = Boolean(groupsQuery.data && groupsQuery.data.length === 0)
-  const currentGroupId =
-    groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0].id : null
+  // H-36: technicians get no selector (see header); supervisors/admins can switch
+  // group. `GET /api/groups` returns only the groups the user belongs to
+  // (glpi_groups_users), and a technician defaults to the first one.
+  const [searchParams] = useSearchParams()
+  const paramGroupId = searchParams.get('groupId') ? Number(searchParams.get('groupId')) : null
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  const currentGroup =
+    groupsQuery.data?.find((group) => group.id === (selectedGroupId ?? paramGroupId)) ??
+    (groupsQuery.data && groupsQuery.data.length > 0 ? groupsQuery.data[0] : null)
+  const currentGroupId = currentGroup?.id ?? null
+  const currentGroupName = currentGroup?.name ?? null
 
+  // BUG-032 / H-32: the queue is refreshed by SignalR. The hook only falls back to a
+  // slow poll (30 s) while the realtime connection is down, so the board no longer
+  // doubles the rate limit quota of `GET /tickets/by-group`.
   const queueQuery = useGroupQueueQuery(currentGroupId)
   const myTicketsQuery = useTicketsQuery(currentUserId)
 
@@ -364,9 +450,15 @@ export function Kanban() {
 
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
+  const [pendingTicketId, setPendingTicketId] = useState<number | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
+
+  const handlePauseWithModal = (ticketId: number) => {
+    setPendingTicketId(ticketId)
+  }
 
   const shouldReduceMotion = useReducedMotion()
   const springTransition: Transition = shouldReduceMotion
@@ -386,10 +478,10 @@ export function Kanban() {
 
   useRealtimeTicketHub({
     groupId: currentGroupId,
+    // H-36: no `refetch()` here. The hub already schedules ONE debounced invalidation
+    // for the burst; refetching per event would bypass it and re-trigger the 429.
     onTicketCreated: (ticketId) => {
       markTicketUpdated(ticketId)
-      void queueQuery.refetch()
-      void myTicketsQuery.refetch()
     },
     onTicketStatusChanged: (ticketId) => markTicketUpdated(ticketId),
     onTicketClaimed: (ticketId) => markTicketUpdated(ticketId),
@@ -428,14 +520,16 @@ export function Kanban() {
   const [userSelectedTab, setUserSelectedTab] = useState<ColumnId | null>(null)
   const activeTab: ColumnId = userSelectedTab ?? defaultTab
 
-  // Auto-refresh en cola cada 30 segundos si la tab activa es 'queue'
-  useEffect(() => {
-    if (activeTab !== 'queue') return
-    const interval = setInterval(() => {
-      void queueQuery.refetch()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [activeTab, queueQuery])
+  // BUG-032 / H-32: there is no auto-refresh timer here any more.
+  //
+  // The board used to run its own `setInterval` that called `queueQuery.refetch()`
+  // every 30 s, unconditionally, even while SignalR was connected. That second
+  // poller was invisible in the query options and it kept hitting the protected
+  // `GET /tickets/by-group` endpoint for the whole session.
+  //
+  // The cadence now lives in a single place, `useGroupQueueQuery`, which only
+  // polls when the realtime connection is down (see QUEUE_FALLBACK_POLL_MS). While
+  // SignalR is connected the board is refreshed by the hub events.
 
   // Badge pulsante: detectar nuevos tickets en la cola
   const [lastSeenQueueCount, setLastSeenQueueCount] = useState<number>(() => {
@@ -482,7 +576,7 @@ export function Kanban() {
       onSuccess: () => {
         pushToast({
           title: 'Ticket asignado correctamente',
-          description: `Ticket #${ticketId} asignado a vos.`,
+          description: `Te has asignado el ticket #${ticketId}`,
           variant: 'success',
         })
       },
@@ -503,7 +597,7 @@ export function Kanban() {
         onSuccess: () =>
           pushToast({
             title: `Ticket #${ticketId} en progreso`,
-            description: 'Se cambió el estado a Planificado / En progreso.',
+            description: `El ticket #${ticketId} pasó a En Progreso`,
             variant: 'success',
           }),
         onError: (err) =>
@@ -523,27 +617,7 @@ export function Kanban() {
         onSuccess: () =>
           pushToast({
             title: `Ticket #${ticketId} retomado`,
-            description: 'Se reanudó el trabajo en progreso.',
-            variant: 'success',
-          }),
-        onError: (err) =>
-          pushToast({
-            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          }),
-      },
-    )
-  }
-
-  const handlePause = (ticketId: number) => {
-    updateStatus.mutate(
-      { ticketId, status: 4 },
-      {
-        onSuccess: () =>
-          pushToast({
-            title: `Ticket #${ticketId} marcado como pendiente`,
-            description: 'En espera de respuesta externa o proveedor.',
+            description: `El ticket #${ticketId} pasó a En Progreso`,
             variant: 'success',
           }),
         onError: (err) =>
@@ -589,6 +663,20 @@ export function Kanban() {
     if (!allowedTargets.includes(targetId)) {
       setInvalidDropTicketId(ticketId)
       setTimeout(() => setInvalidDropTicketId(null), 400)
+      if (sourceId === 'pending' && targetId === 'resolved') {
+        pushToast({
+          title: 'Transición bloqueada',
+          description:
+            'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.',
+          variant: 'destructive',
+        })
+      } else {
+        pushToast({
+          title: 'Transición no permitida',
+          description: 'No se puede mover el ticket directamente a esta columna.',
+          variant: 'destructive',
+        })
+      }
       return
     }
 
@@ -604,7 +692,7 @@ export function Kanban() {
     }
 
     if (sourceId === 'in_progress' && targetId === 'pending') {
-      handlePause(ticketId)
+      handlePauseWithModal(ticketId)
       return
     }
 
@@ -619,11 +707,6 @@ export function Kanban() {
     }
 
     if (sourceId === 'in_progress' && targetId === 'resolved') {
-      setResolveTicketId(ticketId)
-      return
-    }
-
-    if (sourceId === 'pending' && targetId === 'resolved') {
       setResolveTicketId(ticketId)
       return
     }
@@ -656,7 +739,7 @@ export function Kanban() {
           <Button
             size="sm"
             variant="default"
-            className="h-8 px-3 text-xs"
+            className="min-h-[44px] px-3.5 text-xs"
             disabled={claimMutation.isPending}
             onClick={(e) => {
               e.stopPropagation()
@@ -681,7 +764,7 @@ export function Kanban() {
           <Button
             size="sm"
             variant="default"
-            className="h-8 px-3 text-xs"
+            className="min-h-[44px] px-3.5 text-xs"
             disabled={updateStatus.isPending}
             onClick={(e) => {
               e.stopPropagation()
@@ -697,11 +780,11 @@ export function Kanban() {
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+              className="min-h-[44px] px-3 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
               disabled={updateStatus.isPending}
               onClick={(e) => {
                 e.stopPropagation()
-                handlePause(ticket.id)
+                handlePauseWithModal(ticket.id)
               }}
             >
               Pausar
@@ -709,7 +792,7 @@ export function Kanban() {
             <Button
               size="sm"
               variant="default"
-              className="h-8 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+              className="min-h-[44px] px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={(e) => {
                 e.stopPropagation()
                 setResolveTicketId(ticket.id)
@@ -724,7 +807,7 @@ export function Kanban() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 px-3 text-xs"
+            className="min-h-[44px] px-3.5 text-xs"
             disabled={updateStatus.isPending}
             onClick={(e) => {
               e.stopPropagation()
@@ -747,11 +830,44 @@ export function Kanban() {
         description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
-          !isTechnician ? (
-            <div className="hidden md:block">
-              <TechnicianFilter />
+          isTechnician ? (
+            // H-36: a technician belongs to a single support group, so there is nothing
+            // to choose. Show the group as fixed text; supervisors/admins keep the
+            // technician filter below.
+            currentGroupName ? (
+              <span
+                className="inline-flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium"
+                data-testid="technician-group-label"
+              >
+                Grupo: {currentGroupName}
+              </span>
+            ) : undefined
+          ) : (
+            <div className="flex items-center gap-2">
+              {(groupsQuery.data?.length ?? 0) > 1 ? (
+                <select
+                  aria-label="Seleccionar grupo de soporte"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={currentGroupId ?? ''}
+                  onChange={(event) => setSelectedGroupId(Number(event.target.value))}
+                >
+                  {groupsQuery.data?.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              ) : null}
+              <div className="hidden md:block">
+                <TechnicianFilter />
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setCreateOpen(true)}
+                data-testid="kanban-create-ticket-btn"
+              >
+                + Crear ticket
+              </Button>
             </div>
-          ) : undefined
+          )
         }
       />
 
@@ -924,7 +1040,12 @@ export function Kanban() {
          ========================================================================= */}
       <div className="hidden md:block">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div
+            className="flex gap-4 overflow-x-auto pb-4"
+            role="region"
+            aria-label="Tablero Kanban"
+            tabIndex={0}
+          >
             {COLUMNS.map((column) => {
               const isLoading =
                 column.id === 'queue'
@@ -953,7 +1074,9 @@ export function Kanban() {
                   emptyMessage={emptyMessage}
                   onClaim={handleClaim}
                   onStart={handleStart}
+                  onResume={handleResume}
                   onResolve={(ticketId) => setResolveTicketId(ticketId)}
+                  onPause={handlePauseWithModal}
                   isClaiming={claimMutation.isPending}
                   recentlyUpdatedIds={recentlyUpdatedIds}
                   invalidDropTicketId={invalidDropTicketId}
@@ -964,8 +1087,8 @@ export function Kanban() {
 
           <DragOverlay>
             {activeTicket ? (
-              <div className="w-72">
-                <TicketCard ticket={activeTicket} draggable={false} />
+              <div className="w-72 rotate-2 shadow-2xl">
+                <TicketCard ticket={activeTicket} draggable={false} isOverlay={true} />
               </div>
             ) : null}
           </DragOverlay>
@@ -982,6 +1105,17 @@ export function Kanban() {
           }
         }}
       />
+      <PendingTicketDialog
+        ticketId={pendingTicketId ?? 0}
+        open={pendingTicketId !== null}
+        onOpenChange={(v) => {
+          if (!v) {
+            setPendingTicketId(null)
+            void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+          }
+        }}
+      />
+      <CreateTicketDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <KanbanMobileSheet
         ticket={selectedMobileTicket}
@@ -990,7 +1124,7 @@ export function Kanban() {
         onClose={() => setSelectedMobileTicket(null)}
         onClaim={handleClaim}
         onStart={handleStart}
-        onPause={handlePause}
+        onPause={handlePauseWithModal}
         onResume={handleResume}
         onResolve={(ticketId) => setResolveTicketId(ticketId)}
       />

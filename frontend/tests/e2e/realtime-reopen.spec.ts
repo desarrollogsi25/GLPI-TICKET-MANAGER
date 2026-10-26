@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+test.setTimeout(120000)
+
 test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar seguimiento privado -> resolver nuevamente', async ({
   page,
   browser,
@@ -58,7 +60,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
 
   await adminPage.goto('http://localhost:5173/login')
   await adminPage.fill('input[name="username"]', 'admin_test')
-  await adminPage.fill('input[name="password"]', 'Admin123!')
+  await adminPage.fill('input[name="password"]', 'Password123!')
   await adminPage.click('button[type="submit"]')
   await adminPage.waitForURL(/\/(kanban|dashboard|tickets|queue|services)/, { timeout: 15000 })
 

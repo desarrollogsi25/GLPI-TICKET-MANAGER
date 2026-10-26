@@ -31,15 +31,18 @@ export function useCurrentUserQuery() {
 export function useLogout() {
   const navigate = useNavigate()
   const clearAuth = useAuthStore((s) => s.clear)
+  const queryClient = useQueryClient()
 
   return async () => {
     try {
+      await queryClient.cancelQueries()
       await logout()
     } catch {
       // Ignorar errores: si el token ya expiró o fue revocado, el logout
       // local es lo importante.
     } finally {
       clearAuth()
+      queryClient.clear()
       navigate('/login', { replace: true })
     }
   }

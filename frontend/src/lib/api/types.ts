@@ -134,3 +134,59 @@ export interface Service {
   completeName: string
   level: number
 }
+
+export interface GroupDashboardSummary {
+  total: number
+  queued: number
+  assigned: number
+  inProgress: number
+  pending: number
+  resolved: number
+  closed: number
+}
+
+export interface TeamMember {
+  id?: number
+  userId: number
+  name: string
+  activeTickets: number
+  pendingTickets: number
+  pendingCount?: number
+  queuedCount?: number
+  resolvedToday?: number
+  currentTicketId: number | null
+  currentTicket?: number | null
+  activeTicket?: number | null
+  lastComment?: string | null
+}
+
+export interface GroupDashboard {
+  totalTickets: number
+  queuedTickets: number
+  assignedTickets: number
+  inProgressTickets: number
+  pendingTickets: number
+  resolvedTickets: number
+  closedTickets: number
+  summary?: GroupDashboardSummary | null
+  technicians: TeamMember[]
+}
+
+export interface CreateTicketRequest {
+  title: string
+  description: string
+  urgency?: number
+  categoryId?: number | null
+}
+
+export interface CreateTicketResponse {
+  ticketId: number
+}
+
+export interface GroupSummary {
+  groupId: number
+  groupName: string
+  totalTickets: number
+  pendingTickets: number
+  activeTechnicians: number
+}

@@ -97,6 +97,17 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Emil Kowalski custom easing curves */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer base {
@@ -113,6 +124,8 @@
     @apply bg-background text-foreground;
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -154,10 +167,35 @@
     }
   }
 
+  @keyframes toast-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+
+  .toast-error-shake {
+    animation: toast-shake 260ms var(--ease-out);
+  }
+
+  /* Gate card hover elevation behind fine pointer media query (Emil Kowalski rule) */
+  @media (hover: hover) and (pointer: fine) {
+    .kanban-card-hover:hover {
+      transform: translateY(-2px);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .shimmer-effect::after {
       animation: none;
       display: none;
+    }
+    .toast-error-shake {
+      animation: none;
+    }
+    .kanban-card-hover:hover {
+      transform: none;
     }
   }
 }

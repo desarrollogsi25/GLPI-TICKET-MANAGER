@@ -1,3 +1,5 @@
+using GlpiTicketManager.Application.Models;
+
 namespace GlpiTicketManager.Application.Abstractions;
 
 /// <summary>
@@ -10,6 +12,16 @@ public interface IGlpiApiClient
 
     Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Reads the ticket state back from GLPI.
+    ///
+    /// BUG-032 / H-31: after writing a status change or a solution, the resulting
+    /// state has to be read from GLPI itself. Reading the ticket from MariaDB would
+    /// only prove that GLPI's own table says something, not that the write landed.
+    /// Returns null when GLPI does not know the ticket.
+    /// </summary>
+    Task<GlpiTicketState?> GetTicketStateAsync(int ticketId, CancellationToken cancellationToken);
+
     Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken);
@@ -20,5 +32,6 @@ public interface IGlpiApiClient
         int urgency,
         int? categoryId,
         int requesterUserId,
+        int? assignmentGroupId,
         CancellationToken cancellationToken);
 }

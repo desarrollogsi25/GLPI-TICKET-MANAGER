@@ -1,0 +1,102 @@
+{
+  "startedAt": "2026-10-23T20:51:35.140Z",
+  "checks": [
+    {
+      "name": "Punto 1 (GLPI Categorías): desplegable muestra estructura jerárquica (»Software, »Hardware)",
+      "ok": true,
+      "detail": "Entidad ra?z»Aplicaciones»BI »Informes »Requerimiento BI»Desarrollo »Aplicaciones GSI »Dev »Software»Requerimiento »Acceso a sistema»Service Desk »Call Center »Hardware »Periféricos »Soporte Nivel 1»Sistema | »Aplicaciones | »BI | »Informes | »Requerimiento BI | »Desarrollo | »Aplicaciones GSI | »Dev | »Software | »Requerimiento | »Acceso a sistema | »Service Desk | »Call Center | »Hardware | »Periféricos | »Soporte Nivel 1 | »Sistema"
+    },
+    {
+      "name": "Punto 1 (GLPI Unicidad): 0 nombres de categoría repetidos en el desplegable nativo",
+      "ok": true,
+      "detail": "17/17 únicas"
+    },
+    {
+      "name": "Punto 1 (user_test): envío de formulario nativo GLPI exitoso (<500)",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "Punto 2 (Tiempo Real < 5s): el ticket creado en GLPI aparece en la cola de tech_dev sin F5 en < 5s",
+      "ok": true,
+      "detail": "3041 ms"
+    },
+    {
+      "name": "Punto 3 (Toast top-right): contenedor de toasts posicionado en top-right (desktop)",
+      "ok": true,
+      "detail": "x=1025, y=16"
+    },
+    {
+      "name": "Punto 3 (Toast al mover ticket): aparece toast profesional en la esquina superior derecha con icono y negrita",
+      "ok": true,
+      "detail": "Ticket asignado correctamenteTe has asignado el ticket #1003✕"
+    },
+    {
+      "name": "Punto 6.2 (Modal Pendiente en tech_dev): foco estable al escribir comentario completo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 4 (Tabla Líder): contiene las 6 columnas (Técnico | Ticket Actual | En Cola | Pendientes | Resueltos Hoy | Último Comentario)",
+      "ok": true,
+      "detail": "TécnicoTicket ActualEn ColaPendientesResueltos HoyÚltimo Comentario"
+    },
+    {
+      "name": "Punto 4 (Tiempo Real Último Comentario): /equipo de lider_dev muestra el comentario de pendiente de tech_dev sin F5",
+      "ok": true,
+      "detail": "Esperando validación de QA para ticket #1003"
+    },
+    {
+      "name": "tech_dev: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 6.4 (admin_test): /administracion muestra la vista global de los 3 grupos sin errores 500",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "failures": [],
+  "finishedAt": "2026-10-23T20:52:20.256Z"
+}

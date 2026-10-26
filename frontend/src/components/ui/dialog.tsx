@@ -19,6 +19,12 @@ interface DialogProps {
 export function Dialog({ open, onClose, title, description, children, className }: DialogProps) {
   const prefersReduced = useReducedMotion()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  // Keep the latest onClose reference without triggering effect re-runs
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) {
@@ -28,7 +34,7 @@ export function Dialog({ open, onClose, title, description, children, className 
     const timeout = setTimeout(() => {
       if (dialogRef.current) {
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
         if (focusables.length > 0) {
           focusables[0].focus()
@@ -38,15 +44,15 @@ export function Dialog({ open, onClose, title, description, children, className 
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
 
       if (event.key === 'Tab' && dialogRef.current) {
         const focusables = Array.from(
           dialogRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ),
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
         )
         if (focusables.length === 0) return
 
@@ -72,7 +78,7 @@ export function Dialog({ open, onClose, title, description, children, className 
       clearTimeout(timeout)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, onClose])
+  }, [open])
 
   return (
     <AnimatePresence>
@@ -83,26 +89,38 @@ export function Dialog({ open, onClose, title, description, children, className 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={prefersReduced ? { duration: 0 } : { duration: 0.18, ease: 'easeOut' }}
+            transition={
+              prefersReduced
+                ? { duration: 0 }
+                : { duration: 0.2, ease: [0.23, 1, 0.32, 1] }
+            }
             className="fixed inset-0 bg-black/50 backdrop-blur-xs"
             role="presentation"
             onClick={onClose}
           />
 
-          {/* Modal card with spring physics and focus trap */}
+          {/* Modal card with Emil Kowalski ease-out entrance (scale 0.95 -> 1, 200ms) */}
           <motion.div
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="dialog-title"
             aria-describedby={description ? 'dialog-description' : undefined}
-            initial={prefersReduced ? false : { opacity: 0, scale: 0.96, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={prefersReduced ? undefined : { opacity: 0, scale: 0.98 }}
+            initial={
+              prefersReduced
+                ? false
+                : { opacity: 0, transform: 'scale(0.95) translateY(6px)' }
+            }
+            animate={{ opacity: 1, transform: 'scale(1) translateY(0px)' }}
+            exit={
+              prefersReduced
+                ? undefined
+                : { opacity: 0, transform: 'scale(0.97) translateY(4px)' }
+            }
             transition={
               prefersReduced
                 ? { duration: 0 }
-                : { type: 'spring', stiffness: 350, damping: 30 }
+                : { duration: 0.2, ease: [0.23, 1, 0.32, 1] }
             }
             className={cn(
               'relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl',

@@ -3,10 +3,12 @@ using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Dtos.Groups;
 using GlpiTicketManager.Application.Dtos.Channels;
+using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
 using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Domain.Enums;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,12 +39,127 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
+    private readonly List<Notification> _notificationsList = new();
+
+    /// <summary>
+    /// The state GLPI reports on <c>GET /Ticket/{id}</c>, kept apart from
+    /// <see cref="_allTickets"/> on purpose.
+    /// </summary>
+    /// <remarks>
+    /// BUG-032 / H-31: the application reads tickets from MariaDB but owns the status
+    /// through GLPI's REST API. If the double used a single object for both, a
+    /// read-back could never disagree with the write and the tests would pass even if
+    /// the production code read the wrong source. Two stores let a test reproduce the
+    /// real divergence.
+    /// </remarks>
+    private readonly Dictionary<int, GlpiTicketState> _glpiTicketStates = new();
+
+    /// <summary>
+    /// Statuses GLPI refuses to move away from, per ticket.
+    /// </summary>
+    /// <remarks>
+    /// GLPI workflow rules can reject a transition: the REST API answers 200 but the
+    /// ticket keeps its status. This models that behaviour for the tests.
+    /// </remarks>
+    private readonly Dictionary<int, int> _glpiStatusOverrides = new();
+
+    private Mock<ITicketNotificationService>? _notificationMock;
+    private Mock<IGlpiApiClient>? _glpiMock;
+
+    /// <summary>
+    /// The GLPI REST double, so a test can assert that the application really reads
+    /// the ticket state back from GLPI (BUG-032 / H-31).
+    /// </summary>
+    public Mock<IGlpiApiClient> GlpiMock =>
+        _glpiMock ?? throw new InvalidOperationException(
+            "The test host has not been created yet. Call CreateClient() before using GlpiMock.");
+
+    /// <summary>
+    /// Mock of the realtime notifier, so a test can assert how many events a use case
+    /// emits (BUG-031 requires exactly one event for the atomic resolve).
+    /// </summary>
+    public Mock<ITicketNotificationService> NotificationMock =>
+        _notificationMock ?? throw new InvalidOperationException(
+            "The test host has not been created yet. Call CreateClient() before using NotificationMock.");
+
+    /// <summary>Clears the recorded realtime notifications between tests.</summary>
+    public void ResetNotifications()
+    {
+        NotificationMock.Invocations.Clear();
+    }
 
     public void SetTicketSolution(int ticketId, string content)
     {
         lock (_stateLock)
         {
             _ticketSolutions[ticketId] = content;
+        }
+    }
+
+    /// <summary>
+    /// Makes GLPI report a fixed status for a ticket and refuse every transition away
+    /// from it, the way a GLPI workflow rule that blocks the transition would.
+    /// </summary>
+    /// <remarks>
+    /// BUG-032 / H-31: this is the lever that proves the read-back really comes from
+    /// GLPI. With this override in place the GLPI state and the MariaDB read model
+    /// disagree, and the API must answer with what GLPI reports.
+    /// </remarks>
+    public void SetGlpiReportedStatus(int ticketId, int status)
+    {
+        lock (_stateLock)
+        {
+            _glpiStatusOverrides[ticketId] = status;
+            _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, status);
+        }
+    }
+
+    /// <summary>The status GLPI currently reports for a ticket, or null if unknown.</summary>
+    public int? GetGlpiReportedStatus(int ticketId)
+    {
+        lock (_stateLock)
+        {
+            if (_glpiStatusOverrides.TryGetValue(ticketId, out var forced))
+            {
+                return forced;
+            }
+
+            return _glpiTicketStates.TryGetValue(ticketId, out var state) ? state.Status : null;
+        }
+    }
+
+    /// <summary>
+    /// Moves a fixture ticket to an explicit status so a test can exercise a given
+    /// state conflict (Solved, Closed, ...) without going through the whole flow.
+    /// </summary>
+    public void SetTicketStatus(int ticketId, int status)
+    {
+        lock (_stateLock)
+        {
+            if (_allTickets.TryGetValue(ticketId, out var ticket))
+            {
+                _allTickets[ticketId] = new Ticket
+                {
+                    Id = ticket.Id,
+                    Name = ticket.Name,
+                    Content = ticket.Content,
+                    Status = status,
+                    Type = ticket.Type,
+                    Priority = ticket.Priority,
+                    Urgency = ticket.Urgency,
+                    Impact = ticket.Impact,
+                    CategoryId = ticket.CategoryId,
+                    CreatedAt = ticket.CreatedAt,
+                    UpdatedAt = DateTime.UtcNow,
+                    SolvedAt = ticket.SolvedAt,
+                    ClosedAt = ticket.ClosedAt,
+                    IsDeleted = ticket.IsDeleted,
+                    HasSolution = ticket.HasSolution,
+                    AssigneeIds = ticket.AssigneeIds,
+                    RequesterIds = ticket.RequesterIds,
+                    Followups = ticket.Followups
+                };
+            }
         }
     }
 
@@ -66,7 +183,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         lock (_stateLock)
         {
             SimulateInsertFailure = false;
+            _notificationsList.Clear();
             _ticketSolutions.Clear();
+            _glpiTicketStates.Clear();
+            _glpiStatusOverrides.Clear();
             _allTickets.Clear();
             _allTickets[Ticket11Id] = new Ticket
             {
@@ -252,7 +372,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["RateLimiting:ExpensiveTokensPerPeriod"] = "1",
                 ["RateLimiting:ExpensiveReplenishmentSeconds"] = "3",
                 ["RateLimiting:PerUserRequestLimit"] = "100",
-                ["RateLimiting:LoginAttemptLimit"] = "5"
+                ["RateLimiting:LoginAttemptLimit"] = "100"
             });
         });
 
@@ -269,6 +389,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IGroupRepository) ||
                 d.ServiceType == typeof(IChannelRepository) ||
                 d.ServiceType == typeof(ITicketNotificationService) ||
+                d.ServiceType == typeof(INotificationRepository) ||
+                d.ServiceType == typeof(IDashboardRepository) ||
                 d.ServiceType == typeof(IUserRoleResolver)).ToList();
 
             foreach (var d in descriptors)
@@ -396,11 +518,27 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             // Mock IGlpiApiClient
             var glpiMock = new Mock<IGlpiApiClient>();
+            _glpiMock = glpiMock;
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, int status, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
+                        // GLPI 11 refuses the transition when a workflow rule blocks it:
+                        // the REST API answers 200 and the ticket keeps its status.
+                        if (_glpiStatusOverrides.ContainsKey(ticketId))
+                        {
+                            return Task.CompletedTask;
+                        }
+
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(
+                            ticketId,
+                            status,
+                            SolvedAt: status == (int)TicketStatus.Solved || status == (int)TicketStatus.Closed
+                                ? DateTime.UtcNow
+                                : null,
+                            ClosedAt: status == (int)TicketStatus.Closed ? DateTime.UtcNow : null);
+
                         if (_allTickets.TryGetValue(ticketId, out var ticket))
                         {
                             _allTickets[ticketId] = new Ticket
@@ -432,11 +570,52 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     }
                     return Task.CompletedTask;
                 });
+
+            // BUG-032 / H-31: the read-back of the ticket state. GLPI is the owner of
+            // the status, so this is what the application has to consult to confirm
+            // that a write was persisted.
+            glpiMock.Setup(g => g.GetTicketStateAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_glpiStatusOverrides.TryGetValue(ticketId, out var forced))
+                        {
+                            return Task.FromResult<GlpiTicketState?>(
+                                new GlpiTicketState(ticketId, forced));
+                        }
+
+                        if (_glpiTicketStates.TryGetValue(ticketId, out var state))
+                        {
+                            return Task.FromResult<GlpiTicketState?>(state);
+                        }
+
+                        // No explicit state yet: GLPI reports what it holds, which for
+                        // an untouched ticket is the state of the read model.
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            return Task.FromResult<GlpiTicketState?>(new GlpiTicketState(
+                                ticketId,
+                                ticket.Status,
+                                ticket.SolvedAt,
+                                ticket.ClosedAt));
+                        }
+
+                        return Task.FromResult<GlpiTicketState?>(null);
+                    }
+                });
             glpiMock.Setup(g => g.ReopenTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
+                        if (!_glpiStatusOverrides.ContainsKey(ticketId))
+                        {
+                            _glpiTicketStates[ticketId] = new GlpiTicketState(
+                                ticketId,
+                                (int)TicketStatus.Assigned);
+                        }
+
                         if (_allTickets.TryGetValue(ticketId, out var ticket))
                         {
                             _allTickets[ticketId] = new Ticket
@@ -490,7 +669,59 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
+                        // GLPI 11 side effect (verified against GLPI 11.0 in BUG-031):
+                        // creating an ITILSolution moves the ticket to Solved (5) on its
+                        // own, and a second solution for an already solved ticket is
+                        // rejected with HTTP 400 / ERROR_GLPI_ADD "El elemento ya está
+                        // resuelto". The double must reproduce both behaviours, otherwise
+                        // the tests cannot see the defects the production code has to
+                        // handle (a 400 that is really a state conflict).
+                        if (_allTickets.TryGetValue(ticketId, out var ticket)
+                            && (ticket.Status == (int)TicketStatus.Solved || ticket.Status == (int)TicketStatus.Closed))
+                        {
+                            throw new GlpiApiException(
+                                StatusCodes.Status400BadRequest,
+                                "GLPI API returned 400 for POST ITILSolution.",
+                                "[\"ERROR_GLPI_ADD\",\"El elemento ya está resuelto, ¿alguien impulsó una solución antes que usted?\"]");
+                        }
+
                         _ticketSolutions[ticketId] = content;
+
+                        if (_glpiStatusOverrides.ContainsKey(ticketId))
+                        {
+                            return 1;
+                        }
+
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(
+                            ticketId,
+                            (int)TicketStatus.Solved,
+                            SolvedAt: DateTime.UtcNow);
+
+                        if (_allTickets.TryGetValue(ticketId, out var current))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = current.Id,
+                                Name = current.Name,
+                                Content = current.Content,
+                                Status = (int)TicketStatus.Solved,
+                                Type = current.Type,
+                                Priority = current.Priority,
+                                Urgency = current.Urgency,
+                                Impact = current.Impact,
+                                CategoryId = current.CategoryId,
+                                CreatedAt = current.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow,
+                                SolvedAt = current.SolvedAt ?? DateTime.UtcNow,
+                                ClosedAt = current.ClosedAt,
+                                IsDeleted = current.IsDeleted,
+                                HasSolution = true,
+                                AssigneeIds = current.AssigneeIds,
+                                RequesterIds = current.RequesterIds,
+                                Followups = current.Followups
+                            };
+                        }
+
                         return 1;
                     }
                 });
@@ -501,8 +732,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 It.IsAny<int>(),
                 It.IsAny<int?>(),
                 It.IsAny<int>(),
+                It.IsAny<int?>(),
                 It.IsAny<CancellationToken>()))
-                .ReturnsAsync((string title, string description, int urgency, int? categoryId, int requesterUserId, CancellationToken _) =>
+                .ReturnsAsync((string title, string description, int urgency, int? categoryId, int requesterUserId, int? assignmentGroupId, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
@@ -992,7 +1224,48 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 });
 
             var notificationMock = new Mock<ITicketNotificationService>();
+            _notificationMock = notificationMock;
             services.AddSingleton(notificationMock.Object);
+
+            var notificationRepoMock = new Mock<INotificationRepository>();
+            notificationRepoMock.Setup(n => n.CreateAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Notification n, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        n.Id = _notificationsList.Count + 1;
+                        _notificationsList.Add(n);
+                        return n.Id;
+                    }
+                });
+            notificationRepoMock.Setup(n => n.GetByUserAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int userId, int limit, int offset, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _notificationsList.Where(n => n.UserId == userId).Skip(offset).Take(limit).ToList();
+                    }
+                });
+            notificationRepoMock.Setup(n => n.GetUnreadCountAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int userId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return _notificationsList.Count(n => n.UserId == userId && !n.IsRead);
+                    }
+                });
+            notificationRepoMock.Setup(n => n.MarkAsReadAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((long id, int userId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var item = _notificationsList.FirstOrDefault(n => n.Id == id && n.UserId == userId);
+                        if (item == null) return false;
+                        item.IsRead = true;
+                        return true;
+                    }
+                });
+            services.AddSingleton(notificationRepoMock.Object);
 
             services.AddSingleton(roleResolverMock.Object);
             services.AddSingleton(userRepoMock.Object);
@@ -1003,6 +1276,65 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(ticketRepoMock.Object);
             services.AddSingleton(groupRepoMock.Object);
             services.AddSingleton(channelRepoMock.Object);
+
+            var dashboardRepoMock = new Mock<IDashboardRepository>();
+            dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(Group1Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GroupDashboardDto(4, 1, 1, 1, 1, 0, 0, new List<TeamMemberDto>
+                {
+                    new(Tech1Id, "Technician 1", 1, 0, Ticket12Id, 2),
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket13Id, 1)
+                }));
+            dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(Group2Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GroupDashboardDto(2, 1, 1, 0, 0, 0, 0, new List<TeamMemberDto>
+                {
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket21Id, 0)
+                }));
+            dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(It.Is<int>(g => g != Group1Id && g != Group2Id), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GroupDashboardDto(0, 0, 0, 0, 0, 0, 0, new List<TeamMemberDto>()));
+            dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(Group1Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TeamMemberDto>
+                {
+                    new(Tech1Id, "Technician 1", 1, 0, Ticket12Id),
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket13Id)
+                });
+            dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(Group2Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TeamMemberDto>
+                {
+                    new(Tech2Id, "Technician 2", 1, 0, Ticket21Id)
+                });
+            dashboardRepoMock.Setup(d => d.GetTeamMembersByGroupAsync(It.Is<int>(g => g != Group1Id && g != Group2Id), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TeamMemberDto>());
+
+            dashboardRepoMock.Setup(d => d.GetAdminGroupSummariesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<GroupSummaryDto>
+                {
+                    new(Group1Id, "Call Center", 4, 1, 2),
+                    new(Group2Id, "Soporte Nivel 1", 2, 0, 1)
+                });
+
+            dashboardRepoMock.Setup(d => d.GetTicketGroupAssignmentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            int gid = (ticketId == Ticket21Id || ticketId == Ticket22Id) ? Group2Id : Group1Id;
+                            return new GlpiTicketGroupInfo(ticketId, ticket.Name, gid);
+                        }
+                        return new GlpiTicketGroupInfo(ticketId, $"Ticket #{ticketId}", Group1Id);
+                    }
+                });
+
+            dashboardRepoMock.Setup(d => d.GetTechnicianUserIdsInGroupAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int groupId, CancellationToken _) =>
+                {
+                    if (groupId == Group1Id) return new List<int> { Tech1Id, Tech2Id };
+                    if (groupId == Group2Id) return new List<int> { Tech2Id };
+                    return new List<int>();
+                });
+
+            services.AddSingleton(dashboardRepoMock.Object);
         });
     }
 }

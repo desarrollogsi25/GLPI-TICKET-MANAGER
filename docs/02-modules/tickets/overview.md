@@ -21,9 +21,11 @@ for speed; mutations go through the GLPI REST API / DB transactions according to
 |---|---|---|---|
 | `GET` | `/api/tickets?assigneeId={id}&serviceId={id}&startDate={yyyy-MM-dd}&endDate={yyyy-MM-dd}&limit=&offset=` | JWT | Tickets list with optional assignee, service and creation-date filters |
 | `GET` | `/api/tickets/{id}` | JWT | Full detail: description, follow-ups and user links |
-| `POST` | `/api/tickets/{id}/solutions` | JWT | Insert a written solution into glpi_itilsolutions (ADR-006) |
+| `POST` | `/api/tickets/{id}/resolve` | JWT | **Preferred (atomic)**: write the solution and resolve/close the ticket in one call (ADR-020, BUG-031) |
+| `POST` | `/api/tickets/{id}/solutions` | JWT | Insert a written solution into glpi_itilsolutions (ADR-006). In GLPI 11 this auto-solves the ticket. |
 | `POST` | `/api/tickets/{id}/claim` | JWT | Technician claims an unassigned ticket (ADR-017) |
 | `POST` | `/api/tickets/{id}/reopen` | JWT | Reopen a solved or closed ticket (ADR-019) |
+| `PATCH` | `/api/tickets/{id}/status` | JWT | Change ticket status (requires a non-empty solution to reach Solved/Closed; see guard below) |
 | `GET` | `/api/dashboard/stats` | JWT | Aggregated metrics |
 | `POST` | `/api/auth/login` | anonymous, rate-limited | Exchange credentials for a JWT |
 | `GET` | `/api/auth/me` | JWT | Profile encoded in the current token |
@@ -94,8 +96,9 @@ never exposed to clients of this API.
 ### Escrituras GLPI (Estrategia Híbrida)
 
 Conforme a [ADR-017](../../01-architecture/decisions/ADR-017-glpi-write-strategy.md), las mutaciones se distribuyen según sus requisitos de concurrencia y reglas de negocio:
+- **Resolución atómica (`POST /api/tickets/{id}/resolve`) (preferido):** Escrito vía `ITicketService.ResolveAsync`. Requiere ambos permisos (`CanAddSolutionAsync` + `EvaluateStatusTransitionAsync`). Escribe la solución, relee el estado (GLPI 11 auto-resuelve al crearla), cierra automáticamente a `6` si procede, audita `resolve` y emite **un único** evento SignalR `TicketStatusChanged`. Ver [ADR-020](../../01-architecture/decisions/ADR-020-resolucion-atomic-de-ticket.md).
 - **Cambio de estado (`PATCH /api/tickets/{id}/status`)**: Vía GLPI REST API (`PUT /Ticket/{id}`). GLPI ejecuta reglas de negocio y transiciones.
-- **Creación de solución (`POST /api/tickets/{id}/solutions`)**: Vía GLPI REST API (`POST /ITILSolution`). GLPI valida y persiste la solución con su metadatos y eventos.
+- **Creación de solución (`POST /api/tickets/{id}/solutions`)**: Vía GLPI REST API (`POST /ITILSolution`). GLPI valida y persiste la solución con su metadatos y eventos. **En GLPI 11 la creación de `ITILSolution` mueve el ticket a `Resuelto (5)` por su cuenta.**
 - **Claim / Autoasignación (`POST /api/tickets/{id}/claim`)**: Vía **SQL directo atómico** (`UPDATE glpi_tickets ... WHERE id = @Id AND status = 1 AND NOT EXISTS (...)`). Justificado en [ADR-017](../../01-architecture/decisions/ADR-017-glpi-write-strategy.md) debido a que la API REST de GLPI no ofrece garantías transaccionales de no-duplicación ante peticiones simultáneas.
 
 ### Change status
@@ -320,8 +323,9 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 ## Reglas de negocio de GLPI
 
 - **Contenido obligatorio en tickets para soluciones**: Un ticket debe tener `content` (descripción) no vacío en `glpi_tickets` para poder recibir soluciones vía GLPI REST (`/apirest.php/ITILSolution`). Un ticket sin descripción no es resoluble por API (GLPI rechaza la operación con `Mandatory fields are not filled`).
-- **Validación de contenido de soluciones (H-24)**: Toda solución registrada mediante `POST /api/tickets/{id}/solutions` es validada en el backend antes de su envío a GLPI. Debe ser no vacía y no exceder los 2000 caracteres. Se permiten soluciones breves (p. ej. "OK", "Listo") para agilizar el cierre de incidencias triviales; contenidos vacíos o compuestos sólo por espacios devuelven `400 Bad Request`.
-- **Guard estricto de resolución (`status = 5`)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido no vacío en `glpi_itilsolutions` (`TRIM(content) <> ''`). Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity` ("Solution required").
+- **Validación de contenido de soluciones (H-24)**: Toda solución registrada mediante `POST /api/tickets/{id}/solutions` o `POST /api/tickets/{id}/resolve` es validada en el backend antes de su envío a GLPI. Debe ser **no vacía** (`TRIM(content) <> ''`) y **no exceder los 2000 caracteres**. Se permiten soluciones breves (p. ej. "OK", "Listo"); contenidos vacíos o compuestos sólo por espacios devuelven `400 Bad Request`.
+- **Guard estricto de resolución (`status = 5`) — BUG-031 (H-31)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido **no vacío** en `glpi_itilsolutions` (`TRIM(content) <> ''`). El antiguo requisito de **longitud mínima (10 caracteres)** se eliminó: la consulta `SolutionQueries.Exists` ya no impone ese mínimo. Las soluciones obsoletas (`glpi_itilsolutions.status = 4`) **no** cuentan. Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity`. Ver [ADR-020](../../01-architecture/decisions/ADR-020-resolucion-atomic-de-ticket.md).
+- **GLPI 11 auto-resuelve al crear la solución:** Crear una `ITILSolution` mueve el ticket a `Resuelto (5)`. El flujo preferido es `POST /api/tickets/{id}/resolve` (atómico): relee el estado, cierra automáticamente a `6` y emite **un único** evento SignalR. Los errores «el elemento ya está resuelto» de GLPI se traducen a `409 Conflict` en español.
 - **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
 - **Exclusión de tickets eliminados lógicamente (H-25)**: Las consultas de la cola de grupo (`TicketQueries.UnassignedByGroup` y su conteo en `TicketRepository.GetUnassignedByGroupAsync`), así como la condición de asignación (`ClaimConditionalUpdate`), filtran explícitamente `is_deleted = 0` para garantizar que tickets eliminados en GLPI no aparezcan en la bandeja de entrada ni puedan ser reclamados.
@@ -332,10 +336,11 @@ La máquina de estados se aplica en `TicketAccessPolicy.EvaluateStatusTransition
 
 - **Sin retroceso a Nuevo**: un técnico no puede mover un ticket `Asignado` (2) o `En progreso` (3) al estado `Nuevo` (1). El intento recibe `403` con `No puedes devolver un ticket asignado o en progreso al estado Nuevo.`
 - **Cierre automático al resolver**: al registrar una resolución (por técnico o administrador), el ticket pasa inmediatamente a `Cerrado` (6) en la misma operación. Si el cierre automático falla en GLPI, se registra una advertencia y no se revierte la resolución.
+- **Flujo atómico recomendado (ADR-020):** usar `POST /api/tickets/{id}/resolve`. El servicio valida autorización, escribe la solución, relee el estado (GLPI 11 auto-resuelve al crear la `ITILSolution`), cierra a `6`, audita `resolve` y emite **un único** evento SignalR `TicketStatusChanged`. Los mensajes de GLPI («El elemento ya está resuelto/cerrado») se traducen a `409 Conflict` en español.
 - **Solo el técnico asignado** puede cambiar el estado de un ticket: en caso contrario, `403` con `Solo el técnico asignado puede cambiar el estado de este ticket.`
 - **Cierre manual restringido**: enviar `status = 6` sin resolver queda reservado a administradores (`403` para técnicos).
 - **Transiciones idempotentes**: confirmar el estado ya vigente (p. ej. `5 → 5`) se permite. Es necesario porque GLPI marca el ticket como `Resuelto` al crear la solución, de modo que la confirmación posterior debe ser aceptada para poder aplicar el cierre automático.
-- **Mapeo de errores en la API**: `TicketEndpoints` traduce las reglas a códigos HTTP explícitos — `403` (prohibido), `404` (no encontrado), `409` (conflicto), `422` (sin solución) y `400` (validación), evitando respuestas `500`. El frontend muestra el `detail` recibido en un *toast* rojo de error.
+- **Mapeo de errores en la API**: `TicketEndpoints` traduce las reglas a códigos HTTP explícitos — `400` (validación/formato), `403` (prohibido), `404` (no encontrado), `409` (conflicto de estado: ya resuelto/cerrado o doble envío), `422` (regla de dominio / sin solución válida) y `502` (fallo de GLPI). El frontend muestra el `detail` recibido en un *toast* rojo de error.
 
 ## Notificaciones en tiempo real (SignalR)
 

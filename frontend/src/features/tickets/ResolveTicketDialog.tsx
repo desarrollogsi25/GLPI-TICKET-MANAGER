@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { useCreateSolutionMutation, useUpdateTicketStatusMutation } from '@/hooks/useTickets'
+import { useResolveTicketMutation } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
@@ -20,13 +20,22 @@ export function ResolveTicketDialog({
 }) {
   const [content, setContent] = useState('')
   const [touched, setTouched] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
-  const createSolution = useCreateSolutionMutation()
-  const updateStatus = useUpdateTicketStatusMutation()
+  const resolveTicket = useResolveTicketMutation()
   const pushToast = useToastStore((state) => state.push)
 
+  /**
+   * Synchronous in-flight guard. `resolveTicket.isPending` only becomes true after
+   * React re-renders, so a fast double click could fire two requests before the
+   * button is actually disabled. The second request would be rejected by the API
+   * with 409 and the technician would see a spurious error toast. This ref flips
+   * the moment the handler starts, so the second click is dropped immediately.
+   */
+  const submittingRef = useRef(false)
+
   const trimmed = content.trim()
-  const pending = createSolution.isPending || updateStatus.isPending
+  const pending = resolveTicket.isPending || isSubmitting
   // Short solutions are valid ("OK", "Listo"); only an empty one blocks the ticket.
   const hasError = touched && trimmed.length === 0
   const disabled = trimmed.length === 0 || pending
@@ -43,38 +52,29 @@ export function ResolveTicketDialog({
   }
 
   /**
-   * Resolve sequence, in strictly this order:
-   *   1. `POST /tickets/{id}/solutions` — must succeed (201) first.
-   *   2. Only then `PATCH /tickets/{id}/status` to 5 (Resuelto).
+   * Resolves the ticket with a single call (BUG-031 / H-31).
    *
-   * If the solution is not saved we MUST NOT attempt the status change: the API
-   * rejects resolving a ticket without a solution (422) and GLPI refuses the
-   * solution outright when the ticket data is incomplete. Failing fast on step 1
-   * keeps the two errors from surfacing together and shows a single clear toast.
+   * `POST /tickets/{id}/resolve` writes the solution, moves the ticket to its
+   * resolved state and emits one realtime event. The previous two-call sequence
+   * ("POST /solutions" then "PATCH /status") made the same technician action fail
+   * with 400/422, because GLPI already solves the ticket when the solution is
+   * written and the solution-presence query applied a minimum length the API never
+   * enforced. One call removes the inconsistency by construction.
    */
   const submit = async () => {
-    if (disabled) {
+    if (submittingRef.current || trimmed.length === 0) {
       setTouched(true)
       return
     }
 
-    // Step 1: save the solution. Abort the whole flow if this fails.
-    try {
-      await createSolution.mutateAsync({ ticketId, content: trimmed })
-    } catch (err) {
-      pushToast({
-        title: getApiErrorTitle(err, 'No se pudo guardar la solución'),
-        description: getApiErrorMessage(err),
-        variant: 'destructive',
-      })
-      return
-    }
+    submittingRef.current = true
+    setIsSubmitting(true)
 
-    // Step 2: only reached when the solution was saved (HTTP 201).
     try {
-      await updateStatus.mutateAsync({ ticketId, status: 5 })
+      await resolveTicket.mutateAsync({ ticketId, content: trimmed })
     } catch (err) {
-      // The solution exists but the ticket stayed open; refresh so the user sees it.
+      // The ticket may still have been solved server-side (e.g. the write succeeded
+      // but the response was lost), so always refresh before reporting the failure.
       void queryClient.invalidateQueries({ queryKey: ['tickets'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       pushToast({
@@ -83,20 +83,19 @@ export function ResolveTicketDialog({
         variant: 'destructive',
       })
       return
+    } finally {
+      submittingRef.current = false
+      setIsSubmitting(false)
     }
 
     closeDialog()
     void queryClient.invalidateQueries({ queryKey: ['tickets'] })
     void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    try {
-      pushToast({
-        title: 'Ticket resuelto correctamente',
-        description: `El ticket #${ticketId} ha sido marcado como resuelto.`,
-        variant: 'success',
-      })
-    } catch {
-      // toast fail-safe
-    }
+    pushToast({
+      title: 'Ticket resuelto correctamente',
+      description: `El ticket #${ticketId} pasó a Resuelto`,
+      variant: 'success',
+    })
   }
 
   return (

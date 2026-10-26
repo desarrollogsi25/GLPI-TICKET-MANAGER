@@ -179,18 +179,9 @@ export function KanbanMobileSheet({
                     </svg>
                     Mover a En progreso (Retomar)
                   </Button>
-                  <Button
-                    className="w-full h-12 text-sm font-medium justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
-                    onClick={() => {
-                      onClose()
-                      onResolve(ticket.id)
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Mover a Resuelto
-                  </Button>
+                  <p className="text-xs text-muted-foreground py-2 text-center">
+                    Un ticket Pendiente debe reanudarse a En Progreso antes de resolverse.
+                  </p>
                 </>
               )}
 

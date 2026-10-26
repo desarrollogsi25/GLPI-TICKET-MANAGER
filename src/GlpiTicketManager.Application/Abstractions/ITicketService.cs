@@ -96,6 +96,20 @@ public interface ITicketService
 
     Task<int> SolutionInsertAsync(int ticketId, string content, int userId, AppRole role, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Resolves a ticket atomically: writes the solution, makes sure the ticket reaches
+    /// its resolved state and emits a single realtime event (BUG-031 / H-31).
+    /// </summary>
+    Task<TicketDetailDto> ResolveAsync(int ticketId, string content, int userId, CancellationToken cancellationToken);
+
+    /// <inheritdoc cref="ResolveAsync(int, string, int, CancellationToken)"/>
+    Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken);
+
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);
@@ -110,5 +124,24 @@ public interface ITicketService
         int urgency,
         int? categoryId,
         int requesterUserId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sets a ticket into Pending (Waiting = 4) status with a private followup (H-34).
+    /// </summary>
+    Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        CancellationToken cancellationToken);
+
+    /// <inheritdoc cref="SetPendingAsync(int, int, string, int, CancellationToken)"/>
+    Task<TicketDetailDto> SetPendingAsync(
+        int ticketId,
+        int reasonId,
+        string comment,
+        int userId,
+        AppRole role,
         CancellationToken cancellationToken);
 }

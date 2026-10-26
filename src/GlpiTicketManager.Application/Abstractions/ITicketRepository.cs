@@ -99,7 +99,10 @@ public interface ITicketRepository
 
     Task<IReadOnlyList<int>> GetGroupIdsForTicketAsync(int ticketId, CancellationToken cancellationToken);
 
+    Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken);
+
     Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> HasAssigneeAsync(int ticketId, CancellationToken cancellationToken);
+    Task EnsureTicketGroupAssignedAsync(int ticketId, int groupId, CancellationToken cancellationToken);
 }

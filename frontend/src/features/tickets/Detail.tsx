@@ -12,6 +12,7 @@ import { useToastStore } from '@/store/toastStore'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useAuthStore } from '@/store/authStore'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
+import { PendingTicketDialog } from './PendingTicketDialog'
 import { ReopenTicketDialog } from './ReopenTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
@@ -25,6 +26,7 @@ export function Detail() {
   const role = useAuthStore((state) => state.role ?? state.user?.role)
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
+  const [pendingOpen, setPendingOpen] = useState(false)
 
   const changeStatus = (status: number) => {
     updateStatus.mutate(
@@ -120,10 +122,29 @@ export function Detail() {
               <Button
                 size="sm"
                 variant="default"
-                disabled={ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                disabled={
+                  ticket.status === 4 ||
+                  ticket.status === 5 ||
+                  ticket.status === 6 ||
+                  updateStatus.isPending
+                }
+                title={
+                  ticket.status === 4
+                    ? 'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.'
+                    : undefined
+                }
                 onClick={() => setResolveOpen(true)}
               >
                 Resolver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                onClick={() => setPendingOpen(true)}
+                data-testid="pending-ticket-btn"
+              >
+                Poner en pendiente
               </Button>
               {canReopen && (
                 <Button
@@ -149,7 +170,15 @@ export function Detail() {
                     disabled={
                       option.value === ticket.status ||
                       updateStatus.isPending ||
-                      isBackwardBlocked
+                      isBackwardBlocked ||
+                      // H-39: from Pendiente only Retomar (En Progreso) is valid.
+                      // Resolver (5) and Cerrar (6) must be rejected up front.
+                      (ticket.status === 4 && option.value >= 5)
+                    }
+                    title={
+                      ticket.status === 4 && option.value >= 5
+                        ? 'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.'
+                        : undefined
                     }
                     onClick={() => {
                       if (option.value === 5) {
@@ -163,6 +192,11 @@ export function Detail() {
                   </Button>
                 )
               })}
+              {ticket.status === 4 && (
+                <p className="w-full text-xs text-muted-foreground">
+                  No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -249,6 +283,7 @@ export function Detail() {
       </div>
       <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />
       <ReopenTicketDialog ticketId={ticketId} open={reopenOpen} onOpenChange={setReopenOpen} />
+      <PendingTicketDialog ticketId={ticketId} open={pendingOpen} onOpenChange={setPendingOpen} />
     </div>
   )
 }

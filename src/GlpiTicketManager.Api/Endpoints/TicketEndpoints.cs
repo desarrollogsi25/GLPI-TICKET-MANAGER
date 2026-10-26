@@ -78,6 +78,21 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/tickets/{id}/resolve -> resolucion atomica (BUG-031 / H-31)
+        group.MapPost("/{id:int}/resolve", Resolve)
+            .WithName("ResolveTicket")
+            .WithSummary("Resolve a ticket in one call: writes the solution, drives the ticket to its resolved state and emits a single realtime event")
+            .Accepts<ResolveTicketRequest>("application/json")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
             .Produces(StatusCodes.Status401Unauthorized);
 
         // POST /api/tickets/{id}/reopen -> reabre ticket resuelto/cerrado
@@ -92,6 +107,19 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status401Unauthorized)
             .RequireRateLimiting(RateLimitPolicies.PerUser);
+
+        // POST /api/tickets/{id}/pending -> pone ticket en pendiente con seguimiento privado (H-34)
+        group.MapPost("/{id:int}/pending", SetPending)
+            .WithName("SetPendingTicket")
+            .WithSummary("Put a ticket into pending status with a private followup")
+            .Accepts<PendingTicketRequest>("application/json")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .Produces(StatusCodes.Status401Unauthorized);
 
         // POST /api/tickets -> crea nuevo ticket y emite TicketCreated (SignalR)
         group.MapPost(string.Empty, CreateTicket)
@@ -130,10 +158,16 @@ public static class TicketEndpoints
         {
             effectiveRequesterId = userId.Value;
         }
+        else if (role == AppRole.Admin || role == AppRole.Supervisor)
+        {
+            effectiveAssigneeId = assigneeId;
+        }
         else
         {
-            // BOLA fix: Client-provided assigneeId is ignored; always filter by authenticated user.
-            effectiveAssigneeId = userId.Value;
+            // BOLA fix: Client-provided assigneeId is ignored for technicians;
+            // When filtering by a specific service catalog, list tickets under that service;
+            // otherwise scope to the technician's own assigned tickets.
+            effectiveAssigneeId = serviceId.HasValue ? null : userId.Value;
         }
 
         try
@@ -343,6 +377,81 @@ public static class TicketEndpoints
                 title: "Ticket no encontrado",
                 detail: ex.Message);
         }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflicto de estado",
+                detail: ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Atomic resolve (BUG-031 / H-31): one call writes the solution and moves the ticket
+    /// to its resolved state, replacing the legacy "POST /solutions + PATCH /status" pair
+    /// that answered 400/422 for the very same technician action.
+    /// </summary>
+    private static async Task<IResult> Resolve(
+        int id,
+        ResolveTicketRequest? request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "Usuario no autenticado",
+                detail: "No se encontro el userId en el token JWT.");
+        }
+
+        var role = principal.GetRole();
+
+        try
+        {
+            var ticket = await ticketService.ResolveAsync(
+                id, request?.Content ?? string.Empty, userId.Value, role, cancellationToken);
+
+            return Results.Ok(ticket);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Solicitud inválida",
+                detail: ex.Message,
+                extensions: new Dictionary<string, object?> { ["errors"] = ex.Errors });
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado",
+                detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado",
+                detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflicto de estado",
+                detail: ex.Message);
+        }
+        catch (UnprocessableEntityException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "Operación no válida",
+                detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> Reopen(
@@ -431,6 +540,74 @@ public static class TicketEndpoints
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Error de validación",
+                detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> SetPending(
+        int id,
+        PendingTicketRequest? request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "Usuario no autenticado",
+                detail: "No se encontro el userId en el token JWT.");
+        }
+
+        var role = principal.GetRole();
+
+        try
+        {
+            var ticket = await ticketService.SetPendingAsync(
+                id,
+                request?.ReasonId ?? 0,
+                request?.Comment ?? string.Empty,
+                userId.Value,
+                role,
+                cancellationToken);
+
+            return Results.Ok(ticket);
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Solicitud inválida",
+                detail: ex.Message,
+                extensions: new Dictionary<string, object?> { ["errors"] = ex.Errors });
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado",
+                detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado",
+                detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflicto de estado",
+                detail: ex.Message);
+        }
+        catch (UnprocessableEntityException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "Operación no válida",
                 detail: ex.Message);
         }
     }

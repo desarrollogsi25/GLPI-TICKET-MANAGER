@@ -1,0 +1,173 @@
+{
+  "startedAt": "2026-10-23T19:39:41.531Z",
+  "checks": [
+    {
+      "name": "Punto 6 (tech_dev): solo ve su cola (Grupo: Desarrollo)",
+      "ok": true,
+      "detail": "Grupo: Desarrollo"
+    },
+    {
+      "name": "Punto 5 (lider_dev): /equipo muestra tarjetas de totales por estado",
+      "ok": true,
+      "detail": "Total=1"
+    },
+    {
+      "name": "Punto 5 (lider_dev): tabla muestra a tech_dev con sus métricas",
+      "ok": true,
+      "detail": "tech_dev—000"
+    },
+    {
+      "name": "Punto 5 (lider_dev): puede crear tickets desde /equipo (POST /api/tickets -> 201)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 2 (Tiempo Real Kanban): el nuevo ticket aparece automáticamente en la cola de tech_dev sin F5",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 2 (Tiempo Real Campana): el contador rojo de la campana suma +1 automáticamente vía SignalR sin F5",
+      "ok": true,
+      "detail": "0 -> 1"
+    },
+    {
+      "name": "Punto 5 (Tiempo Real Dashboard Líder): /equipo de lider_dev refleja el cambio de estado de tech_dev (#11 En Progreso) sin F5",
+      "ok": true,
+      "detail": "tech_dev#11100"
+    },
+    {
+      "name": "Punto 1 (Modal de Pendiente): al hacer clic en el textarea y escribir \"Hola mundo\", el foco NO se mueve al select",
+      "ok": true,
+      "detail": "focusStable=true, value=\"Hola mundo\""
+    },
+    {
+      "name": "Punto 4 (Toast en Kanban al intentar pasar de Pendiente a Resuelto): muestra el mensaje exacto en español",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 4 (Detalle del Ticket): botón Resolver deshabilitado con explicación exacta",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 3 (Logout y re-login sin 401): 0 errores 401 al cerrar sesión, volver a entrar y cargar Kanban",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_dev: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_dev: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 6 (admin_test): /administracion muestra los 3 grupos con totales",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin_test: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 6 (lider_bi): /equipo muestra solo su equipo (tech_bi) y botón Crear ticket",
+      "ok": true,
+      "detail": "TécnicoTicket ActualEn ProgresoPendientesResueltos Hoylider_bi—000tech_bi—000"
+    },
+    {
+      "name": "lider_bi: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_bi: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lider_bi: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 6 (tech_bi): solo ve su cola (Grupo: BI)",
+      "ok": true,
+      "detail": "Grupo: BI"
+    },
+    {
+      "name": "tech_bi: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_bi: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_bi: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Punto 6 (tech_sd): solo ve su cola (Grupo: Service Desk)",
+      "ok": true,
+      "detail": "Grupo: Service Desk"
+    },
+    {
+      "name": "tech_sd: 0 errores HTTP 401/403/500 en /api",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_sd: 0 peticiones fallidas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tech_sd: 0 errores en consola F12",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "failures": [],
+  "finishedAt": "2026-10-23T19:41:05.222Z",
+  "ok": true
+}

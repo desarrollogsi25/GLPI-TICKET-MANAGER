@@ -72,13 +72,13 @@ public static class TicketQueries
         INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id
         WHERE gt.groups_id = @GroupId
           AND gt.type = 2
-          AND t.status = 1
+          AND t.status IN (1, 2)
           AND t.is_deleted = 0
           AND NOT EXISTS (
             SELECT 1 FROM glpi_tickets_users tu
             WHERE tu.tickets_id = t.id AND tu.type = 2
           )
-        ORDER BY t.date ASC
+        ORDER BY t.date DESC
         LIMIT @Limit OFFSET @Offset;
         """;
 
@@ -216,7 +216,7 @@ public static class TicketQueries
         UPDATE glpi_tickets 
         SET status = 2, date_mod = NOW(), users_id_lastupdater = @UpdatedBy
         WHERE id = @TicketId 
-          AND status = 1
+          AND status IN (1, 2)
           AND is_deleted = 0
           AND NOT EXISTS (
             SELECT 1 FROM glpi_tickets_users 

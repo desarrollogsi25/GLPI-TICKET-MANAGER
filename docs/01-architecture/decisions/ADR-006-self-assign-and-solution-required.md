@@ -4,11 +4,27 @@
 > **Código:** DOC-01-ADR-006 | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 
 
-- **Status:** Accepted
+- **Status:** Accepted (partially amended by ADR-020)
 - **Date:** 2026-10-13
 - **Supersedes:** —
+- **Amended by:** [ADR-020 — Resolución atómica de ticket](ADR-020-resolucion-atomic-de-ticket.md) (2026-10-21)
 - **Related:** ADR-002 (API ↔ GLPI integration), ADR-004 (call centre scope),
   ADR-005 (external requester model)
+
+> [!IMPORTANT]
+> **Enmienda ADR-020 (2026-10-21).** La premisa de la *Decision 2* —«**Does not change
+> the ticket status by itself**»— es **empíricamente falsa en GLPI 11**: la creación de
+> una `ITILSolution` deja el ticket en `Resuelto (5)` por su cuenta. En consecuencia:
+>
+> - El endpoint de cierre pasa a ser **`POST /api/tickets/{id}/resolve`** (una sola
+>   llamada atómica: escribe la solución, relee el estado, cierra a `6` y emite un único
+>   evento SignalR). Los endpoints `POST /solutions` y `PATCH /status` se **mantienen**
+>   por compatibilidad.
+> - El guard de cierre (`422` si no hay solución) deja de exigir una longitud mínima:
+>   el contrato válido es **«contenido no vacío»**. Ver
+>   [BUG-031](../../11-incidents/BUG-031-resolucion-ticket-solucion-corta.md).
+> - El conflicto «el ticket ya está resuelto» se devuelve como `409 Conflict` en lugar
+>   del `400` opaco de GLPI.
 
 ## Context
 
@@ -65,18 +81,26 @@ membership check). No partial write.
 - Inserts one row into `glpi_itilsolutions`:
   `itemtype = 'Ticket'`, `items_id = {id}`, `content = <text>`,
   `users_id = <authenticated user>`, `date_creation = NOW()` (and `date_mod`).
-- **Does not change the ticket status by itself.** Adding a solution is
-  independent from closing.
+- **In GLPI 11 this moves the ticket to Solved (5) automatically.** The API must
+  account for that side effect (see [ADR-020](ADR-020-resolucion-atomic-de-ticket.md));
+  writing a solution and closing are no longer independent.
 
 **Closing guard:**
 
 - `PATCH /api/tickets/{id}/status` with `{ "status": 5 }` (Solved) is
   **rejected with `422 Unprocessable Entity`** unless **at least one**
   `glpi_itilsolutions` row exists for that ticket
-  (`itemtype = 'Ticket' AND items_id = {id}`).
+  (`itemtype = 'Ticket' AND items_id = {id}`) with **non-empty content**
+  (`TRIM(content) <> ''`). Solutions obsolete (`status = 4`) do **not** satisfy
+  the guard. The minimum length requirement was removed by
+  [BUG-031](../../11-incidents/BUG-031-resolucion-ticket-solucion-corta.md)
+  (the valid contract is «non-empty»).
 - The guard lives in the **service layer**, not only in the frontend: the API
   refuses the transition regardless of client. The frontend may also hide/disable
   the action, but that is a convenience, not the enforcement.
+- **Preferred flow:** use `POST /api/tickets/{id}/resolve` (atomic). It handles
+  GLPI's auto-solve, auto-closes to `6`, emits one SignalR event and translates
+  GLPI errors into the API's error contract.
 
 ## Alternatives rejected
 
