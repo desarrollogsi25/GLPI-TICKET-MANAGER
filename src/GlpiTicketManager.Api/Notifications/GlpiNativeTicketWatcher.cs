@@ -17,6 +17,7 @@ namespace GlpiTicketManager.Api.Notifications;
 /// </summary>
 public sealed class GlpiNativeTicketWatcher : BackgroundService
 {
+    private static readonly SemaphoreSlim WatcherLock = new(1, 1);
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IDbConnectionFactory _dbFactory;
     private readonly ILogger<GlpiNativeTicketWatcher> _logger;
@@ -48,22 +49,29 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
+            if (await WatcherLock.WaitAsync(0, stoppingToken))
             {
-                await PollOnceAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "GlpiNativeTicketWatcher poll iteration skipped.");
+                try
+                {
+                    await PollOnceAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "GlpiNativeTicketWatcher poll iteration skipped.");
+                }
+                finally
+                {
+                    WatcherLock.Release();
+                }
             }
 
             try
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(1200), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
             catch (OperationCanceledException)
             {

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -12,11 +13,15 @@ namespace GlpiTicketManager.Infrastructure.Glpi;
 
 /// <summary>
 /// Typed <see cref="HttpClient"/> that performs ticket writes against the GLPI REST API.
-/// A short-lived session is opened per operation, which keeps the client stateless and
-/// avoids leaking GLPI session tokens.
+/// Uses a SessionTokenPool with 5-minute sliding TTL and single retry on 401 Unauthorized
+/// to maximize throughput and minimize session roundtrips.
 /// </summary>
 public sealed class GlpiApiClient : IGlpiApiClient
 {
+    private sealed record PooledSession(string Token, DateTimeOffset ExpiresAt);
+    private static readonly ConcurrentDictionary<string, PooledSession> SessionPool = new();
+    private static readonly SemaphoreSlim SessionLock = new(1, 1);
+
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
@@ -47,11 +52,75 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
-    public async Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken)
+    private async Task<string> GetSessionTokenAsync(CancellationToken cancellationToken)
     {
-        var sessionToken = await InitSessionAsync(cancellationToken);
+        var key = string.IsNullOrEmpty(_options.UserToken) ? "default" : _options.UserToken;
+        if (SessionPool.TryGetValue(key, out var pooled) && DateTimeOffset.UtcNow < pooled.ExpiresAt)
+        {
+            return pooled.Token;
+        }
 
+        await SessionLock.WaitAsync(cancellationToken);
         try
+        {
+            if (SessionPool.TryGetValue(key, out pooled) && DateTimeOffset.UtcNow < pooled.ExpiresAt)
+            {
+                return pooled.Token;
+            }
+
+            var token = await InitSessionAsync(cancellationToken);
+            var newSession = new PooledSession(token, DateTimeOffset.UtcNow.AddMinutes(5));
+            SessionPool[key] = newSession;
+            return token;
+        }
+        finally
+        {
+            SessionLock.Release();
+        }
+    }
+
+    private void InvalidateSession(string? token = null)
+    {
+        var key = string.IsNullOrEmpty(_options.UserToken) ? "default" : _options.UserToken;
+        if (token == null)
+        {
+            SessionPool.TryRemove(key, out _);
+        }
+        else if (SessionPool.TryGetValue(key, out var pooled) && pooled.Token == token)
+        {
+            SessionPool.TryRemove(key, out _);
+        }
+    }
+
+    private async Task<T> ExecuteWithSessionAsync<T>(
+        Func<string, Task<T>> action,
+        CancellationToken cancellationToken)
+    {
+        var token = await GetSessionTokenAsync(cancellationToken);
+        try
+        {
+            return await action(token);
+        }
+        catch (GlpiApiException ex) when (ex.StatusCode == 401)
+        {
+            _logger.LogWarning("GLPI session token expired or invalid (401). Refreshing token and retrying once...");
+            InvalidateSession(token);
+            var freshToken = await GetSessionTokenAsync(cancellationToken);
+            return await action(freshToken);
+        }
+    }
+
+    private Task ExecuteWithSessionAsync(
+        Func<string, Task> action,
+        CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async token =>
+        {
+            await action(token);
+            return true;
+        }, cancellationToken);
+
+    public Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async sessionToken =>
         {
             var payload = new { input = new { status } };
 
@@ -63,18 +132,10 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 cancellationToken);
 
             _logger.LogInformation("Updated GLPI ticket {TicketId} to status {Status}", ticketId, status);
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
-        }
-    }
+        }, cancellationToken);
 
-    public async Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken)
-    {
-        var sessionToken = await InitSessionAsync(cancellationToken);
-
-        try
+    public Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async sessionToken =>
         {
             var payload = new
             {
@@ -109,24 +170,10 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 ticketId);
 
             return created.Id;
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
-        }
-    }
+        }, cancellationToken);
 
-    /// <summary>
-    /// Reads the ticket state back from GLPI.
-    ///
-    /// BUG-032 / H-31: GLPI is the owner of the status and the solutions. After a
-    /// write, this is the only source that can confirm the change was persisted.
-    /// </summary>
-    public async Task<GlpiTicketState?> GetTicketStateAsync(int ticketId, CancellationToken cancellationToken)
-    {
-        var sessionToken = await InitSessionAsync(cancellationToken);
-
-        try
+    public Task<GlpiTicketState?> GetTicketStateAsync(int ticketId, CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async sessionToken =>
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, $"Ticket/{ticketId}");
 
@@ -167,17 +214,8 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 Status: ticket.Status.Value,
                 SolvedAt: ParseGlpiDate(ticket.SolvedAt),
                 ClosedAt: ParseGlpiDate(ticket.ClosedAt));
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
-        }
-    }
+        }, cancellationToken);
 
-    /// <summary>
-    /// Parses the date format GLPI uses in its REST payloads ("YYYY-MM-DD HH:MM:SS").
-    /// An empty or malformed value means "not set" and is reported as null.
-    /// </summary>
     private static DateTime? ParseGlpiDate(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -194,11 +232,8 @@ public sealed class GlpiApiClient : IGlpiApiClient
             : null;
     }
 
-    public async Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken)
-    {
-        var sessionToken = await InitSessionAsync(cancellationToken);
-
-        try
+    public Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async sessionToken =>
         {
             var payload = new
             {
@@ -219,18 +254,10 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 cancellationToken);
 
             _logger.LogInformation("Reopened GLPI ticket {TicketId} to status 2", ticketId);
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
-        }
-    }
+        }, cancellationToken);
 
-    public async Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken)
-    {
-        var sessionToken = await InitSessionAsync(cancellationToken);
-
-        try
+    public Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async sessionToken =>
         {
             var payload = new
             {
@@ -266,25 +293,17 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 ticketId);
 
             return created.Id;
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
-        }
-    }
+        }, cancellationToken);
 
-    public async Task<int> CreateTicketAsync(
+    public Task<int> CreateTicketAsync(
         string title,
         string description,
         int urgency,
         int? categoryId,
         int requesterUserId,
         int? assignmentGroupId,
-        CancellationToken cancellationToken)
-    {
-        var sessionToken = await InitSessionAsync(cancellationToken);
-
-        try
+        CancellationToken cancellationToken) =>
+        ExecuteWithSessionAsync(async sessionToken =>
         {
             var input = new Dictionary<string, object>
             {
@@ -329,12 +348,7 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 requesterUserId);
 
             return created.Id;
-        }
-        finally
-        {
-            await KillSessionAsync(sessionToken, cancellationToken);
-        }
-    }
+        }, cancellationToken);
 
     private async Task<string> InitSessionAsync(CancellationToken cancellationToken)
     {
@@ -367,27 +381,6 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
 
         return session.SessionToken;
-    }
-
-    private async Task KillSessionAsync(string sessionToken, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, "killSession");
-
-            if (!string.IsNullOrWhiteSpace(_options.AppToken))
-            {
-                request.Headers.TryAddWithoutValidation("App-Token", _options.AppToken);
-            }
-
-            request.Headers.TryAddWithoutValidation("Session-Token", sessionToken);
-
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
-        }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
-        {
-            _logger.LogWarning(exception, "Failed to close the GLPI API session.");
-        }
     }
 
     private Task<HttpResponseMessage> SendAsync(
@@ -439,10 +432,6 @@ public sealed class GlpiApiClient : IGlpiApiClient
         [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("message")] string? Message);
 
-    /// <summary>
-    /// The shape of `GET Ticket/{id}` as GLPI 11 answers it. Only the fields the API
-    /// needs to confirm a write are modelled; GLPI sends many more.
-    /// </summary>
     private sealed record TicketStateResponse(
         [property: JsonPropertyName("id")] int? Id,
         [property: JsonPropertyName("status")] int? Status,

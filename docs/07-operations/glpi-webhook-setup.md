@@ -129,3 +129,10 @@ curl -X POST http://localhost:8080/api/integrations/glpi/ticket-created \
 | **401 Unauthorized** | El header `X-Webhook-Secret` no coincide con `GlpiWebhook:Secret`. | Verificar que el valor del header y la variable de entorno sean idénticos. |
 | **400 Bad Request** | El cuerpo del payload no contiene `ticketId` o `items_id`. | Revisar la plantilla JSON en GLPI para asegurarse de que el tag de ID sea sustituido. |
 | **200 OK con notified: 0** | El ticket aún no tiene grupo asignado en `glpi_groups_tickets`. | Configurar la regla de GLPI para que se dispare después de la asignación del grupo técnico. |
+
+---
+
+## 6. Mecanismo Primario vs Respaldo (Watcher)
+
+- **Mecanismo Primario (Real-Time):** Webhook nativo de GLPI (`POST /api/integrations/glpi/ticket-created`). Notifica en tiempo real tan pronto un nuevo ticket es creado en GLPI, validando timestamp HMAC y garantizando idempotencia.
+- **Mecanismo de Respaldo (Watcher):** Background service `GlpiNativeTicketWatcher`. Realiza un sondeo preventivo en MariaDB cada **10 segundos** protegido por concurrencia global (`SemaphoreSlim WatcherLock`) para sincronizar tickets creados en caliente desde la interfaz web nativa de GLPI en caso de fallos temporales en la cola de webhooks de GLPI.
