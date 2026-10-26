@@ -223,7 +223,7 @@ export function AppSidebar({
       data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
         'fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border bg-card/95 backdrop-blur-sm md:flex select-none transition-all duration-200 ease-out',
-        collapsed ? 'w-16' : 'w-60',
+        collapsed ? 'w-16' : 'w-56',
       )}
     >
       {/* 1. Header con Logo + Toggle Collapse */}

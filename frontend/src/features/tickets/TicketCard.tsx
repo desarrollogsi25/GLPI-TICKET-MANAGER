@@ -160,32 +160,26 @@ export function TicketCard({
     <motion.div
       ref={setNodeRef}
       style={
-        transform
+        transform && !isDragging
           ? {
-              transform: `translate3d(${transform.x}px, ${transform.y}px, 0)${
-                isDragging ? ' rotate(2deg)' : ''
-              }`,
+              transform: `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`,
             }
           : undefined
       }
       animate={{
         boxShadow: highlight ? '0 0 0 2px rgb(109 89 232)' : '0 0 0 0px transparent',
-        transform:
-          !shouldReduceMotion && shake
-            ? 'translateX(-4px)'
-            : isOverlay
-              ? 'rotate(2deg) scale(1.02)'
-              : 'translateX(0px)',
       }}
       transition={
         shouldReduceMotion
           ? { duration: 0 }
-          : { type: 'spring', stiffness: 400, damping: 28 }
+          : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
       }
       className={cn(
-        '@container kanban-card-hover rounded-lg border border-border/50 bg-card p-3.5 shadow-sm hover:shadow-md hover:border-primary/30 transition-[box-shadow,border-color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        '@container kanban-card-item kanban-card-hover rounded-lg border border-border/50 bg-card p-3.5 shadow-sm hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30 transition-[box-shadow,border-color,transform,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         draggable && 'cursor-grab active:cursor-grabbing',
-        (isDragging || isOverlay) && 'opacity-90 shadow-xl rotate-2 ring-1 ring-primary/30',
+        isDragging && 'opacity-30 ring-1 ring-primary/40 border-dashed',
+        isOverlay && 'shadow-2xl ring-2 ring-primary/40 bg-card',
+        !shouldReduceMotion && shake && 'toast-error-shake',
       )}
       {...attributes}
       {...listeners}

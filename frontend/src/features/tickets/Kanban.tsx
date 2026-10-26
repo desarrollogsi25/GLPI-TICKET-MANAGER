@@ -8,8 +8,11 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { useGSAP } from '@gsap/react'
+import gsap from 'gsap'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -55,36 +58,36 @@ const COLUMNS: ColumnDef[] = [
     id: 'queue',
     title: 'Cola del grupo',
     description: 'Sin asignar',
-    bgClass: 'bg-slate-50/70 border-slate-200',
-    badgeClass: 'bg-slate-100 text-slate-700',
+    bgClass: 'bg-slate-50/70 border-slate-200 dark:bg-slate-900/60 dark:border-slate-700/70',
+    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   },
   {
     id: 'mine',
     title: 'Mis tickets',
     description: 'Asignados a mí',
-    bgClass: 'bg-blue-50/60 border-blue-200',
-    badgeClass: 'bg-blue-100 text-blue-700',
+    bgClass: 'bg-blue-50/60 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800/50',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
   },
   {
     id: 'in_progress',
     title: 'En progreso',
     description: 'Trabajando',
-    bgClass: 'bg-indigo-50/60 border-indigo-200',
-    badgeClass: 'bg-indigo-100 text-indigo-700',
+    bgClass: 'bg-indigo-50/60 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800/50',
+    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300',
   },
   {
     id: 'pending',
     title: 'Pendiente',
     description: 'Esperando',
-    bgClass: 'bg-amber-50/60 border-amber-200',
-    badgeClass: 'bg-amber-100 text-amber-700',
+    bgClass: 'bg-amber-50/60 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/50',
+    badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
   },
   {
     id: 'resolved',
     title: 'Resuelto',
     description: 'Listo',
-    bgClass: 'bg-emerald-50/60 border-emerald-200',
-    badgeClass: 'bg-emerald-100 text-emerald-700',
+    bgClass: 'bg-emerald-50/60 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50',
+    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
   },
 ]
 
@@ -192,18 +195,20 @@ function KanbanColumn({
   const shouldReduceMotion = useReducedMotion()
   const springTransition: Transition = shouldReduceMotion
     ? { duration: 0 }
-    : { type: 'spring', stiffness: 350, damping: 30, duration: 0.25 }
+    : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
 
   return (
-    <div data-column-id={column.id} className="flex w-72 shrink-0 flex-col">
+    <div data-column-id={column.id} className="flex min-w-0 w-full flex-col">
       <div className="mb-2.5 flex items-center justify-between px-1.5">
-        <div>
-          <span className="text-sm font-semibold tracking-tight text-foreground">{column.title}</span>
-          <p className="text-[11px] text-muted-foreground">{column.description}</p>
+        <div className="min-w-0">
+          <span className="text-sm font-semibold tracking-tight text-foreground truncate block">
+            {column.title}
+          </span>
+          <p className="text-[11px] text-muted-foreground truncate">{column.description}</p>
         </div>
         <span
           className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums',
+            'text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums shrink-0',
             isError ? 'bg-destructive/15 text-destructive font-bold' : column.badgeClass,
           )}
         >
@@ -297,7 +302,7 @@ function KanbanColumn({
                           Iniciar
                         </Button>
                       ) : column.id === 'in_progress' ? (
-                        <div className="flex items-center justify-between w-full gap-2">
+                        <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
                           <Link
                             to={`/tickets/${ticket.id}`}
                             className="inline-flex items-center text-xs font-medium text-primary hover:underline"
@@ -305,36 +310,38 @@ function KanbanColumn({
                           >
                             Abrir detalle →
                           </Link>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onPause?.(ticket.id)
-                            }}
-                          >
-                            Pausar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="h-7 px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onResolve?.(ticket.id)
-                            }}
-                          >
-                            Resolver
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs border-amber-300 text-amber-800 dark:border-amber-700/70 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onPause?.(ticket.id)
+                              }}
+                            >
+                              Pausar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onResolve?.(ticket.id)
+                              }}
+                            >
+                              Resolver
+                            </Button>
+                          </div>
                         </div>
                       ) : column.id === 'pending' ? (
                         <div className="flex flex-col w-full gap-1.5">
-                          <div className="flex items-center justify-between w-full gap-2">
+                          <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
                             <Link
                               to={`/tickets/${ticket.id}`}
                               className="inline-flex items-center text-xs font-medium text-primary hover:underline"
@@ -346,7 +353,7 @@ function KanbanColumn({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-2.5 text-xs"
+                                className="h-7 px-2 text-xs"
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
@@ -362,7 +369,7 @@ function KanbanColumn({
                                 aria-disabled="true"
                                 data-testid="pending-resolve-blocked-trigger"
                                 title="No se puede resolver un ticket desde este estado. Primero debe reanudarse a En Progreso."
-                                className="h-7 px-2.5 text-xs opacity-50 cursor-not-allowed"
+                                className="h-7 px-2 text-xs opacity-50 cursor-not-allowed"
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
@@ -455,6 +462,8 @@ export function Kanban() {
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
+  const boardContainerRef = useRef<HTMLDivElement>(null)
+  const hasAnimatedStaggerRef = useRef(false)
 
   const handlePauseWithModal = (ticketId: number) => {
     setPendingTicketId(ticketId)
@@ -463,7 +472,7 @@ export function Kanban() {
   const shouldReduceMotion = useReducedMotion()
   const springTransition: Transition = shouldReduceMotion
     ? { duration: 0 }
-    : { type: 'spring', stiffness: 350, damping: 30, duration: 0.25 }
+    : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
 
   const markTicketUpdated = useCallback((ticketId: number) => {
     setRecentlyUpdatedIds((prev) => new Set(prev).add(ticketId))
@@ -514,22 +523,43 @@ export function Kanban() {
     [queueTickets, myTicketsByColumn],
   )
 
+  const totalBoardCards =
+    queueTickets.length +
+    myTicketsByColumn.mine.length +
+    myTicketsByColumn.in_progress.length +
+    myTicketsByColumn.pending.length +
+    myTicketsByColumn.resolved.length
+
+  // GSAP subtle stagger when Kanban cards finish initial load
+  useGSAP(
+    () => {
+      if (shouldReduceMotion || hasAnimatedStaggerRef.current || totalBoardCards === 0) return
+      if (queueQuery.isLoading || myTicketsQuery.isLoading) return
+      const cards = boardContainerRef.current?.querySelectorAll('.kanban-card-item')
+      if (!cards || cards.length === 0) return
+
+      hasAnimatedStaggerRef.current = true
+      gsap.fromTo(
+        cards,
+        { opacity: 0, y: 8 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.18,
+          stagger: 0.02,
+          ease: 'power2.out',
+          clearProps: 'transform,opacity',
+        },
+      )
+    },
+    { scope: boardContainerRef, dependencies: [totalBoardCards, queueQuery.isLoading, myTicketsQuery.isLoading, shouldReduceMotion] },
+  )
+
   // Default tab para móvil: cola del grupo (queue)
   const defaultTab: ColumnId = 'queue'
 
   const [userSelectedTab, setUserSelectedTab] = useState<ColumnId | null>(null)
   const activeTab: ColumnId = userSelectedTab ?? defaultTab
-
-  // BUG-032 / H-32: there is no auto-refresh timer here any more.
-  //
-  // The board used to run its own `setInterval` that called `queueQuery.refetch()`
-  // every 30 s, unconditionally, even while SignalR was connected. That second
-  // poller was invisible in the query options and it kept hitting the protected
-  // `GET /tickets/by-group` endpoint for the whole session.
-  //
-  // The cadence now lives in a single place, `useGroupQueueQuery`, which only
-  // polls when the realtime connection is down (see QUEUE_FALLBACK_POLL_MS). While
-  // SignalR is connected the board is refreshed by the hub events.
 
   // Badge pulsante: detectar nuevos tickets en la cola
   const [lastSeenQueueCount, setLastSeenQueueCount] = useState<number>(() => {
@@ -958,7 +988,7 @@ export function Kanban() {
             transition={
               shouldReduceMotion
                 ? { duration: 0 }
-                : { type: 'spring', stiffness: 350, damping: 30, duration: 0.2 }
+                : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
             }
             className="flex flex-col gap-2.5 touch-pan-y"
           >
@@ -995,7 +1025,7 @@ export function Kanban() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.25 }}
                 className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
               >
                 <span className="text-3xl mb-2">
@@ -1036,12 +1066,14 @@ export function Kanban() {
       </div>
 
       {/* =========================================================================
-          VISTA DESKTOP (md:+): 5 Columnas en paralelo + Drag & Drop @dnd-kit
+          VISTA DESKTOP (md:+): 5 Columnas en paralelo (Grid sin scroll horizontal)
+          + Drag & Drop @dnd-kit con DragOverlay renderizado en Portal (document.body)
          ========================================================================= */}
-      <div className="hidden md:block">
+      <div className="hidden md:block" ref={boardContainerRef}>
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
-            className="flex gap-4 overflow-x-auto pb-4"
+            data-testid="kanban-desktop-grid"
+            className="grid grid-cols-5 gap-3.5 w-full overflow-hidden pb-4"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}
@@ -1085,13 +1117,25 @@ export function Kanban() {
             })}
           </div>
 
-          <DragOverlay>
-            {activeTicket ? (
-              <div className="w-72 rotate-2 shadow-2xl">
-                <TicketCard ticket={activeTicket} draggable={false} isOverlay={true} />
-              </div>
-            ) : null}
-          </DragOverlay>
+          {typeof document !== 'undefined' &&
+            createPortal(
+              <DragOverlay
+                dropAnimation={{
+                  duration: 180,
+                  easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+                }}
+              >
+                {activeTicket ? (
+                  <div
+                    data-testid="kanban-drag-overlay-card"
+                    className="w-64 scale-105 shadow-2xl pointer-events-none"
+                  >
+                    <TicketCard ticket={activeTicket} draggable={false} isOverlay={true} />
+                  </div>
+                ) : null}
+              </DragOverlay>,
+              document.body,
+            )}
         </DndContext>
       </div>
 
