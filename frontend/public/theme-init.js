@@ -11,7 +11,7 @@
 (function () {
   try {
     var theme = localStorage.getItem('theme');
-    var preset = localStorage.getItem('glpi_dark_preset') || 'midnight';
+    var preset = localStorage.getItem('glpi_dark_preset') || 'warm-minimal';
     document.documentElement.setAttribute('data-dark-preset', preset);
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');

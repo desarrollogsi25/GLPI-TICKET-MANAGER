@@ -38,10 +38,51 @@
 }
 
 /* ============================================================================
-   H-44: Paleta Dark Mode Profesional basada en Slate (Tailwind slate-950/900/800)
-   Preset por defecto: "Noche" (midnight)
+   H-48: Paleta Apple-Style Warm Minimal / Linen Meridian
+   Preset por defecto: "Cálido / Linen" (warm-minimal)
+   Fondo general: #1A1714 (Deep Umber)
+   Superficie card/columna: #292420 (Warm Stone)
+   Superficie elevada: #332C26
+   Acento primario: #E8A06A (Apricot / Clay)
+   Texto primario: #FAF7F2 (Warm Ivory)
+   Texto secundario: #A8A29E (Warm Grey)
+   Bordes: rgba(68, 64, 60, 0.4)
    ============================================================================ */
 .dark,
+.dark[data-dark-preset='warm-minimal'] {
+  --background: #1a1714;
+  --foreground: #faf7f2;
+
+  --card: #292420;
+  --card-foreground: #faf7f2;
+
+  --popover: #292420;
+  --popover-foreground: #faf7f2;
+
+  --primary: #e8a06a;
+  --primary-foreground: #1a1714;
+
+  --secondary: #332c26;
+  --secondary-foreground: #faf7f2;
+
+  --muted: #332c26;
+  --muted-foreground: #a8a29e;
+
+  --accent: #332c26;
+  --accent-foreground: #faf7f2;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #faf7f2;
+
+  --success: #34d399;
+  --success-foreground: #1a1714;
+
+  --border: rgba(68, 64, 60, 0.4);
+  --input: rgba(68, 64, 60, 0.4);
+  --ring: #e8a06a;
+}
+
+/* Preset 2: "Noche" (midnight — slate-950) */
 .dark[data-dark-preset='midnight'] {
   --background: #020617;
   --foreground: #f8fafc;
@@ -277,5 +318,30 @@
     .kanban-card-hover:hover {
       transform: none;
     }
+  }
+
+  /* H-48: Scrollbar estilizada y ultrafina para columnas Kanban (Apple-Style) */
+  .kanban-column-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(232, 160, 106, 0.25) transparent;
+  }
+  .kanban-column-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .kanban-column-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .kanban-column-scroll::-webkit-scrollbar-thumb {
+    background: rgba(232, 160, 106, 0.25);
+    border-radius: 9999px;
+  }
+  .kanban-column-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(232, 160, 106, 0.45);
+  }
+
+  /* Acentos serif para encabezados editoriales tipo SaaS moderno */
+  .font-serif,
+  h1 {
+    font-family: -apple-system-ui-serif, 'Fraunces', 'Playfair Display', ui-serif, Georgia, Cambria, 'Times New Roman', serif;
   }
 }

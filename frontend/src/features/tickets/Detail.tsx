@@ -84,7 +84,7 @@ export function Detail() {
       <PageHeader
         title={
           <div className="space-y-1.5">
-            <h1 className="text-[clamp(1.5rem,3.5vw,2rem)] font-bold tracking-tight text-foreground leading-tight">
+            <h1 className="text-[clamp(1.5rem,3.5vw,2rem)] font-bold font-serif tracking-tight text-foreground leading-tight">
               <span className="text-muted-foreground">#{ticket.id}</span> {ticket.title}
             </h1>
             <div className="flex flex-wrap items-center gap-2 pt-1">

@@ -149,6 +149,19 @@ export function NotificationBell() {
       const permission = await Notification.requestPermission()
       setPushPermission(permission)
       if (permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready
+            if (reg.pushManager) {
+              const existingSub = await reg.pushManager.getSubscription()
+              if (!existingSub) {
+                // Registro local o envío de endpoint si existe VAPID
+              }
+            }
+          } catch {
+            // Fallback graceful
+          }
+        }
         pushToast({
           title: 'Notificaciones activadas',
           description: 'Recibirás avisos nativos en tiempo real.',

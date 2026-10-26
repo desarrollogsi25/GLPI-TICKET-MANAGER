@@ -86,7 +86,7 @@ export function TicketCard({
         animate={highlight ? { boxShadow: '0 0 0 2px rgb(109 89 232)' } : {}}
         transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2 }}
         className={cn(
-          '@container relative flex flex-col justify-between gap-2.5 rounded-xl border border-border/60 bg-card p-3.5 shadow-sm hover:border-primary/40 transition-[border-color,box-shadow,transform] duration-150 ease-out min-h-[88px]',
+          '@container relative flex flex-col justify-between gap-2.5 rounded-2xl border border-[#44403C]/40 dark:border-[#44403C]/50 bg-card dark:bg-[#2E2824] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.24)] hover:border-primary/50 transition-[border-color,box-shadow,transform] duration-150 ease-out min-h-[88px]',
           onCardClick && 'cursor-pointer active:scale-[0.98]',
           isDragging && 'opacity-60',
         )}
@@ -175,10 +175,10 @@ export function TicketCard({
           : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
       }
       className={cn(
-        '@container kanban-card-item kanban-card-hover rounded-lg border border-border/50 bg-card p-3.5 shadow-sm hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30 transition-[box-shadow,border-color,transform,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        '@container kanban-card-item kanban-card-hover rounded-2xl border border-[#44403C]/40 dark:border-[#44403C]/50 bg-card dark:bg-[#2E2824] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.24)] hover:-translate-y-0.5 hover:shadow-md hover:border-primary/50 transition-[box-shadow,border-color,transform,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30 ring-1 ring-primary/40 border-dashed',
-        isOverlay && 'shadow-2xl ring-2 ring-primary/40 bg-card',
+        isOverlay && 'scale-[1.02] shadow-2xl ring-2 ring-primary border-primary bg-card dark:bg-[#332C26]',
         !shouldReduceMotion && shake && 'toast-error-shake',
       )}
       {...attributes}

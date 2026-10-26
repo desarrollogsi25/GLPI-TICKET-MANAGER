@@ -198,8 +198,8 @@ function KanbanColumn({
     : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
 
   return (
-    <div data-column-id={column.id} className="flex min-w-0 w-full flex-col">
-      <div className="mb-2.5 flex items-center justify-between px-1.5">
+    <div data-column-id={column.id} className="flex min-w-0 w-full flex-col h-full max-h-full overflow-hidden">
+      <div className="mb-2.5 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
           <span className="text-sm font-semibold tracking-tight text-foreground truncate block">
             {column.title}
@@ -219,7 +219,7 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-all duration-150 flex-1 bg-muted/50',
+          'flex min-h-44 flex-col gap-2.5 rounded-2xl border p-2.5 transition-all duration-150 flex-1 min-h-0 overflow-y-auto overflow-x-hidden kanban-column-scroll bg-muted/40 dark:bg-[#241F1B]',
           column.bgClass,
           isOver
             ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
@@ -1075,7 +1075,7 @@ export function Kanban() {
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-5 gap-3.5 w-full overflow-hidden pb-4"
+            className="grid grid-cols-5 gap-3.5 w-full h-[calc(100vh-11.5rem)] max-h-[calc(100vh-11.5rem)] overflow-hidden pb-1"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}

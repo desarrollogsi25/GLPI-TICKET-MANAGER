@@ -15,7 +15,7 @@ import { MobileDrawer } from './MobileDrawer'
 import { NotificationBell } from './NotificationBell'
 import { PageTransition } from './PageTransition'
 
-export type DarkPreset = 'midnight' | 'charcoal' | 'deep-blue'
+export type DarkPreset = 'warm-minimal' | 'midnight' | 'charcoal' | 'deep-blue'
 
 const ROUTE_LABELS: Record<string, string> = {
   kanban: 'Kanban',
@@ -45,9 +45,11 @@ export function AppLayout() {
   const [darkPreset, setDarkPreset] = useState<DarkPreset>(() => {
     try {
       const saved = localStorage.getItem('glpi_dark_preset') as DarkPreset | null
-      return saved && ['midnight', 'charcoal', 'deep-blue'].includes(saved) ? saved : 'midnight'
+      return saved && ['warm-minimal', 'midnight', 'charcoal', 'deep-blue'].includes(saved)
+        ? saved
+        : 'warm-minimal'
     } catch {
-      return 'midnight'
+      return 'warm-minimal'
     }
   })
 
@@ -122,71 +124,7 @@ export function AppLayout() {
         onToggleCollapse={handleToggleSidebar}
       />
 
-      {/* 2. Mobile Header (<md): Hamburger + User Name + Notification Bell + Theme + Logout */}
-      <header className="sticky top-0 z-30 flex md:hidden items-center justify-between border-b border-border bg-card/95 backdrop-blur-md px-3.5 py-2.5 pt-[env(safe-area-inset-top)]">
-        <div className="flex items-center gap-2 min-w-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsDrawerOpen(true)}
-            aria-label="Abrir menú"
-            data-testid="mobile-hamburger-btn"
-            className="flex h-10 w-10 items-center justify-center p-0 rounded-lg hover:bg-accent text-foreground cursor-pointer shrink-0"
-          >
-            <Menu className="size-5" aria-hidden="true" />
-          </Button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span
-                data-testid="mobile-header-username"
-                className="text-xs font-semibold text-foreground truncate max-w-[130px]"
-              >
-                {displayName}
-              </span>
-              <ConnectionIndicator state={connectionState} />
-            </div>
-            <p className="text-[10px] text-muted-foreground truncate">{currentRouteLabel}</p>
-          </div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCommandOpen(true)}
-            aria-label="Buscar comando"
-            data-testid="mobile-search-btn"
-            className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-          >
-            <Search className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleTheme}
-            aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-            data-testid="theme-toggle-mobile"
-            className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-          >
-            {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
-          </Button>
-          <NotificationBell />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={logout}
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
-            data-testid="logout-btn"
-            className="flex items-center gap-1 h-9 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="size-3.5" aria-hidden="true" />
-            <span className="sr-only">Cerrar sesión</span>
-          </Button>
-        </div>
-      </header>
-
-      {/* 3. Desktop Top Header + Main Content Area */}
+      {/* 2. Desktop Top Header + Main Content Area */}
       <div
         className={cn(
           'min-h-screen flex flex-col transition-all duration-200 ease-out',
@@ -250,6 +188,9 @@ export function AppLayout() {
                   onChange={(e) => handlePresetChange(e.target.value as DarkPreset)}
                   className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer pr-1"
                 >
+                  <option value="warm-minimal" className="bg-popover text-popover-foreground">
+                    Cálido / Linen (#1a1714)
+                  </option>
                   <option value="midnight" className="bg-popover text-popover-foreground">
                     Noche (#020617)
                   </option>
@@ -276,6 +217,70 @@ export function AppLayout() {
             </Button>
 
             <NotificationBell />
+          </div>
+        </header>
+
+        {/* 3. Mobile Header (<md): Hamburger + User Name + Notification Bell + Theme + Logout */}
+        <header className="sticky top-0 z-30 flex md:hidden items-center justify-between border-b border-border bg-card/95 backdrop-blur-md px-3.5 py-2.5 pt-[env(safe-area-inset-top)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsDrawerOpen(true)}
+              aria-label="Abrir menú"
+              data-testid="mobile-hamburger-btn"
+              className="flex h-10 w-10 items-center justify-center p-0 rounded-lg hover:bg-accent text-foreground cursor-pointer shrink-0"
+            >
+              <Menu className="size-5" aria-hidden="true" />
+            </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span
+                  data-testid="mobile-header-username"
+                  className="text-xs font-semibold text-foreground truncate max-w-[130px]"
+                >
+                  {displayName}
+                </span>
+                <ConnectionIndicator state={connectionState} />
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate">{currentRouteLabel}</p>
+            </div>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCommandOpen(true)}
+              aria-label="Buscar comando"
+              data-testid="mobile-search-btn"
+              className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+            >
+              <Search className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleTheme}
+              aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
+              data-testid="theme-toggle-mobile"
+              className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+            >
+              {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
+            </Button>
+            <NotificationBell />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={logout}
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              data-testid="logout-btn"
+              className="flex items-center gap-1 h-9 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">Cerrar sesión</span>
+            </Button>
           </div>
         </header>
 

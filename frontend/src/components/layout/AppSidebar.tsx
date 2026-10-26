@@ -25,7 +25,6 @@ import type { PagedResult, TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { ConnectionIndicator } from './ConnectionIndicator'
-import { NotificationBell } from './NotificationBell'
 import type { ConnectionState } from '@/hooks/useRealtimeTicketHub'
 
 interface NavItemConfig {
@@ -339,7 +338,6 @@ export function AppSidebar({
                 <p className="truncate text-[11px] text-muted-foreground">{username}</p>
               )}
             </div>
-            <NotificationBell />
             <Button
               variant="ghost"
               size="sm"
