@@ -359,8 +359,9 @@ function KanbanColumn({
                               <Button
                                 size="sm"
                                 variant="outline"
+                                aria-disabled="true"
                                 data-testid="pending-resolve-blocked-trigger"
-                                title="No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso."
+                                title="No se puede resolver un ticket desde este estado. Primero debe reanudarse a En Progreso."
                                 className="h-7 px-2.5 text-xs opacity-50 cursor-not-allowed"
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
@@ -369,7 +370,7 @@ function KanbanColumn({
                                   useToastStore.getState().push({
                                     title: 'Transición bloqueada',
                                     description:
-                                      'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.',
+                                      'No se puede resolver un ticket en este estado. Primero debe reanudarse a En Progreso.',
                                     variant: 'destructive',
                                   })
                                 }}
@@ -379,7 +380,7 @@ function KanbanColumn({
                             </div>
                           </div>
                           <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-tight">
-                            No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.
+                            No se puede resolver un ticket en este estado. Primero debe reanudarse a En Progreso.
                           </p>
                         </div>
                       ) : null

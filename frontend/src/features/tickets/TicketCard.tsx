@@ -203,6 +203,7 @@ export function TicketCard({
         </div>
 
         <div
+          role="img"
           title={assignee.label}
           aria-label={assignee.label}
           data-testid={`ticket-avatar-${ticket.id}`}

@@ -14,7 +14,7 @@ import { resetFixtureTicket } from './support/ticket-fixtures'
  * Provisions its own dedicated ticket (id 902) via MariaDB resetFixtureTicket.
  */
 
-const TICKET_ID = 902
+const TICKET_ID = 904
 
 test.beforeEach(() => {
   resetFixtureTicket(TICKET_ID, 'QA pending-ticket fixture')

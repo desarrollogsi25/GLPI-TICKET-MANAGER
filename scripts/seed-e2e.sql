@@ -148,6 +148,7 @@ VALUES
   (16, 'tech_sd',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
   (17, 'user_test',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
 ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
   password = VALUES(password),
   password_last_update = VALUES(password_last_update),
   authtype = 1,
@@ -268,22 +269,24 @@ VALUES
   (70,  0, 'TEST reapertura ticket tech1',                 NOW(), NOW(), 1, 3, 'Ticket para prueba E2E de reapertura', 3, 3, 3, 1, 1, 2),
   (901, 0, 'QA resolve-ticket fixture',                    NOW(), NOW(), 1, 3, 'Fixture para resolve-ticket.spec.ts', 3, 3, 3, 1, 1, 2),
   (902, 0, 'QA short-solution UI fixture',                 NOW(), NOW(), 1, 3, 'Fixture UI para resolve-short-solution.spec.ts', 3, 3, 3, 1, 1, 2),
-  (903, 0, 'QA short-solution API fixture',                NOW(), NOW(), 1, 3, 'Fixture API para resolve-short-solution.spec.ts', 3, 3, 3, 1, 1, 2)
+  (903, 0, 'QA short-solution API fixture',                NOW(), NOW(), 1, 3, 'Fixture API para resolve-short-solution.spec.ts', 3, 3, 3, 1, 1, 2),
+  (904, 0, 'QA pending-ticket fixture',                   NOW(), NOW(), 1, 3, 'Fixture para pending-ticket.spec.ts', 3, 3, 3, 1, 1, 2)
 ON DUPLICATE KEY UPDATE
+  name = VALUES(name), content = VALUES(content), date = VALUES(date),
   status = 1, solvedate = NULL, closedate = NULL, priority = 3,
   itilcategories_id = 2, is_deleted = 0, date_mod = NOW();
 
 UPDATE glpi_tickets SET date = '2026-10-10 10:00:00', date_mod = '2026-10-10 10:00:00', priority = 5 WHERE id = 61;
 
-DELETE FROM glpi_groups_tickets WHERE tickets_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903);
+DELETE FROM glpi_groups_tickets WHERE tickets_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904);
 INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) VALUES
   (11, 1, 2), (57, 1, 2), (61, 1, 2), (70, 1, 2),
   (81, 1, 2), (82, 1, 2), (83, 1, 2), (84, 1, 2), (85, 1, 2), (86, 1, 2),
-  (901, 1, 2), (902, 1, 2), (903, 1, 2);
+  (901, 1, 2), (902, 1, 2), (903, 1, 2), (904, 1, 2);
 
-DELETE FROM glpi_tickets_users WHERE tickets_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903) AND type = 2;
-DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903);
-DELETE FROM glpi_itilfollowups WHERE itemtype = 'Ticket' AND items_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903);
+DELETE FROM glpi_tickets_users WHERE tickets_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904) AND type = 2;
+DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904);
+DELETE FROM glpi_itilfollowups WHERE itemtype = 'Ticket' AND items_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904);
 
 -- Orden del Kanban (ids reservados 81-86, asignados a tech1).
 INSERT INTO glpi_tickets

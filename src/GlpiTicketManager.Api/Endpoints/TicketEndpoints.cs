@@ -158,10 +158,16 @@ public static class TicketEndpoints
         {
             effectiveRequesterId = userId.Value;
         }
+        else if (role == AppRole.Admin || role == AppRole.Supervisor)
+        {
+            effectiveAssigneeId = assigneeId;
+        }
         else
         {
-            // BOLA fix: Client-provided assigneeId is ignored; always filter by authenticated user.
-            effectiveAssigneeId = userId.Value;
+            // BOLA fix: Client-provided assigneeId is ignored for technicians;
+            // When filtering by a specific service catalog, list tickets under that service;
+            // otherwise scope to the technician's own assigned tickets.
+            effectiveAssigneeId = serviceId.HasValue ? null : userId.Value;
         }
 
         try
