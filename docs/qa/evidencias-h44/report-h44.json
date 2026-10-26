@@ -1,0 +1,61 @@
+{
+  "results": [
+    {
+      "step": "Desktop 1440px — 5 Kanban Columns Fit Without Horizontal Scroll",
+      "pass": true,
+      "detail": "cols=5, docOverflow=false, gridOverflow=false, widths=219px,219px,219px,219px,219px"
+    },
+    {
+      "step": "Drag & Drop Portal & Zero Horizontal Offset",
+      "pass": true,
+      "detail": "portalInBody=true, dx=6px, dy=5px (overlayLeft=288, expected=294)"
+    },
+    {
+      "step": "Notification Bell Dropdown Aligned Right (max-h-80 z-50)",
+      "pass": true,
+      "detail": "withinViewport=true, rightOffset=39px, max-h-80=true"
+    },
+    {
+      "step": "Sonner Toast Visible at Top-Right (Desktop)",
+      "pass": true,
+      "detail": "Single Sonner toaster at top-right"
+    },
+    {
+      "step": "Dark Mode Slate Palette (Midnight #020617 / #0f172a / #334155)",
+      "pass": true,
+      "detail": "bg=#020617, card=#0f172a, border=#334155, fg=#f8fafc"
+    },
+    {
+      "step": "Dark Mode Selectable Presets (Midnight, Charcoal, Deep Blue)",
+      "pass": true,
+      "detail": "charcoal=#0c0a09, deep-blue=#030712"
+    },
+    {
+      "step": "Leader Supervision Console in Dark Mode (1440px)",
+      "pass": true,
+      "detail": "KPIs, Workload Table & Group Tickets Board in Slate Dark Mode"
+    },
+    {
+      "step": "PWA Manifest & Icons (192x192 & 512x512, standalone)",
+      "pass": true,
+      "detail": "name=\"GLPI Ticket Manager\", display=\"standalone\", icons=2"
+    },
+    {
+      "step": "Mobile (390px) Kanban & Notification Bell — Zero Horizontal Overflow",
+      "pass": true,
+      "detail": "scrollWidth <= innerWidth (true)"
+    },
+    {
+      "step": "Axe Accessibility in Dark Mode (Desktop Kanban)",
+      "pass": true,
+      "detail": "0 critical violations"
+    },
+    {
+      "step": "Zero Console & HTTP Errors (F12)",
+      "pass": true,
+      "detail": "consoleErrors=0, httpErrors=0"
+    }
+  ],
+  "consoleErrors": [],
+  "httpErrors": []
+}

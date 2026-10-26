@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { ChevronRight, LogOut, Menu, Moon, Search, Sun } from 'lucide-react'
+import { ChevronRight, LogOut, Menu, Moon, Palette, Search, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
@@ -14,6 +14,8 @@ import { ConnectionIndicator } from './ConnectionIndicator'
 import { MobileDrawer } from './MobileDrawer'
 import { NotificationBell } from './NotificationBell'
 import { PageTransition } from './PageTransition'
+
+export type DarkPreset = 'midnight' | 'charcoal' | 'deep-blue'
 
 const ROUTE_LABELS: Record<string, string> = {
   kanban: 'Kanban',
@@ -40,6 +42,14 @@ export function AppLayout() {
   const [isDark, setIsDark] = useState<boolean>(() =>
     document.documentElement.classList.contains('dark'),
   )
+  const [darkPreset, setDarkPreset] = useState<DarkPreset>(() => {
+    try {
+      const saved = localStorage.getItem('glpi_dark_preset') as DarkPreset | null
+      return saved && ['midnight', 'charcoal', 'deep-blue'].includes(saved) ? saved : 'midnight'
+    } catch {
+      return 'midnight'
+    }
+  })
 
   const location = useLocation()
   const { connectionState } = useRealtimeTicketHub()
@@ -51,7 +61,8 @@ export function AppLayout() {
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains('dark'))
-  }, [])
+    document.documentElement.setAttribute('data-dark-preset', darkPreset)
+  }, [darkPreset])
 
   const handleToggleSidebar = () => {
     setIsSidebarCollapsed((prev) => {
@@ -70,6 +81,7 @@ export function AppLayout() {
     if (nextDark) {
       document.documentElement.classList.add('dark')
       document.documentElement.setAttribute('data-theme', 'dark')
+      document.documentElement.setAttribute('data-dark-preset', darkPreset)
       localStorage.setItem('theme', 'dark')
     } else {
       document.documentElement.classList.remove('dark')
@@ -77,6 +89,16 @@ export function AppLayout() {
       localStorage.setItem('theme', 'light')
     }
     setIsDark(nextDark)
+  }
+
+  const handlePresetChange = (preset: DarkPreset) => {
+    setDarkPreset(preset)
+    document.documentElement.setAttribute('data-dark-preset', preset)
+    try {
+      localStorage.setItem('glpi_dark_preset', preset)
+    } catch {
+      // ignore
+    }
   }
 
   const pathSegments = location.pathname.split('/').filter(Boolean)
@@ -168,7 +190,7 @@ export function AppLayout() {
       <div
         className={cn(
           'min-h-screen flex flex-col transition-all duration-200 ease-out',
-          isSidebarCollapsed ? 'md:ml-16' : 'md:ml-60',
+          isSidebarCollapsed ? 'md:ml-16' : 'md:ml-56',
         )}
       >
         {/* Global Desktop Header with Dynamic Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
@@ -200,14 +222,14 @@ export function AppLayout() {
             )}
           </nav>
 
-          {/* Right: Global Command Search (Ctrl+K) + Theme Toggle + User Pill */}
-          <div className="flex items-center gap-2.5">
+          {/* Right: Global Command Search (Ctrl+K) + Dark Preset + Theme Toggle + Notifications */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setIsCommandOpen(true)}
               data-testid="command-palette-trigger"
               aria-label="Abrir buscador global"
-              className="inline-flex h-8 w-60 items-center justify-between rounded-lg border border-border bg-muted/40 px-3 text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors duration-150 cursor-pointer"
+              className="inline-flex h-8 w-56 items-center justify-between rounded-lg border border-border bg-muted/40 px-3 text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors duration-150 cursor-pointer"
             >
               <span className="inline-flex items-center gap-2 truncate">
                 <Search className="size-3.5 shrink-0" aria-hidden="true" />
@@ -217,6 +239,29 @@ export function AppLayout() {
                 Ctrl K
               </kbd>
             </button>
+
+            {isDark && (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 px-2 h-8">
+                <Palette className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                <select
+                  aria-label="Preset de modo oscuro"
+                  data-testid="dark-preset-select"
+                  value={darkPreset}
+                  onChange={(e) => handlePresetChange(e.target.value as DarkPreset)}
+                  className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="midnight" className="bg-popover text-popover-foreground">
+                    Noche (#020617)
+                  </option>
+                  <option value="charcoal" className="bg-popover text-popover-foreground">
+                    Carbón (#0c0a09)
+                  </option>
+                  <option value="deep-blue" className="bg-popover text-popover-foreground">
+                    Azul profundo (#030712)
+                  </option>
+                </select>
+              </div>
+            )}
 
             <Button
               variant="ghost"
@@ -235,7 +280,7 @@ export function AppLayout() {
         </header>
 
         <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-          <div className="mx-auto max-w-7xl px-3.5 sm:px-6 md:px-8 py-4 md:py-6 pb-24 md:pb-8">
+          <div className="mx-auto max-w-[1600px] w-full px-3.5 sm:px-5 md:px-6 py-4 md:py-5 pb-24 md:pb-8">
             <PageTransition>
               <Outlet />
             </PageTransition>

@@ -2,12 +2,18 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>GLPI Ticket Manager</title>
     <meta name="description" content="Gestión de tickets de GLPI 11" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="GLPI Manager" />
     <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="manifest" href="/manifest.json" />
     <!--
-      Anti-FOUC: aplica la clase `dark` y `data-theme` antes del primer pintado.
+      Anti-FOUC: aplica la clase `dark`, `data-theme` y `data-dark-preset` antes del primer pintado.
       Debe ser un fichero externo y no un bloque embebido en la pagina: la CSP de
       nginx es `script-src 'self'`, que no permite codigo inline y no se relaja
       con `unsafe-inline` a proposito. Un script propio se sirve como mismo origen

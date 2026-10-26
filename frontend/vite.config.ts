@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -9,7 +10,44 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:5280'
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        manifestFilename: 'manifest.webmanifest',
+        includeAssets: ['favicon.ico', 'theme-init.js', 'icons/icon-192x192.png', 'icons/icon-512x512.png'],
+        manifest: {
+          name: 'GLPI Ticket Manager',
+          short_name: 'GLPI Manager',
+          description: 'Gestión de tickets de GLPI 11 en tiempo real',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          background_color: '#020617',
+          theme_color: '#020617',
+          icons: [
+            {
+              src: '/icons/icon-192x192.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+            {
+              src: '/icons/icon-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+          ],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//, /^\/hubs\//],
+        },
+      }),
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -54,7 +92,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             react: ['react', 'react-dom', 'react-router-dom'],
-            'tanstack': ['@tanstack/react-query', '@tanstack/react-table'],
+            tanstack: ['@tanstack/react-query', '@tanstack/react-table'],
           },
         },
       },

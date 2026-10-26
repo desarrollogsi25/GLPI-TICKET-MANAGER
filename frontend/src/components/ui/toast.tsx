@@ -20,7 +20,7 @@ export function Toaster() {
         gap={8}
         expand={true}
         closeButton={false}
-        offset={16}
+        offset={isMobile ? 16 : { top: 64, right: 16 }}
         mobileOffset={16}
         toastOptions={{
           unstyled: true,

@@ -23,10 +23,10 @@ interface Notification {
 }
 
 /**
- * NotificationBell — campana de notificaciones unificada (H-42).
+ * NotificationBell — campana de notificaciones unificada (H-42 / H-44).
  *
  * - Badge con contador animado (scale pulse en cambio de valor, respetando reduced motion).
- * - Dropdown origin-aware (`origin-top-right`) con transición rápida (< 200ms).
+ * - Dropdown origin-aware (`absolute right-0 top-full mt-2 max-h-80 overflow-y-auto z-50`).
  */
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
@@ -200,9 +200,9 @@ export function NotificationBell() {
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
           >
-            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20">
+            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
                   Notificaciones

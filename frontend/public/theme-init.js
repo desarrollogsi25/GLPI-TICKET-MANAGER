@@ -1,8 +1,8 @@
 /**
  * Inicialización del tema (anti-FOUC).
  *
- * Se ejecuta desde el <head> sin defer/async para fijar la clase `dark` y el atributo
- * `data-theme` antes del primer pintado, igual que hacía el script inline original.
+ * Se ejecuta desde el <head> sin defer/async para fijar la clase `dark`, el atributo
+ * `data-theme` y el preset `data-dark-preset` antes del primer pintado.
  *
  * Vive en un fichero externo y no en index.html porque la CSP del contenedor es
  * `script-src 'self'`, que bloquea cualquier <script> inline; un fichero propio se
@@ -11,6 +11,8 @@
 (function () {
   try {
     var theme = localStorage.getItem('theme');
+    var preset = localStorage.getItem('glpi_dark_preset') || 'midnight';
+    document.documentElement.setAttribute('data-dark-preset', preset);
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       document.documentElement.setAttribute('data-theme', 'dark');
