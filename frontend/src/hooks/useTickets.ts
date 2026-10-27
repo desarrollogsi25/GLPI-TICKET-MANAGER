@@ -18,7 +18,10 @@ import {
   getAdminDashboard,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
-import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
+import {
+  useRealtimeConnectionState,
+  applyOptimisticTicketStatusUpdate,
+} from '@/hooks/useRealtimeTicketHub'
 
 /** The API caps `limit` at 100; the board and table filter client-side. */
 export const TICKETS_PAGE_LIMIT = 100
@@ -92,7 +95,24 @@ export function useUpdateTicketStatusMutation() {
   return useMutation({
     mutationFn: ({ ticketId, status }: { ticketId: number; status: number }) =>
       updateTicketStatus(ticketId, status),
-    onSuccess: async () => {
+    onMutate: async ({ ticketId, status }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets.all })
+      const previousSnapshots = queryClient.getQueriesData({ queryKey: queryKeys.tickets.all })
+      applyOptimisticTicketStatusUpdate(queryClient, {
+        ticketId,
+        newStatus: status,
+        timestamp: new Date().toISOString(),
+      })
+      return { previousSnapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousSnapshots) {
+        for (const [key, data] of context.previousSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+    },
+    onSettled: async () => {
       await invalidateTicketCaches(queryClient)
     },
   })
@@ -177,7 +197,24 @@ export function useClaimTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (ticketId: number) => claimTicket(ticketId),
-    onSuccess: async () => {
+    onMutate: async (ticketId: number) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets.all })
+      const previousSnapshots = queryClient.getQueriesData({ queryKey: queryKeys.tickets.all })
+      applyOptimisticTicketStatusUpdate(queryClient, {
+        ticketId,
+        newStatus: 2,
+        timestamp: new Date().toISOString(),
+      })
+      return { previousSnapshots }
+    },
+    onError: (_err, _ticketId, context) => {
+      if (context?.previousSnapshots) {
+        for (const [key, data] of context.previousSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+    },
+    onSettled: async () => {
       await invalidateTicketCaches(queryClient)
     },
   })
@@ -206,7 +243,24 @@ export function useResolveTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, content }: { ticketId: number; content: string }) =>
       resolveTicket(ticketId, content),
-    onSuccess: async () => {
+    onMutate: async ({ ticketId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets.all })
+      const previousSnapshots = queryClient.getQueriesData({ queryKey: queryKeys.tickets.all })
+      applyOptimisticTicketStatusUpdate(queryClient, {
+        ticketId,
+        newStatus: 5,
+        timestamp: new Date().toISOString(),
+      })
+      return { previousSnapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousSnapshots) {
+        for (const [key, data] of context.previousSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+    },
+    onSettled: async () => {
       await invalidateTicketCaches(queryClient)
     },
   })
@@ -228,7 +282,24 @@ export function usePutPendingMutation() {
   return useMutation({
     mutationFn: ({ ticketId, reasonId, comment }: { ticketId: number; reasonId: number; comment: string }) =>
       putPendingTicket(ticketId, { reasonId, comment }),
-    onSuccess: async () => {
+    onMutate: async ({ ticketId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tickets.all })
+      const previousSnapshots = queryClient.getQueriesData({ queryKey: queryKeys.tickets.all })
+      applyOptimisticTicketStatusUpdate(queryClient, {
+        ticketId,
+        newStatus: 4,
+        timestamp: new Date().toISOString(),
+      })
+      return { previousSnapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousSnapshots) {
+        for (const [key, data] of context.previousSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+    },
+    onSettled: async () => {
       await invalidateTicketCaches(queryClient)
     },
   })

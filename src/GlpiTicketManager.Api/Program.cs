@@ -120,6 +120,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+builder.Services.AddSingleton<INotificationQueue, NotificationQueue>();
+builder.Services.AddHostedService<NotificationDispatcherService>();
 builder.Services.AddScoped<ITicketNotificationService, TicketNotificationService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddHostedService<GlpiNativeTicketWatcher>();

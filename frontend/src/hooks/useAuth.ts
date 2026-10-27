@@ -28,6 +28,33 @@ export function useCurrentUserQuery() {
   })
 }
 
+async function unregisterPushOnLogout() {
+  try {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      // Bound serviceWorker.ready with a 1000ms timeout so logout never hangs if SW is unready/idle
+      const swReady = navigator.serviceWorker.ready.catch(() => null)
+      const swTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 1000))
+      const reg = (await Promise.race([swReady, swTimeout])) as ServiceWorkerRegistration | null
+
+      if (reg?.pushManager) {
+        const sub = await reg.pushManager.getSubscription().catch(() => null)
+        if (sub) {
+          const endpoint = sub.endpoint
+          const apiBase = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? ''
+          await fetch(`${apiBase}/api/push/unsubscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint }),
+          }).catch(() => {})
+          await sub.unsubscribe().catch(() => {})
+        }
+      }
+    }
+  } catch {
+    // Ignore push cleanup failures so logout always succeeds
+  }
+}
+
 export function useLogout() {
   const navigate = useNavigate()
   const clearAuth = useAuthStore((s) => s.clear)
@@ -35,6 +62,7 @@ export function useLogout() {
 
   return async () => {
     try {
+      await unregisterPushOnLogout()
       await queryClient.cancelQueries()
       await logout()
     } catch {

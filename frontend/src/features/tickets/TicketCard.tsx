@@ -1,3 +1,4 @@
+import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { motion, useReducedMotion } from 'motion/react'
 import { Clock, User } from 'lucide-react'
@@ -45,7 +46,7 @@ function getAssigneeInitials(ticket: TicketSummary, currentUsername?: string): {
   }
 }
 
-export function TicketCard({
+function TicketCardComponent({
   ticket,
   draggable = true,
   actionButton,
@@ -262,3 +263,19 @@ export function TicketCard({
     </motion.div>
   )
 }
+
+export const TicketCard = React.memo(TicketCardComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.ticket.id === nextProps.ticket.id &&
+    prevProps.ticket.status === nextProps.ticket.status &&
+    prevProps.ticket.priority === nextProps.ticket.priority &&
+    prevProps.ticket.title === nextProps.ticket.title &&
+    prevProps.ticket.updatedAt === nextProps.ticket.updatedAt &&
+    prevProps.draggable === nextProps.draggable &&
+    prevProps.compact === nextProps.compact &&
+    prevProps.highlight === nextProps.highlight &&
+    prevProps.shake === nextProps.shake &&
+    prevProps.isOverlay === nextProps.isOverlay &&
+    prevProps.actionButton === nextProps.actionButton
+  )
+})

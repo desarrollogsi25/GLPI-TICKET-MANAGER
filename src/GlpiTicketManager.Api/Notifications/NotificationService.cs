@@ -1,10 +1,6 @@
-using GlpiTicketManager.Api.Endpoints;
-using GlpiTicketManager.Api.Hubs;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Notifications;
 using GlpiTicketManager.Domain.Entities;
-using GlpiTicketManager.Infrastructure.Persistence;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
 namespace GlpiTicketManager.Api.Notifications;
@@ -12,22 +8,16 @@ namespace GlpiTicketManager.Api.Notifications;
 public sealed class NotificationService : INotificationService
 {
     private readonly INotificationRepository _repository;
-    private readonly IHubContext<TicketHub> _hubContext;
-    private readonly IAppDbConnectionFactory _appDbFactory;
-    private readonly IConfiguration _config;
+    private readonly INotificationQueue _queue;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
         INotificationRepository repository,
-        IHubContext<TicketHub> hubContext,
-        IAppDbConnectionFactory appDbFactory,
-        IConfiguration config,
+        INotificationQueue queue,
         ILogger<NotificationService> logger)
     {
         _repository = repository;
-        _hubContext = hubContext;
-        _appDbFactory = appDbFactory;
-        _config = config;
+        _queue = queue;
         _logger = logger;
     }
 
@@ -63,49 +53,31 @@ public sealed class NotificationService : INotificationService
             entity.IsRead,
             entity.CreatedAt);
 
-        try
+        var payload = new
         {
-            await _hubContext.Clients.Group($"user-{userId}")
-                .SendAsync("NotificationReceived", new
-                {
-                    id = dto.Id,
-                    userId = dto.UserId,
-                    type = dto.Type,
-                    ticketId = dto.TicketId,
-                    title = dto.Title,
-                    message = dto.Message,
-                    body = dto.Message,
-                    isRead = dto.IsRead,
-                    read = dto.IsRead,
-                    createdAt = dto.CreatedAt
-                }, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to emit SignalR NotificationReceived for user {UserId}", userId);
-        }
+            id = dto.Id,
+            userId = dto.UserId,
+            type = dto.Type,
+            ticketId = dto.TicketId,
+            title = dto.Title,
+            message = dto.Message,
+            body = dto.Message,
+            isRead = dto.IsRead,
+            read = dto.IsRead,
+            createdAt = dto.CreatedAt
+        };
 
-        // Web Push notification to user in background
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var targetUrl = dto.TicketId.HasValue ? $"/tickets/{dto.TicketId.Value}" : "/kanban";
-                await PushEndpoints.SendNotificationToUserAsync(
-                    _appDbFactory,
-                    _config,
-                    userId,
-                    dto.Title,
-                    dto.Message,
-                    targetUrl,
-                    _logger,
-                    CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to send Web Push notification for user {UserId}", userId);
-            }
-        });
+        var targetUrl = dto.TicketId.HasValue ? $"/tickets/{dto.TicketId.Value}" : "/kanban";
+
+        _queue.Enqueue(new NotificationTask(
+            Type: NotificationTaskType.PersistentNotificationToUser,
+            UserId: userId,
+            TicketId: ticketId,
+            Title: title,
+            Message: message,
+            Url: targetUrl,
+            Payload: payload
+        ));
 
         return dto;
     }

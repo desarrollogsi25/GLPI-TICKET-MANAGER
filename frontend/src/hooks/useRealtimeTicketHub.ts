@@ -467,17 +467,13 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         .build()
 
       // H-41 Point 2 & 3:
-      // - TicketCreated: invalidate ONLY the affected group's queue + show toast
+      // - TicketCreated: debounce/throttle invalidation for the affected group's queue + show toast
       connection.on('TicketCreated', (payload: TicketCreatedPayload) => {
         const targetGroupId =
           payload.groupId && payload.groupId > 0
             ? payload.groupId
             : optionsRef.current?.groupId ?? 1
 
-        void queryClient.invalidateQueries(
-          { queryKey: queryKeys.tickets.byGroupQueue(targetGroupId) },
-          { cancelRefetch: false },
-        )
         scheduleRealtimeInvalidation(queryClient, {
           groupQueueId: targetGroupId,
           dashboard: true,

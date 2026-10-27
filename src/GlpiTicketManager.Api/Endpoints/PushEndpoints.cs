@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Dapper;
 using GlpiTicketManager.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using WebPush;
 
@@ -10,6 +11,7 @@ namespace GlpiTicketManager.Api.Endpoints;
 
 public record PushSubscriptionKeys(string? P256dh, string? Auth);
 public record PushSubscriptionRequest(string? Endpoint, PushSubscriptionKeys? Keys);
+public record PushUnsubscribeRequest(string? Endpoint);
 public record SendPushTestRequest(string? Title, string? Message);
 
 public static class PushEndpoints
@@ -82,6 +84,66 @@ public static class PushEndpoints
         .WithName("SubscribePush")
         .WithSummary("Register or update a Web Push subscription")
         .RequireAuthorization();
+
+        // POST /api/push/unsubscribe
+        group.MapPost("/unsubscribe", async (
+            [FromBody] PushUnsubscribeRequest req,
+            IAppDbConnectionFactory dbFactory,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Endpoint))
+            {
+                return Results.BadRequest(new { message = "Falta el endpoint a desuscribir." });
+            }
+
+            try
+            {
+                await using var conn = (NpgsqlConnection)await dbFactory.CreateAsync(ct);
+                const string sql = "DELETE FROM push_subscriptions WHERE endpoint = @Endpoint;";
+                var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { req.Endpoint }, cancellationToken: ct));
+                logger.LogInformation("Push subscription removed for endpoint {Endpoint} (rows affected: {Rows})", req.Endpoint, rows);
+                return Results.Ok(new { message = "Suscripción eliminada correctamente.", removed = rows > 0 });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error deleting push subscription for endpoint {Endpoint}", req.Endpoint);
+                return Results.StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("UnsubscribePushPost")
+        .WithSummary("Unregister a Web Push subscription via POST")
+        .AllowAnonymous();
+
+        // DELETE /api/push/unsubscribe
+        group.MapDelete("/unsubscribe", async (
+            [FromQuery] string? endpoint,
+            IAppDbConnectionFactory dbFactory,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                return Results.BadRequest(new { message = "Falta el endpoint a desuscribir." });
+            }
+
+            try
+            {
+                await using var conn = (NpgsqlConnection)await dbFactory.CreateAsync(ct);
+                const string sql = "DELETE FROM push_subscriptions WHERE endpoint = @Endpoint;";
+                var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Endpoint = endpoint }, cancellationToken: ct));
+                logger.LogInformation("Push subscription removed for endpoint {Endpoint} (rows affected: {Rows})", endpoint, rows);
+                return Results.Ok(new { message = "Suscripción eliminada correctamente.", removed = rows > 0 });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error deleting push subscription for endpoint {Endpoint}", endpoint);
+                return Results.StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        })
+        .WithName("UnsubscribePushDelete")
+        .WithSummary("Unregister a Web Push subscription via DELETE")
+        .AllowAnonymous();
 
         // POST /api/push/test
         group.MapPost("/test", async (
