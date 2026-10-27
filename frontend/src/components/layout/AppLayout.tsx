@@ -170,7 +170,7 @@ export function AppLayout() {
           >
             {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
           </Button>
-          <NotificationBell />
+          <NotificationBell data-testid="notification-bell-mobile" />
           <Button
             variant="outline"
             size="sm"

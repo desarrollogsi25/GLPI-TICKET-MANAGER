@@ -25,7 +25,6 @@ import type { PagedResult, TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { ConnectionIndicator } from './ConnectionIndicator'
-import { NotificationBell } from './NotificationBell'
 import type { ConnectionState } from '@/hooks/useRealtimeTicketHub'
 
 interface NavItemConfig {
@@ -222,7 +221,7 @@ export function AppSidebar({
       data-testid="desktop-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
-        'fixed inset-y-0 left-0 z-30 hidden flex-col border-none bg-background/95 backdrop-blur-xl md:flex select-none transition-all duration-300 ease-in-out shadow-sm',
+        'fixed inset-y-0 left-0 z-30 hidden flex-col border-none bg-background/95 backdrop-blur-xl md:flex select-none transition-all duration-300 ease-in-out shadow-sm overflow-x-hidden',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
@@ -281,7 +280,7 @@ export function AppSidebar({
       )}
 
       {/* 2. Navegación Principal y Secundaria */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-5">
         <div>
           {!collapsed && (
             <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
@@ -324,22 +323,23 @@ export function AppSidebar({
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-xl p-1.5 transition-colors">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20">
-              {initial}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-xs font-semibold leading-tight text-foreground">
-                  {displayName}
-                </p>
-                <ConnectionIndicator state={connectionState} />
+          <div className="flex items-center justify-between gap-2 rounded-xl p-1.5 transition-colors">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20">
+                {initial}
               </div>
-              {username && (
-                <p className="truncate text-[11px] text-muted-foreground">{username}</p>
-              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-xs font-semibold leading-tight text-foreground">
+                    {displayName}
+                  </p>
+                  <ConnectionIndicator state={connectionState} />
+                </div>
+                {username && (
+                  <p className="truncate text-[11px] text-muted-foreground">{username}</p>
+                )}
+              </div>
             </div>
-            <NotificationBell />
             <Button
               variant="ghost"
               size="sm"
@@ -347,7 +347,7 @@ export function AppSidebar({
               aria-label="Cerrar sesión"
               title="Cerrar sesión"
               data-testid="logout-btn"
-              className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto"
             >
               <LogOut className="size-4" />
             </Button>

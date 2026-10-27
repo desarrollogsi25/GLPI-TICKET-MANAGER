@@ -30,7 +30,15 @@ interface Notification {
  * - Dropdown origin-aware (`absolute right-0 top-full mt-2 max-h-80 overflow-y-auto z-50`).
  * - Botón "Activar notificaciones" para Push/Web Notifications nativas del navegador.
  */
-export function NotificationBell() {
+export interface NotificationBellProps {
+  'data-testid'?: string
+  className?: string
+}
+
+export function NotificationBell({
+  'data-testid': testId = 'notification-bell',
+  className,
+}: NotificationBellProps = {}) {
   const [open, setOpen] = useState(false)
   const [pulseBadge, setPulseBadge] = useState(false)
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
@@ -217,13 +225,13 @@ export function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div className={cn("relative", className)}>
       <Button
         variant="ghost"
         size="sm"
         onClick={handleToggle}
         aria-label="Notificaciones"
-        data-testid="notification-bell"
+        data-testid={testId}
         className="relative h-9 w-9 p-0 rounded-lg"
       >
         <Bell className="size-4 text-foreground/85" aria-hidden="true" />

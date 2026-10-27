@@ -35,7 +35,6 @@ import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
-import { CreateTicketDialog } from './CreateTicketDialog'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
 import { PendingTicketDialog } from './PendingTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
@@ -460,7 +459,6 @@ export function Kanban() {
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
   const [pendingTicketId, setPendingTicketId] = useState<number | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
@@ -891,13 +889,6 @@ export function Kanban() {
               <div className="hidden md:block">
                 <TechnicianFilter />
               </div>
-              <Button
-                size="sm"
-                onClick={() => setCreateOpen(true)}
-                data-testid="kanban-create-ticket-btn"
-              >
-                + Crear ticket
-              </Button>
             </div>
           )
         }
@@ -1161,7 +1152,6 @@ export function Kanban() {
           }
         }}
       />
-      <CreateTicketDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <KanbanMobileSheet
         ticket={selectedMobileTicket}
