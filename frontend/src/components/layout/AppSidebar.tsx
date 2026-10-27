@@ -151,11 +151,11 @@ export function AppSidebar({
               data-testid={`sidebar-nav-${item.id}`}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center min-h-[40px] rounded-lg text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                  'group relative flex items-center min-h-[40px] rounded-xl text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                   collapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2',
                   isActive
                     ? 'text-primary font-semibold'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                 )
               }
             >
@@ -164,7 +164,7 @@ export function AppSidebar({
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
-                      className="absolute inset-0 bg-primary/10 border border-primary/15 rounded-lg"
+                      className="absolute inset-0 bg-primary/10 rounded-xl"
                       transition={
                         prefersReduced
                           ? { duration: 0 }
@@ -222,14 +222,14 @@ export function AppSidebar({
       data-testid="desktop-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
-        'fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border bg-card/95 backdrop-blur-sm md:flex select-none transition-all duration-200 ease-out',
+        'fixed inset-y-0 left-0 z-30 hidden flex-col border-none bg-background/95 backdrop-blur-xl md:flex select-none transition-all duration-300 ease-in-out shadow-sm',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
       {/* 1. Header con Logo + Toggle Collapse */}
       <div
         className={cn(
-          'flex h-14 shrink-0 items-center border-b border-border/60',
+          'flex h-14 shrink-0 items-center border-none',
           collapsed ? 'justify-center px-2' : 'justify-between px-4',
         )}
       >

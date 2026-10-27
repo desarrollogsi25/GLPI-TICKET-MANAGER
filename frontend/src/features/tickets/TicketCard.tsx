@@ -91,15 +91,20 @@ export function TicketCard({
           isDragging && 'opacity-60',
         )}
       >
-        {/* Línea 1: #ID · Badge prioridad · Avatar Técnico */}
+        {/* Línea 1: #ID · Status/Priority Dot · Badge prioridad · Avatar Técnico */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                'size-2 rounded-full shrink-0',
+                ticket.priority >= 4 ? 'bg-rose-500' : ticket.priority === 3 ? 'bg-amber-500' : 'bg-emerald-500'
+              )}
+              title={priority.label}
+              aria-hidden="true"
+            />
             <span className="font-mono text-xs font-semibold text-muted-foreground">
               #{ticket.id}
             </span>
-            <Badge className={cn('text-[10px] px-1.5 py-0 font-medium', priority.badgeClass)}>
-              {priority.label}
-            </Badge>
             <span className="text-[11px] text-muted-foreground truncate max-w-[110px]">
               {ticket.typeLabel}
             </span>
@@ -109,10 +114,10 @@ export function TicketCard({
             title={assignee.label}
             aria-label={assignee.label}
             className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border',
+              'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border-0 shadow-xs',
               assignee.assigned
-                ? 'bg-primary/15 text-primary border-primary/25'
-                : 'bg-muted text-muted-foreground border-border',
+                ? 'bg-primary/15 text-primary'
+                : 'bg-muted text-muted-foreground',
             )}
           >
             {assignee.assigned ? assignee.initials : <User className="size-3" />}
@@ -175,19 +180,27 @@ export function TicketCard({
           : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
       }
       className={cn(
-        '@container kanban-card-item kanban-card-hover rounded-lg border border-border/50 bg-card p-3.5 shadow-sm hover:-translate-y-0.5 hover:shadow-md hover:border-primary/30 transition-[box-shadow,border-color,transform,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group @container kanban-card-item rounded-xl border-0 bg-card p-3.5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-within:[&_.ticket-actions]:opacity-100',
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30 ring-1 ring-primary/40 border-dashed',
-        isOverlay && 'shadow-2xl ring-2 ring-primary/40 bg-card',
+        isOverlay && 'shadow-2xl ring-2 ring-primary/40 bg-card scale-105',
         !shouldReduceMotion && shake && 'toast-error-shake',
       )}
       {...attributes}
       {...listeners}
       role="article"
     >
-      {/* Top row: Priority Badge + Assignee Avatar */}
+      {/* Top row: Priority Dot + Assignee Avatar */}
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={cn(
+              'size-2 rounded-full shrink-0',
+              ticket.priority >= 4 ? 'bg-rose-500' : ticket.priority === 3 ? 'bg-amber-500' : 'bg-emerald-500'
+            )}
+            title={priority.label}
+            aria-hidden="true"
+          />
           <Badge className={cn('text-[10px] px-1.5 py-0 font-medium', priority.badgeClass)}>
             {priority.label}
           </Badge>
@@ -202,10 +215,10 @@ export function TicketCard({
           aria-label={assignee.label}
           data-testid={`ticket-avatar-${ticket.id}`}
           className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border transition-colors',
+            'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border-0 transition-colors shadow-xs',
             assignee.assigned
-              ? 'bg-primary/15 text-primary border-primary/25'
-              : 'bg-muted/70 text-muted-foreground border-border/60',
+              ? 'bg-primary/15 text-primary'
+              : 'bg-muted/70 text-muted-foreground',
           )}
         >
           {assignee.assigned ? assignee.initials : <User className="size-3" />}
@@ -233,7 +246,7 @@ export function TicketCard({
 
       {actionButton ? (
         <div
-          className="mt-3 pt-2.5 border-t border-border/50"
+          className="ticket-actions mt-3 pt-2.5 border-t border-border/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >

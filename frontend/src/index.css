@@ -40,63 +40,69 @@
 /* ============================================================================
    H-44: Paleta Dark Mode Profesional basada en Slate (Tailwind slate-950/900/800)
    Preset por defecto: "Noche" (midnight)
+   Apple Liquid Glass Warm Palette:
+   - Fondo: #1C1917 (Stone/Umber cálido)
+   - Tarjetas: #292524
+   - Superficie elevada (hover): #332C26
+   - Acento: #D97706 (Ámbar cálido)
+   - Texto: #FAFAF9 (Marfil) y #A8A29E (Gris cálido)
    ============================================================================ */
 .dark,
 .dark[data-dark-preset='midnight'] {
-  --background: #020617;
-  --foreground: #f8fafc;
+  --background: #1C1917;
+  --foreground: #FAFAF9;
 
-  --card: #0f172a;
-  --card-foreground: #f8fafc;
+  --card: #292524;
+  --card-foreground: #FAFAF9;
 
-  --popover: #0f172a;
-  --popover-foreground: #f8fafc;
+  --popover: #292524;
+  --popover-foreground: #FAFAF9;
 
-  --primary: #f8fafc;
-  --primary-foreground: #020617;
+  --primary: #D97706;
+  --primary-foreground: #FAFAF9;
 
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
+  --secondary: #332C26;
+  --secondary-foreground: #FAFAF9;
 
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  --muted: #332C26;
+  --muted-foreground: #A8A29E;
 
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
+  --accent: #332C26;
+  --accent-foreground: #FAFAF9;
 
   --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
+  --destructive-foreground: #FAFAF9;
 
   --success: #10b981;
-  --success-foreground: #020617;
+  --success-foreground: #1C1917;
 
-  --border: #334155;
-  --input: #334155;
-  --ring: #64748b;
+  --border: #44403c;
+  --input: #332C26;
+  --ring: #D97706;
 }
 
 /* Preset 2: "Carbón cálido" (charcoal — stone-950 / stone-900 / stone-800) */
 .dark[data-dark-preset='charcoal'] {
-  --background: #0c0a09;
-  --foreground: #fafaf9;
+  --background: #1C1917;
+  --foreground: #FAFAF9;
 
-  --card: #1c1917;
-  --card-foreground: #fafaf9;
+  --card: #292524;
+  --card-foreground: #FAFAF9;
 
-  --popover: #1c1917;
-  --popover-foreground: #fafaf9;
+  --popover: #292524;
+  --popover-foreground: #FAFAF9;
 
-  --primary: #fafaf9;
-  --primary-foreground: #0c0a09;
+  --primary: #D97706;
+  --primary-foreground: #FAFAF9;
 
-  --secondary: #292524;
-  --secondary-foreground: #fafaf9;
+  --secondary: #332C26;
+  --secondary-foreground: #FAFAF9;
 
-  --muted: #292524;
-  --muted-foreground: #a8a29e;
+  --muted: #332C26;
+  --muted-foreground: #A8A29E;
 
-  --accent: #292524;
-  --accent-foreground: #fafaf9;
+  --accent: #332C26;
+  --accent-foreground: #FAFAF9;
 
   --border: #44403c;
   --input: #44403c;
@@ -183,10 +189,16 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-serif-luxury {
+    font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
+    font-optical-sizing: auto;
   }
 }
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import { useLoginMutation } from '@/hooks/useAuth'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { useAuthStore } from '@/store/authStore'
@@ -56,23 +57,26 @@ export function Login() {
   })
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-slate-950 p-4 overflow-hidden">
+    <div className="relative flex min-h-screen items-center justify-center bg-stone-950 p-4 overflow-hidden">
       <LoginBackground />
-      <Card className="relative z-10 w-full max-w-sm backdrop-blur-md bg-card/90 border-border/80 shadow-2xl">
+      <Card className="relative z-10 w-full max-w-sm bg-white/5 dark:bg-black/40 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-3xl p-2">
         <CardHeader>
-          <CardTitle className="text-lg">GLPI Ticket Manager</CardTitle>
-          <CardDescription>Accede con tu cuenta de GLPI.</CardDescription>
+          <CardTitle className="text-xl font-serif-luxury font-bold tracking-tight text-foreground">GLPI Ticket Manager</CardTitle>
+          <CardDescription className="text-muted-foreground/80">Accede con tu cuenta de GLPI.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit} noValidate>
-            <div className="space-y-1">
-              <Label htmlFor="username">Usuario</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-xs font-medium text-muted-foreground">Usuario</Label>
               <Input
                 id="username"
                 autoComplete="username"
                 aria-invalid={Boolean(errors.username)}
                 aria-describedby={errors.username ? 'username-error' : undefined}
-                className={errors.username ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                className={cn(
+                  'bg-background/50 border-white/10 rounded-xl transition-all duration-150 focus-visible:ring-2 focus-visible:ring-primary',
+                  errors.username && 'border-destructive focus-visible:ring-destructive'
+                )}
                 {...register('username')}
               />
               {errors.username ? (
@@ -82,15 +86,18 @@ export function Login() {
               ) : null}
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="password">Contraseña</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">Contraseña</Label>
               <Input
                 id="password"
                 type="password"
                 autoComplete="current-password"
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={errors.password ? 'password-error' : undefined}
-                className={errors.password ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                className={cn(
+                  'bg-background/50 border-white/10 rounded-xl transition-all duration-150 focus-visible:ring-2 focus-visible:ring-primary',
+                  errors.password && 'border-destructive focus-visible:ring-destructive'
+                )}
                 {...register('password')}
               />
               {errors.password ? (

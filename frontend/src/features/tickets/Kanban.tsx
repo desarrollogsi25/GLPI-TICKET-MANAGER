@@ -58,36 +58,36 @@ const COLUMNS: ColumnDef[] = [
     id: 'queue',
     title: 'Cola del grupo',
     description: 'Sin asignar',
-    bgClass: 'bg-slate-50/70 border-slate-200 dark:bg-slate-900/60 dark:border-slate-700/70',
-    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'mine',
     title: 'Mis tickets',
     description: 'Asignados a mí',
-    bgClass: 'bg-blue-50/60 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800/50',
-    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'in_progress',
     title: 'En progreso',
     description: 'Trabajando',
-    bgClass: 'bg-indigo-50/60 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800/50',
-    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'pending',
     title: 'Pendiente',
     description: 'Esperando',
-    bgClass: 'bg-amber-50/60 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/50',
-    badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'resolved',
     title: 'Resuelto',
     description: 'Listo',
-    bgClass: 'bg-emerald-50/60 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50',
-    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
 ]
 
@@ -201,14 +201,14 @@ function KanbanColumn({
     <div data-column-id={column.id} className="flex min-w-0 w-full flex-col">
       <div className="mb-2.5 flex items-center justify-between px-1.5">
         <div className="min-w-0">
-          <span className="text-sm font-semibold tracking-tight text-foreground truncate block">
+          <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
             {column.title}
           </span>
-          <p className="text-[11px] text-muted-foreground truncate">{column.description}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{column.description}</p>
         </div>
         <span
           className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums shrink-0',
+            'text-[10px] px-1.5 py-0.5 rounded-full font-medium tabular-nums shrink-0',
             isError ? 'bg-destructive/15 text-destructive font-bold' : column.badgeClass,
           )}
         >
@@ -219,11 +219,11 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-all duration-150 flex-1 bg-muted/50',
+          'flex min-h-44 flex-col gap-2.5 rounded-2xl border-0 p-2.5 transition-all duration-150 flex-1 bg-muted/30 shadow-xs',
           column.bgClass,
           isOver
             ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
-            : 'border-border/60',
+            : '',
         )}
       >
         {isLoading ? (

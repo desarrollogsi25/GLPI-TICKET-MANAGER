@@ -196,7 +196,7 @@ export function AppLayout() {
         {/* Global Desktop Header with Dynamic Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
         <header
           data-testid="desktop-top-header"
-          className="sticky top-0 z-20 hidden md:flex h-14 items-center justify-between border-b border-border/70 bg-background/85 backdrop-blur-md px-6"
+          className="sticky top-0 z-20 hidden md:flex h-14 items-center justify-between border-none bg-background/60 backdrop-blur-md px-6 shadow-xs"
         >
           {/* Dynamic Breadcrumb */}
           <nav
@@ -229,53 +229,56 @@ export function AppLayout() {
               onClick={() => setIsCommandOpen(true)}
               data-testid="command-palette-trigger"
               aria-label="Abrir buscador global"
-              className="inline-flex h-8 w-56 items-center justify-between rounded-lg border border-border bg-muted/40 px-3 text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors duration-150 cursor-pointer"
+              className="inline-flex h-8 w-56 items-center justify-between rounded-full border-0 bg-muted/50 px-3 text-xs text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors duration-150 cursor-pointer shadow-xs"
             >
               <span className="inline-flex items-center gap-2 truncate">
                 <Search className="size-3.5 shrink-0" aria-hidden="true" />
                 <span>Buscar o saltar a...</span>
               </span>
-              <kbd className="inline-flex h-5 items-center gap-0.5 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <kbd className="inline-flex h-5 items-center gap-0.5 rounded-full border-0 bg-background/80 px-2 font-mono text-[10px] font-medium text-muted-foreground shadow-xs">
                 Ctrl K
               </kbd>
             </button>
 
-            {isDark && (
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 px-2 h-8">
-                <Palette className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                <select
-                  aria-label="Preset de modo oscuro"
-                  data-testid="dark-preset-select"
-                  value={darkPreset}
-                  onChange={(e) => handlePresetChange(e.target.value as DarkPreset)}
-                  className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer pr-1"
-                >
-                  <option value="midnight" className="bg-popover text-popover-foreground">
-                    Noche (#020617)
-                  </option>
-                  <option value="charcoal" className="bg-popover text-popover-foreground">
-                    Carbón (#0c0a09)
-                  </option>
-                  <option value="deep-blue" className="bg-popover text-popover-foreground">
-                    Azul profundo (#030712)
-                  </option>
-                </select>
-              </div>
-            )}
+            {/* Pill Container for Quick Actions */}
+            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1 shadow-xs">
+              {isDark && (
+                <div className="flex items-center gap-1 rounded-full bg-background/40 px-2 h-7">
+                  <Palette className="size-3 text-muted-foreground shrink-0" aria-hidden="true" />
+                  <select
+                    aria-label="Preset de modo oscuro"
+                    data-testid="dark-preset-select"
+                    value={darkPreset}
+                    onChange={(e) => handlePresetChange(e.target.value as DarkPreset)}
+                    className="bg-transparent text-[11px] font-medium text-foreground focus:outline-none cursor-pointer pr-1"
+                  >
+                    <option value="midnight" className="bg-popover text-popover-foreground">
+                      Umber / Ámbar
+                    </option>
+                    <option value="charcoal" className="bg-popover text-popover-foreground">
+                      Carbón
+                    </option>
+                    <option value="deep-blue" className="bg-popover text-popover-foreground">
+                      Azul profundo
+                    </option>
+                  </select>
+                </div>
+              )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleToggleTheme}
-              aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-              title={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-              data-testid="theme-toggle-btn"
-              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-            >
-              {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleTheme}
+                aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
+                title={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
+                data-testid="theme-toggle-btn"
+                className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-foreground"
+              >
+                {isDark ? <Sun className="size-3.5 text-amber-500" /> : <Moon className="size-3.5" />}
+              </Button>
 
-            <NotificationBell />
+              <NotificationBell />
+            </div>
           </div>
         </header>
 
