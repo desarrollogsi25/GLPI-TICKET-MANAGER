@@ -1,0 +1,32 @@
+{
+  "results": [
+    {
+      "step": "tech_dev Push Subscription",
+      "pass": true,
+      "detail": "Suscripción Web Push registrada con éxito para tech_dev (Grupo 1)"
+    },
+    {
+      "step": "tech_bi Push Subscription",
+      "pass": true,
+      "detail": "Suscripción Web Push registrada con éxito para tech_bi (Grupo 2)"
+    },
+    {
+      "step": "tech_dev Notificación Recibida",
+      "pass": true,
+      "detail": "tech_dev (Grupo 1) recibió el evento de ticket creado en su grupo (notifiedCount=4)"
+    },
+    {
+      "step": "tech_bi Aislamiento Estricto (Zero Leak)",
+      "pass": true,
+      "detail": "tech_bi (Grupo 2) NO recibió eventos del ticket #11 del Grupo 1 (Toasts recibidos: 0)"
+    },
+    {
+      "step": "Zero Console/HTTP Errors",
+      "pass": true,
+      "detail": "Sin errores en frontend ni peticiones fallidas"
+    }
+  ],
+  "consoleErrors": [],
+  "httpErrors": [],
+  "timestamp": "2026-10-27T12:55:05.682Z"
+}

@@ -1,4 +1,9 @@
 import { test, expect } from '@playwright/test'
+import { resetFixtureTicket } from './support/ticket-fixtures'
+
+test.beforeEach(() => {
+  resetFixtureTicket(11, 'PASO3-C llamante externo (usuario generico)')
+})
 
 test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }) => {
   const consoleErrors: string[] = []

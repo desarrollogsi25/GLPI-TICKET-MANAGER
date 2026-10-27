@@ -35,6 +35,13 @@ public sealed class TicketHub : Hub
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
 
+            var role = user?.GetRole();
+            if (role == AppRole.Admin)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, "admins");
+                _logger.LogInformation("SignalR: user {UserId} (admin) auto-subscribed to admins group", userId);
+            }
+
             if (int.TryParse(userId, out var uid))
             {
                 try

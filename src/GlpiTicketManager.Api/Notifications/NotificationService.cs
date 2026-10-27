@@ -1,7 +1,9 @@
+using GlpiTicketManager.Api.Endpoints;
 using GlpiTicketManager.Api.Hubs;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Notifications;
 using GlpiTicketManager.Domain.Entities;
+using GlpiTicketManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
@@ -11,15 +13,21 @@ public sealed class NotificationService : INotificationService
 {
     private readonly INotificationRepository _repository;
     private readonly IHubContext<TicketHub> _hubContext;
+    private readonly IAppDbConnectionFactory _appDbFactory;
+    private readonly IConfiguration _config;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
         INotificationRepository repository,
         IHubContext<TicketHub> hubContext,
+        IAppDbConnectionFactory appDbFactory,
+        IConfiguration config,
         ILogger<NotificationService> logger)
     {
         _repository = repository;
         _hubContext = hubContext;
+        _appDbFactory = appDbFactory;
+        _config = config;
         _logger = logger;
     }
 
@@ -76,6 +84,28 @@ public sealed class NotificationService : INotificationService
         {
             _logger.LogWarning(ex, "Failed to emit SignalR NotificationReceived for user {UserId}", userId);
         }
+
+        // Web Push notification to user in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var targetUrl = dto.TicketId.HasValue ? $"/tickets/{dto.TicketId.Value}" : "/kanban";
+                await PushEndpoints.SendNotificationToUserAsync(
+                    _appDbFactory,
+                    _config,
+                    userId,
+                    dto.Title,
+                    dto.Message,
+                    targetUrl,
+                    _logger,
+                    CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send Web Push notification for user {UserId}", userId);
+            }
+        });
 
         return dto;
     }

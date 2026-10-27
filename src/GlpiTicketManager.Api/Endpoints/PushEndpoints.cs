@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Security.Claims;
 using System.Text.Json;
 using Dapper;
@@ -110,7 +111,7 @@ public static class PushEndpoints
         return app;
     }
 
-    public static async Task<int> SendNotificationToUserAsync(
+    public static Task<int> SendNotificationToUserAsync(
         IAppDbConnectionFactory dbFactory,
         IConfiguration config,
         int userId,
@@ -120,6 +121,22 @@ public static class PushEndpoints
         ILogger logger,
         CancellationToken ct = default)
     {
+        return SendNotificationToUsersAsync(dbFactory, config, new[] { userId }, title, message, url, logger, ct);
+    }
+
+    public static async Task<int> SendNotificationToUsersAsync(
+        IAppDbConnectionFactory dbFactory,
+        IConfiguration config,
+        IEnumerable<int> userIds,
+        string title,
+        string message,
+        string? url,
+        ILogger logger,
+        CancellationToken ct = default)
+    {
+        var targetUserIds = userIds.Distinct().Select(id => (long)id).ToArray();
+        if (targetUserIds.Length == 0) return 0;
+
         var subject = config["WebPush:VapidSubject"] ?? "mailto:admin@glpimanager.local";
         var pubKey = config["WebPush:VapidPublicKey"];
         var privKey = config["WebPush:VapidPrivateKey"];
@@ -131,9 +148,9 @@ public static class PushEndpoints
         }
 
         await using var conn = (NpgsqlConnection)await dbFactory.CreateAsync(ct);
-        const string querySql = "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = @UserId";
+        const string querySql = "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ANY(@UserIds)";
         var subscriptions = (await conn.QueryAsync<(string Endpoint, string P256dh, string Auth)>(
-            new CommandDefinition(querySql, new { UserId = userId }, cancellationToken: ct))).ToList();
+            new CommandDefinition(querySql, new { UserIds = targetUserIds }, cancellationToken: ct))).ToList();
 
         if (subscriptions.Count == 0) return 0;
 
@@ -160,7 +177,6 @@ public static class PushEndpoints
             }
             catch (WebPushException ex) when ((int)ex.StatusCode == 404 || (int)ex.StatusCode == 410)
             {
-                // Expired or unregistered subscription; prune from database
                 await conn.ExecuteAsync("DELETE FROM push_subscriptions WHERE endpoint = @Endpoint", new { sub.Endpoint });
                 logger.LogInformation("Pruned expired push subscription {Endpoint}", sub.Endpoint);
             }
@@ -171,5 +187,67 @@ public static class PushEndpoints
         }
 
         return sentCount;
+    }
+
+    public static async Task<int> SendNotificationToGroupAsync(
+        IDbConnectionFactory mariadbFactory,
+        IAppDbConnectionFactory appDbFactory,
+        IConfiguration config,
+        int groupId,
+        string title,
+        string message,
+        string? url,
+        ILogger logger,
+        CancellationToken ct = default)
+    {
+        var recipientUserIds = new HashSet<int>();
+
+        try
+        {
+            await using var conn = (DbConnection)mariadbFactory.CreateConnection();
+            await conn.OpenAsync(ct);
+
+            // 1. Members of the group (technicians and manager/leader)
+            const string groupSql = """
+                SELECT DISTINCT gu.users_id
+                FROM glpi_groups_users gu
+                INNER JOIN glpi_users u ON u.id = gu.users_id
+                WHERE gu.groups_id = @GroupId AND u.is_deleted = 0;
+                """;
+            var groupUsers = await conn.QueryAsync<int>(new CommandDefinition(groupSql, new { GroupId = groupId }, cancellationToken: ct));
+            foreach (var uid in groupUsers)
+            {
+                recipientUserIds.Add(uid);
+            }
+
+            // 2. Admins (profiles 3 & 4)
+            const string adminSql = """
+                SELECT DISTINCT pu.users_id
+                FROM glpi_profiles_users pu
+                INNER JOIN glpi_users u ON u.id = pu.users_id
+                WHERE pu.profiles_id IN (3, 4) AND u.is_deleted = 0;
+                """;
+            var adminUsers = await conn.QueryAsync<int>(new CommandDefinition(adminSql, cancellationToken: ct));
+            foreach (var uid in adminUsers)
+            {
+                recipientUserIds.Add(uid);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to resolve recipient user IDs for group {GroupId}", groupId);
+        }
+
+        if (recipientUserIds.Count == 0) return 0;
+
+        return await SendNotificationToUsersAsync(
+            appDbFactory,
+            config,
+            recipientUserIds,
+            title,
+            message,
+            url,
+            logger,
+            ct);
     }
 }
