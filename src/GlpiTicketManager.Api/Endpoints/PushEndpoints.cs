@@ -219,13 +219,24 @@ public static class PushEndpoints
         var client = new WebPushClient();
         var vapidDetails = new VapidDetails(subject, pubKey, privKey);
 
+        string tag = "glpi-notification";
+        if (url != null && url.Contains("/tickets/"))
+        {
+            var parts = url.Split('/');
+            if (parts.Length > 0 && int.TryParse(parts[^1], out var tid))
+            {
+                tag = $"ticket-{tid}";
+            }
+        }
+
         var payload = JsonSerializer.Serialize(new
         {
             title,
             body = message,
             url = url ?? "/kanban",
             icon = "/icons/icon-192x192.png",
-            badge = "/icons/icon-192x192.png"
+            badge = "/icons/icon-192x192.png",
+            tag
         });
 
         int sentCount = 0;

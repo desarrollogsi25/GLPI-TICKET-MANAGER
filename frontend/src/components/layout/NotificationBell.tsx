@@ -136,13 +136,12 @@ export function NotificationBell() {
   useRealtimeTicketHub({
     onNotificationReceived: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      showNativeNotification('GLPI Ticket Manager', 'Tienes una nueva notificación en el sistema')
     },
-    onTicketCreated: (ticketId) => {
-      showNativeNotification('Nuevo Ticket Creado', `Se ha generado el ticket #${ticketId} en tu grupo`, ticketId)
+    onTicketCreated: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
-    onTicketStatusChanged: (ticketId) => {
-      showNativeNotification('Estado Actualizado', `El ticket #${ticketId} ha cambiado de estado`, ticketId)
+    onTicketStatusChanged: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 

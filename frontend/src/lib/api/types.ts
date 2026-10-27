@@ -51,6 +51,8 @@ export interface TicketSummary {
   hasSolution: boolean
   assigneeIds: number[]
   requesterIds: number[]
+  slaDeadline?: string | null
+  slaStatus?: 'On Time' | 'At Risk' | 'Overdue' | string
 }
 
 export interface TicketFollowup {
@@ -89,6 +91,8 @@ export interface TicketDetail {
   requesterIds: number[]
   followups: TicketFollowup[]
   solutions?: TicketSolution[]
+  slaDeadline?: string | null
+  slaStatus?: 'On Time' | 'At Risk' | 'Overdue' | string
 }
 
 export interface TicketListParams {

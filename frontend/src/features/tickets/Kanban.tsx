@@ -856,14 +856,12 @@ export function Kanban() {
         description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
         actions={
           isTechnician || (groupsQuery.data?.length ?? 0) <= 1 ? (
-            currentGroupName ? (
-              <span
-                className="inline-flex h-9 items-center rounded-xl bg-muted/40 px-3 text-sm font-medium shadow-xs"
-                data-testid="technician-group-label"
-              >
-                Grupo: {currentGroupName}
-              </span>
-            ) : undefined
+            <span
+              className="inline-flex h-9 items-center rounded-xl bg-muted/40 px-3 text-sm font-medium shadow-xs"
+              data-testid="technician-group-label"
+            >
+              Grupo: {currentGroupName || '…'}
+            </span>
           ) : (
             <div className="flex items-center gap-2">
               <select

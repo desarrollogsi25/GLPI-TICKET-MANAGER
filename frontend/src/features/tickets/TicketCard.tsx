@@ -1,7 +1,7 @@
 import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { motion, useReducedMotion } from 'motion/react'
-import { Clock, User } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import type { TicketSummary } from '@/lib/api/types'
@@ -138,12 +138,33 @@ function TicketCardComponent({
           {ticket.title}
         </Link>
 
-        {/* Línea 3: Timestamp relativo + Acción inline (touch target >= 44px en móvil) */}
+        {/* Línea 3: Timestamp relativo + SLA + Acción inline (touch target >= 44px en móvil) */}
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Clock className="size-3 shrink-0" aria-hidden="true" />
-            {formatRelative(ticket.updatedAt)}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+              <Clock className="size-3 shrink-0" aria-hidden="true" />
+              {formatRelative(ticket.updatedAt)}
+            </span>
+            {ticket.slaStatus === 'Overdue' ? (
+              <span
+                data-testid={`sla-badge-${ticket.id}`}
+                title="SLA Vencido"
+                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200 shrink-0"
+              >
+                <AlertTriangle className="size-2.5 shrink-0 text-rose-700 dark:text-rose-300" />
+                <span>SLA Vencido</span>
+              </span>
+            ) : ticket.slaStatus === 'At Risk' ? (
+              <span
+                data-testid={`sla-badge-${ticket.id}`}
+                title="SLA En riesgo"
+                className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 shrink-0"
+              >
+                <Clock className="size-2.5 shrink-0 text-amber-800 dark:text-amber-300" />
+                <span>En riesgo</span>
+              </span>
+            ) : null}
+          </div>
           {actionButton ? (
             <div
               className="shrink-0"
@@ -243,12 +264,38 @@ function TicketCardComponent({
         {ticket.title}
       </Link>
 
-      {/* Meta: Relative time */}
+      {/* Meta: Relative time & SLA */}
       <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1 shrink-0">
           <Clock className="size-3" aria-hidden="true" />
           Actualizado {formatRelative(ticket.updatedAt)}
         </span>
+        {ticket.slaStatus ? (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded text-[10px]',
+              ticket.slaStatus === 'Overdue'
+                ? 'bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200'
+                : ticket.slaStatus === 'At Risk'
+                  ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200'
+                  : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200',
+            )}
+            title={ticket.slaDeadline ? `Vence: ${new Date(ticket.slaDeadline).toLocaleString()}` : undefined}
+          >
+            {ticket.slaStatus === 'Overdue' ? (
+              <AlertTriangle className="size-2.5 text-rose-700 dark:text-rose-300" />
+            ) : ticket.slaStatus === 'At Risk' ? (
+              <Clock className="size-2.5 text-amber-800 dark:text-amber-300" />
+            ) : (
+              <CheckCircle2 className="size-2.5 text-emerald-800 dark:text-emerald-300" />
+            )}
+            {ticket.slaStatus === 'Overdue'
+              ? 'SLA Vencido'
+              : ticket.slaStatus === 'At Risk'
+                ? 'SLA En riesgo'
+                : 'A tiempo'}
+          </span>
+        ) : null}
       </div>
 
       {actionButton ? (
@@ -271,6 +318,8 @@ export const TicketCard = React.memo(TicketCardComponent, (prevProps, nextProps)
     prevProps.ticket.priority === nextProps.ticket.priority &&
     prevProps.ticket.title === nextProps.ticket.title &&
     prevProps.ticket.updatedAt === nextProps.ticket.updatedAt &&
+    prevProps.ticket.slaStatus === nextProps.ticket.slaStatus &&
+    prevProps.ticket.slaDeadline === nextProps.ticket.slaDeadline &&
     prevProps.draggable === nextProps.draggable &&
     prevProps.compact === nextProps.compact &&
     prevProps.highlight === nextProps.highlight &&

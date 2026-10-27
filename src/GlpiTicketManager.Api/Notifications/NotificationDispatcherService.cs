@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using Dapper;
 using GlpiTicketManager.Api.Endpoints;
@@ -9,6 +10,7 @@ namespace GlpiTicketManager.Api.Notifications;
 
 public sealed class NotificationDispatcherService : BackgroundService
 {
+    private static readonly ConcurrentDictionary<string, DateTimeOffset> RecentTasks = new();
     private readonly INotificationQueue _queue;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<NotificationDispatcherService> _logger;
@@ -21,6 +23,42 @@ public sealed class NotificationDispatcherService : BackgroundService
         _queue = queue;
         _serviceProvider = serviceProvider;
         _logger = logger;
+    }
+
+    private bool IsDuplicate(NotificationTask task)
+    {
+        var key = task.Type switch
+        {
+            NotificationTaskType.TicketCreated => $"ticket-created-{task.TicketId}",
+            NotificationTaskType.TicketClaimed => $"ticket-claimed-{task.TicketId}-{task.AssigneeId}",
+            NotificationTaskType.TicketStatusChanged => $"ticket-status-{task.TicketId}-{task.NewStatus}",
+            NotificationTaskType.SolutionAdded => $"ticket-solution-{task.TicketId}",
+            NotificationTaskType.PersistentNotificationToUser => $"persistent-{task.UserId}-{task.TicketId}-{task.Title}",
+            NotificationTaskType.WebPushToUser => $"webpush-user-{task.UserId}-{task.TicketId}",
+            NotificationTaskType.WebPushToGroup => $"webpush-group-{task.GroupId}-{task.TicketId}",
+            _ => $"task-{task.Type}-{task.TicketId}-{task.UserId}"
+        };
+
+        var now = DateTimeOffset.UtcNow;
+        if (RecentTasks.Count > 1000)
+        {
+            foreach (var (k, timestamp) in RecentTasks)
+            {
+                if (now - timestamp > TimeSpan.FromSeconds(30))
+                {
+                    RecentTasks.TryRemove(k, out _);
+                }
+            }
+        }
+
+        if (RecentTasks.TryGetValue(key, out var lastTime) && (now - lastTime) < TimeSpan.FromSeconds(10))
+        {
+            _logger.LogInformation("Idempotency: ignoring duplicate notification task {Key} (seen {ElapsedMs:F0}ms ago)", key, (now - lastTime).TotalMilliseconds);
+            return true;
+        }
+
+        RecentTasks[key] = now;
+        return false;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,6 +109,11 @@ public sealed class NotificationDispatcherService : BackgroundService
 
     private async Task ProcessTaskAsync(NotificationTask task, CancellationToken ct)
     {
+        if (IsDuplicate(task))
+        {
+            return;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<TicketHub>>();
         var mariadbFactory = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>();
@@ -252,15 +295,22 @@ public sealed class NotificationDispatcherService : BackgroundService
                     await hubContext.Clients.Group($"user-{uid}")
                         .SendAsync("NotificationReceived", task.Payload, ct);
 
-                    await PushEndpoints.SendNotificationToUserAsync(
-                        appDbFactory,
-                        config,
-                        uid,
-                        task.Title ?? "Nueva notificación",
-                        task.Message ?? string.Empty,
-                        task.Url ?? "/kanban",
-                        _logger,
-                        ct);
+                    // Don't send duplicate Web Push to user if group Web Push for TicketCreated already fired
+                    var isTicketCreatedForGroup = task.TicketId.HasValue &&
+                        RecentTasks.ContainsKey($"ticket-created-{task.TicketId.Value}");
+
+                    if (!isTicketCreatedForGroup)
+                    {
+                        await PushEndpoints.SendNotificationToUserAsync(
+                            appDbFactory,
+                            config,
+                            uid,
+                            task.Title ?? "Nueva notificación",
+                            task.Message ?? string.Empty,
+                            task.Url ?? "/kanban",
+                            _logger,
+                            ct);
+                    }
                 }
                 break;
             }

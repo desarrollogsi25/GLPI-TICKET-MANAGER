@@ -123,14 +123,12 @@ export function GroupQueuePage() {
         actions={
           isTechnician ? (
             // H-36: a technician belongs to a single group; no selector, fixed label.
-            effectiveGroup ? (
-              <span
-                className="inline-flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium"
-                data-testid="technician-group-label"
-              >
-                Grupo: {effectiveGroup.name}
-              </span>
-            ) : undefined
+            <span
+              className="inline-flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium"
+              data-testid="technician-group-label"
+            >
+              Grupo: {effectiveGroup ? effectiveGroup.name : '…'}
+            </span>
           ) : groups.data && groups.data.length > 1 ? (
             <Select
               aria-label="Seleccionar grupo de soporte"

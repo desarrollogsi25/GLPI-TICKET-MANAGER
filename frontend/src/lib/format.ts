@@ -6,7 +6,14 @@ function toDate(value: string | null | undefined): Date | null {
     return null
   }
 
-  const parsed = parseISO(value)
+  let normalized = value.trim()
+  // If the datetime string has no timezone designator ('Z' or offset),
+  // treat it as UTC so it is converted accurately to browser's local timezone.
+  if (!normalized.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(normalized)) {
+    normalized = normalized.replace(' ', 'T') + 'Z'
+  }
+
+  const parsed = parseISO(normalized)
   return isValid(parsed) ? parsed : null
 }
 
