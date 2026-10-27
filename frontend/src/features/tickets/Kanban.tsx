@@ -197,8 +197,8 @@ function KanbanColumn({
     : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
 
   return (
-    <div data-column-id={column.id} className="flex min-w-0 w-full flex-col">
-      <div className="mb-2.5 flex items-center justify-between px-1.5">
+    <div data-column-id={column.id} className="flex flex-col h-full max-h-full min-w-[200px] w-full overflow-hidden">
+      <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
           <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
             {column.title}
@@ -218,7 +218,7 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-44 flex-col gap-2.5 rounded-2xl border-0 p-2.5 transition-all duration-150 flex-1 bg-muted/30 shadow-xs',
+          'flex-1 overflow-y-auto min-h-0 no-scrollbar p-2 space-y-3 rounded-2xl border-0 transition-all duration-150 bg-muted/30 shadow-xs',
           column.bgClass,
           isOver
             ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
@@ -858,12 +858,13 @@ export function Kanban() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Kanban"
-        description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
-        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
-        actions={
+    <div className="flex-1 flex flex-col h-full min-h-0 w-full overflow-hidden gap-3">
+      <div className="shrink-0">
+        <PageHeader
+          title="Kanban"
+          description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
+          breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
+          actions={
           isTechnician ? (
             // H-36: a technician belongs to a single support group, so there is nothing
             // to choose. Show the group as fixed text; supervisors/admins keep the
@@ -897,9 +898,10 @@ export function Kanban() {
           )
         }
       />
+      </div>
 
       {hasGeneralError ? (
-        <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
+        <div className="shrink-0 flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
           <span>{generalErrorMessage}</span>
           <Button
             size="sm"
@@ -917,7 +919,7 @@ export function Kanban() {
       {/* =========================================================================
           VISTA MÓVIL (< md): Segmented Tabs + Lista Vertical + Gestos Swipe
          ========================================================================= */}
-      <div className="md:hidden space-y-3">
+      <div className="md:hidden flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar space-y-3 pb-6">
         {/* Segmented Tabs Bar */}
         <KanbanSegmentedTabs
           columns={segmentedTabColumns}
@@ -1066,11 +1068,11 @@ export function Kanban() {
           VISTA DESKTOP (md:+): 5 Columnas en paralelo (Grid sin scroll horizontal)
           + Drag & Drop @dnd-kit con DragOverlay renderizado en Portal (document.body)
          ========================================================================= */}
-      <div className="hidden md:block" ref={boardContainerRef}>
+      <div className="hidden md:flex flex-1 h-full min-h-0 overflow-x-auto overflow-y-hidden" ref={boardContainerRef}>
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-5 gap-3.5 w-full overflow-hidden pb-4"
+            className="grid grid-cols-5 gap-3.5 w-full h-full min-h-0 min-w-[1100px]"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}

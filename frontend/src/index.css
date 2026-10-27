@@ -275,6 +275,15 @@
     }
   }
 
+  /* Ocultar barra de scroll preservando la funcionalidad de desplazamiento */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .shimmer-effect::after {
       animation: none;

@@ -189,14 +189,14 @@ export function AppLayout() {
       {/* 3. Desktop Top Header + Main Content Area */}
       <div
         className={cn(
-          'min-h-screen flex flex-col transition-all duration-200 ease-out',
+          'min-h-screen md:h-screen flex flex-col transition-all duration-200 ease-out md:overflow-hidden',
           isSidebarCollapsed ? 'md:ml-16' : 'md:ml-56',
         )}
       >
         {/* Global Desktop Header with Dynamic Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
         <header
           data-testid="desktop-top-header"
-          className="sticky top-0 z-20 hidden md:flex h-14 items-center justify-between border-none bg-background/60 backdrop-blur-md px-6 shadow-xs"
+          className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center justify-between border-none bg-background/60 backdrop-blur-md px-6 shadow-xs"
         >
           {/* Dynamic Breadcrumb */}
           <nav
@@ -282,8 +282,8 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-          <div className="mx-auto max-w-[1600px] w-full px-3.5 sm:px-5 md:px-6 py-4 md:py-5 pb-24 md:pb-8">
+        <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col min-h-0 w-full overflow-hidden focus:outline-none">
+          <div className="mx-auto max-w-[1600px] w-full flex-1 flex flex-col min-h-0 h-full px-3.5 sm:px-5 md:px-6 py-3.5 md:py-4 pb-20 md:pb-4 overflow-hidden">
             <PageTransition>
               <Outlet />
             </PageTransition>
