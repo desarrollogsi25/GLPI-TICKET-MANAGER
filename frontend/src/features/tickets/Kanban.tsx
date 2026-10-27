@@ -33,6 +33,7 @@ import type { TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
+import { Inbox } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { CreateTicketDialog } from './CreateTicketDialog'
@@ -219,11 +220,11 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-44 flex-col gap-2.5 rounded-2xl border p-2.5 transition-all duration-150 flex-1 min-h-0 overflow-y-auto overflow-x-hidden kanban-column-scroll bg-muted/40 dark:bg-[#241F1B]',
+          'flex min-h-44 flex-col gap-2.5 rounded-3xl p-2.5 transition-all duration-150 flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar bg-muted/40 dark:bg-[#241F1B]/90 shadow-xs border-0',
           column.bgClass,
           isOver
-            ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
-            : 'border-border/60',
+            ? 'ring-2 ring-primary/40 bg-primary/10 shadow-md scale-[1.01]'
+            : '',
         )}
       >
         {isLoading ? (
@@ -401,21 +402,14 @@ function KanbanColumn({
 
             {tickets.length === 0 ? (
               <motion.div
-                initial={shouldReduceMotion ? false : { opacity: 0, transform: 'scale(0.97)' }}
-                animate={{ opacity: 1, transform: 'scale(1)' }}
+                initial={shouldReduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-                className="flex flex-col h-36 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/40 p-4 text-center"
+                className="flex flex-col h-32 items-center justify-center rounded-2xl bg-background/20 p-4 text-center my-auto shadow-xs"
               >
-                <span className="text-xl mb-1.5" aria-hidden="true">
-                  {EMPTY_MESSAGES[column.id]?.icon ?? '📭'}
-                </span>
-                <p className="text-xs text-foreground font-semibold">
-                  {emptyMessage === 'No hay tickets aquí'
-                    ? 'No hay tickets en esta columna'
-                    : emptyMessage}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
-                  {EMPTY_MESSAGES[column.id]?.subtitle}
+                <Inbox className="size-5 text-muted-foreground/40 mb-1.5" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground font-normal">
+                  {emptyMessage ?? 'No hay tickets'}
                 </p>
               </motion.div>
             ) : null}
@@ -860,15 +854,11 @@ export function Kanban() {
       <PageHeader
         title="Kanban"
         description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
-        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
         actions={
-          isTechnician ? (
-            // H-36: a technician belongs to a single support group, so there is nothing
-            // to choose. Show the group as fixed text; supervisors/admins keep the
-            // technician filter below.
+          isTechnician || (groupsQuery.data?.length ?? 0) <= 1 ? (
             currentGroupName ? (
               <span
-                className="inline-flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium"
+                className="inline-flex h-9 items-center rounded-xl bg-muted/40 px-3 text-sm font-medium shadow-xs"
                 data-testid="technician-group-label"
               >
                 Grupo: {currentGroupName}
@@ -876,28 +866,19 @@ export function Kanban() {
             ) : undefined
           ) : (
             <div className="flex items-center gap-2">
-              {(groupsQuery.data?.length ?? 0) > 1 ? (
-                <select
-                  aria-label="Seleccionar grupo de soporte"
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  value={currentGroupId ?? ''}
-                  onChange={(event) => setSelectedGroupId(Number(event.target.value))}
-                >
-                  {groupsQuery.data?.map((group) => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-              ) : null}
+              <select
+                aria-label="Seleccionar grupo de soporte"
+                className="h-9 rounded-xl bg-background/80 px-3 text-sm shadow-xs border-0 focus:ring-2 focus:ring-primary"
+                value={currentGroupId ?? ''}
+                onChange={(event) => setSelectedGroupId(Number(event.target.value))}
+              >
+                {groupsQuery.data?.map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
               <div className="hidden md:block">
                 <TechnicianFilter />
               </div>
-              <Button
-                size="sm"
-                onClick={() => setCreateOpen(true)}
-                data-testid="kanban-create-ticket-btn"
-              >
-                + Crear ticket
-              </Button>
             </div>
           )
         }

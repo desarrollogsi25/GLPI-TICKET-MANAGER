@@ -197,12 +197,12 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
                 ? { duration: 0 }
                 : { duration: 0.26, ease: [0.32, 0.72, 0, 1] }
             }
-            className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-card border-r border-border shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none"
+            className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-card/95 backdrop-blur-2xl shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none"
           >
             {/* Header del Drawer */}
-            <div className="flex items-center justify-between border-b border-border p-4">
+            <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-xs">
                   GL
                 </div>
                 <div>
@@ -215,14 +215,14 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
                 onClick={onClose}
                 aria-label="Cerrar menú"
                 data-testid="mobile-menu-btn"
-                className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors duration-150"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50 hover:text-foreground cursor-pointer transition-colors duration-150"
               >
                 <X className="size-5" />
               </button>
             </div>
 
             {/* Perfil del Usuario */}
-            <div className="border-b border-border p-4 bg-muted/40">
+            <div className="p-4 bg-muted/30">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                 Sesión activa
               </p>
@@ -233,7 +233,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             </div>
 
             {/* Enlaces de Navegación */}
-            <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+            <nav className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-1">
               {visibleItems.map((item) => (
                 <NavLink
                   key={item.to}
@@ -241,10 +241,10 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
                   onClick={onClose}
                   className={({ isActive }) =>
                     cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors duration-150 min-h-[44px]',
+                      'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors duration-150 min-h-[44px]',
                       isActive
                         ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                        : 'text-muted-foreground hover:bg-accent/40 hover:text-accent-foreground',
                     )
                   }
                 >
@@ -255,7 +255,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             </nav>
 
             {/* Footer con Botón Logout */}
-            <div className="border-t border-border p-4">
+            <div className="p-4 bg-muted/20">
               <Button
                 variant="outline"
                 size="default"

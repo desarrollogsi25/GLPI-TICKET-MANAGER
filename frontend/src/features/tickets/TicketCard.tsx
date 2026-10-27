@@ -3,7 +3,6 @@ import { motion, useReducedMotion } from 'motion/react'
 import { Clock, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { Badge } from '@/components/ui/badge'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -86,20 +85,30 @@ export function TicketCard({
         animate={highlight ? { boxShadow: '0 0 0 2px rgb(109 89 232)' } : {}}
         transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2 }}
         className={cn(
-          '@container relative flex flex-col justify-between gap-2.5 rounded-2xl border border-[#44403C]/40 dark:border-[#44403C]/50 bg-card dark:bg-[#2E2824] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.24)] hover:border-primary/50 transition-[border-color,box-shadow,transform] duration-150 ease-out min-h-[88px]',
+          '@container relative flex flex-col justify-between gap-2.5 rounded-2xl bg-card dark:bg-[#2C2C2E] p-3.5 shadow-sm hover:shadow-md transition-all duration-150 ease-out min-h-[88px] border-0',
           onCardClick && 'cursor-pointer active:scale-[0.98]',
           isDragging && 'opacity-60',
         )}
       >
-        {/* Línea 1: #ID · Badge prioridad · Avatar Técnico */}
+        {/* Línea 1: Status Dot + #ID + Avatar Técnico */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
+            <span
+              role="img"
+              title={`Prioridad: ${priority.label}`}
+              aria-label={`Prioridad: ${priority.label}`}
+              className={cn(
+                'size-2 shrink-0 rounded-full',
+                ticket.priority >= 4
+                  ? 'bg-red-500 badge-pulse-subtle ring-2 ring-red-500/20'
+                  : ticket.priority === 3
+                    ? 'bg-amber-500 ring-2 ring-amber-500/20'
+                    : 'bg-emerald-500 ring-2 ring-emerald-500/20',
+              )}
+            />
             <span className="font-mono text-xs font-semibold text-muted-foreground">
               #{ticket.id}
             </span>
-            <Badge className={cn('text-[10px] px-1.5 py-0 font-medium', priority.badgeClass)}>
-              {priority.label}
-            </Badge>
             <span className="text-[11px] text-muted-foreground truncate max-w-[110px]">
               {ticket.typeLabel}
             </span>
@@ -109,10 +118,10 @@ export function TicketCard({
             title={assignee.label}
             aria-label={assignee.label}
             className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border',
+              'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
               assignee.assigned
-                ? 'bg-primary/15 text-primary border-primary/25'
-                : 'bg-muted text-muted-foreground border-border',
+                ? 'bg-primary/15 text-primary'
+                : 'bg-muted text-muted-foreground',
             )}
           >
             {assignee.assigned ? assignee.initials : <User className="size-3" />}
@@ -175,22 +184,35 @@ export function TicketCard({
           : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
       }
       className={cn(
-        '@container kanban-card-item kanban-card-hover rounded-2xl border border-[#44403C]/40 dark:border-[#44403C]/50 bg-card dark:bg-[#2E2824] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.24)] hover:-translate-y-0.5 hover:shadow-md hover:border-primary/50 transition-[box-shadow,border-color,transform,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group @container kanban-card-item kanban-card-hover rounded-2xl bg-card dark:bg-[#2C2C2E] p-3.5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-0',
         draggable && 'cursor-grab active:cursor-grabbing',
-        isDragging && 'opacity-30 ring-1 ring-primary/40 border-dashed',
-        isOverlay && 'scale-[1.02] shadow-2xl ring-2 ring-primary border-primary bg-card dark:bg-[#332C26]',
+        isDragging && 'opacity-30 ring-1 ring-primary/40',
+        isOverlay && 'scale-105 shadow-2xl ring-2 ring-primary bg-card dark:bg-[#2C2C2E]',
         !shouldReduceMotion && shake && 'toast-error-shake',
       )}
       {...attributes}
       {...listeners}
       role="article"
     >
-      {/* Top row: Priority Badge + Assignee Avatar */}
+      {/* Top row: Status Dot (Priority) + #ID + Type + Assignee Avatar */}
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Badge className={cn('text-[10px] px-1.5 py-0 font-medium', priority.badgeClass)}>
-            {priority.label}
-          </Badge>
+          <span
+            role="img"
+            title={`Prioridad: ${priority.label}`}
+            aria-label={`Prioridad: ${priority.label}`}
+            className={cn(
+              'size-2 shrink-0 rounded-full',
+              ticket.priority >= 4
+                ? 'bg-red-500 badge-pulse-subtle ring-2 ring-red-500/20'
+                : ticket.priority === 3
+                  ? 'bg-amber-500 ring-2 ring-amber-500/20'
+                  : 'bg-emerald-500 ring-2 ring-emerald-500/20',
+            )}
+          />
+          <span className="font-mono text-xs font-semibold text-muted-foreground mr-0.5">
+            #{ticket.id}
+          </span>
           <span className="text-[11px] text-muted-foreground truncate font-medium">
             {ticket.typeLabel}
           </span>
@@ -202,10 +224,10 @@ export function TicketCard({
           aria-label={assignee.label}
           data-testid={`ticket-avatar-${ticket.id}`}
           className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border transition-colors',
+            'flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-colors shadow-xs',
             assignee.assigned
-              ? 'bg-primary/15 text-primary border-primary/25'
-              : 'bg-muted/70 text-muted-foreground border-border/60',
+              ? 'bg-primary/15 text-primary'
+              : 'bg-muted/70 text-muted-foreground',
           )}
         >
           {assignee.assigned ? assignee.initials : <User className="size-3" />}
@@ -217,14 +239,11 @@ export function TicketCard({
         to={`/tickets/${ticket.id}`}
         className="line-clamp-2 text-sm font-medium leading-snug text-foreground hover:text-primary hover:underline transition-colors duration-150"
       >
-        <span className="font-mono text-xs font-semibold text-muted-foreground mr-1">
-          #{ticket.id}
-        </span>
         {ticket.title}
       </Link>
 
       {/* Meta: Relative time */}
-      <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1 shrink-0">
           <Clock className="size-3" aria-hidden="true" />
           Actualizado {formatRelative(ticket.updatedAt)}
@@ -233,7 +252,7 @@ export function TicketCard({
 
       {actionButton ? (
         <div
-          className="mt-3 pt-2.5 border-t border-border/50"
+          className="mt-3 pt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity duration-150"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >

@@ -236,6 +236,7 @@ app.MapChannelEndpoints();
 app.MapPreferencesEndpoints();
 app.MapServicesEndpoints();
 app.MapNotificationEndpoints();
+app.MapPushEndpoints();
 app.MapAdminEndpoints();
 app.MapGlpiIntegrationEndpoints();
 

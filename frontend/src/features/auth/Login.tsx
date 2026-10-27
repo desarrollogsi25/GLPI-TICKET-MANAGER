@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useLoginMutation } from '@/hooks/useAuth'
 import { getApiErrorMessage } from '@/lib/api/errors'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { LoginBackground } from './LoginBackground'
 
@@ -56,23 +57,34 @@ export function Login() {
   })
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-slate-950 p-4 overflow-hidden">
-      <LoginBackground />
-      <Card className="relative z-10 w-full max-w-sm backdrop-blur-md bg-card/90 border-border/80 shadow-2xl">
+    <div className="relative flex min-h-screen items-center justify-center bg-[#1C1917] p-4 overflow-hidden">
+      <div className="opacity-60">
+        <LoginBackground />
+      </div>
+      <Card className="relative z-10 w-full max-w-sm rounded-3xl bg-white/10 dark:bg-black/40 backdrop-blur-2xl border border-white/10 shadow-2xl">
         <CardHeader>
-          <CardTitle className="text-lg">GLPI Ticket Manager</CardTitle>
-          <CardDescription>Accede con tu cuenta de GLPI.</CardDescription>
+          <CardTitle className="text-xl font-bold font-serif tracking-tight text-foreground">
+            GLPI Ticket Manager
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Accede con tu cuenta de GLPI.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit} noValidate>
-            <div className="space-y-1">
-              <Label htmlFor="username">Usuario</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-xs font-medium text-foreground">
+                Usuario
+              </Label>
               <Input
                 id="username"
                 autoComplete="username"
                 aria-invalid={Boolean(errors.username)}
                 aria-describedby={errors.username ? 'username-error' : undefined}
-                className={errors.username ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                className={cn(
+                  'h-10 rounded-xl bg-white/5 dark:bg-white/5 focus-visible:ring-2 focus-visible:ring-primary border-none shadow-xs text-sm',
+                  errors.username && 'ring-2 ring-destructive',
+                )}
                 {...register('username')}
               />
               {errors.username ? (
@@ -82,15 +94,20 @@ export function Login() {
               ) : null}
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="password">Contraseña</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs font-medium text-foreground">
+                Contraseña
+              </Label>
               <Input
                 id="password"
                 type="password"
                 autoComplete="current-password"
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={errors.password ? 'password-error' : undefined}
-                className={errors.password ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                className={cn(
+                  'h-10 rounded-xl bg-white/5 dark:bg-white/5 focus-visible:ring-2 focus-visible:ring-primary border-none shadow-xs text-sm',
+                  errors.password && 'ring-2 ring-destructive',
+                )}
                 {...register('password')}
               />
               {errors.password ? (
@@ -101,12 +118,16 @@ export function Login() {
             </div>
 
             {login.isError ? (
-              <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+              <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
                 {getApiErrorMessage(login.error)}
               </p>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={hasErrors || login.isPending}>
+            <Button
+              type="submit"
+              className="w-full h-10 rounded-xl active:scale-95 transition-all duration-150 font-medium shadow-sm"
+              disabled={hasErrors || login.isPending}
+            >
               {login.isPending ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>

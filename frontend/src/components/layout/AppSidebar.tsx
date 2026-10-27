@@ -163,7 +163,7 @@ export function AppSidebar({
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
-                      className="absolute inset-0 bg-primary/10 border border-primary/15 rounded-lg"
+                      className="absolute inset-0 bg-primary/10 rounded-xl"
                       transition={
                         prefersReduced
                           ? { duration: 0 }
@@ -221,19 +221,19 @@ export function AppSidebar({
       data-testid="desktop-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
-        'fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border bg-card/95 backdrop-blur-sm md:flex select-none transition-all duration-200 ease-out',
+        'fixed inset-y-0 left-0 z-30 hidden flex-col bg-background/95 md:bg-muted/20 backdrop-blur-xl md:flex select-none transition-all duration-200 ease-out shadow-xs',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
       {/* 1. Header con Logo + Toggle Collapse */}
       <div
         className={cn(
-          'flex h-14 shrink-0 items-center border-b border-border/60',
+          'flex h-14 shrink-0 items-center',
           collapsed ? 'justify-center px-2' : 'justify-between px-4',
         )}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs shadow-xs">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-xs">
             GL
           </div>
           {!collapsed && (
@@ -256,7 +256,7 @@ export function AppSidebar({
             aria-label="Colapsar barra lateral"
             title="Colapsar barra lateral"
             data-testid="sidebar-collapse-btn"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
           >
             <ChevronLeft className="size-4" />
           </Button>
@@ -264,7 +264,7 @@ export function AppSidebar({
       </div>
 
       {onToggleCollapse && collapsed && (
-        <div className="flex justify-center border-b border-border/40 py-1.5">
+        <div className="flex justify-center py-1.5">
           <Button
             variant="ghost"
             size="sm"
@@ -272,15 +272,15 @@ export function AppSidebar({
             aria-label="Expandir barra lateral"
             title="Expandir barra lateral"
             data-testid="sidebar-collapse-btn"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground rounded-lg"
           >
             <ChevronRight className="size-4" />
           </Button>
         </div>
       )}
 
-      {/* 2. Navegación Principal y Secundaria */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
+      {/* 2. Navegación Principal y Secundaria con no-scrollbar */}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-2.5 py-3 space-y-5">
         <div>
           {!collapsed && (
             <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
@@ -290,7 +290,7 @@ export function AppSidebar({
           {renderNavList(primaryNav)}
         </div>
 
-        <div className="border-t border-border/60 pt-3">
+        <div className="pt-2">
           {!collapsed && (
             <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
               Gestión y Ajustes
@@ -301,7 +301,7 @@ export function AppSidebar({
       </div>
 
       {/* 3. User Card al pie con Avatar + Logout */}
-      <div className="shrink-0 border-t border-border/60 p-2.5 bg-muted/20">
+      <div className="shrink-0 p-2.5 bg-background/40 backdrop-blur-md">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2 py-1">
             <div

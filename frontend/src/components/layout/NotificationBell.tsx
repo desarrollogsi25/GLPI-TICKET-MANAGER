@@ -30,6 +30,17 @@ interface Notification {
  * - Dropdown origin-aware (`absolute right-0 top-full mt-2 max-h-80 overflow-y-auto z-50`).
  * - Botón "Activar notificaciones" para Push/Web Notifications nativas del navegador.
  */
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [pulseBadge, setPulseBadge] = useState(false)
@@ -153,9 +164,28 @@ export function NotificationBell() {
           try {
             const reg = await navigator.serviceWorker.ready
             if (reg.pushManager) {
-              const existingSub = await reg.pushManager.getSubscription()
-              if (!existingSub) {
-                // Registro local o envío de endpoint si existe VAPID
+              const vapidRes = await apiClient.get<{ publicKey: string }>('/push/vapid-public-key')
+              const vapidKey = vapidRes.data?.publicKey
+              if (vapidKey) {
+                const applicationServerKey = urlBase64ToUint8Array(vapidKey)
+                const sub = await reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey,
+                })
+                const subJson = sub.toJSON()
+                if (subJson.endpoint && subJson.keys?.p256dh && subJson.keys?.auth) {
+                  await apiClient.post('/push/subscribe', {
+                    endpoint: subJson.endpoint,
+                    keys: {
+                      p256dh: subJson.keys.p256dh,
+                      auth: subJson.keys.auth,
+                    },
+                  })
+                  void apiClient.post('/push/test', {
+                    title: 'GLPI Ticket Manager',
+                    message: '¡Notificaciones push nativas configuradas con éxito!',
+                  })
+                }
               }
             }
           } catch {
@@ -286,9 +316,9 @@ export function NotificationBell() {
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto no-scrollbar origin-top-right rounded-2xl bg-popover/90 backdrop-blur-2xl text-popover-foreground shadow-2xl z-50 border-0"
           >
-            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
+            <div className="p-3 flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-md">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
                   Notificaciones
