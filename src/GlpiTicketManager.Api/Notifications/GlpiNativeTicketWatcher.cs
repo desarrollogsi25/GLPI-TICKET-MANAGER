@@ -100,6 +100,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
                 t.name AS Name,
                 CAST(t.itilcategories_id AS SIGNED) AS CategoryId
             FROM glpi_tickets t
+            INNER JOIN glpi_groups_tickets gt ON gt.tickets_id = t.id AND gt.type = 2
             WHERE t.id > @LastId
               AND t.is_deleted = 0
             ORDER BY t.id ASC

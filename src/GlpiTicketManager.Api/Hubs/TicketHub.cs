@@ -37,6 +37,7 @@ public sealed class TicketHub : Hub
 
             if (int.TryParse(userId, out var uid))
             {
+                var role = user?.GetRole() ?? AppRole.Technician;
                 try
                 {
                     await using var connection = (DbConnection)_dbConnectionFactory.CreateConnection();
@@ -54,6 +55,12 @@ public sealed class TicketHub : Hub
                         var gid = reader.GetInt32(0);
                         await Groups.AddToGroupAsync(Context.ConnectionId, $"group-{gid}");
                         _logger.LogInformation("SignalR: user {UserId} auto-subscribed to group-{GroupId}", uid, gid);
+
+                        if (role == AppRole.Supervisor || role == AppRole.Admin)
+                        {
+                            await Groups.AddToGroupAsync(Context.ConnectionId, $"supervisors-{gid}");
+                            _logger.LogInformation("SignalR: supervisor {UserId} auto-subscribed to supervisors-{GroupId}", uid, gid);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -92,10 +99,17 @@ public sealed class TicketHub : Hub
 
         await Groups.AddToGroupAsync(Context.ConnectionId, $"group-{groupId}");
         _logger.LogInformation("SignalR: user {UserId} explicitly subscribed to group-{GroupId}", uid, groupId);
+
+        if (role == AppRole.Supervisor || role == AppRole.Admin)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"supervisors-{groupId}");
+            _logger.LogInformation("SignalR: supervisor {UserId} subscribed to supervisors-{GroupId}", uid, groupId);
+        }
     }
 
     public async Task UnsubscribeFromGroup(int groupId)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"group-{groupId}");
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"supervisors-{groupId}");
     }
 }

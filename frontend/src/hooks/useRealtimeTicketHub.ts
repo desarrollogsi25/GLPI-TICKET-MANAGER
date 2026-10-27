@@ -32,6 +32,7 @@ export interface TicketStatusChangedPayload {
   ticketId: number
   newStatus: number
   assigneeId?: number | null
+  groupId?: number | null
   timestamp: string
 }
 
@@ -478,6 +479,10 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
           { queryKey: queryKeys.tickets.byGroupQueue(targetGroupId) },
           { cancelRefetch: false },
         )
+        void queryClient.invalidateQueries(
+          { queryKey: ['tickets', 'byGroupQueue', targetGroupId] },
+          { cancelRefetch: false },
+        )
         scheduleRealtimeInvalidation(queryClient, {
           groupQueueId: targetGroupId,
           dashboard: true,
@@ -542,12 +547,34 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
       // - TicketStatusChanged: use queryClient.setQueryData to move the card immediately (Golden Rule 1)
       connection.on('TicketStatusChanged', (payload: TicketStatusChangedPayload) => {
         applyOptimisticTicketStatusUpdate(queryClient, payload)
+
+        const targetGroupId =
+          payload.groupId && payload.groupId > 0
+            ? payload.groupId
+            : optionsRef.current?.groupId ?? 1
+
+        void queryClient.invalidateQueries(
+          { queryKey: queryKeys.tickets.byGroupQueue(targetGroupId) },
+          { cancelRefetch: false },
+        )
+        void queryClient.invalidateQueries(
+          { queryKey: ['tickets', 'byGroupQueue', targetGroupId] },
+          { cancelRefetch: false },
+        )
+
         scheduleRealtimeInvalidation(queryClient, {
+          groupQueueId: targetGroupId,
           dashboard: true,
           notifications: true,
         })
 
-        const statusLabel = getStatusLabel(payload.newStatus)
+        const statusLabel =
+          payload.newStatus === 4 ? 'Pausa' : getStatusLabel(payload.newStatus)
+        const toastTitle =
+          payload.newStatus === 4
+            ? `Ticket #${payload.ticketId} en pausa`
+            : `El ticket #${payload.ticketId} pasó a ${statusLabel}`
+
         const existing = useToastStore.getState().toasts
         const alreadyShown = existing.some(
           (t) =>
@@ -556,7 +583,7 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
         )
         if (!alreadyShown) {
           useToastStore.getState().push({
-            title: `El ticket #${payload.ticketId} pasó a ${statusLabel}`,
+            title: toastTitle,
             variant: 'info',
           })
         }
