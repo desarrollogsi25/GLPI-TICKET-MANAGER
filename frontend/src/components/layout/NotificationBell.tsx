@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Bell, CheckCheck, Clock, RefreshCw, TicketCheck, UserCheck } from 'lucide-react'
+import { Bell, BellRing, CheckCheck, Clock, RefreshCw, TicketCheck, UserCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { formatRelative } from '@/lib/format'
+import { useToastStore } from '@/store/toastStore'
 
 interface Notification {
   id: number
@@ -23,18 +24,26 @@ interface Notification {
 }
 
 /**
- * NotificationBell — campana de notificaciones unificada (H-42).
+ * NotificationBell — campana de notificaciones unificada con Web Notifications API (H-42 / H-44 / H-46).
  *
  * - Badge con contador animado (scale pulse en cambio de valor, respetando reduced motion).
- * - Dropdown origin-aware (`origin-top-right`) con transición rápida (< 200ms).
+ * - Dropdown origin-aware (`absolute right-0 top-full mt-2 max-h-80 overflow-y-auto z-50`).
+ * - Botón "Activar notificaciones" para Push/Web Notifications nativas del navegador.
  */
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [pulseBadge, setPulseBadge] = useState(false)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission
+    }
+    return 'default'
+  })
   const prevCountRef = useRef<number>(0)
   const prefersReduced = useReducedMotion()
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
+  const pushToast = useToastStore((s) => s.push)
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -88,11 +97,75 @@ export function NotificationBell() {
     },
   })
 
+  // Web Notification trigger upon real-time event
+  const showNativeNotification = (title: string, body: string, ticketId?: number | null) => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then((reg) => {
+            void reg.showNotification(title, {
+              body,
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              data: { url: ticketId ? `/tickets/${ticketId}` : '/kanban' },
+            })
+          })
+        } else {
+          new Notification(title, {
+            body,
+            icon: '/icons/icon-192x192.png',
+          })
+        }
+      } catch {
+        // Fallback handled smoothly
+      }
+    }
+  }
+
   useRealtimeTicketHub({
     onNotificationReceived: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      showNativeNotification('GLPI Ticket Manager', 'Tienes una nueva notificación en el sistema')
+    },
+    onTicketCreated: (ticketId) => {
+      showNativeNotification('Nuevo Ticket Creado', `Se ha generado el ticket #${ticketId} en tu grupo`, ticketId)
+    },
+    onTicketStatusChanged: (ticketId) => {
+      showNativeNotification('Estado Actualizado', `El ticket #${ticketId} ha cambiado de estado`, ticketId)
     },
   })
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      pushToast({
+        title: 'No soportado',
+        description: 'Tu navegador no soporta notificaciones de escritorio.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      const permission = await Notification.requestPermission()
+      setPushPermission(permission)
+      if (permission === 'granted') {
+        pushToast({
+          title: 'Notificaciones activadas',
+          description: 'Recibirás avisos nativos en tiempo real.',
+          variant: 'success',
+        })
+        showNativeNotification('GLPI Ticket Manager', '¡Notificaciones nativas configuradas con éxito!')
+      } else if (permission === 'denied') {
+        pushToast({
+          title: 'Permiso denegado',
+          description: 'Habilita los permisos de notificación desde la configuración de tu navegador.',
+          variant: 'destructive',
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const handleToggle = () => {
     const nextOpen = !open
@@ -200,9 +273,9 @@ export function NotificationBell() {
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
           >
-            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20">
+            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
                   Notificaciones
@@ -213,24 +286,39 @@ export function NotificationBell() {
                   </span>
                 )}
               </div>
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[11px] h-6 px-2 gap-1 text-muted-foreground hover:text-foreground"
-                  onClick={async () => {
-                    try {
-                      await apiClient.put('/notifications/read-all')
-                      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                >
-                  <CheckCheck className="size-3" />
-                  Marcar leídas
-                </Button>
-              )}
+              <div className="flex items-center gap-1">
+                {pushPermission !== 'granted' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[11px] h-6 px-1.5 gap-1 text-primary hover:text-primary/80"
+                    onClick={requestNotificationPermission}
+                    title="Activar notificaciones nativas"
+                    data-testid="enable-push-btn"
+                  >
+                    <BellRing className="size-3" />
+                    <span>Activar Push</span>
+                  </Button>
+                )}
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[11px] h-6 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={async () => {
+                      try {
+                        await apiClient.put('/notifications/read-all')
+                        void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                  >
+                    <CheckCheck className="size-3" />
+                    Marcar leídas
+                  </Button>
+                )}
+              </div>
             </div>
             {notifications.length === 0 ? (
               <div className="p-6 text-center">

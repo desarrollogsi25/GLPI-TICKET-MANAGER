@@ -158,6 +158,7 @@ export interface TeamMember {
   currentTicket?: number | null
   activeTicket?: number | null
   lastComment?: string | null
+  lastActivity?: string | null
 }
 
 export interface GroupDashboard {
@@ -170,6 +171,19 @@ export interface GroupDashboard {
   closedTickets: number
   summary?: GroupDashboardSummary | null
   technicians: TeamMember[]
+  tickets?: GroupTicketDetail[]
+}
+
+export interface GroupTicketDetail {
+  id: number
+  title: string
+  status: number
+  assigneeId: number | null
+  assigneeName: string | null
+  priority: number
+  createdAt: string | null
+  updatedAt: string | null
+  lastComment: string | null
 }
 
 export interface CreateTicketRequest {

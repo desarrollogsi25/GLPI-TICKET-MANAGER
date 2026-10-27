@@ -13,7 +13,7 @@ public sealed record GroupDashboardSummaryDto(
     long Closed);
 
 /// <summary>
-/// Technician in a group with workload metrics and latest comment for the supervisor team view (H-35 / H-40 / H-41).
+/// Technician in a group with workload metrics and latest comment for the supervisor team view (H-35 / H-40 / H-41 / H-45).
 /// Matches frontend TeamMember interface in TeamDashboard.tsx.
 /// </summary>
 public sealed record TeamMemberDto(
@@ -24,7 +24,8 @@ public sealed record TeamMemberDto(
     long? CurrentTicketId,
     long ResolvedToday = 0,
     long QueuedCount = 0,
-    string? LastComment = null)
+    string? LastComment = null,
+    string? LastActivity = null)
 {
     public long Id => UserId;
     public long? CurrentTicket => CurrentTicketId > 0 ? CurrentTicketId : null;
@@ -33,7 +34,21 @@ public sealed record TeamMemberDto(
 }
 
 /// <summary>
-/// Complete group dashboard response for the supervisor team view (H-40 / H-41).
+/// Detailed ticket summary for the leader supervision console (H-45).
+/// </summary>
+public sealed record GroupTicketDetailDto(
+    long Id,
+    string Title,
+    long Status,
+    long? AssigneeId,
+    string? AssigneeName,
+    long Priority,
+    DateTime? CreatedAt,
+    DateTime? UpdatedAt,
+    string? LastComment);
+
+/// <summary>
+/// Complete group dashboard response for the supervisor team console (H-40 / H-41 / H-45).
 /// </summary>
 public sealed record GroupDashboardDto(
     long TotalTickets,
@@ -44,8 +59,11 @@ public sealed record GroupDashboardDto(
     long ResolvedTickets,
     long ClosedTickets,
     IReadOnlyList<TeamMemberDto> Technicians,
-    GroupDashboardSummaryDto? Summary = null)
+    GroupDashboardSummaryDto? Summary = null,
+    IReadOnlyList<GroupTicketDetailDto>? Tickets = null)
 {
+    public IReadOnlyList<GroupTicketDetailDto> EffectiveTickets => Tickets ?? Array.Empty<GroupTicketDetailDto>();
+
     public GroupDashboardSummaryDto EffectiveSummary =>
         Summary ?? new GroupDashboardSummaryDto(
             TotalTickets,

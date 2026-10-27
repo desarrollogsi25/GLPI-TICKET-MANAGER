@@ -1,0 +1,51 @@
+{
+  "results": [
+    {
+      "step": "Login Three.js Particle Background",
+      "pass": true,
+      "detail": "Fluid particle geometry canvas rendered in Login"
+    },
+    {
+      "step": "Kanban Priority Badge Subtle Pulse",
+      "pass": true,
+      "detail": "2 high/critical priority badges with subtle pulse animation"
+    },
+    {
+      "step": "Kanban Column Drop Zone Visual Indicator",
+      "pass": true,
+      "detail": "Dashed border, scaled elevation and primary ring on isOver column"
+    },
+    {
+      "step": "Notification Bell Web Push Permission Trigger",
+      "pass": true,
+      "detail": "Push notifications activation button visible inside notifications header"
+    },
+    {
+      "step": "Dark Mode Slate Palette & 3 Clickable Presets",
+      "pass": true,
+      "detail": "Midnight (#020617), Charcoal (#0c0a09), and Deep Blue (#030712) validated"
+    },
+    {
+      "step": "PWA Manifest & Custom Push Service Worker",
+      "pass": true,
+      "detail": "manifest.display=\"standalone\", custom-sw.js status=200"
+    },
+    {
+      "step": "Mobile (390px) Zero Horizontal Overflow",
+      "pass": true,
+      "detail": "scrollWidth <= innerWidth (true)"
+    },
+    {
+      "step": "Axe Accessibility WCAG AA Compliance",
+      "pass": true,
+      "detail": "0 critical violations"
+    },
+    {
+      "step": "Zero Console & HTTP Errors (F12)",
+      "pass": true,
+      "detail": "consoleErrors=0, httpErrors=0"
+    }
+  ],
+  "consoleErrors": [],
+  "httpErrors": []
+}

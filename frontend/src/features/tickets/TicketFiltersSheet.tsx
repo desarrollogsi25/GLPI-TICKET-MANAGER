@@ -48,7 +48,7 @@ export function TicketFiltersSheet({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        setTimeout(onClose, 0)
         return
       }
 
@@ -102,8 +102,8 @@ export function TicketFiltersSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={prefersReduced ? { duration: 0 } : { duration: 0.18 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            transition={prefersReduced ? { duration: 0 } : { duration: 0.16 }}
+            className="fixed inset-0 bg-black/60"
             onClick={onClose}
             aria-hidden="true"
           />
@@ -121,16 +121,8 @@ export function TicketFiltersSheet({
             transition={
               prefersReduced
                 ? { duration: 0 }
-                : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
+                : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.05, bottom: 0.5 }}
-            onDragEnd={(_e, info) => {
-              if (info.offset.y > 100 || info.velocity.y > 300) {
-                onClose()
-              }
-            }}
             className="relative z-10 w-full max-h-[85vh] flex flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl overflow-hidden"
           >
             {/* Handle táctil superior */}

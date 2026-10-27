@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useLoginMutation } from '@/hooks/useAuth'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { useAuthStore } from '@/store/authStore'
+import { LoginBackground } from './LoginBackground'
 
 const loginSchema = z.object({
   username: z.string().trim().min(1, 'El usuario es obligatorio'),
@@ -55,8 +56,9 @@ export function Login() {
   })
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-sm">
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-950 p-4 overflow-hidden">
+      <LoginBackground />
+      <Card className="relative z-10 w-full max-w-sm backdrop-blur-md bg-card/90 border-border/80 shadow-2xl">
         <CardHeader>
           <CardTitle className="text-lg">GLPI Ticket Manager</CardTitle>
           <CardDescription>Accede con tu cuenta de GLPI.</CardDescription>

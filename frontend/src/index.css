@@ -37,37 +37,98 @@
   --ring: oklch(0.45 0 0);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
+/* ============================================================================
+   H-44: Paleta Dark Mode Profesional basada en Slate (Tailwind slate-950/900/800)
+   Preset por defecto: "Noche" (midnight)
+   ============================================================================ */
+.dark,
+.dark[data-dark-preset='midnight'] {
+  --background: #020617;
+  --foreground: #f8fafc;
 
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
 
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
 
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #f8fafc;
+  --primary-foreground: #020617;
 
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
 
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.78 0 0);
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
 
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
 
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
+  --destructive: #ef4444;
+  --destructive-foreground: #f8fafc;
 
-  --success: oklch(0.696 0.17 162.48);
-  --success-foreground: oklch(0.145 0 0);
+  --success: #10b981;
+  --success-foreground: #020617;
 
-  --border: oklch(1 0 0 / 14%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.78 0 0);
+  --border: #334155;
+  --input: #334155;
+  --ring: #64748b;
+}
+
+/* Preset 2: "Carbón cálido" (charcoal — stone-950 / stone-900 / stone-800) */
+.dark[data-dark-preset='charcoal'] {
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+
+  --card: #1c1917;
+  --card-foreground: #fafaf9;
+
+  --popover: #1c1917;
+  --popover-foreground: #fafaf9;
+
+  --primary: #fafaf9;
+  --primary-foreground: #0c0a09;
+
+  --secondary: #292524;
+  --secondary-foreground: #fafaf9;
+
+  --muted: #292524;
+  --muted-foreground: #a8a29e;
+
+  --accent: #292524;
+  --accent-foreground: #fafaf9;
+
+  --border: #44403c;
+  --input: #44403c;
+  --ring: #78716c;
+}
+
+/* Preset 3: "Azul profundo" (deep-blue — #030712 / #0a1128 / #162040) */
+.dark[data-dark-preset='deep-blue'] {
+  --background: #030712;
+  --foreground: #f8fafc;
+
+  --card: #0a1128;
+  --card-foreground: #f8fafc;
+
+  --popover: #0a1128;
+  --popover-foreground: #f8fafc;
+
+  --primary: #60a5fa;
+  --primary-foreground: #030712;
+
+  --secondary: #162040;
+  --secondary-foreground: #f8fafc;
+
+  --muted: #162040;
+  --muted-foreground: #94a3b8;
+
+  --accent: #162040;
+  --accent-foreground: #f8fafc;
+
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #3b82f6;
 }
 
 @theme inline {
@@ -155,7 +216,7 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      oklch(var(--foreground) / 8%) 50%,
+      color-mix(in srgb, var(--foreground) 8%, transparent) 50%,
       transparent 100%
     );
     animation: shimmer 1.8s infinite;
@@ -179,6 +240,22 @@
     animation: toast-shake 260ms var(--ease-out);
   }
 
+  /* Pulse sutil para badges de prioridad alta/crítica */
+  @keyframes badge-glow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: scale(1.04);
+    }
+  }
+
+  .badge-pulse-subtle {
+    animation: badge-glow 2.4s ease-in-out infinite;
+  }
+
   /* Gate card hover elevation behind fine pointer media query (Emil Kowalski rule) */
   @media (hover: hover) and (pointer: fine) {
     .kanban-card-hover:hover {
@@ -192,6 +269,9 @@
       display: none;
     }
     .toast-error-shake {
+      animation: none;
+    }
+    .badge-pulse-subtle {
       animation: none;
     }
     .kanban-card-hover:hover {
