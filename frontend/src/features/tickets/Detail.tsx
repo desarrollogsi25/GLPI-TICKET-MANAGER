@@ -130,7 +130,7 @@ export function Detail() {
                 }
                 title={
                   ticket.status === 4
-                    ? 'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.'
+                    ? 'Debes reanudar a En Progreso primero.'
                     : undefined
                 }
                 onClick={() => setResolveOpen(true)}
@@ -140,7 +140,7 @@ export function Detail() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                disabled={ticket.status === 4 || ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
                 onClick={() => setPendingOpen(true)}
                 data-testid="pending-ticket-btn"
               >
@@ -162,23 +162,39 @@ export function Detail() {
                   ((ticket.status === 5 && option.value < 5) ||
                     (ticket.status === 6 && option.value <= 5))
 
+                // When in Pendiente (4), only moving to En Progreso (3) is valid.
+                // Asignado (2), Nuevo (1), Resuelto (5), Cerrado (6) are all disabled.
+                const isPendingInvalidTransition =
+                  ticket.status === 4 && option.value !== 3
+
+                // Technicians cannot rewind to Nuevo (1)
+                const isRewindToNewBlocked =
+                  role !== 'admin' && ticket.status > 1 && option.value === 1
+
+                // Explicit manual close (6) is admin-only
+                const isCloseAdminOnly =
+                  role !== 'admin' && option.value === 6
+
+                const isDisabled =
+                  option.value === ticket.status ||
+                  updateStatus.isPending ||
+                  isBackwardBlocked ||
+                  isPendingInvalidTransition ||
+                  isRewindToNewBlocked ||
+                  isCloseAdminOnly
+
                 return (
                   <Button
                     key={option.value}
                     variant={option.value === ticket.status ? 'default' : 'outline'}
                     size="sm"
-                    disabled={
-                      option.value === ticket.status ||
-                      updateStatus.isPending ||
-                      isBackwardBlocked ||
-                      // H-39: from Pendiente only Retomar (En Progreso) is valid.
-                      // Resolver (5) and Cerrar (6) must be rejected up front.
-                      (ticket.status === 4 && option.value >= 5)
-                    }
+                    disabled={isDisabled}
                     title={
-                      ticket.status === 4 && option.value >= 5
-                        ? 'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.'
-                        : undefined
+                      isPendingInvalidTransition
+                        ? 'Debes reanudar a En Progreso primero.'
+                        : isBackwardBlocked
+                          ? 'No se puede retroceder el estado de este ticket.'
+                          : undefined
                     }
                     onClick={() => {
                       if (option.value === 5) {
@@ -194,7 +210,7 @@ export function Detail() {
               })}
               {ticket.status === 4 && (
                 <p className="w-full text-xs text-muted-foreground">
-                  No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.
+                  Debes reanudar a En Progreso primero.
                 </p>
               )}
             </CardContent>

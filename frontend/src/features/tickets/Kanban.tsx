@@ -438,7 +438,11 @@ export function Kanban() {
   // group. `GET /api/groups` returns only the groups the user belongs to
   // (glpi_groups_users), and a technician defaults to the first one.
   const [searchParams] = useSearchParams()
-  const paramGroupId = searchParams.get('groupId') ? Number(searchParams.get('groupId')) : null
+  const rawParamGroupId = searchParams.get('groupId')
+  const paramGroupId =
+    rawParamGroupId && !Number.isNaN(Number(rawParamGroupId))
+      ? Number(rawParamGroupId)
+      : null
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const currentGroup =
     groupsQuery.data?.find((group) => group.id === (selectedGroupId ?? paramGroupId)) ??

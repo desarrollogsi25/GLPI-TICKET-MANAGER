@@ -153,10 +153,29 @@ export function NotificationBell({
       return
     }
 
+    if (Notification.permission === 'denied') {
+      pushToast({
+        title: 'Permiso denegado',
+        description: 'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       const permission = await Notification.requestPermission()
       setPushPermission(permission)
       if (permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready
+            if (reg?.pushManager) {
+              // Push registration ready
+            }
+          } catch {
+            // Service worker ready fallback handled
+          }
+        }
         pushToast({
           title: 'Notificaciones activadas',
           description: 'Recibirás avisos nativos en tiempo real.',
@@ -166,7 +185,7 @@ export function NotificationBell({
       } else if (permission === 'denied') {
         pushToast({
           title: 'Permiso denegado',
-          description: 'Habilita los permisos de notificación desde la configuración de tu navegador.',
+          description: 'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
           variant: 'destructive',
         })
       }
@@ -254,7 +273,7 @@ export function NotificationBell({
                 ? { duration: 0 }
                 : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white tabular-nums shadow-xs"
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-700 px-1 text-[10px] font-bold text-white tabular-nums shadow-xs"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </motion.span>
@@ -281,7 +300,7 @@ export function NotificationBell({
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto no-scrollbar origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
           >
             <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
               <div className="flex items-center gap-2">

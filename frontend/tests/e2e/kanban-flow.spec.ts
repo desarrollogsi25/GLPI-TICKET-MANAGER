@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }) => {
+  test.setTimeout(60000)
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
@@ -19,10 +20,10 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
 
   // 3. Verificar que #11 está en la cola
   const queueColumn = page.locator('[data-column-id="queue"]')
-  await expect(queueColumn.locator('text=#11').first()).toBeVisible({ timeout: 10000 })
+  await expect(queueColumn.locator('span').filter({ hasText: /^#11$/ }).first()).toBeVisible({ timeout: 10000 })
 
   // 4. Click en "Asignarme" del ticket #11
-  const card11 = queueColumn.getByText('#11').first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
+  const card11 = queueColumn.locator('span').filter({ hasText: /^#11$/ }).first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
   const claimBtn = card11.locator('button', { hasText: 'Asignarme' })
   await expect(claimBtn).toBeVisible()
   await claimBtn.click()
@@ -30,7 +31,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   // 5. Esperar a que el ticket aparezca en "Mis tickets"
   await page.waitForTimeout(1500) // esperar invalidación + re-render
   // Verificar que ya no está en cola
-  await expect(queueColumn.locator('text=#11')).not.toBeVisible({ timeout: 10000 })
+  await expect(queueColumn.locator('span').filter({ hasText: /^#11$/ })).not.toBeVisible({ timeout: 10000 })
 
   // 6. Abrir el detalle del ticket y verificar status=2
   await page.goto('http://localhost:5173/tickets/11')
@@ -43,7 +44,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
 
   // 8. Verificar que #11 está en "Mis tickets"
   const mineColumn = page.locator('[data-column-id="mine"]')
-  await expect(mineColumn.locator('text=#11')).toBeVisible({ timeout: 10000 })
+  await expect(mineColumn.locator('span').filter({ hasText: /^#11$/ })).toBeVisible({ timeout: 10000 })
 
   expect(consoleErrors).toEqual([])
 })

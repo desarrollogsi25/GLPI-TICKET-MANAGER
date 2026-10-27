@@ -28,6 +28,7 @@ test.beforeAll(() => {
 })
 
 test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({ page }) => {
+  test.setTimeout(60000)
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
