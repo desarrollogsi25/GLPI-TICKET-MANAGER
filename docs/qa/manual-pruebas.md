@@ -56,7 +56,7 @@ Ejecutar GitNexus `detect-changes --scope all` antes de cerrar o hacer commit y 
 
 | Campo | Registro |
 | --- | --- |
-| Versión evaluada | H-64, contenido de este commit; base `f7d3a6d`. Integración directa en `main`. |
+| Versión evaluada | H-64, contenido de este commit; base `f7d3a6d`. Integración mediante pull request en `main` (rama protegida: cuatro checks CI obligatorios). |
 | Responsable, fecha/hora, navegador y viewports | Codex; 2026-10-28; suite 20:19–20:25 Europe/Paris; Chromium; 390/767/768/1440 px. |
 | Typecheck / build | Aprobados, código de salida 0. Build Vite/PWA completo. Advertencias no bloqueantes de tamaño de bundle y anotaciones PURE de SignalR. |
 | Playwright: total / aprobadas / fallidas / omitidas | 40 / 40 / 0 / 0; 0 flaky; 352,65 s; ejecución completa sin reintentos locales. |
