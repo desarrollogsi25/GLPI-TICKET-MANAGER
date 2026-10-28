@@ -49,7 +49,7 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
     ? queryKeys.tickets.list(filters)
     : queryKeys.tickets.byAssignee(assigneeId ?? 0)
 
-  return useQuery({
+  const result = useQuery({
     queryKey,
     queryFn: () =>
       listTickets({
@@ -62,6 +62,7 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
       }),
     enabled: hasFilter && enabled && sessionValid,
   })
+  return result
 }
 
 export function useTicketQuery(ticketId: number) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Bell, BellRing, CheckCheck, Clock, RefreshCw, TicketCheck, UserCheck } from 'lucide-react'
+import { Bell, CheckCheck, Clock, RefreshCw, TicketCheck, UserCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { formatRelative } from '@/lib/format'
-import { useToastStore } from '@/store/toastStore'
 
 interface Notification {
   id: number
@@ -28,7 +27,7 @@ interface Notification {
  *
  * - Badge con contador animado (scale pulse en cambio de valor, respetando reduced motion).
  * - Dropdown origin-aware (`absolute right-0 top-full mt-2 max-h-80 overflow-y-auto z-50`).
- * - Botón "Activar notificaciones" para Push/Web Notifications nativas del navegador.
+ * - El permiso y los avisos nativos se coordinan desde el layout autenticado.
  */
 export interface NotificationBellProps {
   'data-testid'?: string
@@ -41,18 +40,11 @@ export function NotificationBell({
 }: NotificationBellProps = {}) {
   const [open, setOpen] = useState(false)
   const [pulseBadge, setPulseBadge] = useState(false)
-  const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      return Notification.permission
-    }
-    return 'default'
-  })
   const prevCountRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const prefersReduced = useReducedMotion()
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
-  const pushToast = useToastStore((s) => s.push)
 
   // Cerrar al hacer clic fuera del contenedor (H-61)
   useEffect(() => {
@@ -122,118 +114,11 @@ export function NotificationBell({
     },
   })
 
-  // Web Notification trigger upon real-time event
-  const showNativeNotification = (title: string, body: string, ticketId?: number | null) => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.ready.then((reg) => {
-            void reg.showNotification(title, {
-              body,
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-192x192.png',
-              data: { url: ticketId ? `/tickets/${ticketId}` : '/kanban' },
-            })
-          })
-        } else {
-          new Notification(title, {
-            body,
-            icon: '/icons/icon-192x192.png',
-          })
-        }
-      } catch {
-        // Fallback handled smoothly
-      }
-    }
-  }
-
   useRealtimeTicketHub({
     onNotificationReceived: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      showNativeNotification('GLPI Ticket Manager', 'Tienes una nueva notificación en el sistema')
-    },
-    onTicketCreated: (ticketId) => {
-      showNativeNotification('Nuevo Ticket Creado', `Se ha generado el ticket #${ticketId} en tu grupo`, ticketId)
-    },
-    onTicketStatusChanged: (ticketId) => {
-      showNativeNotification('Estado Actualizado', `El ticket #${ticketId} ha cambiado de estado`, ticketId)
     },
   })
-
-  const requestNotificationPermission = async () => {
-    // 1. Detección de iOS PWA standalone (Apple exige instalar en Inicio para Web Push desde iOS 16.4+)
-    const isIos =
-      typeof navigator !== 'undefined' &&
-      (/iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
-    const isStandalone =
-      typeof window !== 'undefined' &&
-      ((window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-        window.matchMedia('(display-mode: standalone)').matches)
-
-    if (isIos && !isStandalone) {
-      pushToast({
-        title: 'Instalación requerida en iOS',
-        description:
-          "Para recibir notificaciones en tu iPhone, primero debes instalar la app. Toca el botón Compartir y selecciona 'Agregar a pantalla de inicio'.",
-        variant: 'destructive',
-      })
-      return
-    }
-
-    // 2. Soporte de Notification y PushManager
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      pushToast({
-        title: 'No soportado',
-        description:
-          'Tu navegador o entorno actual no soporta notificaciones nativas de escritorio/móvil.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (Notification.permission === 'denied') {
-      pushToast({
-        title: 'Permiso denegado',
-        description:
-          'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      const permission = await Notification.requestPermission()
-      setPushPermission(permission)
-      if (permission === 'granted') {
-        if ('serviceWorker' in navigator) {
-          try {
-            const reg = await navigator.serviceWorker.ready
-            if (reg?.pushManager) {
-              // Push registration ready
-            }
-          } catch {
-            // Service worker ready fallback handled
-          }
-        }
-        pushToast({
-          title: 'Notificaciones activadas',
-          description: 'Recibirás avisos nativos en tiempo real.',
-          variant: 'success',
-        })
-        showNativeNotification('GLPI Ticket Manager', '¡Notificaciones nativas configuradas con éxito!')
-      } else if (permission === 'denied') {
-        pushToast({
-          title: 'Permiso denegado',
-          description:
-            'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
-          variant: 'destructive',
-        })
-      }
-    } catch {
-      // ignore
-    }
-  }
 
   const handleToggle = () => {
     const nextOpen = !open
@@ -355,19 +240,6 @@ export function NotificationBell({
                 )}
               </div>
               <div className="flex items-center gap-1">
-                {pushPermission !== 'granted' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-[11px] h-6 px-1.5 gap-1 text-primary hover:text-primary/80"
-                    onClick={requestNotificationPermission}
-                    title="Activar notificaciones nativas"
-                    data-testid="enable-push-btn"
-                  >
-                    <BellRing className="size-3" />
-                    <span>Activar Push</span>
-                  </Button>
-                )}
                 {unreadCount > 0 && (
                   <Button
                     variant="ghost"

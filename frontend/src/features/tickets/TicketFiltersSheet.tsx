@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 
@@ -215,26 +215,28 @@ export function TicketFiltersSheet({
                     <Label htmlFor="sheet-start-date" className="text-xs text-muted-foreground">
                       Desde
                     </Label>
-                    <Input
+                    <DatePicker
                       id="sheet-start-date"
-                      type="date"
+                      label="Desde"
+                      data-testid="sheet-filter-start-date"
                       className="w-full h-11 text-sm bg-background"
                       value={startDate}
                       max={endDate || undefined}
-                      onChange={(e) => onStartDateChange(e.target.value)}
+                      onChange={onStartDateChange}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="sheet-end-date" className="text-xs text-muted-foreground">
                       Hasta
                     </Label>
-                    <Input
+                    <DatePicker
                       id="sheet-end-date"
-                      type="date"
+                      label="Hasta"
+                      data-testid="sheet-filter-end-date"
                       className="w-full h-11 text-sm bg-background"
                       value={endDate}
                       min={startDate || undefined}
-                      onChange={(e) => onEndDateChange(e.target.value)}
+                      onChange={onEndDateChange}
                     />
                   </div>
                 </div>

@@ -30,8 +30,7 @@ import { TicketFiltersSheet } from './TicketFiltersSheet'
 import { TicketListCard } from './TicketListCard'
 import { TicketTable } from './TicketTable'
 
-const columns: ColumnDef<TicketSummary>[] = [
-  {
+const columns: ColumnDef<TicketSummary>[] = [  {
     accessorKey: 'id',
     header: 'ID',
     cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span>,
@@ -96,6 +95,13 @@ const columns: ColumnDef<TicketSummary>[] = [
     ),
   },
 ]
+
+/**
+ * Stable empty list: TanStack Table re-runs `autoResetPageIndex` whenever the
+ * `data` reference changes, so a fresh `[]` literal per render loops forever
+ * while the query is pending.
+ */
+const EMPTY_TICKETS: TicketSummary[] = []
 
 export function List() {
   const [searchParams] = useSearchParams()
@@ -284,7 +290,7 @@ export function List() {
     setIsSheetOpen(true)
   }
 
-  const tickets = data?.items ?? []
+  const tickets = data?.items ?? EMPTY_TICKETS
 
   const table = useReactTable({
     data: tickets,
