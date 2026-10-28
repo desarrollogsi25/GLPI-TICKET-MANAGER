@@ -300,13 +300,13 @@ export function AppSidebar({
         </div>
       </div>
 
-      {/* 3. User Card al pie con Avatar + Logout */}
-      <div className="shrink-0 border-t border-border/60 p-2.5 bg-muted/20">
+      {/* 3. User Card al pie con Avatar + Logout flotante (sin border-t) */}
+      <div className="shrink-0 p-2 mx-2 mb-2 rounded-2xl bg-muted/20 backdrop-blur-md shadow-xs group transition-all duration-200 hover:bg-muted/40">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2 py-1">
             <div
               title={`${displayName} (${username})`}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20"
             >
               {initial}
             </div>
@@ -317,15 +317,15 @@ export function AppSidebar({
               aria-label="Cerrar sesión"
               title="Cerrar sesión"
               data-testid="logout-btn"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-3.5" />
             </Button>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-2 rounded-xl p-1.5 transition-colors">
+          <div className="flex items-center justify-between gap-2 p-1">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20">
                 {initial}
               </div>
               <div className="min-w-0 flex-1">
@@ -347,9 +347,9 @@ export function AppSidebar({
               aria-label="Cerrar sesión"
               title="Cerrar sesión"
               data-testid="logout-btn"
-              className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto"
+              className="size-7 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto opacity-70 group-hover:opacity-100 transition-opacity duration-200 focus-visible:opacity-100"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-3.5" />
             </Button>
           </div>
         )}

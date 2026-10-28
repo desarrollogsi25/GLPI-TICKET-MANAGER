@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useCurrentTime } from '@/hooks/useCurrentTime'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import {
   useClaimTicketMutation,
@@ -426,6 +427,7 @@ function KanbanColumn({
 }
 
 export function Kanban() {
+  useCurrentTime()
   const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
   const { isTechnician } = useRole()

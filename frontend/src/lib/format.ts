@@ -6,8 +6,24 @@ function toDate(value: string | null | undefined): Date | null {
     return null
   }
 
-  const parsed = parseISO(value)
-  return isValid(parsed) ? parsed : null
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  // Si no contiene indicador de zona horaria (Z o +/-), añadir 'Z' para parsear como UTC
+  const normalized = trimmed.replace(' ', 'T')
+  const hasTimezone = normalized.endsWith('Z') || /[+-]\d{2}(:?\d{2})?$/.test(normalized)
+  const utcString = hasTimezone ? normalized : `${normalized}Z`
+
+  const parsed = parseISO(utcString)
+  if (isValid(parsed)) {
+    return parsed
+  }
+
+  // Fallback directo a parseISO original
+  const direct = parseISO(trimmed)
+  return isValid(direct) ? direct : null
 }
 
 export function formatDateTime(value: string | null | undefined): string {
@@ -15,7 +31,10 @@ export function formatDateTime(value: string | null | undefined): string {
   return date ? format(date, 'dd/MM/yyyy HH:mm', { locale: es }) : '—'
 }
 
-export function formatRelative(value: string | null | undefined): string {
+export function formatRelative(
+  value: string | null | undefined,
+  _baseDate?: Date,
+): string {
   const date = toDate(value)
   return date ? formatDistanceToNowStrict(date, { addSuffix: true, locale: es }) : '—'
 }

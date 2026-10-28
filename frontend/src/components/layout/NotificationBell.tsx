@@ -48,10 +48,27 @@ export function NotificationBell({
     return 'default'
   })
   const prevCountRef = useRef<number>(0)
+  const containerRef = useRef<HTMLDivElement>(null)
   const prefersReduced = useReducedMotion()
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
   const pushToast = useToastStore((s) => s.push)
+
+  // Cerrar al hacer clic fuera del contenedor (H-61)
+  useEffect(() => {
+    if (!open) return
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown)
+    }
+  }, [open])
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -268,7 +285,7 @@ export function NotificationBell({
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div ref={containerRef} className={cn("relative", className)}>
       <Button
         variant="ghost"
         size="sm"

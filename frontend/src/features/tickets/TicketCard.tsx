@@ -180,10 +180,10 @@ export function TicketCard({
           : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
       }
       className={cn(
-        'group @container kanban-card-item rounded-xl border-0 bg-card p-3.5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-within:[&_.ticket-actions]:opacity-100',
+        'group @container kanban-card-item rounded-xl border-0 bg-card p-3.5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-within:[&_.ticket-actions]:flex',
         draggable && 'cursor-grab active:cursor-grabbing',
-        isDragging && 'opacity-30 ring-1 ring-primary/40 border-dashed',
-        isOverlay && 'shadow-2xl ring-2 ring-primary/40 bg-card scale-105',
+        isDragging && 'opacity-40 scale-105 shadow-2xl ring-2 ring-primary border-dashed',
+        isOverlay && 'shadow-2xl ring-2 ring-primary bg-card scale-105',
         !shouldReduceMotion && shake && 'toast-error-shake',
       )}
       {...attributes}
@@ -246,7 +246,7 @@ export function TicketCard({
 
       {actionButton ? (
         <div
-          className="ticket-actions mt-3 pt-2.5 border-t border-border/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          className="ticket-actions mt-2.5 pt-2 border-t border-border/30 flex items-center transition-all duration-200"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >

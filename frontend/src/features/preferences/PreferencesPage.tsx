@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, Moon, Sun } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -59,6 +59,16 @@ export function PreferencesPage() {
     }
   })
   const [savedMessage, setSavedMessage] = useState(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Limpiar timer de debounce al desmontar
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
 
   // Sincronizar preferencias iniciales con backend y localStorage
   useEffect(() => {
@@ -102,82 +112,64 @@ export function PreferencesPage() {
     }
   }
 
-  const autoSaveTheme = (newTheme: 'light' | 'dark', preset = darkPreset) => {
+  const triggerDebouncedSave = (
+    nextTheme: 'light' | 'dark',
+    nextPreset: DarkPreset,
+    label: string,
+  ) => {
+    applyThemeDOM(nextTheme, nextPreset)
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      updateMutation.mutate(
+        { theme: nextTheme, density: 'comfortable' },
+        {
+          onSuccess: () => {
+            setSavedMessage(true)
+            pushToast({
+              title: 'Tema actualizado',
+              description: label,
+              variant: 'success',
+            })
+            setTimeout(() => setSavedMessage(false), 3000)
+          },
+          onError: (err) => {
+            pushToast({
+              title: 'Error al sincronizar preferencias',
+              description: getApiErrorMessage(err),
+              variant: 'destructive',
+            })
+          },
+        },
+      )
+    }, 300)
+  }
+
+  const autoSaveTheme = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme)
-    applyThemeDOM(newTheme, preset)
-    updateMutation.mutate(
-      { theme: newTheme, density: 'comfortable' },
-      {
-        onSuccess: () => {
-          setSavedMessage(true)
-          pushToast({
-            title: 'Tema actualizado',
-            description: `Modo ${newTheme === 'dark' ? 'oscuro' : 'claro'} activado y guardado.`,
-            variant: 'success',
-          })
-          setTimeout(() => setSavedMessage(false), 3000)
-        },
-        onError: (err) => {
-          pushToast({
-            title: 'Error al sincronizar preferencias',
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          })
-        },
-      },
+    triggerDebouncedSave(
+      newTheme,
+      darkPreset,
+      `Modo ${newTheme === 'dark' ? 'oscuro' : 'claro'} activado y guardado.`,
     )
   }
 
   const handlePresetSelect = (preset: DarkPreset) => {
     setDarkPreset(preset)
-    applyThemeDOM(theme, preset)
-    updateMutation.mutate(
-      { theme, density: 'comfortable' },
-      {
-        onSuccess: () => {
-          setSavedMessage(true)
-          pushToast({
-            title: 'Paleta nocturna actualizada',
-            description: `Variante ${DARK_PRESET_OPTIONS.find((p) => p.id === preset)?.label ?? preset} aplicada.`,
-            variant: 'success',
-          })
-          setTimeout(() => setSavedMessage(false), 3000)
-        },
-        onError: (err) => {
-          pushToast({
-            title: 'Error al sincronizar preferencias',
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          })
-        },
-      },
+    triggerDebouncedSave(
+      theme,
+      preset,
+      `Variante ${DARK_PRESET_OPTIONS.find((p) => p.id === preset)?.label ?? preset} aplicada.`,
     )
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setSavedMessage(false)
-
-    updateMutation.mutate(
-      { theme, density: 'comfortable' },
-      {
-        onSuccess: () => {
-          applyThemeDOM(theme, darkPreset)
-          setSavedMessage(true)
-          pushToast({
-            title: 'Preferencias guardadas correctamente',
-            description: 'Tus preferencias visuales han sido actualizadas.',
-            variant: 'success',
-          })
-        },
-        onError: (err) => {
-          pushToast({
-            title: 'Error al guardar preferencias',
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          })
-        },
-      },
+    triggerDebouncedSave(
+      theme,
+      darkPreset,
+      'Tus preferencias visuales han sido actualizadas.',
     )
   }
 
@@ -303,76 +295,76 @@ export function PreferencesPage() {
                 </p>
               </div>
 
-              {/* Variantes de modo oscuro (Presets) */}
-              <div className="space-y-3 pt-2">
-                <Label className="text-sm font-semibold">Variante de modo oscuro (Presets)</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {DARK_PRESET_OPTIONS.map((opt) => {
-                    const active = darkPreset === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        data-testid={`preset-option-${opt.id}`}
-                        onClick={() => handlePresetSelect(opt.id)}
-                        className={cn(
-                          'relative flex flex-col items-start gap-2.5 rounded-2xl border p-3.5 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
-                          active
-                            ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-sm'
-                            : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
-                        )}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="size-4 rounded-full border shrink-0 shadow-xs"
-                              style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }}
-                            />
-                            <span
-                              className="size-4 rounded-full border shrink-0 shadow-xs"
-                              style={{ backgroundColor: opt.cardHex, borderColor: opt.borderHex }}
-                            />
-                          </div>
-                          {active && (
-                            <div className="flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
-                              <Check className="size-2.5 stroke-[3]" />
-                            </div>
+              {/* Variantes de modo oscuro (Presets) — Solo visibles si el tema es Oscuro (H-61) */}
+              {theme === 'dark' && (
+                <div className="space-y-3 pt-2 animate-in fade-in duration-200">
+                  <Label className="text-sm font-semibold">Variante de modo oscuro (Presets)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {DARK_PRESET_OPTIONS.map((opt) => {
+                      const active = darkPreset === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          data-testid={`preset-option-${opt.id}`}
+                          onClick={() => handlePresetSelect(opt.id)}
+                          className={cn(
+                            'relative flex flex-col items-start gap-2.5 rounded-2xl border p-3.5 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                            active
+                              ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-sm'
+                              : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
                           )}
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">{opt.label}</p>
-                          <p className="text-[10px] font-mono text-muted-foreground">{opt.bgHex}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="size-4 rounded-full border shrink-0 shadow-xs"
+                                style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }}
+                              />
+                              <span
+                                className="size-4 rounded-full border shrink-0 shadow-xs"
+                                style={{ backgroundColor: opt.cardHex, borderColor: opt.borderHex }}
+                              />
+                            </div>
+                            {active && (
+                              <div className="flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                                <Check className="size-2.5 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">{opt.label}</p>
+                            <p className="text-[10px] font-mono text-muted-foreground">{opt.bgHex}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Elige entre Noche Slate (#0F172A), Carbón cálido (#1C1917) o Azul profundo (#0B1329).
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Elige entre Noche Slate (#0F172A), Carbón cálido (#1C1917) o Azul profundo (#0B1329).
-                </p>
-              </div>
+              )}
 
-              {/* Botón Guardar discreto y feedback de guardado */}
-              <div className="flex items-center gap-4 pt-3 border-t border-border/40">
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant="outline"
-                  disabled={updateMutation.isPending}
-                  className="rounded-xl"
-                >
-                  {updateMutation.isPending ? 'Guardando...' : 'Guardar preferencias'}
-                </Button>
-                {savedMessage && (
-                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                    <Check className="size-3.5" /> Guardado correctamente
-                  </span>
-                )}
-                {updateMutation.isError && (
-                  <span className="text-xs font-medium text-destructive">
-                    Error al guardar preferencias
-                  </span>
-                )}
+              {/* Feedback de autoguardado instantáneo con debounce (H-61) */}
+              <div className="flex items-center justify-between pt-3 border-t border-border/40">
+                <div className="flex items-center gap-2">
+                  {updateMutation.isPending && (
+                    <span className="text-xs text-muted-foreground animate-pulse">
+                      Guardando automáticamente...
+                    </span>
+                  )}
+                  {savedMessage && !updateMutation.isPending && (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                      <Check className="size-3.5" /> Guardado correctamente
+                    </span>
+                  )}
+                  {updateMutation.isError && (
+                    <span className="text-xs font-medium text-destructive">
+                      Error al sincronizar preferencias
+                    </span>
+                  )}
+                </div>
               </div>
             </form>
           )}
