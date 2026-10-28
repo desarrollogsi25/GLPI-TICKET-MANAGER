@@ -274,14 +274,26 @@ jobs:
           echo "Claim OK (200)"
           
           echo "===== PATCH /api/tickets/11/status ====="
-          STATUS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X PATCH http://localhost:8080/api/tickets/11/status \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"status":3}')
+          # GLPI can briefly serve HTML (instead of the JSON API) right after the
+          # container restart while PHP-FPM warms up; the API surfaces that as a 500.
+          # Retry a few times so a transient GLPI startup race doesn't fail the job.
+          STATUS_HTTP=000
+          for attempt in 1 2 3 4 5; do
+            STATUS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X PATCH http://localhost:8080/api/tickets/11/status \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{"status":3}')
+            if [ "$STATUS_HTTP" = "204" ]; then
+              break
+            fi
+            echo "Status update returned $STATUS_HTTP (attempt $attempt/5), retrying in 5s..."
+            sleep 5
+          done
           if [ "$STATUS_HTTP" != "204" ]; then
             echo "ERROR: status update returned $STATUS_HTTP (expected 204)"
             docker compose logs api --tail=50
+            docker compose logs glpi --tail=50
             exit 1
           fi
           echo "Status update OK (204)"
