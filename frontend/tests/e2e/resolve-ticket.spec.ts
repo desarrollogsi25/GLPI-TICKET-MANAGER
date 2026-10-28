@@ -89,7 +89,12 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
   await expect(textarea).toBeVisible({ timeout: 10000 })
 
   const confirmButton = dialog.getByRole('button', { name: /^Resolver$/ }).last()
-  await expect(confirmButton).toBeDisabled()
+  await expect(confirmButton).toBeEnabled()
+  await textarea.focus()
+  await textarea.blur()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await confirmButton.click()
+  await expect(dialog.getByRole('alert')).toContainText('La solución no puede estar vacía.')
 
   await textarea.fill('Solucion de prueba (auditoria QA Playwright)')
   await expect(confirmButton).toBeEnabled()

@@ -11,6 +11,7 @@ export function PageTransition({ children }: { children: ReactNode }) {
   return (
     <motion.div
       key={location.pathname}
+      tabIndex={isKanban ? undefined : 0}
       initial={prefersReduced ? undefined : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={

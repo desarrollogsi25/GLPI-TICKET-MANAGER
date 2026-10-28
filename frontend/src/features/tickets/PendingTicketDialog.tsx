@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
+import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -32,23 +33,20 @@ export function PendingTicketDialog({
   open: boolean
   onOpenChange: (value: boolean) => void
 }) {
-  const [reasonId, setReasonId] = useState<number | ''>('')
-  const [comment, setComment] = useState('')
-  const [touched, setTouched] = useState(false)
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<{ reasonId: string; comment: string }>({
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
+    defaultValues: { reasonId: '', comment: '' },
+  })
   const putPending = usePutPendingMutation()
   const pushToast = useToastStore((state) => state.push)
 
-  const pending = putPending.isPending
-  const trimmed = comment.trim()
-  const hasReasonError = touched && reasonId === ''
-  const hasCommentError = touched && trimmed.length === 0
-  const disabled = reasonId === '' || trimmed.length === 0 || pending
+  const pending = putPending.isPending || isSubmitting
+  const hasReasonError = Boolean(errors.reasonId)
+  const hasCommentError = Boolean(errors.comment)
 
-  const submit = async () => {
-    if (disabled) {
-      setTouched(true)
-      return
-    }
+  const submit = async ({ reasonId, comment }: { reasonId: string; comment: string }) => {
+    const trimmed = comment.trim()
     try {
       await putPending.mutateAsync({ ticketId, reasonId: Number(reasonId), comment: trimmed })
       pushToast({
@@ -56,9 +54,7 @@ export function PendingTicketDialog({
         description: `El ticket #${ticketId} pasó a Pendiente`,
         variant: 'success',
       })
-      setReasonId('')
-      setComment('')
-      setTouched(false)
+      reset()
       onOpenChange(false)
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status
@@ -86,83 +82,78 @@ export function PendingTicketDialog({
 
   const handleClose = useCallback(() => {
     if (!pending) {
-      setReasonId('')
-      setComment('')
-      setTouched(false)
+      reset()
       onOpenChange(false)
     }
-  }, [pending, onOpenChange])
+  }, [pending, onOpenChange, reset])
 
   return (
     <Dialog
+      className="rounded-2xl bg-card"
       open={open}
       onClose={handleClose}
       title={`Poner en pendiente ticket #${ticketId}`}
       description="Seleccioná el motivo y agregá un comentario explicativo. El ticket pasará a estado Pendiente."
     >
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="pending-reason">Motivo</Label>
-          <Select
-            id="pending-reason"
-            value={reasonId === '' ? '' : String(reasonId)}
-            onChange={(e) => setReasonId(e.target.value === '' ? '' : Number(e.target.value))}
-            onBlur={() => setTouched(true)}
-            aria-invalid={hasReasonError}
-            data-testid="pending-reason-select"
+      <form onSubmit={handleSubmit(submit)} noValidate>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="pending-reason">Motivo</Label>
+            <Select
+              id="pending-reason"
+              {...register('reasonId', { required: 'El motivo es obligatorio.' })}
+              className="rounded-xl bg-background/50"
+              aria-invalid={hasReasonError}
+              aria-describedby={hasReasonError ? 'pending-reason-error' : undefined}
+              data-testid="pending-reason-select"
+            >
+              <option value="">Seleccioná un motivo…</option>
+              {MOCK_PENDING_REASONS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+            {hasReasonError ? (
+              <p id="pending-reason-error" role="alert" className="text-xs text-destructive">
+                El motivo es obligatorio.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="pending-comment">Comentario</Label>
+            <Textarea
+              id="pending-comment"
+              {...register('comment', { validate: (value) => value.trim().length > 0 || 'El comentario no puede estar vacío.' })}
+              placeholder="Explicá por qué el ticket queda en pendiente..."
+              className={cn('min-h-[100px] rounded-xl bg-background/50', hasCommentError && 'border-destructive focus-visible:ring-destructive')}
+              aria-invalid={hasCommentError}
+              aria-describedby={hasCommentError ? 'pending-comment-error' : undefined}
+              data-testid="pending-comment-textarea"
+            />
+            {hasCommentError ? (
+              <p id="pending-comment-error" role="alert" className="text-xs text-destructive">
+                El comentario no puede estar vacío.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={handleClose}
+            disabled={pending}
           >
-            <option value="">Seleccioná un motivo…</option>
-            {MOCK_PENDING_REASONS.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </Select>
-          {hasReasonError ? (
-            <p role="alert" className="text-xs text-destructive">
-              El motivo es obligatorio.
-            </p>
-          ) : null}
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={pending} data-testid="pending-confirm-btn">
+            {pending ? 'Guardando...' : 'Confirmar'}
+          </Button>
         </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pending-comment">Comentario</Label>
-          <Textarea
-            id="pending-comment"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            onBlur={() => setTouched(true)}
-            placeholder="Explicá por qué el ticket queda en pendiente..."
-            className={cn('min-h-[100px]', hasCommentError && 'border-destructive focus-visible:ring-destructive')}
-            aria-invalid={hasCommentError}
-            aria-describedby={hasCommentError ? 'pending-comment-error' : undefined}
-            data-testid="pending-comment-textarea"
-          />
-          {hasCommentError ? (
-            <p id="pending-comment-error" role="alert" className="text-xs text-destructive">
-              El comentario no puede estar vacío.
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={() => {
-            setReasonId('')
-            setComment('')
-            setTouched(false)
-            onOpenChange(false)
-          }}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-        <Button onClick={() => void submit()} disabled={disabled} data-testid="pending-confirm-btn">
-          {pending ? 'Guardando...' : 'Confirmar'}
-        </Button>
-      </div>
+      </form>
     </Dialog>
   )
 }

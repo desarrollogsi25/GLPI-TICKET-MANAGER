@@ -1,0 +1,138 @@
+<testsuites id="" name="" tests="40" failures="0" skipped="0" errors="0" time="352.64979999999997">
+<testsuite name="a11y.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="8" failures="0" skipped="0" time="56.146" errors="0">
+<testcase name="a11y: /kanban (light mode)" classname="a11y.spec.ts" time="6.435">
+</testcase>
+<testcase name="a11y: /tickets (light mode)" classname="a11y.spec.ts" time="6.153">
+</testcase>
+<testcase name="a11y: /tickets/11 (light mode)" classname="a11y.spec.ts" time="6.564">
+</testcase>
+<testcase name="a11y: /queue (light mode)" classname="a11y.spec.ts" time="5.595">
+</testcase>
+<testcase name="a11y: /services (light mode)" classname="a11y.spec.ts" time="6.472">
+</testcase>
+<testcase name="a11y: /dashboard (light mode)" classname="a11y.spec.ts" time="9.563">
+</testcase>
+<testcase name="a11y: /preferences (light mode)" classname="a11y.spec.ts" time="8.12">
+</testcase>
+<testcase name="a11y: /ayuda (light mode)" classname="a11y.spec.ts" time="7.244">
+</testcase>
+</testsuite>
+<testsuite name="agent-guide.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.213" errors="0">
+<testcase name="Ayuda muestra la guia del agente" classname="agent-guide.spec.ts" time="3.213">
+</testcase>
+</testsuite>
+<testsuite name="dark-mode.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="6.304" errors="0">
+<testcase name="dark mode toggle actually changes html class" classname="dark-mode.spec.ts" time="6.304">
+</testcase>
+</testsuite>
+<testsuite name="dashboard.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.192" errors="0">
+<testcase name="Dashboard arranca y permite ir a la cola del grupo" classname="dashboard.spec.ts" time="3.192">
+</testcase>
+</testsuite>
+<testsuite name="date-filter.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="4" failures="0" skipped="0" time="9.723" errors="0">
+<testcase name="ticket date filters › API: narrow historical range excludes every recent ticket" classname="date-filter.spec.ts" time="0.961">
+</testcase>
+<testcase name="ticket date filters › API: startDate after endDate is rejected with 400" classname="date-filter.spec.ts" time="0.838">
+</testcase>
+<testcase name="ticket date filters › UI: date inputs sync to the URL and Limpiar filtros resets them" classname="date-filter.spec.ts" time="5.004">
+</testcase>
+<testcase name="ticket date filters › UI: technician role does not render the technician dropdown" classname="date-filter.spec.ts" time="2.92">
+</testcase>
+</testsuite>
+<testsuite name="desktop-layout.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.706" errors="0">
+<testcase name="desktop: sidebar visible, mobile tabs hidden" classname="desktop-layout.spec.ts" time="3.706">
+</testcase>
+</testsuite>
+<testsuite name="full-user-journey.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="48.859" errors="0">
+<testcase name="journey real: solicitante, técnico, SignalR, filtros, administrador y permisos" classname="full-user-journey.spec.ts" time="48.859">
+</testcase>
+</testsuite>
+<testsuite name="kanban-flow.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="13.228" errors="0">
+<testcase name="kanban: 5 columns, valid drag flow, invalid drag blocked" classname="kanban-flow.spec.ts" time="13.228">
+</testcase>
+</testsuite>
+<testsuite name="kanban-mobile.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="6.664" errors="0">
+<testcase name="kanban mobile: segmented tabs + assign flow" classname="kanban-mobile.spec.ts" time="6.664">
+</testcase>
+</testsuite>
+<testsuite name="kanban-polling.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="24.13" errors="0">
+<testcase name="kanban: the group queue is not polled while the realtime connection is up" classname="kanban-polling.spec.ts" time="24.13">
+</testcase>
+</testsuite>
+<testsuite name="kanban-sorting.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.041" errors="0">
+<testcase name="kanban ordering › active columns are FIFO and Resuelto is LIFO, ignoring priority" classname="kanban-sorting.spec.ts" time="3.041">
+</testcase>
+</testsuite>
+<testsuite name="logout-ui.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="4.777" errors="0">
+<testcase name="logout UI: click button, redirects to login, token revoked" classname="logout-ui.spec.ts" time="4.777">
+</testcase>
+</testsuite>
+<testsuite name="logout.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="0.84" errors="0">
+<testcase name="logout: revokes token, subsequent calls return 401" classname="logout.spec.ts" time="0.84">
+</testcase>
+</testsuite>
+<testsuite name="mobile-nav.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.547" errors="0">
+<testcase name="mobile: bottom tab bar navigation works" classname="mobile-nav.spec.ts" time="3.547">
+</testcase>
+</testsuite>
+<testsuite name="multi-group.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="2" failures="0" skipped="0" time="6.013" errors="0">
+<testcase name="multi-group: tech1 can access Desarrollo group" classname="multi-group.spec.ts" time="3.035">
+</testcase>
+<testcase name="multi-group: tech1 can switch to Service Desk group" classname="multi-group.spec.ts" time="2.978">
+</testcase>
+</testsuite>
+<testsuite name="notification-bell.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.721" errors="0">
+<testcase name="notification bell: opens panel, shows notifications, mark as read" classname="notification-bell.spec.ts" time="3.721">
+</testcase>
+</testsuite>
+<testsuite name="pending-ticket.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="24.308" errors="0">
+<testcase name="flujo pendiente: asignar -&gt; pendiente (con comentario) -&gt; verificar historial -&gt; reanudar -&gt; resolver" classname="pending-ticket.spec.ts" time="24.308">
+</testcase>
+</testsuite>
+<testsuite name="preferences-ui.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="4.985" errors="0">
+<testcase name="preferences UI: toggle, save, reload persists" classname="preferences-ui.spec.ts" time="4.985">
+</testcase>
+</testsuite>
+<testsuite name="preferences.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="2.974" errors="0">
+<testcase name="preferences: GET default, PUT, GET persisted" classname="preferences.spec.ts" time="2.974">
+</testcase>
+</testsuite>
+<testsuite name="realtime-reopen.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="29.169" errors="0">
+<testcase name="flujo completo de reapertura: resolver -&gt; reabrir con motivo -&gt; verificar seguimiento privado -&gt; resolver nuevamente" classname="realtime-reopen.spec.ts" time="29.169">
+</testcase>
+</testsuite>
+<testsuite name="realtime.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="12.407" errors="0">
+<testcase name="realtime: connection indicator connects and maintains real-time link across contexts" classname="realtime.spec.ts" time="12.407">
+</testcase>
+</testsuite>
+<testsuite name="resolve-short-solution.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="2" failures="0" skipped="0" time="14.927" errors="0">
+<testcase name="API: una solucion corta (&quot;OK&quot;) permite marcar el ticket como resuelto" classname="resolve-short-solution.spec.ts" time="3.713">
+</testcase>
+<testcase name="UI: resolver con la solucion corta &quot;OK&quot; deja el ticket en Resuelto" classname="resolve-short-solution.spec.ts" time="11.214">
+</testcase>
+</testsuite>
+<testsuite name="resolve-ticket.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="15.957" errors="0">
+<testcase name="resolver ticket: el modal se cierra y el ticket pasa a Resuelto" classname="resolve-ticket.spec.ts" time="15.957">
+</testcase>
+</testsuite>
+<testsuite name="self-assign-flow.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="15.413" errors="0">
+<testcase name="flujo completo: cola -&gt; asignarme -&gt; resolver con solucion" classname="self-assign-flow.spec.ts" time="15.413">
+</testcase>
+</testsuite>
+<testsuite name="service-filter.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="4.957" errors="0">
+<testcase name="service filter: click service, tickets list filtered" classname="service-filter.spec.ts" time="4.957">
+</testcase>
+</testsuite>
+<testsuite name="services.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.951" errors="0">
+<testcase name="services: shows hierarchical catalog" classname="services.spec.ts" time="3.951">
+</testcase>
+</testsuite>
+<testsuite name="tickets-filters-mobile.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="4.011" errors="0">
+<testcase name="tickets filters mobile: open, apply, update list, escape close" classname="tickets-filters-mobile.spec.ts" time="4.011">
+</testcase>
+</testsuite>
+<testsuite name="tickets-mobile.spec.ts" timestamp="2026-10-28T18:19:30.338Z" hostname="chromium" tests="1" failures="0" skipped="0" time="3.444" errors="0">
+<testcase name="tickets mobile: cards render and are tappable" classname="tickets-mobile.spec.ts" time="3.444">
+</testcase>
+</testsuite>
+</testsuites>

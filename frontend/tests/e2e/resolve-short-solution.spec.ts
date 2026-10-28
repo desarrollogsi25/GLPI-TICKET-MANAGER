@@ -123,7 +123,19 @@ test('UI: resolver con la solucion corta "OK" deja el ticket en Resuelto', async
   await expect(textarea).toBeVisible({ timeout: 10000 })
 
   const confirmButton = dialog.getByRole('button', { name: /^Resolver$/ }).last()
-  await expect(confirmButton).toBeDisabled()
+  await textarea.focus()
+  await confirmButton.focus()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+  let resolveRequests = 0
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes(`/api/tickets/${UI_TICKET_ID}/resolve`)) {
+      resolveRequests += 1
+    }
+  })
+  await confirmButton.click()
+  await expect(dialog.getByRole('alert')).toContainText('La solución no puede estar vacía.')
+  expect(resolveRequests).toBe(0)
 
   await textarea.fill('OK')
   await expect(confirmButton).toBeEnabled()

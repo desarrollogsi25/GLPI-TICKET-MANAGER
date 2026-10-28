@@ -86,10 +86,28 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
   await expect(textarea).toBeVisible({ timeout: 10000 })
 
   const confirmButton = dialog.getByRole('button', { name: /Confirmar/i }).first()
-  await expect(confirmButton).toBeDisabled()
+  await reasonSelect.focus()
+  await textarea.focus()
+  await confirmButton.focus()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+  let pendingRequests = 0
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes(`/api/tickets/${TICKET_ID}/pending`)) {
+      pendingRequests += 1
+    }
+  })
+  await confirmButton.click()
+  await expect(dialog.getByRole('alert')).toContainText([
+    'El motivo es obligatorio.',
+    'El comentario no puede estar vacío.',
+  ])
+  expect(pendingRequests).toBe(0)
 
   await reasonSelect.selectOption({ index: 1 }) // "Esperando respuesta del usuario" o "repuesto"
-  await expect(confirmButton).toBeDisabled() // sin comentario debe seguir deshabilitado
+  await confirmButton.click()
+  await expect(dialog.getByRole('alert')).toContainText(['El comentario no puede estar vacío.'])
+  expect(pendingRequests).toBe(0)
 
   const pendingComment = 'Ticket en pendiente: esperando repuesto #ABC-123'
   await textarea.fill(pendingComment)
@@ -151,7 +169,11 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
   await expect(resolveTextarea).toBeVisible({ timeout: 10000 })
 
   const resolveConfirmButton = resolveDialog.getByRole('button', { name: /^Resolver$/ }).last()
-  await expect(resolveConfirmButton).toBeDisabled()
+  await resolveTextarea.focus()
+  await resolveConfirmButton.focus()
+  await expect(resolveDialog.getByRole('alert')).toHaveCount(0)
+  await resolveConfirmButton.click()
+  await expect(resolveDialog.getByRole('alert')).toContainText('La solución no puede estar vacía.')
 
   await resolveTextarea.fill('Solución aplicada exitosamente tras ciclo de pendiente (E2E)')
   await expect(resolveConfirmButton).toBeEnabled()

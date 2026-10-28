@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useResolveTicketMutation } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
@@ -18,8 +20,12 @@ export function ResolveTicketDialog({
   open: boolean
   onOpenChange: (value: boolean) => void
 }) {
-  const [content, setContent] = useState('')
-  const [touched, setTouched] = useState(false)
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<{ content: string }>({
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
+    defaultValues: { content: '' },
+  })
+  const content = watch('content')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
   const resolveTicket = useResolveTicketMutation()
@@ -37,8 +43,7 @@ export function ResolveTicketDialog({
   const trimmed = content.trim()
   const pending = resolveTicket.isPending || isSubmitting
   // Short solutions are valid ("OK", "Listo"); only an empty one blocks the ticket.
-  const hasError = touched && trimmed.length === 0
-  const disabled = trimmed.length === 0 || pending
+  const hasError = Boolean(errors.content)
 
   /**
    * Closes the dialog unconditionally (never gated on `pending`). Used after a
@@ -46,8 +51,7 @@ export function ResolveTicketDialog({
    * may have moved to the auto-closed "Resuelto" state underneath.
    */
   const closeDialog = () => {
-    setContent('')
-    setTouched(false)
+    reset()
     onOpenChange(false)
   }
 
@@ -63,7 +67,6 @@ export function ResolveTicketDialog({
    */
   const submit = async () => {
     if (submittingRef.current || trimmed.length === 0) {
-      setTouched(true)
       return
     }
 
@@ -100,6 +103,7 @@ export function ResolveTicketDialog({
 
   return (
     <Dialog
+      className="rounded-2xl bg-card"
       open={open}
       onClose={() => {
         // Backdrop / Escape: keep the dialog open while the resolve is in flight so the
@@ -111,42 +115,45 @@ export function ResolveTicketDialog({
       title={`Resolver ticket #${ticketId}`}
       description="Escribí la solución. Puede ser breve (por ejemplo «OK»), pero no puede quedar vacía: sin solución el ticket no puede marcarse como resuelto."
     >
-      <div className="space-y-1.5">
-        <Textarea
-          value={content}
-          maxLength={2000}
-          onChange={(e) => setContent(e.target.value)}
-          onBlur={() => setTouched(true)}
-          placeholder="Describí la solución aplicada..."
-          className={cn('min-h-[120px]', hasError && 'border-destructive focus-visible:ring-destructive')}
-          aria-invalid={hasError}
-          aria-describedby={hasError ? 'solution-error' : undefined}
-        />
-        <div className="flex items-center justify-between text-xs">
-          {hasError ? (
-            <p id="solution-error" role="alert" className="text-destructive">
-              La solución no puede estar vacía.
-            </p>
-          ) : (
-            <span />
-          )}
-          <span className="text-muted-foreground ml-auto">
-            {content.length} / 2000
-          </span>
+      <form onSubmit={handleSubmit(submit)} noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor="resolve-solution">Solución</Label>
+          <Textarea
+            id="resolve-solution"
+            maxLength={2000}
+            {...register('content', { validate: (value) => value.trim().length > 0 || 'La solución no puede estar vacía.' })}
+            placeholder="Describí la solución aplicada..."
+            className={cn('min-h-[120px] rounded-xl bg-background/50', hasError && 'border-destructive focus-visible:ring-destructive')}
+            aria-invalid={hasError}
+            aria-describedby={hasError ? 'solution-error' : undefined}
+          />
+          <div className="flex items-center justify-between text-xs">
+            {hasError ? (
+              <p id="solution-error" role="alert" className="text-destructive">
+                La solución no puede estar vacía.
+              </p>
+            ) : (
+              <span />
+            )}
+            <span className="text-muted-foreground ml-auto">
+              {content.length} / 2000
+            </span>
+          </div>
         </div>
-      </div>
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={closeDialog}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-        <Button onClick={() => void submit()} disabled={disabled}>
-          {pending ? 'Guardando...' : 'Resolver'}
-        </Button>
-      </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={closeDialog}
+            disabled={pending}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={pending}>
+            {pending ? 'Guardando...' : 'Resolver'}
+          </Button>
+        </div>
+      </form>
     </Dialog>
   )
 }
