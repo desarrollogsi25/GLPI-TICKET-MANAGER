@@ -319,6 +319,10 @@ export function TeamDashboard() {
                     const initial = m.name.charAt(0).toUpperCase()
                     const stalled = isTechStalled(m.userId)
                     const highPending = pendingCount > 3
+                    const isSelected = techFilter === String(m.userId)
+                    const handleToggleFilter = () => {
+                      setTechFilter((prev) => (prev === String(m.userId) ? 'all' : String(m.userId)))
+                    }
 
                     return (
                       <div
@@ -326,11 +330,13 @@ export function TeamDashboard() {
                         data-testid={`tech-mobile-card-${m.name}`}
                         className={cn(
                           'rounded-xl border p-3.5 space-y-2.5 transition-colors duration-150',
-                          stalled
-                            ? 'border-red-500/50 bg-red-50/30 dark:bg-red-950/20'
-                            : highPending
-                              ? 'border-amber-500/50 bg-amber-50/30 dark:bg-amber-950/20'
-                              : 'border-border/70 bg-muted/20',
+                          isSelected
+                            ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/30'
+                            : stalled
+                              ? 'border-red-500/50 bg-red-50/30 dark:bg-red-950/20'
+                              : highPending
+                                ? 'border-amber-500/50 bg-amber-50/30 dark:bg-amber-950/20'
+                                : 'border-border/70 bg-muted/20',
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -339,9 +345,18 @@ export function TeamDashboard() {
                               {initial}
                             </div>
                             <div className="min-w-0">
-                              <span className="font-semibold text-sm text-foreground truncate block">
-                                {m.name}
-                              </span>
+                              <button
+                                type="button"
+                                onClick={handleToggleFilter}
+                                className={cn(
+                                  'text-left font-semibold text-sm transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer hover:underline',
+                                  isSelected ? 'text-primary font-bold' : 'text-foreground hover:text-primary',
+                                )}
+                                title={isSelected ? 'Quitar filtro de técnico' : `Filtrar tickets de ${m.name}`}
+                              >
+                                <span className="truncate">{m.name}</span>
+                                {isSelected && <Filter className="size-3 text-primary shrink-0" aria-label="Filtro activo" />}
+                              </button>
                               <span className="text-[11px] text-muted-foreground block truncate">
                                 {m.lastActivity ? `Activo: ${formatRelative(m.lastActivity)}` : 'Sin actividad reciente'}
                               </span>
@@ -419,17 +434,23 @@ export function TeamDashboard() {
                         const initial = m.name.charAt(0).toUpperCase()
                         const stalled = isTechStalled(m.userId)
                         const highPending = pendingCount > 3
+                        const isSelected = techFilter === String(m.userId)
+                        const handleToggleFilter = () => {
+                          setTechFilter((prev) => (prev === String(m.userId) ? 'all' : String(m.userId)))
+                        }
 
                         return (
                           <tr
                             key={techId}
                             className={cn(
-                              'transition-colors duration-150 hover:bg-muted/40',
-                              stalled
-                                ? 'bg-red-50/30 dark:bg-red-950/20 border-l-4 border-l-red-500'
-                                : highPending
-                                  ? 'bg-amber-50/30 dark:bg-amber-950/20 border-l-4 border-l-amber-500'
-                                  : '',
+                              'transition-colors duration-150',
+                              isSelected
+                                ? 'bg-primary/10 border-l-4 border-l-primary hover:bg-primary/15'
+                                : stalled
+                                  ? 'bg-red-50/30 dark:bg-red-950/20 border-l-4 border-l-red-500 hover:bg-red-50/50 dark:hover:bg-red-950/30'
+                                  : highPending
+                                    ? 'bg-amber-50/30 dark:bg-amber-950/20 border-l-4 border-l-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-950/30'
+                                    : 'hover:bg-muted/40',
                             )}
                             data-testid={`tech-row-${m.name}`}
                           >
@@ -439,10 +460,22 @@ export function TeamDashboard() {
                                   {initial}
                                 </div>
                                 <div>
-                                  <span className="text-foreground font-semibold block">{m.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={handleToggleFilter}
+                                    className={cn(
+                                      'text-left font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors duration-150 hover:underline',
+                                      isSelected ? 'text-primary font-bold' : 'text-foreground hover:text-primary',
+                                    )}
+                                    title={isSelected ? 'Quitar filtro de técnico' : `Filtrar tickets de ${m.name}`}
+                                    data-testid={`filter-tech-${m.userId}`}
+                                  >
+                                    <span>{m.name}</span>
+                                    {isSelected && <Filter className="size-3.5 text-primary shrink-0" aria-label="Filtro activo" />}
+                                  </button>
                                   {/* Subtítulo o badge para alertas */}
                                   {stalled && (
-                                    <span className="text-[11px] font-medium text-red-600 dark:text-red-400">
+                                    <span className="text-[11px] font-medium text-red-600 dark:text-red-400 block">
                                       Tickets estancados (&gt;24h)
                                     </span>
                                   )}

@@ -283,7 +283,7 @@ export function AppSidebar({
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-5">
         <div>
           {!collapsed && (
-            <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
+            <p className="px-3 pb-1.5 text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
               Operación
             </p>
           )}
@@ -292,7 +292,7 @@ export function AppSidebar({
 
         <div className="border-t border-border/60 pt-3">
           {!collapsed && (
-            <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
+            <p className="px-3 pb-1.5 text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
               Gestión y Ajustes
             </p>
           )}
