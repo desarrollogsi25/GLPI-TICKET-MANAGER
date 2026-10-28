@@ -200,6 +200,13 @@
     font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
     font-optical-sizing: auto;
   }
+
+  /* Prevenir zoom no deseado en iOS Safari al enfocar inputs */
+  @media screen and (max-width: 768px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
 }
 
 @layer components {

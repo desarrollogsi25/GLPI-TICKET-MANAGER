@@ -144,10 +144,32 @@ export function NotificationBell({
   })
 
   const requestNotificationPermission = async () => {
+    // 1. Detección de iOS PWA standalone (Apple exige instalar en Inicio para Web Push desde iOS 16.4+)
+    const isIos =
+      typeof navigator !== 'undefined' &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+    const isStandalone =
+      typeof window !== 'undefined' &&
+      ((window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches)
+
+    if (isIos && !isStandalone) {
+      pushToast({
+        title: 'Instalación requerida en iOS',
+        description:
+          "Para recibir notificaciones en tu iPhone, primero debes instalar la app. Toca el botón Compartir y selecciona 'Agregar a pantalla de inicio'.",
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // 2. Soporte de Notification y PushManager
     if (typeof window === 'undefined' || !('Notification' in window)) {
       pushToast({
         title: 'No soportado',
-        description: 'Tu navegador no soporta notificaciones de escritorio.',
+        description:
+          'Tu navegador o entorno actual no soporta notificaciones nativas de escritorio/móvil.',
         variant: 'destructive',
       })
       return
@@ -156,7 +178,8 @@ export function NotificationBell({
     if (Notification.permission === 'denied') {
       pushToast({
         title: 'Permiso denegado',
-        description: 'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
+        description:
+          'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
         variant: 'destructive',
       })
       return
@@ -185,7 +208,8 @@ export function NotificationBell({
       } else if (permission === 'denied') {
         pushToast({
           title: 'Permiso denegado',
-          description: 'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
+          description:
+            'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
           variant: 'destructive',
         })
       }
