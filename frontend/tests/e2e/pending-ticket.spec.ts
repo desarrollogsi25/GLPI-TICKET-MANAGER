@@ -59,6 +59,7 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
       .locator('xpath=ancestor::div[.//button][1]')
     const startButton = mineCard.getByRole('button', { name: /Iniciar|En progreso|Empezar/i }).first()
     await expect(startButton).toBeVisible({ timeout: 10000 })
+    await mineCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
     await startButton.click()
 
     await expect(inProgressColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({
@@ -125,6 +126,7 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
     .locator('xpath=ancestor::div[.//button][1]')
   const resumeButton = pendingCard.getByRole('button', { name: /Retomar|En progreso|Iniciar/i }).first()
   await expect(resumeButton).toBeVisible({ timeout: 10000 })
+  await pendingCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await resumeButton.click()
 
   // 11. El ticket vuelve a "En progreso"
@@ -139,6 +141,7 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
     .locator('xpath=ancestor::div[.//button][1]')
   const resolveButton = resumedCard.getByRole('button', { name: /^Resolver$/ }).first()
   await expect(resolveButton).toBeVisible({ timeout: 10000 })
+  await resumedCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await resolveButton.click()
 
   const resolveDialog = page.getByRole('dialog')

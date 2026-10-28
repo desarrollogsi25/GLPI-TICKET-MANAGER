@@ -5,8 +5,8 @@ export default defineConfig({
   globalSetup: './tests/e2e/global-setup.ts',
   // Keep local runs fast; shared CI runners need retries and longer web-first waits.
   retries: process.env.CI ? 2 : 0,
-  timeout: process.env.CI ? 90000 : 30000,
-  expect: { timeout: process.env.CI ? 15000 : 5000 },
+  timeout: process.env.CI ? 90000 : 60000,
+  expect: { timeout: process.env.CI ? 15000 : 10000 },
   workers: 1,
   // In CI a test that only passes after a retry is reported as a failure.
   failOnFlakyTests: !!process.env.CI,

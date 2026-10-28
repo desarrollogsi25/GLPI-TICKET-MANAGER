@@ -27,6 +27,8 @@ login_body.json
 body.json
 test-output.txt
 *-output.txt
+test-results/
+playwright-report/
 
 
 # Node

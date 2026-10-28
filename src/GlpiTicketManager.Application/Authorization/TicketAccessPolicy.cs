@@ -60,6 +60,9 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
         if (role == AppRole.Supervisor)
         {
+            if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+                return true;
+
             // Supervisor ve todo lo de sus grupos
             var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
@@ -114,6 +117,9 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
         if (role == AppRole.Supervisor)
         {
+            if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+                return StatusTransitionDecision.Allow();
+
             var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
             return userGroups.Intersect(ticketGroups).Any()
@@ -196,9 +202,14 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
     {
         if (role == AppRole.Admin) return true;
 
-        var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
-        var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
-        return userGroups.Intersect(ticketGroups).Any();
+        if (role == AppRole.Supervisor || role == AppRole.Technician)
+        {
+            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return userGroups.Intersect(ticketGroups).Any();
+        }
+
+        return false;
     }
 
     public async Task<bool> CanAddSolutionAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default)
@@ -207,6 +218,9 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
         if (role == AppRole.Supervisor)
         {
+            if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+                return true;
+
             var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
             return userGroups.Intersect(ticketGroups).Any();
@@ -237,6 +251,9 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
         if (role == AppRole.Supervisor)
         {
+            if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+                return true;
+
             var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
             return userGroups.Intersect(ticketGroups).Any();
@@ -264,6 +281,9 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
         if (role == AppRole.Supervisor)
         {
+            if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+                return true;
+
             var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
             var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
             return userGroups.Intersect(ticketGroups).Any();

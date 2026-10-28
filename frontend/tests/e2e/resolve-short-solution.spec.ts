@@ -101,6 +101,7 @@ test('UI: resolver con la solucion corta "OK" deja el ticket en Resuelto', async
     .locator('xpath=ancestor::div[.//button][1]')
   const startButton = mineCard.getByRole('button', { name: /Iniciar/i }).first()
   await expect(startButton).toBeVisible({ timeout: 10000 })
+  await mineCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await startButton.click()
 
   const inProgressColumn = page.locator('[data-column-id="in_progress"]')
@@ -113,6 +114,7 @@ test('UI: resolver con la solucion corta "OK" deja el ticket en Resuelto', async
     .locator('xpath=ancestor::div[.//button][1]')
   const resolveButton = progressCard.getByRole('button', { name: /^Resolver$/ }).first()
   await expect(resolveButton).toBeVisible({ timeout: 10000 })
+  await progressCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await resolveButton.click()
 
   const dialog = page.getByRole('dialog')

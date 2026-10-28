@@ -9,29 +9,41 @@ import './index.css'
 import { getApiErrorStatus } from '@/lib/api/errors'
 
 /**
- * BUG-032 / H-32: a rate-limited request must NOT be retried.
+ * BUG-032 / H-32 / H-59: a rate-limited request must NOT be retried.
  *
- * The default `retry: 1` fired an immediate second request one second after every
- * 429, which doubled the pressure on the very bucket that had just rejected us and
- * turned a rejection into a loop. Client errors (4xx) are deterministic too: the same
- * request would fail the same way, so only network errors and 5xx are worth one
- * more attempt.
+ * Zero retries on 429 or client 4xx errors to eliminate retry storms.
+ * For transient network/5xx errors, allow exponential backoff retries up to 2 attempts.
  */
 function shouldRetry(failureCount: number, error: unknown): boolean {
-  const status = getApiErrorStatus(error)
+  const status =
+    (error as { response?: { status?: number }; status?: number })?.response?.status ??
+    (error as { response?: { status?: number }; status?: number })?.status ??
+    getApiErrorStatus(error)
 
   if (status === 429) return false
   if (status != null && status >= 400 && status < 500) return false
 
-  return failureCount < 1
+  return failureCount < 2
 }
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
+      // H-62: Optimización de rendimiento evitando refetches excesivos
+      staleTime: 5 * 60 * 1000,
       retry: shouldRetry,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: (_failureCount, error) => {
+        const status =
+          (error as { response?: { status?: number }; status?: number })?.response?.status ??
+          (error as { response?: { status?: number }; status?: number })?.status ??
+          getApiErrorStatus(error)
+        if (status === 429) return false
+        return false
+      },
     },
   },
 })

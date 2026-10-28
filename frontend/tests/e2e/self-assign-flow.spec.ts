@@ -21,6 +21,13 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
   await page.goto('http://localhost:5173/tickets/57')
   await page.waitForLoadState('networkidle')
 
+  // H-62: Un ticket en Asignado (2) debe iniciarse (En Progreso) antes de resolverse
+  const startButton = page.getByRole('button', { name: /Iniciar ticket|Planificado/i }).first()
+  if (await startButton.isVisible()) {
+    await startButton.click()
+    await expect(page.getByText('Estado actualizado')).toBeVisible({ timeout: 10000 })
+  }
+
   const resolveButton = page.getByRole('button', { name: /^Resolver$/ }).first()
   await expect(resolveButton).toBeVisible({ timeout: 10000 })
   await resolveButton.click()

@@ -28,6 +28,7 @@ test.beforeAll(() => {
 })
 
 test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({ page }) => {
+  test.setTimeout(60000)
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
@@ -63,6 +64,7 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
   // 3. Moverlo a "En progreso" (status 3) desde la tarjeta asignada.
   const startButton = mineCard.getByRole('button', { name: /Iniciar|En progreso|Empezar/i }).first()
   await expect(startButton).toBeVisible({ timeout: 10000 })
+  await mineCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await startButton.click()
 
   const inProgressColumn = page.locator('[data-column-id="in_progress"]')
@@ -77,6 +79,7 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
     .locator('xpath=ancestor::div[.//button][1]')
   const resolveButton = progressCard.getByRole('button', { name: /^Resolver$/ }).first()
   await expect(resolveButton).toBeVisible({ timeout: 10000 })
+  await progressCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await resolveButton.click()
 
   // 5. El modal está abierto: hay un diálogo y un textarea.

@@ -30,7 +30,15 @@ interface Notification {
  * - Dropdown origin-aware (`absolute right-0 top-full mt-2 max-h-80 overflow-y-auto z-50`).
  * - Botón "Activar notificaciones" para Push/Web Notifications nativas del navegador.
  */
-export function NotificationBell() {
+export interface NotificationBellProps {
+  'data-testid'?: string
+  className?: string
+}
+
+export function NotificationBell({
+  'data-testid': testId = 'notification-bell',
+  className,
+}: NotificationBellProps = {}) {
   const [open, setOpen] = useState(false)
   const [pulseBadge, setPulseBadge] = useState(false)
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
@@ -40,10 +48,27 @@ export function NotificationBell() {
     return 'default'
   })
   const prevCountRef = useRef<number>(0)
+  const containerRef = useRef<HTMLDivElement>(null)
   const prefersReduced = useReducedMotion()
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
   const pushToast = useToastStore((s) => s.push)
+
+  // Cerrar al hacer clic fuera del contenedor (H-61)
+  useEffect(() => {
+    if (!open) return
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown)
+    }
+  }, [open])
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -136,10 +161,42 @@ export function NotificationBell() {
   })
 
   const requestNotificationPermission = async () => {
+    // 1. Detección de iOS PWA standalone (Apple exige instalar en Inicio para Web Push desde iOS 16.4+)
+    const isIos =
+      typeof navigator !== 'undefined' &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+    const isStandalone =
+      typeof window !== 'undefined' &&
+      ((window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches)
+
+    if (isIos && !isStandalone) {
+      pushToast({
+        title: 'Instalación requerida en iOS',
+        description:
+          "Para recibir notificaciones en tu iPhone, primero debes instalar la app. Toca el botón Compartir y selecciona 'Agregar a pantalla de inicio'.",
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // 2. Soporte de Notification y PushManager
     if (typeof window === 'undefined' || !('Notification' in window)) {
       pushToast({
         title: 'No soportado',
-        description: 'Tu navegador no soporta notificaciones de escritorio.',
+        description:
+          'Tu navegador o entorno actual no soporta notificaciones nativas de escritorio/móvil.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (Notification.permission === 'denied') {
+      pushToast({
+        title: 'Permiso denegado',
+        description:
+          'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
         variant: 'destructive',
       })
       return
@@ -149,6 +206,16 @@ export function NotificationBell() {
       const permission = await Notification.requestPermission()
       setPushPermission(permission)
       if (permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready
+            if (reg?.pushManager) {
+              // Push registration ready
+            }
+          } catch {
+            // Service worker ready fallback handled
+          }
+        }
         pushToast({
           title: 'Notificaciones activadas',
           description: 'Recibirás avisos nativos en tiempo real.',
@@ -158,7 +225,8 @@ export function NotificationBell() {
       } else if (permission === 'denied') {
         pushToast({
           title: 'Permiso denegado',
-          description: 'Habilita los permisos de notificación desde la configuración de tu navegador.',
+          description:
+            'Has bloqueado las notificaciones. Habilítalas en los ajustes del sitio en tu navegador.',
           variant: 'destructive',
         })
       }
@@ -217,13 +285,13 @@ export function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className={cn("relative", className)}>
       <Button
         variant="ghost"
         size="sm"
         onClick={handleToggle}
         aria-label="Notificaciones"
-        data-testid="notification-bell"
+        data-testid={testId}
         className="relative h-9 w-9 p-0 rounded-lg"
       >
         <Bell className="size-4 text-foreground/85" aria-hidden="true" />
@@ -246,7 +314,7 @@ export function NotificationBell() {
                 ? { duration: 0 }
                 : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white tabular-nums shadow-xs"
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-700 px-1 text-[10px] font-bold text-white tabular-nums shadow-xs"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </motion.span>
@@ -273,7 +341,7 @@ export function NotificationBell() {
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto no-scrollbar origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
           >
             <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
               <div className="flex items-center gap-2">

@@ -24,7 +24,7 @@ export function PageHeader({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1 min-w-0">
           {typeof title === 'string' ? (
-            <h1 className="text-[clamp(1.5rem,3.5vw,2rem)] font-bold tracking-tight text-foreground leading-tight">
+            <h1 className="text-[clamp(1.5rem,3.5vw,2rem)] font-serif-luxury font-bold tracking-tight text-foreground leading-tight">
               {title}
             </h1>
           ) : (

@@ -258,6 +258,13 @@ INSERT INTO glpi_useremails (users_id, is_default, is_dynamic, email) VALUES
   (17, 1, 0, 'user_test@example.test'),
   (18, 1, 0, 'solicitante_test@example.test');
 
+-- Limpiar tickets dinámicos creados por tests E2E anteriores (id >= 1000)
+DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id >= 1000;
+DELETE FROM glpi_itilfollowups WHERE itemtype = 'Ticket' AND items_id >= 1000;
+DELETE FROM glpi_tickets_users WHERE tickets_id >= 1000;
+DELETE FROM glpi_groups_tickets WHERE tickets_id >= 1000;
+DELETE FROM glpi_tickets WHERE id >= 1000;
+
 -- Tickets de cola: #11 (kanban-flow), #57 (self-assign), #61 (kanban-mobile),
 -- #70 (realtime-reopen), #901/#902/#903 (resolve / short-solution).
 INSERT INTO glpi_tickets

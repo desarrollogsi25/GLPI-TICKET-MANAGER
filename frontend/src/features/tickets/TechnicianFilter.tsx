@@ -1,5 +1,5 @@
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { DropdownSelect } from '@/components/ui/dropdown-select'
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
 import { useRole } from '@/hooks/useRole'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
@@ -41,23 +41,20 @@ export function TechnicianFilter() {
   return (
     <div className="space-y-1">
       <Label htmlFor="technician-filter">Técnico</Label>
-      <Select
+      <DropdownSelect
         id="technician-filter"
         className="w-44"
         value={selectedAssignee != null ? String(selectedAssignee) : ''}
-        onChange={(event) => {
-          const value = event.target.value
-          setSelectedAssigneeId(value === '' ? null : Number(value))
-        }}
-      >
-        <option value="">Selecciona un técnico</option>
-        {options.map((id) => (
-          <option key={id} value={id}>
-            Técnico #{id}
-            {id === currentUserId ? ' (yo)' : ''}
-          </option>
-        ))}
-      </Select>
+        onChange={(value) => setSelectedAssigneeId(value === '' ? null : Number(value))}
+        placeholder="Selecciona un técnico"
+        options={[
+          { value: '', label: 'Selecciona un técnico' },
+          ...options.map((id) => ({
+            value: String(id),
+            label: `Técnico #${id}${id === currentUserId ? ' (yo)' : ''}`,
+          })),
+        ]}
+      />
     </div>
   )
 }

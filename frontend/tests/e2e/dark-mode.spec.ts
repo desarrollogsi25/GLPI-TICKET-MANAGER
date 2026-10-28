@@ -4,14 +4,11 @@ test('dark mode toggle actually changes html class', async ({ page }) => {
   await page.goto('http://localhost:5173/preferences')
   await page.waitForLoadState('networkidle')
 
-  // Cambiar a dark
+  // Cambiar a dark (autoguardado con debounce H-61)
   const themeSelect = page.locator('select[name="theme"], input[name="theme"]').first()
   await themeSelect.selectOption('dark').catch(async () => {
     await themeSelect.check()
   })
-
-  const saveBtn = page.locator('button:has-text("Guardar"), button[type="submit"]').first()
-  await saveBtn.click()
   await page.waitForTimeout(800)
 
   // Verificar clase .dark en html
@@ -41,6 +38,5 @@ test('dark mode toggle actually changes html class', async ({ page }) => {
   await themeSelect.selectOption('light').catch(async () => {
     await themeSelect.check()
   })
-  await saveBtn.click()
-  await page.waitForTimeout(500)
+  await page.waitForTimeout(600)
 })

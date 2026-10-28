@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { ChevronRight, LogOut, Menu, Moon, Palette, Search, Sun } from 'lucide-react'
+import { ChevronRight, Moon, Palette, Search, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
+import { DropdownSelect, type DropdownOption } from '@/components/ui/dropdown-select'
+import { useCurrentUserQuery } from '@/hooks/useAuth'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -17,17 +18,15 @@ import { PageTransition } from './PageTransition'
 
 export type DarkPreset = 'midnight' | 'charcoal' | 'deep-blue'
 
-const ROUTE_LABELS: Record<string, string> = {
-  kanban: 'Kanban',
-  tickets: 'Tickets',
-  queue: 'Cola del Grupo',
-  services: 'Servicios',
-  equipo: 'Mi Equipo',
-  administracion: 'Administración',
-  dashboard: 'Dashboard',
-  preferences: 'Preferencias',
-  ayuda: 'Guía de Agente',
-}
+const presetDot = (color: string) => (
+  <span className="size-2.5 rounded-full shrink-0 border border-border/60" style={{ backgroundColor: color }} />
+)
+
+const PRESET_OPTIONS: DropdownOption[] = [
+  { value: 'midnight', label: 'Umber / Ámbar', icon: presetDot('#0F172A') },
+  { value: 'charcoal', label: 'Carbón', icon: presetDot('#1C1917') },
+  { value: 'deep-blue', label: 'Azul profundo', icon: presetDot('#0B1329') },
+]
 
 export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -52,8 +51,8 @@ export function AppLayout() {
   })
 
   const location = useLocation()
+  const pathSegments = location.pathname.split('/').filter(Boolean)
   const { connectionState } = useRealtimeTicketHub()
-  const logout = useLogout()
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
   const profile = currentUser ?? storedUser
@@ -101,10 +100,6 @@ export function AppLayout() {
     }
   }
 
-  const pathSegments = location.pathname.split('/').filter(Boolean)
-  const primarySegment = pathSegments[0] ?? 'kanban'
-  const currentRouteLabel = ROUTE_LABELS[primarySegment] ?? primarySegment
-
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {/* Skip to main content link for keyboard / screen-reader accessibility */}
@@ -122,83 +117,49 @@ export function AppLayout() {
         onToggleCollapse={handleToggleSidebar}
       />
 
-      {/* 2. Mobile Header (<md): Hamburger + User Name + Notification Bell + Theme + Logout */}
-      <header className="sticky top-0 z-30 flex md:hidden items-center justify-between border-b border-border bg-card/95 backdrop-blur-md px-3.5 py-2.5 pt-[env(safe-area-inset-top)]">
-        <div className="flex items-center gap-2 min-w-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsDrawerOpen(true)}
-            aria-label="Abrir menú"
-            data-testid="mobile-hamburger-btn"
-            className="flex h-10 w-10 items-center justify-center p-0 rounded-lg hover:bg-accent text-foreground cursor-pointer shrink-0"
-          >
-            <Menu className="size-5" aria-hidden="true" />
-          </Button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span
-                data-testid="mobile-header-username"
-                className="text-xs font-semibold text-foreground truncate max-w-[130px]"
-              >
-                {displayName}
-              </span>
-              <ConnectionIndicator state={connectionState} />
-            </div>
-            <p className="text-[10px] text-muted-foreground truncate">{currentRouteLabel}</p>
+      {/* 2. Mobile Header (<md): Logo + User Status + Search + Notification Bell */}
+      <header className="sticky top-0 z-30 flex md:hidden items-center justify-between border-b border-border/40 bg-card/85 backdrop-blur-xl px-4 py-2.5 pt-[env(safe-area-inset-top)] shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img src="/isotipo-gsi.png" alt="GSI Service Desk" width="32" height="32" className="size-8 shrink-0 rounded-lg bg-white p-0.5 shadow-xs ring-1 ring-black/5" />
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              data-testid="mobile-header-username"
+              className="text-xs font-semibold text-foreground truncate max-w-[140px]"
+            >
+              {displayName}
+            </span>
+            <ConnectionIndicator state={connectionState} />
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsCommandOpen(true)}
             aria-label="Buscar comando"
             data-testid="mobile-search-btn"
-            className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+            className="size-8 p-0 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60"
           >
             <Search className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleTheme}
-            aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-            data-testid="theme-toggle-mobile"
-            className="h-9 w-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-          >
-            {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
-          </Button>
-          <NotificationBell />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={logout}
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
-            data-testid="logout-btn"
-            className="flex items-center gap-1 h-9 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="size-3.5" aria-hidden="true" />
-            <span className="sr-only">Cerrar sesión</span>
-          </Button>
+          <NotificationBell data-testid="notification-bell-mobile" />
         </div>
       </header>
 
       {/* 3. Desktop Top Header + Main Content Area */}
       <div
         className={cn(
-          'min-h-screen flex flex-col transition-all duration-200 ease-out',
+          'min-h-screen md:h-screen flex flex-col transition-[margin-left] duration-300 ease-in-out md:overflow-hidden',
           isSidebarCollapsed ? 'md:ml-16' : 'md:ml-56',
         )}
       >
-        {/* Global Desktop Header with Dynamic Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
+        {/* Global Desktop Header with Contextual Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
         <header
           data-testid="desktop-top-header"
-          className="sticky top-0 z-20 hidden md:flex h-14 items-center justify-between border-b border-border/70 bg-background/85 backdrop-blur-md px-6"
+          className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center justify-between border-none bg-background/60 backdrop-blur-md px-6 shadow-xs"
         >
-          {/* Dynamic Breadcrumb */}
+          {/* Contextual Breadcrumb (sin duplicar el H1 de la página) */}
           <nav
             aria-label="Breadcrumb global"
             data-testid="header-breadcrumb"
@@ -210,8 +171,6 @@ export function AppLayout() {
             >
               Workspace
             </Link>
-            <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
-            <span className="font-semibold text-foreground">{currentRouteLabel}</span>
             {pathSegments[1] && (
               <>
                 <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
@@ -229,62 +188,58 @@ export function AppLayout() {
               onClick={() => setIsCommandOpen(true)}
               data-testid="command-palette-trigger"
               aria-label="Abrir buscador global"
-              className="inline-flex h-8 w-56 items-center justify-between rounded-lg border border-border bg-muted/40 px-3 text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors duration-150 cursor-pointer"
+              className="inline-flex h-8 w-56 items-center justify-between rounded-full border-0 bg-muted/50 px-3 text-xs text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors duration-150 cursor-pointer shadow-xs"
             >
               <span className="inline-flex items-center gap-2 truncate">
                 <Search className="size-3.5 shrink-0" aria-hidden="true" />
                 <span>Buscar o saltar a...</span>
               </span>
-              <kbd className="inline-flex h-5 items-center gap-0.5 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <kbd className="inline-flex h-5 items-center gap-0.5 rounded-full border-0 bg-background/80 px-2 font-mono text-[10px] font-medium text-muted-foreground shadow-xs">
                 Ctrl K
               </kbd>
             </button>
 
-            {isDark && (
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 px-2 h-8">
-                <Palette className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                <select
-                  aria-label="Preset de modo oscuro"
-                  data-testid="dark-preset-select"
-                  value={darkPreset}
-                  onChange={(e) => handlePresetChange(e.target.value as DarkPreset)}
-                  className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer pr-1"
-                >
-                  <option value="midnight" className="bg-popover text-popover-foreground">
-                    Noche (#020617)
-                  </option>
-                  <option value="charcoal" className="bg-popover text-popover-foreground">
-                    Carbón (#0c0a09)
-                  </option>
-                  <option value="deep-blue" className="bg-popover text-popover-foreground">
-                    Azul profundo (#030712)
-                  </option>
-                </select>
-              </div>
-            )}
+            {/* Pill Container for Quick Actions */}
+            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1 shadow-xs">
+              {isDark && (
+                <div className="flex items-center gap-1 rounded-full bg-background/60 backdrop-blur-md pl-2.5 h-7 border border-border/40 shadow-xs">
+                  <Palette className="size-3 text-primary shrink-0" aria-hidden="true" />
+                  <DropdownSelect
+                    aria-label="Preset de modo oscuro"
+                    data-testid="dark-preset-select"
+                    value={darkPreset}
+                    onChange={(v) => handlePresetChange(v as DarkPreset)}
+                    options={PRESET_OPTIONS}
+                    className="h-7 w-auto border-0 bg-transparent px-2 py-0 text-[11px] font-medium shadow-none rounded-full hover:bg-primary/10"
+                  />
+                </div>
+              )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleToggleTheme}
-              aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-              title={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-              data-testid="theme-toggle-btn"
-              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-            >
-              {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleTheme}
+                aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
+                title={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
+                data-testid="theme-toggle-btn"
+                className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-foreground"
+              >
+                {isDark ? <Sun className="size-3.5 text-amber-500" /> : <Moon className="size-3.5" />}
+              </Button>
 
-            <NotificationBell />
+              <NotificationBell />
+            </div>
           </div>
         </header>
 
-        <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-          <div className="mx-auto max-w-[1600px] w-full px-3.5 sm:px-5 md:px-6 py-4 md:py-5 pb-24 md:pb-8">
-            <PageTransition>
-              <Outlet />
-            </PageTransition>
-          </div>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 flex flex-col min-h-0 w-full max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 pb-20 md:pb-4 overflow-hidden focus:outline-none"
+        >
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </main>
       </div>
 
