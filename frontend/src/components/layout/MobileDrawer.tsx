@@ -202,9 +202,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             {/* Header del Drawer */}
             <div className="flex items-center justify-between border-b border-border p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-                  GL
-                </div>
+                <img src="/isotipo-gsi.png" alt="GSI Service Desk" width="32" height="32" className="size-8 shrink-0 rounded-lg bg-white p-0.5 shadow-xs ring-1 ring-black/5" />
                 <div>
                   <p className="text-sm font-semibold leading-none">GLPI Manager</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Menú de navegación</p>

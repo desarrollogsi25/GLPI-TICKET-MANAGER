@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Moon, Sun } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import type { DarkPreset } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePreferencesQuery, useUpdatePreferencesMutation } from '@/hooks/usePreferences'
 import { getApiErrorMessage } from '@/lib/api/errors'
@@ -22,22 +22,22 @@ const DARK_PRESET_OPTIONS: Array<{
   {
     id: 'midnight',
     label: 'Noche (Slate)',
-    bgHex: '#020617',
-    cardHex: '#0f172a',
+    bgHex: '#0f172a',
+    cardHex: '#1e293b',
     borderHex: '#334155',
   },
   {
     id: 'charcoal',
     label: 'Carbón cálido',
-    bgHex: '#0c0a09',
-    cardHex: '#1c1917',
+    bgHex: '#1c1917',
+    cardHex: '#292524',
     borderHex: '#44403c',
   },
   {
     id: 'deep-blue',
     label: 'Azul profundo',
-    bgHex: '#030712',
-    cardHex: '#0a1128',
+    bgHex: '#0b1329',
+    cardHex: '#132042',
     borderHex: '#1e293b',
   },
 ]
@@ -58,20 +58,19 @@ export function PreferencesPage() {
       return 'midnight'
     }
   })
-  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
-  const [themeTouched, setThemeTouched] = useState(false)
-  const [densityTouched, setDensityTouched] = useState(false)
   const [savedMessage, setSavedMessage] = useState(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const themeError = themeTouched && !['light', 'dark'].includes(theme)
-    ? 'El tema seleccionado no es válido.'
-    : null
-  const densityError = densityTouched && !['comfortable', 'compact'].includes(density)
-    ? 'La densidad seleccionada no es válida.'
-    : null
-  const hasErrors = Boolean(themeError || densityError)
+  // Limpiar timer de debounce al desmontar
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
 
-  // Cargar preferencias iniciales sincronizadas con backend (priorizando localStorage)
+  // Sincronizar preferencias iniciales con backend y localStorage
   useEffect(() => {
     if (data?.prefs) {
       try {
@@ -94,61 +93,83 @@ export function PreferencesPage() {
           document.documentElement.classList.remove('dark')
           document.documentElement.setAttribute('data-theme', 'light')
         }
-
-        if (parsed.density === 'compact' || parsed.density === 'comfortable') {
-          setDensity(parsed.density)
-        }
       } catch {
         // En caso de JSON corrupto o vacío, mantener defaults
       }
     }
   }, [data?.prefs, darkPreset])
 
+  const applyThemeDOM = (nextTheme: 'light' | 'dark', nextPreset: DarkPreset) => {
+    localStorage.setItem('theme', nextTheme)
+    localStorage.setItem('glpi_dark_preset', nextPreset)
+    document.documentElement.setAttribute('data-dark-preset', nextPreset)
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark')
+      document.documentElement.setAttribute('data-theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      document.documentElement.setAttribute('data-theme', 'light')
+    }
+  }
+
+  const triggerDebouncedSave = (
+    nextTheme: 'light' | 'dark',
+    nextPreset: DarkPreset,
+    label: string,
+  ) => {
+    applyThemeDOM(nextTheme, nextPreset)
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      updateMutation.mutate(
+        { theme: nextTheme, density: 'comfortable' },
+        {
+          onSuccess: () => {
+            setSavedMessage(true)
+            pushToast({
+              title: 'Tema actualizado',
+              description: label,
+              variant: 'success',
+            })
+            setTimeout(() => setSavedMessage(false), 3000)
+          },
+          onError: (err) => {
+            pushToast({
+              title: 'Error al sincronizar preferencias',
+              description: getApiErrorMessage(err),
+              variant: 'destructive',
+            })
+          },
+        },
+      )
+    }, 300)
+  }
+
+  const autoSaveTheme = (newTheme: 'light' | 'dark') => {
+    setTheme(newTheme)
+    triggerDebouncedSave(
+      newTheme,
+      darkPreset,
+      `Modo ${newTheme === 'dark' ? 'oscuro' : 'claro'} activado y guardado.`,
+    )
+  }
+
   const handlePresetSelect = (preset: DarkPreset) => {
     setDarkPreset(preset)
-    document.documentElement.setAttribute('data-dark-preset', preset)
-    try {
-      localStorage.setItem('glpi_dark_preset', preset)
-    } catch {
-      // ignore
-    }
+    triggerDebouncedSave(
+      theme,
+      preset,
+      `Variante ${DARK_PRESET_OPTIONS.find((p) => p.id === preset)?.label ?? preset} aplicada.`,
+    )
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setSavedMessage(false)
-
-    if (hasErrors) return
-
-    updateMutation.mutate(
-      { theme, density },
-      {
-        onSuccess: () => {
-          localStorage.setItem('theme', theme)
-          localStorage.setItem('glpi_dark_preset', darkPreset)
-          document.documentElement.setAttribute('data-dark-preset', darkPreset)
-          if (theme === 'dark') {
-            document.documentElement.classList.add('dark')
-            document.documentElement.setAttribute('data-theme', 'dark')
-          } else {
-            document.documentElement.classList.remove('dark')
-            document.documentElement.setAttribute('data-theme', 'light')
-          }
-          setSavedMessage(true)
-          pushToast({
-            title: 'Preferencias guardadas correctamente',
-            description: 'Tus preferencias visuales han sido actualizadas.',
-            variant: 'success',
-          })
-        },
-        onError: (err) => {
-          pushToast({
-            title: 'Error al guardar preferencias',
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          })
-        },
-      },
+    triggerDebouncedSave(
+      theme,
+      darkPreset,
+      'Tus preferencias visuales han sido actualizadas.',
     )
   }
 
@@ -160,18 +181,18 @@ export function PreferencesPage() {
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Preferencias' }]}
       />
 
-      <Card className="max-w-xl">
+      <Card className="max-w-2xl border-border/70 shadow-sm backdrop-blur-xl bg-card/80 rounded-2xl">
         <CardHeader>
           <CardTitle className="text-lg">Opciones de visualización</CardTitle>
           <CardDescription>
-            Personaliza el tema, la paleta nocturna y la densidad de visualización para tu sesión.
+            Personaliza el tema y la paleta nocturna de la aplicación con guardado automático instantáneo.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading && (
             <div className="space-y-4 py-2">
               <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-24 w-full" />
               <Skeleton className="h-9 w-24" />
             </div>
           )}
@@ -188,126 +209,162 @@ export function PreferencesPage() {
           )}
 
           {!isLoading && !isError && (
-            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-              <div className="space-y-2">
-                <Label htmlFor="theme">Tema</Label>
-                <Select
-                  id="theme"
-                  name="theme"
-                  value={theme}
-                  aria-invalid={Boolean(themeError)}
-                  aria-describedby={themeError ? 'theme-error' : undefined}
-                  className={themeError ? 'border-destructive focus-visible:ring-destructive' : undefined}
-                  onBlur={() => setThemeTouched(true)}
-                  onChange={(e) => {
-                    const val = e.target.value as 'light' | 'dark'
-                    setTheme(val)
-                    localStorage.setItem('theme', val)
-                    if (val === 'dark') {
-                      document.documentElement.classList.add('dark')
-                      document.documentElement.setAttribute('data-theme', 'dark')
-                      document.documentElement.setAttribute('data-dark-preset', darkPreset)
-                    } else {
-                      document.documentElement.classList.remove('dark')
-                      document.documentElement.setAttribute('data-theme', 'light')
-                    }
-                  }}
-                >
-                  <option value="light">Claro</option>
-                  <option value="dark">Oscuro</option>
-                </Select>
-                {themeError ? (
-                  <p id="theme-error" role="alert" className="text-xs text-destructive">
-                    {themeError}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Selecciona la apariencia general de la aplicación.
-                  </p>
-                )}
-              </div>
+            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+              {/* Selector de Tema con Dropdown y Tarjetas Liquid Glass */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="theme" className="text-sm font-semibold">Tema de la interfaz</Label>
+                  <select
+                    id="theme"
+                    name="theme"
+                    aria-label="Seleccionar tema"
+                    value={theme}
+                    onChange={(e) => autoSaveTheme(e.target.value as 'light' | 'dark')}
+                    className="w-36 text-xs h-8 px-2.5 rounded-xl border border-border/80 bg-background/80 text-foreground shadow-xs focus:outline-hidden focus:ring-1 focus:ring-primary/40 transition-colors"
+                  >
+                    <option value="light">Claro</option>
+                    <option value="dark">Oscuro</option>
+                  </select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Variante de modo oscuro (Presets)</Label>
-                <div className="grid grid-cols-3 gap-2.5">
-                  {DARK_PRESET_OPTIONS.map((opt) => {
-                    const active = darkPreset === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        data-testid={`preset-option-${opt.id}`}
-                        onClick={() => handlePresetSelect(opt.id)}
-                        className={cn(
-                          'flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all duration-150 cursor-pointer',
-                          active
-                            ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
-                            : 'border-border hover:border-primary/40 bg-card',
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5 w-full">
-                          <span
-                            className="h-4 w-4 rounded-full border shrink-0"
-                            style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }}
-                          />
-                          <span
-                            className="h-4 w-4 rounded-full border shrink-0"
-                            style={{ backgroundColor: opt.cardHex, borderColor: opt.borderHex }}
-                          />
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Tarjeta Tema Claro */}
+                  <button
+                    type="button"
+                    onClick={() => autoSaveTheme('light')}
+                    className={cn(
+                      'group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                      theme === 'light'
+                        ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-md'
+                        : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <div className="flex size-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <Sun className="size-4" />
                         </div>
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">{opt.label}</p>
-                          <p className="text-[10px] font-mono text-muted-foreground">{opt.bgHex}</p>
+                        <span className="font-semibold text-sm text-foreground">Modo Claro</span>
+                      </div>
+                      {theme === 'light' && (
+                        <div className="flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                          <Check className="size-3 stroke-[3]" />
                         </div>
-                      </button>
-                    )
-                  })}
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 w-full pt-1">
+                      <div className="h-3 w-8 rounded-full bg-[#f8fafc] border border-slate-300" />
+                      <div className="h-3 w-12 rounded-full bg-[#ffffff] border border-slate-300" />
+                      <div className="h-3 flex-1 rounded-full bg-slate-900/10" />
+                    </div>
+                  </button>
+
+                  {/* Tarjeta Tema Oscuro */}
+                  <button
+                    type="button"
+                    onClick={() => autoSaveTheme('dark')}
+                    className={cn(
+                      'group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                      theme === 'dark'
+                        ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-md'
+                        : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <div className="flex size-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                          <Moon className="size-4" />
+                        </div>
+                        <span className="font-semibold text-sm text-foreground">Modo Oscuro</span>
+                      </div>
+                      {theme === 'dark' && (
+                        <div className="flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                          <Check className="size-3 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 w-full pt-1">
+                      <div className="h-3 w-8 rounded-full bg-[#0f172a] border border-slate-700" />
+                      <div className="h-3 w-12 rounded-full bg-[#1e293b] border border-slate-700" />
+                      <div className="h-3 flex-1 rounded-full bg-sky-400/30" />
+                    </div>
+                  </button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Elige entre Noche (Slate #020617), Carbón cálido (#0c0a09) o Azul profundo (#030712).
+                  Los cambios se guardan automáticamente al seleccionar un tema.
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="density">Densidad</Label>
-                <Select
-                  id="density"
-                  name="density"
-                  value={density}
-                  aria-invalid={Boolean(densityError)}
-                  aria-describedby={densityError ? 'density-error' : undefined}
-                  className={densityError ? 'border-destructive focus-visible:ring-destructive' : undefined}
-                  onBlur={() => setDensityTouched(true)}
-                  onChange={(e) => setDensity(e.target.value as 'comfortable' | 'compact')}
-                >
-                  <option value="comfortable">Cómoda</option>
-                  <option value="compact">Compacta</option>
-                </Select>
-                {densityError ? (
-                  <p id="density-error" role="alert" className="text-xs text-destructive">
-                    {densityError}
-                  </p>
-                ) : (
+              {/* Variantes de modo oscuro (Presets) — Solo visibles si el tema es Oscuro (H-61) */}
+              {theme === 'dark' && (
+                <div className="space-y-3 pt-2 animate-in fade-in duration-200">
+                  <Label className="text-sm font-semibold">Variante de modo oscuro (Presets)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {DARK_PRESET_OPTIONS.map((opt) => {
+                      const active = darkPreset === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          data-testid={`preset-option-${opt.id}`}
+                          onClick={() => handlePresetSelect(opt.id)}
+                          className={cn(
+                            'relative flex flex-col items-start gap-2.5 rounded-2xl border p-3.5 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                            active
+                              ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-sm'
+                              : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
+                          )}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="size-4 rounded-full border shrink-0 shadow-xs"
+                                style={{ backgroundColor: opt.bgHex, borderColor: opt.borderHex }}
+                              />
+                              <span
+                                className="size-4 rounded-full border shrink-0 shadow-xs"
+                                style={{ backgroundColor: opt.cardHex, borderColor: opt.borderHex }}
+                              />
+                            </div>
+                            {active && (
+                              <div className="flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                                <Check className="size-2.5 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">{opt.label}</p>
+                            <p className="text-[10px] font-mono text-muted-foreground">{opt.bgHex}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Ajusta la cantidad de espaciado y compacidad de los elementos.
+                    Elige entre Noche Slate (#0F172A), Carbón cálido (#1C1917) o Azul profundo (#0B1329).
                   </p>
-                )}
-              </div>
+                </div>
+              )}
 
-              <div className="flex items-center gap-4 pt-2">
-                <Button type="submit" disabled={hasErrors || updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
-                </Button>
-                {savedMessage && (
-                  <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                    Guardado correctamente
-                  </span>
-                )}
-                {updateMutation.isError && (
-                  <span className="text-sm font-medium text-destructive">
-                    Error al guardar preferencias
-                  </span>
-                )}
+              {/* Feedback de autoguardado instantáneo con debounce (H-61) */}
+              <div className="flex items-center justify-between pt-3 border-t border-border/40">
+                <div className="flex items-center gap-2">
+                  {updateMutation.isPending && (
+                    <span className="text-xs text-muted-foreground animate-pulse">
+                      Guardando automáticamente...
+                    </span>
+                  )}
+                  {savedMessage && !updateMutation.isPending && (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                      <Check className="size-3.5" /> Guardado correctamente
+                    </span>
+                  )}
+                  {updateMutation.isError && (
+                    <span className="text-xs font-medium text-destructive">
+                      Error al sincronizar preferencias
+                    </span>
+                  )}
+                </div>
               </div>
             </form>
           )}

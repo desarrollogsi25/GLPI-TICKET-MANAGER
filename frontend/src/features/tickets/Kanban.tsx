@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useCurrentTime } from '@/hooks/useCurrentTime'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import {
   useClaimTicketMutation,
@@ -35,7 +36,6 @@ import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
-import { CreateTicketDialog } from './CreateTicketDialog'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
 import { PendingTicketDialog } from './PendingTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
@@ -58,36 +58,36 @@ const COLUMNS: ColumnDef[] = [
     id: 'queue',
     title: 'Cola del grupo',
     description: 'Sin asignar',
-    bgClass: 'bg-slate-50/70 border-slate-200 dark:bg-slate-900/60 dark:border-slate-700/70',
-    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'mine',
     title: 'Mis tickets',
     description: 'Asignados a mí',
-    bgClass: 'bg-blue-50/60 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800/50',
-    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'in_progress',
     title: 'En progreso',
     description: 'Trabajando',
-    bgClass: 'bg-indigo-50/60 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800/50',
-    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'pending',
     title: 'Pendiente',
     description: 'Esperando',
-    bgClass: 'bg-amber-50/60 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/50',
-    badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'resolved',
     title: 'Resuelto',
     description: 'Listo',
-    bgClass: 'bg-emerald-50/60 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50',
-    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    badgeClass: 'bg-muted/60 text-muted-foreground',
   },
 ]
 
@@ -120,7 +120,8 @@ function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): Tic
 
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
-  mine: ['in_progress', 'resolved'],
+  // H-62: un ticket en Asignado (Mis tickets) debe pasar primero a En Progreso antes de ser resuelto
+  mine: ['in_progress'],
   in_progress: ['pending', 'resolved'],
   // H-39: un ticket Pendiente solo puede reanudarse (→ En progreso). Resolverlo
   // directamente está prohibido por el backend (422), así que el tablero tampoco
@@ -198,17 +199,17 @@ function KanbanColumn({
     : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
 
   return (
-    <div data-column-id={column.id} className="flex min-w-0 w-full flex-col">
-      <div className="mb-2.5 flex items-center justify-between px-1.5">
+    <div data-column-id={column.id} className="flex flex-col h-full max-h-full min-w-[200px] w-full overflow-hidden">
+      <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
-          <span className="text-sm font-semibold tracking-tight text-foreground truncate block">
+          <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
             {column.title}
           </span>
-          <p className="text-[11px] text-muted-foreground truncate">{column.description}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{column.description}</p>
         </div>
         <span
           className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums shrink-0',
+            'text-[10px] px-1.5 py-0.5 rounded-full font-medium tabular-nums shrink-0',
             isError ? 'bg-destructive/15 text-destructive font-bold' : column.badgeClass,
           )}
         >
@@ -219,11 +220,11 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-44 flex-col gap-2.5 rounded-xl border p-2.5 transition-all duration-150 flex-1 bg-muted/50',
+          'flex-1 overflow-y-auto min-h-0 no-scrollbar p-2 space-y-3 rounded-2xl border-0 transition-all duration-150 bg-muted/30 shadow-xs',
           column.bgClass,
           isOver
             ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
-            : 'border-border/60',
+            : '',
         )}
       >
         {isLoading ? (
@@ -427,6 +428,7 @@ function KanbanColumn({
 }
 
 export function Kanban() {
+  useCurrentTime()
   const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
   const { isTechnician } = useRole()
@@ -439,7 +441,11 @@ export function Kanban() {
   // group. `GET /api/groups` returns only the groups the user belongs to
   // (glpi_groups_users), and a technician defaults to the first one.
   const [searchParams] = useSearchParams()
-  const paramGroupId = searchParams.get('groupId') ? Number(searchParams.get('groupId')) : null
+  const rawParamGroupId = searchParams.get('groupId')
+  const paramGroupId =
+    rawParamGroupId && !Number.isNaN(Number(rawParamGroupId))
+      ? Number(rawParamGroupId)
+      : null
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const currentGroup =
     groupsQuery.data?.find((group) => group.id === (selectedGroupId ?? paramGroupId)) ??
@@ -460,7 +466,6 @@ export function Kanban() {
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
   const [pendingTicketId, setPendingTicketId] = useState<number | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
@@ -702,6 +707,12 @@ export function Kanban() {
             'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.',
           variant: 'destructive',
         })
+      } else if (sourceId === 'mine' && targetId === 'resolved') {
+        pushToast({
+          title: 'Transición bloqueada',
+          description: 'Primero debes iniciar el ticket (En Progreso) para resolverlo.',
+          variant: 'destructive',
+        })
       } else {
         pushToast({
           title: 'Transición no permitida',
@@ -730,11 +741,6 @@ export function Kanban() {
 
     if (sourceId === 'pending' && targetId === 'in_progress') {
       handleResume(ticketId)
-      return
-    }
-
-    if (sourceId === 'mine' && targetId === 'resolved') {
-      setResolveTicketId(ticketId)
       return
     }
 
@@ -856,12 +862,13 @@ export function Kanban() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Kanban"
-        description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
-        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
-        actions={
+    <div className="flex-1 flex flex-col h-full min-h-0 w-full overflow-hidden gap-3">
+      <div className="shrink-0">
+        <PageHeader
+          title="Kanban"
+          description="Usa los botones de acción en cada tarjeta para cambiar su estado según el flujo operativo."
+          breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Kanban' }]}
+          actions={
           isTechnician ? (
             // H-36: a technician belongs to a single support group, so there is nothing
             // to choose. Show the group as fixed text; supervisors/admins keep the
@@ -891,20 +898,14 @@ export function Kanban() {
               <div className="hidden md:block">
                 <TechnicianFilter />
               </div>
-              <Button
-                size="sm"
-                onClick={() => setCreateOpen(true)}
-                data-testid="kanban-create-ticket-btn"
-              >
-                + Crear ticket
-              </Button>
             </div>
           )
         }
       />
+      </div>
 
       {hasGeneralError ? (
-        <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
+        <div className="shrink-0 flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
           <span>{generalErrorMessage}</span>
           <Button
             size="sm"
@@ -922,7 +923,7 @@ export function Kanban() {
       {/* =========================================================================
           VISTA MÓVIL (< md): Segmented Tabs + Lista Vertical + Gestos Swipe
          ========================================================================= */}
-      <div className="md:hidden space-y-3">
+      <div className="md:hidden flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar space-y-3 pb-6">
         {/* Segmented Tabs Bar */}
         <KanbanSegmentedTabs
           columns={segmentedTabColumns}
@@ -1071,11 +1072,11 @@ export function Kanban() {
           VISTA DESKTOP (md:+): 5 Columnas en paralelo (Grid sin scroll horizontal)
           + Drag & Drop @dnd-kit con DragOverlay renderizado en Portal (document.body)
          ========================================================================= */}
-      <div className="hidden md:block" ref={boardContainerRef}>
+      <div className="hidden md:flex flex-1 h-full min-h-0 overflow-x-auto overflow-y-hidden" ref={boardContainerRef}>
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-5 gap-3.5 w-full overflow-hidden pb-4"
+            className="grid grid-cols-5 gap-3.5 w-full h-full min-h-0 min-w-[1100px]"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}
@@ -1161,7 +1162,6 @@ export function Kanban() {
           }
         }}
       />
-      <CreateTicketDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <KanbanMobileSheet
         ticket={selectedMobileTicket}

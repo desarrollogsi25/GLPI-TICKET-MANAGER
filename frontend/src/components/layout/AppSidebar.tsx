@@ -3,13 +3,13 @@ import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
   Briefcase,
-  ChevronLeft,
-  ChevronRight,
   HelpCircle,
   Inbox,
   KanbanSquare,
   ListTodo,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   ShieldCheck,
   Users,
@@ -25,7 +25,6 @@ import type { PagedResult, TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { ConnectionIndicator } from './ConnectionIndicator'
-import { NotificationBell } from './NotificationBell'
 import type { ConnectionState } from '@/hooks/useRealtimeTicketHub'
 
 interface NavItemConfig {
@@ -151,11 +150,11 @@ export function AppSidebar({
               data-testid={`sidebar-nav-${item.id}`}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center min-h-[40px] rounded-lg text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                  'group relative flex items-center min-h-[40px] rounded-xl text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                   collapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2',
                   isActive
                     ? 'text-primary font-semibold'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                 )
               }
             >
@@ -164,7 +163,7 @@ export function AppSidebar({
                   {isActive && (
                     <motion.div
                       layoutId="sidebar-active"
-                      className="absolute inset-0 bg-primary/10 border border-primary/15 rounded-lg"
+                      className="absolute inset-0 bg-primary/10 rounded-xl"
                       transition={
                         prefersReduced
                           ? { duration: 0 }
@@ -222,21 +221,19 @@ export function AppSidebar({
       data-testid="desktop-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
-        'fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border bg-card/95 backdrop-blur-sm md:flex select-none transition-all duration-200 ease-out',
+        'fixed inset-y-0 left-0 z-30 hidden flex-col border-none bg-background/95 backdrop-blur-xl md:flex select-none transition-[width] duration-300 ease-in-out shadow-sm overflow-hidden',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
       {/* 1. Header con Logo + Toggle Collapse */}
       <div
         className={cn(
-          'flex h-14 shrink-0 items-center border-b border-border/60',
+          'flex h-14 shrink-0 items-center border-none',
           collapsed ? 'justify-center px-2' : 'justify-between px-4',
         )}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs shadow-xs">
-            GL
-          </div>
+          <img src="/isotipo-gsi.png" alt="GSI Service Desk" width="32" height="32" className="size-8 shrink-0 rounded-lg bg-white p-0.5 shadow-xs ring-1 ring-black/5" />
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-semibold tracking-tight text-foreground truncate leading-tight">
@@ -257,9 +254,9 @@ export function AppSidebar({
             aria-label="Colapsar barra lateral"
             title="Colapsar barra lateral"
             data-testid="sidebar-collapse-btn"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
           >
-            <ChevronLeft className="size-4" />
+            <PanelLeftClose className="size-4" />
           </Button>
         )}
       </div>
@@ -273,18 +270,18 @@ export function AppSidebar({
             aria-label="Expandir barra lateral"
             title="Expandir barra lateral"
             data-testid="sidebar-collapse-btn"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            <ChevronRight className="size-4" />
+            <PanelLeftOpen className="size-4" />
           </Button>
         </div>
       )}
 
       {/* 2. Navegación Principal y Secundaria */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-5">
         <div>
           {!collapsed && (
-            <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
+            <p className="px-3 pb-1.5 text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
               Operación
             </p>
           )}
@@ -293,7 +290,7 @@ export function AppSidebar({
 
         <div className="border-t border-border/60 pt-3">
           {!collapsed && (
-            <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/80">
+            <p className="px-3 pb-1.5 text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
               Gestión y Ajustes
             </p>
           )}
@@ -301,13 +298,13 @@ export function AppSidebar({
         </div>
       </div>
 
-      {/* 3. User Card al pie con Avatar + Logout */}
-      <div className="shrink-0 border-t border-border/60 p-2.5 bg-muted/20">
+      {/* 3. User Card al pie con Avatar + Logout flotante (sin border-t) */}
+      <div className="shrink-0 p-2 mx-2 mb-2 rounded-2xl bg-muted/20 backdrop-blur-md shadow-xs group transition-all duration-200 hover:bg-muted/40">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2 py-1">
             <div
               title={`${displayName} (${username})`}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20"
             >
               {initial}
             </div>
@@ -318,28 +315,29 @@ export function AppSidebar({
               aria-label="Cerrar sesión"
               title="Cerrar sesión"
               data-testid="logout-btn"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-3.5" />
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-xl p-1.5 transition-colors">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20">
-              {initial}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-xs font-semibold leading-tight text-foreground">
-                  {displayName}
-                </p>
-                <ConnectionIndicator state={connectionState} />
+          <div className="flex items-center justify-between gap-2 p-1">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs border border-primary/20">
+                {initial}
               </div>
-              {username && (
-                <p className="truncate text-[11px] text-muted-foreground">{username}</p>
-              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-xs font-semibold leading-tight text-foreground">
+                    {displayName}
+                  </p>
+                  <ConnectionIndicator state={connectionState} />
+                </div>
+                {username && (
+                  <p className="truncate text-[11px] text-muted-foreground">{username}</p>
+                )}
+              </div>
             </div>
-            <NotificationBell />
             <Button
               variant="ghost"
               size="sm"
@@ -347,9 +345,9 @@ export function AppSidebar({
               aria-label="Cerrar sesión"
               title="Cerrar sesión"
               data-testid="logout-btn"
-              className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="size-7 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto opacity-70 group-hover:opacity-100 transition-opacity duration-200 focus-visible:opacity-100"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-3.5" />
             </Button>
           </div>
         )}

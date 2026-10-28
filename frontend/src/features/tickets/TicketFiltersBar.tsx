@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { DropdownSelect } from '@/components/ui/dropdown-select'
 
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './labels'
 
@@ -53,36 +53,30 @@ export function TicketFiltersBar({
 
         <div className="space-y-1">
           <Label htmlFor="status-filter">Estado</Label>
-          <Select
+          <DropdownSelect
             id="status-filter"
             className="w-40"
             value={status}
-            onChange={(e) => onStatusChange(e.target.value)}
-          >
-            <option value="all">Todos</option>
-            {TICKET_STATUSES.map((item) => (
-              <option key={item.value} value={String(item.value)}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
+            onChange={onStatusChange}
+            options={[
+              { value: 'all', label: 'Todos' },
+              ...TICKET_STATUSES.map((item) => ({ value: String(item.value), label: item.label })),
+            ]}
+          />
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="priority-filter">Prioridad</Label>
-          <Select
+          <DropdownSelect
             id="priority-filter"
             className="w-40"
             value={priority}
-            onChange={(e) => onPriorityChange(e.target.value)}
-          >
-            <option value="all">Todas</option>
-            {TICKET_PRIORITIES.map((item) => (
-              <option key={item.value} value={String(item.value)}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
+            onChange={onPriorityChange}
+            options={[
+              { value: 'all', label: 'Todas' },
+              ...TICKET_PRIORITIES.map((item) => ({ value: String(item.value), label: item.label })),
+            ]}
+          />
         </div>
 
         <div className="space-y-1">

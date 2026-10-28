@@ -5,130 +5,131 @@
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #f8fafc;
+  --foreground: #0f172a;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: #0f172a;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
 
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #0f172a;
+  --primary-foreground: #ffffff;
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.42 0 0);
+  --muted: #f1f5f9;
+  --muted-foreground: #334155;
 
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
 
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
-  --success: oklch(0.62 0.17 149);
-  --success-foreground: oklch(0.985 0 0);
+  --success: #10b981;
+  --success-foreground: #ffffff;
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.45 0 0);
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0f172a;
 }
 
 /* ============================================================================
-   H-44: Paleta Dark Mode Profesional basada en Slate (Tailwind slate-950/900/800)
-   Preset por defecto: "Noche" (midnight)
+   H-44 / H-60: Paleta Dark Mode Profesional
+   Evita el negro puro (#000000) usando Warm Slate (#0F172A) y Stone cálido (#1C1917)
+   Alto contraste WCAG AA
    ============================================================================ */
 .dark,
 .dark[data-dark-preset='midnight'] {
-  --background: #020617;
+  --background: #0f172a;
   --foreground: #f8fafc;
 
-  --card: #0f172a;
+  --card: #1e293b;
   --card-foreground: #f8fafc;
 
-  --popover: #0f172a;
+  --popover: #1e293b;
   --popover-foreground: #f8fafc;
 
-  --primary: #f8fafc;
-  --primary-foreground: #020617;
+  --primary: #38bdf8;
+  --primary-foreground: #0f172a;
 
-  --secondary: #1e293b;
+  --secondary: #334155;
   --secondary-foreground: #f8fafc;
 
-  --muted: #1e293b;
+  --muted: #334155;
   --muted-foreground: #94a3b8;
 
-  --accent: #1e293b;
+  --accent: #334155;
   --accent-foreground: #f8fafc;
 
   --destructive: #ef4444;
   --destructive-foreground: #f8fafc;
 
   --success: #10b981;
-  --success-foreground: #020617;
+  --success-foreground: #0f172a;
 
   --border: #334155;
   --input: #334155;
-  --ring: #64748b;
+  --ring: #38bdf8;
 }
 
-/* Preset 2: "Carbón cálido" (charcoal — stone-950 / stone-900 / stone-800) */
+/* Preset 2: "Carbón cálido" (charcoal — stone cálido #1C1917 / #292524) */
 .dark[data-dark-preset='charcoal'] {
-  --background: #0c0a09;
+  --background: #1c1917;
   --foreground: #fafaf9;
 
-  --card: #1c1917;
+  --card: #292524;
   --card-foreground: #fafaf9;
 
-  --popover: #1c1917;
+  --popover: #292524;
   --popover-foreground: #fafaf9;
 
-  --primary: #fafaf9;
-  --primary-foreground: #0c0a09;
+  --primary: #d97706;
+  --primary-foreground: #fafaf9;
 
-  --secondary: #292524;
+  --secondary: #332c26;
   --secondary-foreground: #fafaf9;
 
-  --muted: #292524;
+  --muted: #332c26;
   --muted-foreground: #a8a29e;
 
-  --accent: #292524;
+  --accent: #332c26;
   --accent-foreground: #fafaf9;
 
   --border: #44403c;
   --input: #44403c;
-  --ring: #78716c;
+  --ring: #d97706;
 }
 
-/* Preset 3: "Azul profundo" (deep-blue — #030712 / #0a1128 / #162040) */
+/* Preset 3: "Azul profundo" (deep-blue — navy cálido #0b1329 / #132042) */
 .dark[data-dark-preset='deep-blue'] {
-  --background: #030712;
+  --background: #0b1329;
   --foreground: #f8fafc;
 
-  --card: #0a1128;
+  --card: #132042;
   --card-foreground: #f8fafc;
 
-  --popover: #0a1128;
+  --popover: #132042;
   --popover-foreground: #f8fafc;
 
   --primary: #60a5fa;
-  --primary-foreground: #030712;
+  --primary-foreground: #0b1329;
 
-  --secondary: #162040;
+  --secondary: #1c2d5a;
   --secondary-foreground: #f8fafc;
 
-  --muted: #162040;
+  --muted: #1c2d5a;
   --muted-foreground: #94a3b8;
 
-  --accent: #162040;
+  --accent: #1c2d5a;
   --accent-foreground: #f8fafc;
 
   --border: #1e293b;
   --input: #1e293b;
-  --ring: #3b82f6;
+  --ring: #60a5fa;
 }
 
 @theme inline {
@@ -183,10 +184,23 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-serif-luxury {
+    font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
+    font-optical-sizing: auto;
+  }
+
+  /* Prevenir zoom no deseado en iOS Safari al enfocar inputs */
+  @media screen and (max-width: 768px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
   }
 }
 
@@ -261,6 +275,15 @@
     .kanban-card-hover:hover {
       transform: translateY(-2px);
     }
+  }
+
+  /* Ocultar barra de scroll preservando la funcionalidad de desplazamiento */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   @media (prefers-reduced-motion: reduce) {

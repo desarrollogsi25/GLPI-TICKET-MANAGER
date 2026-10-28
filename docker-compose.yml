@@ -1,6 +1,11 @@
 services:
   glpi:
-    image: glpi/glpi:11.0
+    # Pinned by digest: the mutable 11.0 tag was re-published on 2026-10-28 with a
+    # build that breaks apirest.php/initSession (returns HTML instead of JSON),
+    # which made the CI E2E smoke test fail with HTTP 500. The digest below is the
+    # last known-good image (built 2026-10-11). Bump deliberately after verifying
+    # the API works end to end.
+    image: glpi/glpi:11.0@sha256:45572164994cbd12bedd99bf6dd954b7962076dd3b529f0fdc4a84131f30a32a
     container_name: glpi
     restart: unless-stopped
     volumes:

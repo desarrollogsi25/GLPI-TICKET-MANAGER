@@ -20,7 +20,16 @@ interface ToastState {
 
 /** Auto-dismiss duration for non-error toasts (3s per H-42). */
 export const AUTO_DISMISS_MS = 3000
-/** Maximum visible toasts at once per H-41 / H-42. */
+/** Specific durations per variant (H-60) */
+export const DURATION_BY_VARIANT: Record<ToastVariant, number> = {
+  default: 4000,
+  info: 4000,
+  success: 3000,
+  warning: 6000,
+  destructive: 8000,
+  error: 8000,
+}
+/** Maximum visible toasts at once per H-41 / H-42 / H-60. */
 export const MAX_VISIBLE_TOASTS = 3
 
 function generateId(): string {
@@ -37,23 +46,24 @@ function isErrorVariant(variant: ToastVariant): boolean {
 
 const variantClasses: Record<ToastVariant, string> = {
   default:
-    'border-sky-500/40 bg-card/95 text-card-foreground dark:bg-slate-900/95 dark:border-sky-500/40 shadow-xl',
-  info: 'border-sky-500/40 bg-sky-50/95 text-foreground dark:bg-sky-950/90 dark:border-sky-500/40 shadow-xl',
+    'border-l-4 border-l-sky-500 border-border/40 bg-card/85 text-card-foreground backdrop-blur-xl shadow-lg dark:border-border/30',
+  info:
+    'border-l-4 border-l-sky-500 border-border/40 bg-card/85 text-foreground backdrop-blur-xl shadow-lg dark:border-border/30',
   success:
-    'border-emerald-500/50 bg-emerald-50/95 text-foreground dark:bg-emerald-950/90 dark:border-emerald-500/50 shadow-xl',
+    'border-l-4 border-l-emerald-500 border-border/40 bg-card/85 text-foreground backdrop-blur-xl shadow-lg dark:border-border/30',
   warning:
-    'border-amber-500/50 bg-amber-50/95 text-foreground dark:bg-amber-950/90 dark:border-amber-500/50 shadow-xl',
+    'border-l-4 border-l-amber-500 border-border/40 bg-card/85 text-foreground backdrop-blur-xl shadow-lg dark:border-border/30',
   destructive:
-    'border-destructive/50 bg-red-50/95 text-foreground dark:bg-red-950/90 dark:border-red-500/50 shadow-xl',
+    'border-l-4 border-l-red-500 border-border/40 bg-card/85 text-foreground backdrop-blur-xl shadow-lg dark:border-border/30',
   error:
-    'border-destructive/50 bg-red-50/95 text-foreground dark:bg-red-950/90 dark:border-red-500/50 shadow-xl',
+    'border-l-4 border-l-red-500 border-border/40 bg-card/85 text-foreground backdrop-blur-xl shadow-lg dark:border-border/30',
 }
 
 /**
- * Professional Toast Store powered by Sonner (H-42):
- * - Desktop: top-right, Mobile: bottom-center
- * - Success/Info/Warning: auto-close 3s
- * - Error/Destructive: persistent (`Infinity`) with subtle shake animation
+ * Professional Toast Store powered by Sonner (H-42 / H-60):
+ * - Desktop: top-right, Mobile: top-center (with safe header offset)
+ * - Durations: Success (3s), Info (4s), Warning (6s), Error (8s, no-infinite)
+ * - Liquid Glass styling with colored accent borders
  * - Icons from Lucide (`CheckCircle2`, `XCircle`, `AlertTriangle`, `Info`)
  */
 export const useToastStore = create<ToastState>((set, get) => ({
@@ -83,7 +93,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
           data-variant={toastInput.variant}
           role={isError ? 'alert' : 'status'}
           className={[
-            'pointer-events-auto w-full md:w-[356px] rounded-xl border p-3.5 shadow-lg select-none backdrop-blur-md transition-[transform,opacity] duration-200 ease-out',
+            'pointer-events-auto w-full md:w-[356px] rounded-2xl border p-3.5 shadow-xl select-none backdrop-blur-xl transition-[transform,opacity] duration-200 ease-out',
             variantClasses[toastInput.variant] ?? variantClasses.default,
             isError ? 'toast-error-shake' : '',
           ]
@@ -142,7 +152,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
       ),
       {
         id,
-        duration: isError ? Number.POSITIVE_INFINITY : AUTO_DISMISS_MS,
+        duration: DURATION_BY_VARIANT[toastInput.variant] ?? AUTO_DISMISS_MS,
         onDismiss: () => get().dismiss(id),
         onAutoClose: () => get().dismiss(id),
       },
