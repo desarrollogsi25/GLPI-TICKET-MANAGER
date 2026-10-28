@@ -9,9 +9,9 @@ import {
   Layers,
   MessageSquare,
   PauseCircle,
-  Plus,
   Timer,
   Users,
+  X,
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -21,7 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NumberTicker } from '@/components/ui/number-ticker'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CreateTicketDialog } from '@/features/tickets/CreateTicketDialog'
 import { priorityMeta, statusMeta } from '@/features/tickets/labels'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useGroupsQuery, useTeamDashboardQuery } from '@/hooks/useTickets'
@@ -30,19 +29,20 @@ import { formatRelative, truncate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 /**
- * Supervisor view: "Consola de Supervisión del Líder" (H-40 / H-41 / H-42 / H-45).
+ * Supervisor view: "Consola de Supervisión del Líder" (H-40 / H-41 / H-42 / H-45 / H-58).
  * - Section A: Real-time KPI cards with NumberTicker (Active, Paused, Resolved Today, MTTR, Stalled >24h).
  * - Section B: Technician Workload Table with amber/red alerts and last activity relative timestamp.
- * - Section C: Group Tickets Board with technician and status filtering, pause reason highlights, and tooltips.
+ * - Section C: Group Tickets Board with technician, status and date range filtering, pause reason highlights, and tooltips.
  */
 export function TeamDashboard() {
   const groups = useGroupsQuery()
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
 
   // Filters for Section C (Group Tickets Board)
   const [techFilter, setTechFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
 
   const currentGroup =
     groups.data?.find((g) => g.id === selectedGroupId) ??
@@ -170,7 +170,17 @@ export function TeamDashboard() {
 
   const allStatCards = [totalCard, ...kpiCards]
 
-  // 4. Section C Filtered Tickets
+  const hasActiveFilters =
+    techFilter !== 'all' || statusFilter !== 'all' || startDate !== '' || endDate !== ''
+
+  const handleClearFilters = () => {
+    setTechFilter('all')
+    setStatusFilter('all')
+    setStartDate('')
+    setEndDate('')
+  }
+
+  // 4. Section C Filtered Tickets (incluye filtros por técnico, estado y rango de fechas)
   const filteredTickets = allTickets.filter((t) => {
     if (techFilter !== 'all') {
       if (techFilter === 'unassigned') {
@@ -182,6 +192,16 @@ export function TeamDashboard() {
     if (statusFilter !== 'all') {
       if (String(t.status) !== statusFilter) return false
     }
+    if (startDate) {
+      if (!t.createdAt) return false
+      const ticketDate = t.createdAt.slice(0, 10)
+      if (ticketDate < startDate) return false
+    }
+    if (endDate) {
+      if (!t.createdAt) return false
+      const ticketDate = t.createdAt.slice(0, 10)
+      if (ticketDate > endDate) return false
+    }
     return true
   })
 
@@ -192,8 +212,8 @@ export function TeamDashboard() {
         description={`Supervisión y control en tiempo real del equipo de soporte (${groupName}).`}
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Mi Equipo' }]}
         actions={
-          <div className="flex items-center gap-2">
-            {(groups.data?.length ?? 0) > 1 && (
+          (groups.data?.length ?? 0) > 1 ? (
+            <div className="flex items-center gap-2">
               <Select
                 aria-label="Seleccionar grupo"
                 value={groupId ? String(groupId) : ''}
@@ -207,17 +227,8 @@ export function TeamDashboard() {
                   </option>
                 ))}
               </Select>
-            )}
-            <Button
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-              data-testid="create-ticket-btn"
-              className="gap-1.5"
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              <span>Crear ticket</span>
-            </Button>
-          </div>
+            </div>
+          ) : undefined
         }
       />
 
@@ -524,17 +535,17 @@ export function TeamDashboard() {
               </Badge>
             </div>
 
-            {/* Filtros por Técnico y Estado */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Filter className="size-3.5" />
-                <span>Filtros:</span>
+            {/* Filtros por Técnico, Estado y Fecha (Liquid Glass pill design) */}
+            <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-muted/20 backdrop-blur-md border border-border/30 shadow-xs">
+              <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
+                <Filter className="size-3.5 text-primary" aria-hidden="true" />
+                <span>Filtros</span>
               </div>
               <Select
                 aria-label="Filtrar por técnico"
                 value={techFilter}
                 onChange={(e) => setTechFilter(e.target.value)}
-                className="w-40 text-xs h-8"
+                className="w-36 sm:w-40 text-xs h-8 rounded-xl bg-background/50 hover:bg-background/80 border-0 shadow-xs focus:ring-1 focus:ring-primary/40 transition-colors"
                 data-testid="filter-technician-select"
               >
                 <option value="all">Todos los técnicos</option>
@@ -549,7 +560,7 @@ export function TeamDashboard() {
                 aria-label="Filtrar por estado"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-40 text-xs h-8"
+                className="w-36 sm:w-40 text-xs h-8 rounded-xl bg-background/50 hover:bg-background/80 border-0 shadow-xs focus:ring-1 focus:ring-primary/40 transition-colors"
                 data-testid="filter-status-select"
               >
                 <option value="all">Todos los estados</option>
@@ -560,6 +571,50 @@ export function TeamDashboard() {
                 <option value="5">5 · Resuelto</option>
                 <option value="6">6 · Cerrado</option>
               </Select>
+
+              {/* Filtro Fecha Desde */}
+              <div className="flex items-center gap-1.5 bg-background/50 hover:bg-background/80 rounded-xl px-2.5 h-8 shadow-xs border-0 transition-colors">
+                <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Desde:</span>
+                <input
+                  type="date"
+                  aria-label="Filtrar fecha desde"
+                  value={startDate}
+                  max={endDate || undefined}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer w-28 sm:w-32"
+                  data-testid="filter-start-date"
+                />
+              </div>
+
+              {/* Filtro Fecha Hasta */}
+              <div className="flex items-center gap-1.5 bg-background/50 hover:bg-background/80 rounded-xl px-2.5 h-8 shadow-xs border-0 transition-colors">
+                <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Hasta:</span>
+                <input
+                  type="date"
+                  aria-label="Filtrar fecha hasta"
+                  value={endDate}
+                  min={startDate || undefined}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer w-28 sm:w-32"
+                  data-testid="filter-end-date"
+                />
+              </div>
+
+              {/* Botón Limpiar Filtros */}
+              {hasActiveFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearFilters}
+                  data-testid="clear-team-filters-btn"
+                  className="h-8 px-2.5 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-background/80 gap-1 transition-colors"
+                  title="Limpiar filtros"
+                >
+                  <X className="size-3.5" aria-hidden="true" />
+                  <span>Limpiar</span>
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent className="pt-4">
@@ -683,8 +738,6 @@ export function TeamDashboard() {
           </CardContent>
         </Card>
       </section>
-
-      <CreateTicketDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   )
 }
