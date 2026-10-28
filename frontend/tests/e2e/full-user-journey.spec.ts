@@ -107,15 +107,15 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await page.screenshot({ path: 'test-results/full-user-journey/technician-resolved.png', fullPage: true }).catch(() => {})
 
   // Filtros: el rango inválido se bloquea en español antes de hacer petición.
+  // El calendario impide invertir el rango en la UI; un enlace profundo sigue ejercitando el guard.
   await page.goto(`${DESK}/tickets`)
   await page.waitForLoadState('networkidle')
-  await page.locator('#start-date-filter').fill('2026-10-20')
   let rangedTicketRequests = 0
   page.on('request', request => {
     const url = request.url()
     if (url.includes('/api/tickets?') && (url.includes('startDate=') || url.includes('endDate='))) rangedTicketRequests++
   })
-  await page.locator('#end-date-filter').fill('2026-10-19')
+  await page.goto(`${DESK}/tickets?startDate=2026-10-20&endDate=2026-10-19`)
   await expect(page.getByRole('alert')).toContainText('La fecha de inicio no puede ser posterior a la fecha de fin.')
   expect(rangedTicketRequests).toBe(0)
   await page.screenshot({ path: 'test-results/full-user-journey/date-filter.png', fullPage: true }).catch(() => {})

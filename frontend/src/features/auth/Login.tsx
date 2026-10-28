@@ -116,6 +116,15 @@ export function Login() {
           <img src="/logo-gsi.png" alt="GSI Service Desk" className="h-14 w-auto" width={480} height={320} />
         </div>
 
+        <div className="mx-auto max-w-md space-y-4 text-center">
+          <h2 className="font-serif-luxury text-3xl font-semibold leading-tight tracking-tight text-foreground lg:text-4xl">
+            Bienvenido a GSI Service Desk
+          </h2>
+          <p className="font-sans text-sm leading-relaxed text-muted-foreground">
+            Gestiona tus tickets con claridad y en tiempo real.
+          </p>
+        </div>
+
         <p className="text-xs text-muted-foreground">Service Desk Inteligente</p>
       </motion.div>
 

@@ -5,3 +5,7 @@ dist
 !.env.example
 .agents
 skills-lock.json
+e2e-artifacts
+test-results
+playwright-report
+tests/e2e/.auth

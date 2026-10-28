@@ -1,0 +1,24 @@
+# Local delivery overlay: one static image for loopback and LAN, existing data.
+# docker compose -p sistemaopensourceglpi -f docker-compose.yml -f docker-compose.local-sync.yml up -d --build
+services:
+  frontend:
+    image: glpi-ticket-manager-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports: !override
+      - "127.0.0.1:5173:80"
+    volumes: !override
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  lan-frontend:
+    image: glpi-ticket-manager-frontend:local
+    pull_policy: never
+    container_name: glpi-lan-frontend
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend

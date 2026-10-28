@@ -4,6 +4,7 @@ import { ChevronRight, Moon, Search, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery } from '@/hooks/useAuth'
+import { showNativeNotification, useAutomaticNotificationPermission } from '@/hooks/useAutomaticNotificationPermission'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -48,7 +49,19 @@ export function AppLayout() {
   }
   const currentPage = routeLabels[pathSegments[0]] ?? 'Inicio'
 
-  const { connectionState } = useRealtimeTicketHub()
+  useAutomaticNotificationPermission()
+  // One native-notification listener for both desktop and mobile headers.
+  const { connectionState } = useRealtimeTicketHub({
+    onNotificationReceived: () => {
+      void showNativeNotification('GLPI Ticket Manager', 'Tienes una nueva notificación en el sistema')
+    },
+    onTicketCreated: (ticketId) => {
+      void showNativeNotification('Nuevo Ticket Creado', `Se ha generado el ticket #${ticketId} en tu grupo`, ticketId)
+    },
+    onTicketStatusChanged: (ticketId) => {
+      void showNativeNotification('Estado Actualizado', `El ticket #${ticketId} ha cambiado de estado`, ticketId)
+    },
+  })
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
   const profile = currentUser ?? storedUser

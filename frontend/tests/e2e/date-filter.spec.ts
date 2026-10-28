@@ -58,7 +58,7 @@ test.describe('ticket date filters', () => {
     expect(response.status()).toBe(400)
   })
 
-  test('UI: date inputs sync to the URL and Limpiar filtros resets them', async ({ page }) => {
+  test('UI: calendar selections sync to the URL and Limpiar filtros resets them', async ({ page }) => {
     await page.goto(`${BASE_URL}/tickets`)
     await page.waitForLoadState('networkidle')
 
@@ -67,8 +67,15 @@ test.describe('ticket date filters', () => {
     await expect(startInput).toBeVisible()
     await expect(endInput).toBeVisible()
 
-    await startInput.fill('2020-01-01')
-    await endInput.fill('2020-01-02')
+    const selectDate = async (trigger: typeof startInput, value: string) => {
+      await trigger.click()
+      const calendar = page.locator('[data-calendar-popover="true"]')
+      await calendar.getByRole('combobox', { name: 'Año', exact: true }).selectOption(value.slice(0, 4))
+      await calendar.getByRole('combobox', { name: 'Mes', exact: true }).selectOption(String(Number(value.slice(5, 7)) - 1))
+      await calendar.locator(`button[data-date="${value}"]`).click()
+    }
+    await selectDate(startInput, '2020-01-01')
+    await selectDate(endInput, '2020-01-02')
 
     await expect(page).toHaveURL(/startDate=2020-01-01/)
     await expect(page).toHaveURL(/endDate=2020-01-02/)
@@ -84,8 +91,8 @@ test.describe('ticket date filters', () => {
     page.on('request', (request) => {
       if (request.url().includes('/api/tickets?')) invertedRangeRequests += 1
     })
-    await startInput.fill('2026-06-02')
-    await endInput.fill('2026-06-01')
+    // The calendar prevents inversion; deep links still exercise the existing invalid-range guard.
+    await page.goto(`${BASE_URL}/tickets?startDate=2026-06-02&endDate=2026-06-01`)
     await expect(page.getByRole('alert')).toContainText(
       'La fecha de inicio no puede ser posterior a la fecha de fin.',
     )
@@ -100,8 +107,8 @@ test.describe('ticket date filters', () => {
 
     await expect(page).not.toHaveURL(/startDate=/)
     await expect(page).not.toHaveURL(/endDate=/)
-    await expect(startInput).toHaveValue('')
-    await expect(endInput).toHaveValue('')
+    await expect(startInput).toContainText(/elegir fecha/i)
+    await expect(endInput).toContainText(/elegir fecha/i)
   })
 
   test('UI: technician role does not render the technician dropdown', async ({ page }) => {

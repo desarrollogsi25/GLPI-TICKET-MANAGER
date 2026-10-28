@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DropdownSelect } from '@/components/ui/dropdown-select'
+import { DatePicker } from '@/components/ui/date-picker'
 
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './labels'
 
@@ -81,25 +82,27 @@ export function TicketFiltersBar({
 
         <div className="space-y-1">
           <Label htmlFor="start-date-filter">Desde</Label>
-          <Input
+          <DatePicker
             id="start-date-filter"
-            type="date"
+            label="Desde"
+            data-testid="ticket-filter-start-date"
             className="w-40"
             value={startDate}
             max={endDate || undefined}
-            onChange={(e) => onStartDateChange(e.target.value)}
+            onChange={onStartDateChange}
           />
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="end-date-filter">Hasta</Label>
-          <Input
+          <DatePicker
             id="end-date-filter"
-            type="date"
+            label="Hasta"
+            data-testid="ticket-filter-end-date"
             className="w-40"
             value={endDate}
             min={startDate || undefined}
-            onChange={(e) => onEndDateChange(e.target.value)}
+            onChange={onEndDateChange}
           />
         </div>
 
