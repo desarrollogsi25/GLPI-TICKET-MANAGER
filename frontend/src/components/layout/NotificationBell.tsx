@@ -341,7 +341,7 @@ export function NotificationBell({
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto no-scrollbar origin-top-right rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto no-scrollbar origin-top-right rounded-2xl border border-border bg-card/95 backdrop-blur-md text-card-foreground shadow-xl z-50"
           >
             <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
               <div className="flex items-center gap-2">
@@ -399,13 +399,12 @@ export function NotificationBell({
                   <li
                     key={n.id}
                     className={cn(
-                      'p-3 text-sm transition-colors duration-150 cursor-pointer hover:bg-muted/40',
+                      'text-sm transition-colors duration-150 hover:bg-muted/40',
                       !n.read && !n.isRead ? 'bg-primary/5 font-medium' : 'opacity-75',
                       getNotificationTypeClass(n.type),
                     )}
-                    onClick={() => handleNotificationClick(n)}
                   >
-                    <div className="flex items-start gap-2.5">
+                    <button type="button" onClick={() => handleNotificationClick(n)} className="flex w-full items-start gap-2.5 p-3 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                       <span className="mt-0.5 flex-shrink-0" aria-hidden="true">
                         {getNotificationIcon(n.type)}
                       </span>
@@ -427,11 +426,11 @@ export function NotificationBell({
                       </div>
                       {!n.read && !n.isRead && (
                         <span
-                          className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-1.5"
+                          className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5"
                           aria-label="No leída"
                         />
                       )}
-                    </div>
+                    </button>
                   </li>
                 ))}
               </ul>

@@ -37,7 +37,12 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
 
   const confirmCandidate = page.locator('button', { hasText: /Resolver|Confirmar/ })
   const confirmButton = confirmCandidate.last()
-  await expect(confirmButton).toBeDisabled()
+  await expect(confirmButton).toBeEnabled()
+  await textarea.focus()
+  await textarea.blur()
+  await expect(page.getByRole('dialog').getByRole('alert')).toHaveCount(0)
+  await confirmButton.click()
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('La solución no puede estar vacía.')
 
   await textarea.fill('Solucion de prueba E2E automatizada con Playwright')
   await expect(confirmButton).toBeEnabled()

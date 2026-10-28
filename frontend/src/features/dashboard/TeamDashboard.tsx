@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NumberTicker } from '@/components/ui/number-ticker'
 import { DropdownSelect } from '@/components/ui/dropdown-select'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
 import { priorityMeta, statusMeta } from '@/features/tickets/labels'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
@@ -565,7 +566,7 @@ export function TeamDashboard() {
       {/* SECCIÓN C: TABLERO DE TICKETS DEL GRUPO (La Vista Clave de Supervisión) */}
       <section aria-labelledby="section-tickets-title">
         <Card className="shadow-xs border-border/70">
-          <CardHeader className="flex flex-col gap-3 pb-3 border-b border-border/50 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-4 pb-4 border-b border-border/50">
             <div className="flex items-center gap-2">
               <Layers className="size-4 text-primary" aria-hidden="true" />
               <CardTitle id="section-tickets-title" className="text-base font-semibold">
@@ -577,7 +578,7 @@ export function TeamDashboard() {
             </div>
 
             {/* Filtros por Técnico, Estado y Fecha (Liquid Glass pill design) */}
-            <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-muted/20 backdrop-blur-md border border-border/30 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2 bg-muted/20 p-2 rounded-2xl border border-border/30">
               <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
                 <Filter className="size-3.5 text-primary" aria-hidden="true" />
                 <span>Filtros</span>
@@ -591,7 +592,7 @@ export function TeamDashboard() {
                   { value: 'unassigned', label: 'Sin asignar' },
                   ...technicians.map((m) => ({ value: String(m.userId), label: m.name })),
                 ]}
-                className="w-36 sm:w-40 text-xs h-8 rounded-xl bg-background/50 hover:bg-primary/10 border-0 shadow-xs"
+                className="w-36 sm:w-40 text-xs min-h-11 rounded-xl bg-background/50 hover:bg-primary/10 border-0 shadow-xs"
                 data-testid="filter-technician-select"
               />
               <DropdownSelect
@@ -607,37 +608,24 @@ export function TeamDashboard() {
                   { value: '5', label: '5 · Resuelto' },
                   { value: '6', label: '6 · Cerrado' },
                 ]}
-                className="w-36 sm:w-40 text-xs h-8 rounded-xl bg-background/50 hover:bg-primary/10 border-0 shadow-xs"
+                className="w-36 sm:w-40 text-xs min-h-11 rounded-xl bg-background/50 hover:bg-primary/10 border-0 shadow-xs"
                 data-testid="filter-status-select"
               />
 
-              {/* Filtro Fecha Desde */}
-              <div className="flex items-center gap-1.5 bg-background/50 hover:bg-background/80 rounded-xl px-2.5 h-8 shadow-xs border-0 transition-colors">
-                <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Desde:</span>
-                <input
-                  type="date"
-                  aria-label="Filtrar fecha desde"
-                  value={startDate}
-                  max={endDate || undefined}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer w-28 sm:w-32"
-                  data-testid="filter-start-date"
-                />
-              </div>
-
-              {/* Filtro Fecha Hasta */}
-              <div className="flex items-center gap-1.5 bg-background/50 hover:bg-background/80 rounded-xl px-2.5 h-8 shadow-xs border-0 transition-colors">
-                <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Hasta:</span>
-                <input
-                  type="date"
-                  aria-label="Filtrar fecha hasta"
-                  value={endDate}
-                  min={startDate || undefined}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer w-28 sm:w-32"
-                  data-testid="filter-end-date"
-                />
-              </div>
+              <DatePicker
+                label="Filtrar fecha desde"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={setStartDate}
+                data-testid="filter-start-date"
+              />
+              <DatePicker
+                label="Filtrar fecha hasta"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={setEndDate}
+                data-testid="filter-end-date"
+              />
 
               {/* Botón Limpiar Filtros */}
               {hasActiveFilters && (
@@ -647,7 +635,7 @@ export function TeamDashboard() {
                   size="sm"
                   onClick={handleClearFilters}
                   data-testid="clear-team-filters-btn"
-                  className="h-8 px-2.5 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-background/80 gap-1 transition-colors"
+                  className="min-h-11 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-background/80 gap-1 transition-colors"
                   title="Limpiar filtros"
                 >
                   <X className="size-3.5" aria-hidden="true" />
@@ -668,7 +656,8 @@ export function TeamDashboard() {
                 <p className="text-sm">No se encontraron tickets con los filtros seleccionados.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm" data-testid="group-tickets-table">
                   <thead>
                     <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -773,6 +762,33 @@ export function TeamDashboard() {
                   </tbody>
                 </table>
               </div>
+              <div className="space-y-3 md:hidden" data-testid="group-tickets-cards">
+                {filteredTickets.map((ticket) => {
+                  const meta = statusMeta(ticket.status)
+                  return (
+                    <article key={ticket.id} className="w-full space-y-3 rounded-2xl border border-border bg-background/50 p-4" data-testid={`group-ticket-card-${ticket.id}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-mono text-xs font-semibold text-primary">#{ticket.id}</span>
+                        <Badge variant="outline" className={cn('text-xs', meta.badgeClass)}>{meta.label}</Badge>
+                      </div>
+                      <h3 className="break-words text-sm font-semibold leading-relaxed">{ticket.title}</h3>
+                      <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <Users className="size-4 shrink-0" aria-hidden="true" />
+                        <span className="break-words">Técnico: <span className="font-medium text-foreground">{ticket.assigneeName || 'Sin asignar'}</span></span>
+                      </p>
+                      {ticket.lastComment?.trim() && (
+                        <p className={cn('break-words rounded-xl p-3 text-xs', ticket.status === 4 ? 'bg-amber-500/10 text-amber-900 dark:text-amber-200' : 'bg-muted/40 text-muted-foreground')}>
+                          {truncate(ticket.lastComment.trim(), 150)}
+                        </p>
+                      )}
+                      <Link to={`/tickets/${ticket.id}`} className="flex min-h-11 w-full items-center justify-center rounded-xl bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Ver ticket #${ticket.id}`}>
+                        Ver ticket
+                      </Link>
+                    </article>
+                  )
+                })}
+              </div>
+              </>
             )}
           </CardContent>
         </Card>

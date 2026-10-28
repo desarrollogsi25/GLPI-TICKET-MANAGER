@@ -1,0 +1,14 @@
+{
+  "release": "H-64",
+  "date": "2026-10-28",
+  "command": "npx playwright test",
+  "browser": "chromium",
+  "stats": {
+    "startTime": "2026-10-28T18:19:21.447Z",
+    "duration": 352649.8,
+    "expected": 40,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

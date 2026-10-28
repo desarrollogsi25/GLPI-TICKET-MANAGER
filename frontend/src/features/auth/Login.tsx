@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { motion } from 'motion/react'
-import { Lock, User, ShieldCheck, Activity, Zap } from 'lucide-react'
+import { Lock, User } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
@@ -76,17 +76,17 @@ export function Login() {
           <path
             d="M0,0 L84,0 C100,18 62,34 80,52 C97,70 68,86 86,100 L0,100 Z"
             fill="currentColor"
-            fillOpacity="0.07"
+            fillOpacity="0.04"
           />
           <path
             d="M0,0 L72,0 C90,16 54,36 70,54 C86,72 58,88 74,100 L0,100 Z"
             fill="currentColor"
-            fillOpacity="0.1"
+            fillOpacity="0.06"
           />
           <path
             d="M0,0 L58,0 C76,18 42,38 56,56 C70,74 46,90 60,100 L0,100 Z"
             fill="currentColor"
-            fillOpacity="0.14"
+            fillOpacity="0.08"
           />
         </svg>
       </motion.div>
@@ -100,8 +100,8 @@ export function Login() {
         className="pointer-events-none absolute inset-x-0 top-0 h-56 md:hidden"
       >
         <svg className="h-full w-full text-primary" viewBox="0 0 100 40" preserveAspectRatio="none">
-          <path d="M0,0 L100,0 L100,22 C75,40 40,8 0,28 Z" fill="currentColor" fillOpacity="0.12" />
-          <path d="M0,0 L100,0 L100,12 C70,30 35,0 0,18 Z" fill="currentColor" fillOpacity="0.14" />
+          <path d="M0,0 L100,0 L100,22 C75,40 40,8 0,28 Z" fill="currentColor" fillOpacity="0.06" />
+          <path d="M0,0 L100,0 L100,12 C70,30 35,0 0,18 Z" fill="currentColor" fillOpacity="0.08" />
         </svg>
       </motion.div>
 
@@ -116,31 +116,7 @@ export function Login() {
           <img src="/logo-gsi.png" alt="GSI Service Desk" className="h-14 w-auto" width={480} height={320} />
         </div>
 
-        <div className="max-w-md space-y-5">
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground lg:text-4xl">
-            Gestiona tus tickets con claridad.
-          </h2>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Atención al usuario en tiempo real, sincronizada con GLPI 11 y tableros ágiles para tu equipo.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { icon: Activity, label: 'Tiempo real' },
-              { icon: ShieldCheck, label: 'Acceso por rol' },
-              { icon: Zap, label: 'Flujo ágil' },
-            ].map(({ icon: Icon, label }) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-background/60 px-3 py-1 text-xs font-medium text-primary backdrop-blur-md"
-              >
-                <Icon className="size-3.5" aria-hidden="true" />
-                {label}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} GSI Service Desk</p>
+        <p className="text-xs text-muted-foreground">Service Desk Inteligente</p>
       </motion.div>
 
       {/* Formulario */}

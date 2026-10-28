@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useReopenTicketMutation } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
@@ -17,20 +18,20 @@ export function ReopenTicketDialog({
   open: boolean
   onOpenChange: (value: boolean) => void
 }) {
-  const [reason, setReason] = useState('')
-  const [touched, setTouched] = useState(false)
+  const { register, handleSubmit, reset, clearErrors, watch, formState: { errors } } = useForm<{ reason: string }>({
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
+    defaultValues: { reason: '' },
+  })
+  const reason = watch('reason')
   const reopenTicket = useReopenTicketMutation()
   const pushToast = useToastStore((state) => state.push)
 
   const pending = reopenTicket.isPending
-  const hasError = touched && reason.length > 500
-  const disabled = reason.length > 500 || pending
+  const hasError = Boolean(errors.reason)
 
   const submit = () => {
-    if (disabled) {
-      setTouched(true)
-      return
-    }
+    if (pending) return
     const trimmed = reason.trim()
     reopenTicket.mutate(
       { ticketId, reason: trimmed.length > 0 ? trimmed : undefined },
@@ -41,8 +42,7 @@ export function ReopenTicketDialog({
             description: `El ticket #${ticketId} ha vuelto a estado Asignado.`,
             variant: 'success',
           })
-          setReason('')
-          setTouched(false)
+          reset()
           onOpenChange(false)
         },
         onError: (err) => {
@@ -58,53 +58,57 @@ export function ReopenTicketDialog({
 
   return (
     <Dialog
+      className="rounded-2xl bg-card"
       open={open}
       onClose={() => {
         if (!pending) {
-          setTouched(false)
+          clearErrors()
           onOpenChange(false)
         }
       }}
       title={`Reabrir ticket #${ticketId}`}
       description="Indica el motivo de la reapertura (opcional, máximo 500 caracteres). Se añadirá como nota privada y el ticket volverá a estado Asignado."
     >
-      <div className="space-y-1.5">
-        <Textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          onBlur={() => setTouched(true)}
-          placeholder="Motivo de la reapertura..."
-          className={cn('min-h-[100px]', hasError && 'border-destructive focus-visible:ring-destructive')}
-          maxLength={500}
-          aria-invalid={hasError}
-          aria-describedby={hasError ? 'reason-error' : undefined}
-        />
-        <div className="flex justify-between items-center text-xs">
-          {hasError ? (
-            <p id="reason-error" role="alert" className="text-destructive font-medium">
-              El motivo no puede exceder 500 caracteres.
-            </p>
-          ) : (
-            <span />
-          )}
-          <span className="text-muted-foreground">{reason.length}/500</span>
+      <form onSubmit={handleSubmit(submit)} noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor="reopen-reason">Motivo (opcional)</Label>
+          <Textarea
+            id="reopen-reason"
+            {...register('reason', { maxLength: { value: 500, message: 'El motivo no puede exceder 500 caracteres.' } })}
+            placeholder="Motivo de la reapertura..."
+            className={cn('min-h-[100px] rounded-xl bg-background/50', hasError && 'border-destructive focus-visible:ring-destructive')}
+            maxLength={500}
+            aria-invalid={hasError}
+            aria-describedby={hasError ? 'reason-error' : undefined}
+          />
+          <div className="flex justify-between items-center text-xs">
+            {hasError ? (
+              <p id="reason-error" role="alert" className="text-destructive font-medium">
+                El motivo no puede exceder 500 caracteres.
+              </p>
+            ) : (
+              <span />
+            )}
+            <span className="text-muted-foreground">{reason.length}/500</span>
+          </div>
         </div>
-      </div>
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={() => {
-            setTouched(false)
-            onOpenChange(false)
-          }}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-        <Button onClick={submit} disabled={disabled}>
-          {pending ? 'Reabriendo...' : 'Reabrir'}
-        </Button>
-      </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              clearErrors()
+              onOpenChange(false)
+            }}
+            disabled={pending}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={pending}>
+            {pending ? 'Reabriendo...' : 'Reabrir'}
+          </Button>
+        </div>
+      </form>
     </Dialog>
   )
 }
