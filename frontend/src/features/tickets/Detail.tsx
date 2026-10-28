@@ -178,20 +178,35 @@ export function Detail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
+                {ticket.status === 2 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
+                    disabled={updateStatus.isPending}
+                    data-testid="start-ticket-btn"
+                    onClick={() => changeStatus(3)}
+                  >
+                    Iniciar ticket
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="default"
                   className="rounded-xl"
                   disabled={
+                    ticket.status === 2 ||
                     ticket.status === 4 ||
                     ticket.status === 5 ||
                     ticket.status === 6 ||
                     updateStatus.isPending
                   }
                   title={
-                    ticket.status === 4
-                      ? 'Debes reanudar a En Progreso primero.'
-                      : undefined
+                    ticket.status === 2
+                      ? 'Primero debes iniciar el ticket (En Progreso) para resolverlo.'
+                      : ticket.status === 4
+                        ? 'Debes reanudar a En Progreso primero.'
+                        : undefined
                   }
                   onClick={() => setResolveOpen(true)}
                 >
@@ -230,6 +245,9 @@ export function Detail() {
                   const isPendingInvalidTransition =
                     ticket.status === 4 && option.value !== 3
 
+                  const isAssigneeDirectResolveBlocked =
+                    ticket.status === 2 && option.value === 5
+
                   const isRewindToNewBlocked =
                     role !== 'admin' && ticket.status > 1 && option.value === 1
 
@@ -241,6 +259,7 @@ export function Detail() {
                     updateStatus.isPending ||
                     isBackwardBlocked ||
                     isPendingInvalidTransition ||
+                    isAssigneeDirectResolveBlocked ||
                     isRewindToNewBlocked ||
                     isCloseAdminOnly
 
@@ -252,11 +271,13 @@ export function Detail() {
                       className="rounded-xl text-xs"
                       disabled={isDisabled}
                       title={
-                        isPendingInvalidTransition
-                          ? 'Debes reanudar a En Progreso primero.'
-                          : isBackwardBlocked
-                            ? 'No se puede retroceder el estado de este ticket.'
-                            : undefined
+                        isAssigneeDirectResolveBlocked
+                          ? 'Primero debes iniciar el ticket (En Progreso) para resolverlo.'
+                          : isPendingInvalidTransition
+                            ? 'Debes reanudar a En Progreso primero.'
+                            : isBackwardBlocked
+                              ? 'No se puede retroceder el estado de este ticket.'
+                              : undefined
                       }
                       onClick={() => {
                         if (option.value === 5) {
@@ -272,6 +293,11 @@ export function Detail() {
                 })}
               </div>
 
+              {ticket.status === 2 && (
+                <p className="text-xs text-muted-foreground font-medium">
+                  Primero debes iniciar el ticket (En Progreso) para poder resolverlo.
+                </p>
+              )}
               {ticket.status === 4 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                   Debes reanudar a En Progreso primero.

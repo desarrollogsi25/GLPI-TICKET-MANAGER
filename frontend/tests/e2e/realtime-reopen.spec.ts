@@ -28,7 +28,13 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
 
   await expect(page.locator('text=#70').first()).toBeVisible({ timeout: 15000 })
 
-  // 2. Resolver el ticket por primera vez
+  // 2. Iniciar el ticket y resolverlo por primera vez
+  const startBtn = page.getByRole('button', { name: /Iniciar ticket|Planificado/i }).first()
+  if (await startBtn.isVisible()) {
+    await startBtn.click()
+    await expect(page.getByText('Estado actualizado')).toBeVisible({ timeout: 10000 })
+  }
+
   const resolveButton = page.getByRole('button', { name: /^Resolver$/ }).first()
   await expect(resolveButton).toBeVisible({ timeout: 10000 })
   await resolveButton.click()
@@ -91,9 +97,15 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
 
   await adminContext.close()
 
-  // 7. El técnico asignado puede volver a resolver con una nueva solución.
+  // 7. El técnico asignado puede volver a resolver con una nueva solución tras iniciarlo.
   await page.reload()
   await page.waitForLoadState('networkidle')
+
+  const startBtn2 = page.getByRole('button', { name: /Iniciar ticket|Planificado/i }).first()
+  if (await startBtn2.isVisible()) {
+    await startBtn2.click()
+    await expect(page.getByText('Estado actualizado')).toBeVisible({ timeout: 10000 })
+  }
 
   const resolveButton2 = page.getByRole('button', { name: /^Resolver$/ }).first()
   await expect(resolveButton2).toBeVisible({ timeout: 15000 })

@@ -3,13 +3,13 @@ import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
   Briefcase,
-  ChevronLeft,
-  ChevronRight,
   HelpCircle,
   Inbox,
   KanbanSquare,
   ListTodo,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   ShieldCheck,
   Users,
@@ -221,7 +221,7 @@ export function AppSidebar({
       data-testid="desktop-sidebar"
       data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
-        'fixed inset-y-0 left-0 z-30 hidden flex-col border-none bg-background/95 backdrop-blur-xl md:flex select-none transition-all duration-300 ease-in-out shadow-sm overflow-x-hidden',
+        'fixed inset-y-0 left-0 z-30 hidden flex-col border-none bg-background/95 backdrop-blur-xl md:flex select-none transition-[width] duration-300 ease-in-out shadow-sm overflow-hidden',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
@@ -256,9 +256,9 @@ export function AppSidebar({
             aria-label="Colapsar barra lateral"
             title="Colapsar barra lateral"
             data-testid="sidebar-collapse-btn"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
           >
-            <ChevronLeft className="size-4" />
+            <PanelLeftClose className="size-4" />
           </Button>
         )}
       </div>
@@ -272,9 +272,9 @@ export function AppSidebar({
             aria-label="Expandir barra lateral"
             title="Expandir barra lateral"
             data-testid="sidebar-collapse-btn"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            <ChevronRight className="size-4" />
+            <PanelLeftOpen className="size-4" />
           </Button>
         </div>
       )}

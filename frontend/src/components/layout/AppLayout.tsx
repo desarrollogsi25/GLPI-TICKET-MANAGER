@@ -17,18 +17,6 @@ import { PageTransition } from './PageTransition'
 
 export type DarkPreset = 'midnight' | 'charcoal' | 'deep-blue'
 
-const ROUTE_LABELS: Record<string, string> = {
-  kanban: 'Kanban',
-  tickets: 'Tickets',
-  queue: 'Cola del Grupo',
-  services: 'Servicios',
-  equipo: 'Mi Equipo',
-  administracion: 'Administración',
-  dashboard: 'Dashboard',
-  preferences: 'Preferencias',
-  ayuda: 'Guía de Agente',
-}
-
 export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -52,6 +40,7 @@ export function AppLayout() {
   })
 
   const location = useLocation()
+  const pathSegments = location.pathname.split('/').filter(Boolean)
   const { connectionState } = useRealtimeTicketHub()
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
@@ -99,10 +88,6 @@ export function AppLayout() {
       // ignore
     }
   }
-
-  const pathSegments = location.pathname.split('/').filter(Boolean)
-  const primarySegment = pathSegments[0] ?? 'kanban'
-  const currentRouteLabel = ROUTE_LABELS[primarySegment] ?? primarySegment
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -156,16 +141,16 @@ export function AppLayout() {
       {/* 3. Desktop Top Header + Main Content Area */}
       <div
         className={cn(
-          'min-h-screen md:h-screen flex flex-col transition-all duration-200 ease-out md:overflow-hidden',
+          'min-h-screen md:h-screen flex flex-col transition-[margin-left] duration-300 ease-in-out md:overflow-hidden',
           isSidebarCollapsed ? 'md:ml-16' : 'md:ml-56',
         )}
       >
-        {/* Global Desktop Header with Dynamic Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
+        {/* Global Desktop Header with Contextual Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
         <header
           data-testid="desktop-top-header"
           className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center justify-between border-none bg-background/60 backdrop-blur-md px-6 shadow-xs"
         >
-          {/* Dynamic Breadcrumb */}
+          {/* Contextual Breadcrumb (sin duplicar el H1 de la página) */}
           <nav
             aria-label="Breadcrumb global"
             data-testid="header-breadcrumb"
@@ -177,8 +162,6 @@ export function AppLayout() {
             >
               Workspace
             </Link>
-            <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
-            <span className="font-semibold text-foreground">{currentRouteLabel}</span>
             {pathSegments[1] && (
               <>
                 <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
@@ -210,8 +193,19 @@ export function AppLayout() {
             {/* Pill Container for Quick Actions */}
             <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1 shadow-xs">
               {isDark && (
-                <div className="flex items-center gap-1 rounded-full bg-background/40 px-2 h-7">
-                  <Palette className="size-3 text-muted-foreground shrink-0" aria-hidden="true" />
+                <div className="flex items-center gap-1.5 rounded-full bg-background/60 backdrop-blur-md px-2.5 h-7 border border-border/40 shadow-xs">
+                  <Palette className="size-3 text-primary shrink-0" aria-hidden="true" />
+                  <span
+                    className="size-2 rounded-full shrink-0 border border-border/50"
+                    style={{
+                      backgroundColor:
+                        darkPreset === 'midnight'
+                          ? '#0F172A'
+                          : darkPreset === 'charcoal'
+                            ? '#1C1917'
+                            : '#0B1329',
+                    }}
+                  />
                   <select
                     aria-label="Preset de modo oscuro"
                     data-testid="dark-preset-select"

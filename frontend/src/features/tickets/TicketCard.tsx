@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core'
 import { motion, useReducedMotion } from 'motion/react'
 import { Clock, User } from 'lucide-react'
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -46,7 +47,7 @@ function getAssigneeInitials(ticket: TicketSummary, currentUsername?: string): {
   }
 }
 
-export function TicketCard({
+function TicketCardComponent({
   ticket,
   draggable = true,
   actionButton,
@@ -246,7 +247,7 @@ export function TicketCard({
 
       {actionButton ? (
         <div
-          className="ticket-actions mt-2.5 pt-2 border-t border-border/30 flex items-center transition-all duration-200"
+          className="ticket-actions mt-2 pt-2 border-t border-border/30 flex items-center justify-end transition-all duration-200"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -256,3 +257,5 @@ export function TicketCard({
     </motion.div>
   )
 }
+
+export const TicketCard = memo(TicketCardComponent)

@@ -120,7 +120,8 @@ function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): Tic
 
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
-  mine: ['in_progress', 'resolved'],
+  // H-62: un ticket en Asignado (Mis tickets) debe pasar primero a En Progreso antes de ser resuelto
+  mine: ['in_progress'],
   in_progress: ['pending', 'resolved'],
   // H-39: un ticket Pendiente solo puede reanudarse (→ En progreso). Resolverlo
   // directamente está prohibido por el backend (422), así que el tablero tampoco
@@ -706,6 +707,12 @@ export function Kanban() {
             'No se puede resolver un ticket desde Pendiente. Primero debe reanudarse a En Progreso.',
           variant: 'destructive',
         })
+      } else if (sourceId === 'mine' && targetId === 'resolved') {
+        pushToast({
+          title: 'Transición bloqueada',
+          description: 'Primero debes iniciar el ticket (En Progreso) para resolverlo.',
+          variant: 'destructive',
+        })
       } else {
         pushToast({
           title: 'Transición no permitida',
@@ -734,11 +741,6 @@ export function Kanban() {
 
     if (sourceId === 'pending' && targetId === 'in_progress') {
       handleResume(ticketId)
-      return
-    }
-
-    if (sourceId === 'mine' && targetId === 'resolved') {
-      setResolveTicketId(ticketId)
       return
     }
 

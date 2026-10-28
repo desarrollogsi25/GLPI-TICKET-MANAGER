@@ -29,7 +29,8 @@ function shouldRetry(failureCount: number, error: unknown): boolean {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
+      // H-62: Optimización de rendimiento evitando refetches excesivos
+      staleTime: 5 * 60 * 1000,
       retry: shouldRetry,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       refetchOnWindowFocus: false,

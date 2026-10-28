@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
+  Check,
   CheckCircle2,
   Clock,
   Filter,
@@ -180,30 +181,32 @@ export function TeamDashboard() {
     setEndDate('')
   }
 
-  // 4. Section C Filtered Tickets (incluye filtros por técnico, estado y rango de fechas)
-  const filteredTickets = allTickets.filter((t) => {
-    if (techFilter !== 'all') {
-      if (techFilter === 'unassigned') {
-        if (t.assigneeId != null) return false
-      } else if (String(t.assigneeId) !== techFilter) {
-        return false
+  // 4. Section C Filtered Tickets (memoizado para máximo rendimiento H-62)
+  const filteredTickets = useMemo(() => {
+    return allTickets.filter((t) => {
+      if (techFilter !== 'all') {
+        if (techFilter === 'unassigned') {
+          if (t.assigneeId != null) return false
+        } else if (String(t.assigneeId) !== techFilter) {
+          return false
+        }
       }
-    }
-    if (statusFilter !== 'all') {
-      if (String(t.status) !== statusFilter) return false
-    }
-    if (startDate) {
-      if (!t.createdAt) return false
-      const ticketDate = t.createdAt.slice(0, 10)
-      if (ticketDate < startDate) return false
-    }
-    if (endDate) {
-      if (!t.createdAt) return false
-      const ticketDate = t.createdAt.slice(0, 10)
-      if (ticketDate > endDate) return false
-    }
-    return true
-  })
+      if (statusFilter !== 'all') {
+        if (String(t.status) !== statusFilter) return false
+      }
+      if (startDate) {
+        if (!t.createdAt) return false
+        const ticketDate = t.createdAt.slice(0, 10)
+        if (ticketDate < startDate) return false
+      }
+      if (endDate) {
+        if (!t.createdAt) return false
+        const ticketDate = t.createdAt.slice(0, 10)
+        if (ticketDate > endDate) return false
+      }
+      return true
+    })
+  }, [allTickets, techFilter, statusFilter, startDate, endDate])
 
   return (
     <div className="space-y-6">
@@ -355,7 +358,12 @@ export function TeamDashboard() {
                                 title={isSelected ? 'Quitar filtro de técnico' : `Filtrar tickets de ${m.name}`}
                               >
                                 <span className="truncate">{m.name}</span>
-                                {isSelected && <Filter className="size-3 text-primary shrink-0" aria-label="Filtro activo" />}
+                                {isSelected && (
+                                  <>
+                                    <Filter className="size-3 text-primary shrink-0" aria-label="Filtro activo" />
+                                    <Check className="size-3 text-primary shrink-0 stroke-[2.5]" aria-label="Seleccionado" />
+                                  </>
+                                )}
                               </button>
                               <span className="text-[11px] text-muted-foreground block truncate">
                                 {m.lastActivity ? `Activo: ${formatRelative(m.lastActivity)}` : 'Sin actividad reciente'}
@@ -471,7 +479,12 @@ export function TeamDashboard() {
                                     data-testid={`filter-tech-${m.userId}`}
                                   >
                                     <span>{m.name}</span>
-                                    {isSelected && <Filter className="size-3.5 text-primary shrink-0" aria-label="Filtro activo" />}
+                                    {isSelected && (
+                                      <>
+                                        <Filter className="size-3.5 text-primary shrink-0" aria-label="Filtro activo" />
+                                        <Check className="size-3.5 text-primary shrink-0 stroke-[2.5]" aria-label="Seleccionado" />
+                                      </>
+                                    )}
                                   </button>
                                   {/* Subtítulo o badge para alertas */}
                                   {stalled && (
