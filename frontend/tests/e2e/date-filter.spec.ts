@@ -1,6 +1,19 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 const BASE_URL = 'http://localhost:5173'
+const MONTH_NAMES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+] as const
+
+/** Month/year are themed listboxes, not native selects: open the trigger and pick an option. */
+async function pickCalendarOption(page: Page, field: 'Mes' | 'Año', option: string | RegExp) {
+  const calendar = page.locator('[data-calendar-popover="true"]')
+  await calendar.getByRole('combobox', { name: field, exact: true }).click()
+  const listbox = page.getByRole('listbox')
+  await expect(listbox).toBeVisible()
+  await listbox.getByRole('option', { name: option, exact: typeof option === 'string' }).click()
+}
 
 /**
  * Date filters on the ticket list.
@@ -70,8 +83,8 @@ test.describe('ticket date filters', () => {
     const selectDate = async (trigger: typeof startInput, value: string) => {
       await trigger.click()
       const calendar = page.locator('[data-calendar-popover="true"]')
-      await calendar.getByRole('combobox', { name: 'Año', exact: true }).selectOption(value.slice(0, 4))
-      await calendar.getByRole('combobox', { name: 'Mes', exact: true }).selectOption(String(Number(value.slice(5, 7)) - 1))
+      await pickCalendarOption(page, 'Año', value.slice(0, 4))
+      await pickCalendarOption(page, 'Mes', new RegExp(`^${MONTH_NAMES[Number(value.slice(5, 7)) - 1]}$`, 'i'))
       await calendar.locator(`button[data-date="${value}"]`).click()
       // Picking a day only fills the local draft: the URL must stay untouched until "Aplicar".
       await expect(page).not.toHaveURL(new RegExp(`(startDate|endDate)=${value}`))
@@ -121,8 +134,8 @@ test.describe('ticket date filters', () => {
     const startInput = page.locator('#start-date-filter')
     await startInput.click()
     const calendar = page.locator('[data-calendar-popover="true"]')
-    await calendar.getByRole('combobox', { name: 'Año', exact: true }).selectOption('2020')
-    await calendar.getByRole('combobox', { name: 'Mes', exact: true }).selectOption('0')
+    await pickCalendarOption(page, 'Año', '2020')
+    await pickCalendarOption(page, 'Mes', /^enero$/i)
     await calendar.locator('button[data-date="2020-01-01"]').click()
     await page.keyboard.press('Escape')
 

@@ -20,6 +20,7 @@ interface DropdownSelectProps {
   'data-testid'?: string
   placeholder?: string
   className?: string
+  listClassName?: string
   disabled?: boolean
 }
 
@@ -36,6 +37,7 @@ export function DropdownSelect({
   id,
   placeholder = 'Seleccionar',
   className,
+  listClassName,
   disabled,
   ...rest
 }: DropdownSelectProps) {
@@ -175,6 +177,7 @@ export function DropdownSelect({
               id={listId}
               role="listbox"
               tabIndex={-1}
+              data-dropdown-portal="true"
               aria-activedescendant={`${listId}-${activeIndex}`}
               onKeyDown={onListKeyDown}
               style={{
@@ -186,6 +189,7 @@ export function DropdownSelect({
               className={cn(
                 'z-[100] max-h-72 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 text-popover-foreground shadow-xl backdrop-blur-md outline-none',
                 'animate-in fade-in-0 zoom-in-95',
+                listClassName,
               )}
             >
               {options.map((option, index) => {

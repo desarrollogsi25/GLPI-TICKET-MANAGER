@@ -85,8 +85,9 @@ function DatePickerBase({ value, onChange, label, id, className, placeholder, mi
             autoFocus
             selected={draft}
             defaultMonth={initialDate}
-            startMonth={earliest ?? new Date(1900, 0, 1)}
-            endMonth={latest ?? new Date(today.getFullYear() + 100, 11, 1)}
+            // A wider default range turns the year listbox into 200+ rows.
+            startMonth={earliest ?? new Date(2000, 0, 1)}
+            endMonth={latest ?? new Date(today.getFullYear() + 10, 11, 1)}
             disabled={disabled}
             aria-label={`Calendario: ${label}`}
             onSelect={handleSelect}

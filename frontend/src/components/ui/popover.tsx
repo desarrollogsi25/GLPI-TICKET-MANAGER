@@ -47,12 +47,17 @@ export function Popover({ open, onOpenChange, label, trigger, triggerProps, chil
 
   useEffect(() => {
     if (!open) return
+    // The calendar's month/year listbox lives in its own portal; treating it as
+    // "outside" would unmount the calendar on the first option click.
+    const inNestedPortal = (target: EventTarget | null) =>
+      target instanceof Element && Boolean(target.closest('[data-dropdown-portal="true"]'))
     const outside = (event: Event) => {
+      if (inNestedPortal(event.target)) return
       const target = event.target as Node
       if (!triggerRef.current?.contains(target) && !contentRef.current?.contains(target)) onOpenChange(false)
     }
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || inNestedPortal(event.target)) return
       event.preventDefault()
       // A calendar inside the mobile filter sheet closes before its parent sheet.
       event.stopPropagation()
@@ -89,7 +94,7 @@ export function Popover({ open, onOpenChange, label, trigger, triggerProps, chil
         onClick={() => onOpenChange(!open)}
       >{trigger}</button>
       {open && createPortal(
-        <div ref={contentRef} id={contentId} role="dialog" aria-label={label} data-calendar-popover="true" style={position} className="fixed z-[80] max-h-[calc(100dvh-24px)] overflow-auto rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-xl">
+        <div ref={contentRef} id={contentId} role="dialog" aria-label={label} data-calendar-popover="true" style={position} className="fixed z-[80] max-h-[calc(100dvh-24px)] overflow-auto rounded-2xl border border-border/70 bg-card/95 p-3 text-card-foreground shadow-2xl ring-1 ring-border/40 backdrop-blur-xl">
           {typeof children === 'function' ? children(close) : children}
         </div>, document.body,
       )}
