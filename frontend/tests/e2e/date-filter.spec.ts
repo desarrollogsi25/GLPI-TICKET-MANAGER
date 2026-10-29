@@ -73,6 +73,9 @@ test.describe('ticket date filters', () => {
       await calendar.getByRole('combobox', { name: 'Año', exact: true }).selectOption(value.slice(0, 4))
       await calendar.getByRole('combobox', { name: 'Mes', exact: true }).selectOption(String(Number(value.slice(5, 7)) - 1))
       await calendar.locator(`button[data-date="${value}"]`).click()
+      // Picking a day only fills the local draft: the URL must stay untouched until "Aplicar".
+      await expect(page).not.toHaveURL(new RegExp(`(startDate|endDate)=${value}`))
+      await calendar.getByRole('button', { name: 'Aplicar', exact: true }).click()
     }
     await selectDate(startInput, '2020-01-01')
     await selectDate(endInput, '2020-01-02')
@@ -109,6 +112,27 @@ test.describe('ticket date filters', () => {
     await expect(page).not.toHaveURL(/endDate=/)
     await expect(startInput).toContainText(/elegir fecha/i)
     await expect(endInput).toContainText(/elegir fecha/i)
+  })
+
+  test('UI: closing the calendar discards the unapplied date', async ({ page }) => {
+    await page.goto(`${BASE_URL}/tickets`)
+    await page.waitForLoadState('networkidle')
+
+    const startInput = page.locator('#start-date-filter')
+    await startInput.click()
+    const calendar = page.locator('[data-calendar-popover="true"]')
+    await calendar.getByRole('combobox', { name: 'Año', exact: true }).selectOption('2020')
+    await calendar.getByRole('combobox', { name: 'Mes', exact: true }).selectOption('0')
+    await calendar.locator('button[data-date="2020-01-01"]').click()
+    await page.keyboard.press('Escape')
+
+    await expect(calendar).toHaveCount(0)
+    await expect(page).not.toHaveURL(/startDate=/)
+    await expect(startInput).toContainText(/elegir fecha/i)
+
+    // Reopening starts from the committed value, so the unapplied draft is gone.
+    await startInput.click()
+    await expect(page.locator('[data-calendar-popover="true"]').getByRole('button', { name: 'Aplicar', exact: true })).toBeDisabled()
   })
 
   test('UI: technician role does not render the technician dropdown', async ({ page }) => {
