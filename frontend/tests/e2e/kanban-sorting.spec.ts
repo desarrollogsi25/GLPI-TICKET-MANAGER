@@ -1,6 +1,7 @@
 import { test, expect, type Locator } from '@playwright/test'
+import { fixtureUrl } from './support/fixture-url'
 
-const BASE_URL = 'http://localhost:5173'
+const BASE_URL = fixtureUrl('desk')
 
 /**
  * Kanban ordering policy (docs/02-modules/tickets/overview.md):

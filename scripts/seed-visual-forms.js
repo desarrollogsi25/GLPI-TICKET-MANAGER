@@ -1,5 +1,4 @@
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -8,29 +7,15 @@ const crypto = require('crypto');
 // receive a class name with doubled backslashes and causes SubmitAnswers 500s.
 const ANSWER_TAG_PROVIDER = 'Glpi\\Form\\Tag\\AnswerTagProvider';
 
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
-
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
-  }
-}
-if (!mariadbPassword) mariadbPassword = 'VW9Qr7m2XSkGd0tHegGGq3hhrHcD';
-
 function runSql(sql) {
   try {
-    return execSync(
-      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
+    return execFileSync(
+      process.execPath,
+      [path.resolve(__dirname, 'e2e/guard.mjs'), 'sql', 'mariadb'],
       { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
-  } catch (err) {
-    const msg = err.stderr || err.message;
-    throw new Error(`Error MariaDB: ${msg}`);
+  } catch {
+    throw new Error('Visual fixtures blocked: a verified disposable E2E fixture is required.');
   }
 }
 

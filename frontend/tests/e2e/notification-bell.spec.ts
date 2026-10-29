@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
 
-test.use({ storageState: 'tests/e2e/.auth/tech1.json' })
 
 test('notification bell: opens panel, shows notifications, mark as read', async ({ page }) => {
   test.setTimeout(60000)

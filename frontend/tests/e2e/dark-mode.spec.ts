@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test('dark mode toggle actually changes html class', async ({ page }) => {
-  await page.goto('http://localhost:5173/preferences')
+  await page.goto('/preferences')
   await page.waitForLoadState('networkidle')
 
   // Cambiar a dark (autoguardado con debounce H-61)

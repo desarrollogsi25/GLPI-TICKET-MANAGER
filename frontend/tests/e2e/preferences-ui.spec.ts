@@ -7,7 +7,7 @@ test('preferences UI: toggle, save, reload persists', async ({ page }) => {
   })
 
   // 1. Ir a /preferences
-  await page.goto('http://localhost:5173/preferences')
+  await page.goto('/preferences')
   await page.waitForLoadState('networkidle')
 
   // 2. Verificar selector de tema

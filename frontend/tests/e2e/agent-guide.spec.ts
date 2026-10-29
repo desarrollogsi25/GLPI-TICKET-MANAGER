@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('Ayuda muestra la guia del agente', async ({ page }) => {
 
-  await page.goto('http://localhost:5173/ayuda')
+  await page.goto('/ayuda')
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByText('Guía del agente')).toBeVisible({ timeout: 10000 })

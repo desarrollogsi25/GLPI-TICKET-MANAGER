@@ -97,7 +97,7 @@ jobs:
   e2e:
     name: E2E (Playwright against full stack)
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     needs: [backend, frontend, secret-scan]
     steps:
       - uses: actions/checkout@v4
@@ -109,263 +109,39 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-      - name: Validate required secrets
+      - name: Test reset guard without Docker
+        run: node --test scripts/e2e/guard.test.mjs
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+      - name: Test entrypoints without Docker or browser
         run: |
-          for v in MARIADB_ROOT_PASSWORD MARIADB_PASSWORD GLPI_APP_TOKEN GLPI_USER_TOKEN JWT_SECRET APP_DB_PASSWORD GLPI_CRYPT_KEY; do
-            if [ -z "${!v}" ]; then
-              echo "ERROR: Missing required secret: $v"
+          node --test scripts/e2e/negative-entrypoints.test.mjs scripts/e2e/runner-cleanup.test.mjs scripts/e2e/manual-scripts.test.mjs
+          bash -n scripts/seed-e2e.sh scripts/test-audit.sh scripts/provision-glpi-test-users.sh
+          for script in scripts/seed-e2e.sh scripts/test-audit.sh scripts/provision-glpi-test-users.sh; do
+            if env -u E2E_FIXTURE_MANIFEST -u E2E_CONFIRM_DESTRUCTIVE bash "$script"; then
+              echo "ERROR: unverified reset entrypoint was accepted"
               exit 1
             fi
           done
-        env:
-          MARIADB_ROOT_PASSWORD: ${{ secrets.MARIADB_ROOT_PASSWORD }}
-          MARIADB_PASSWORD: ${{ secrets.MARIADB_PASSWORD }}
-          GLPI_APP_TOKEN: ${{ secrets.GLPI_APP_TOKEN }}
-          GLPI_USER_TOKEN: ${{ secrets.GLPI_USER_TOKEN }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
-          GLPI_CRYPT_KEY: ${{ secrets.GLPI_CRYPT_KEY }}
-      - name: Create .env for compose
-        run: |
-          cat > .env <<EOF
-          MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD }}
-          MARIADB_DATABASE=glpi
-          MARIADB_USER=glpi
-          MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD }}
-          GLPI_APP_TOKEN=${{ secrets.GLPI_APP_TOKEN }}
-          GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          APP_DB_PASSWORD=${{ secrets.APP_DB_PASSWORD }}
-          EOF
-      - name: Start database
-        run: docker compose up -d glpi-db app-db
-      - name: Wait for database healthy
-        run: |
-          for i in {1..30}; do
-            if docker compose exec -T glpi-db healthcheck.sh --connect --innodb_initialized > /dev/null 2>&1; then
-              echo "Database is healthy"
-              exit 0
+          for script in scripts/seed-glpi-users.js scripts/seed-tickets.js scripts/seed-glpi-categories.js scripts/verify-glpi-categories-flow.js scripts/seed-visual-forms.js; do
+            if env -u E2E_FIXTURE_MANIFEST -u E2E_CONFIRM_DESTRUCTIVE node "$script"; then
+              echo "ERROR: unverified fixture entrypoint was accepted ($script)"
+              exit 1
             fi
-            sleep 2
           done
-          echo "Database failed to become healthy"
-          exit 1
-      - name: Wait for app-db healthy
-        run: |
-          for i in {1..30}; do
-            if docker compose exec -T app-db pg_isready -U app -d glpi_ticket_manager > /dev/null 2>&1; then
-              echo "app-db is healthy"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "app-db did not become healthy"
-          docker compose logs app-db
-          exit 1
-      - name: Apply GLPI base schema (CI bootstrap)
-        run: |
-          MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
-          docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
-          echo "Applying schema for glpi_events and glpi_logs (excluded from base dump)"
-          docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-schema-events-logs.sql
-      - name: Verify app-db migrations
-        run: |
-          TABLES=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('app_settings','user_preferences','audit_log','revoked_tokens');")
-          echo "Tables found: ${TABLES} / 4"
-          if [ "${TABLES}" != "4" ]; then
-            echo "ERROR: Expected 4 tables, found ${TABLES}"
-            docker compose logs app-db --tail=50
-            exit 1
-          fi
-          echo "app-db migrations verified: 4 tables present."
-      - name: Start full stack
-        run: docker compose up -d --build
-      - name: Copy GLPI configuration and encryption key
-        env:
-          GLPI_CRYPT_KEY: ${{ secrets.GLPI_CRYPT_KEY }}
-        run: |
-          MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
-          sed "s/\${MARIADB_PASSWORD}/${MARIADB_PASSWORD}/g" scripts/config_db.php.template > scripts/config_db.php
-          echo "${GLPI_CRYPT_KEY}" | base64 -d > scripts/glpicrypt.key
-          docker compose cp scripts/glpicrypt.key glpi:/var/glpi/config/glpicrypt.key
-          docker compose cp scripts/config_db.php glpi:/var/glpi/config/config_db.php
-          docker compose restart glpi
-          sleep 5
-      - name: Wait for API healthy
-        run: |
-          for i in {1..30}; do
-            if curl -sf http://localhost:8080/health > /dev/null; then exit 0; fi
-            sleep 2
-          done
-          echo "API did not become healthy"
-          docker compose logs api
-          exit 1
-      - name: Wait for API ready (checks MariaDB + PostgreSQL)
-        run: |
-          for i in {1..30}; do
-            RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8080/health/ready)
-            CODE=$(echo "$RESPONSE" | tail -n1)
-            if [ "$CODE" = "200" ]; then
-              echo "$RESPONSE" | head -n-1
-              echo "API is ready"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "API did not become ready"
-          echo "Last response:"
-          echo "$RESPONSE"
-          docker compose logs api --tail=100
-          exit 1
-      - name: Wait for frontend
-        run: |
-          for i in {1..30}; do
-            if curl -sf http://localhost:5173 > /dev/null; then exit 0; fi
-            sleep 2
-          done
-          exit 1
-      - name: Seed Playwright browser cache into container
-        run: |
-          if [ -d "$HOME/.cache/ms-playwright" ] && [ -n "$(ls -A "$HOME/.cache/ms-playwright" 2>/dev/null)" ]; then
-            docker compose exec -T -u root frontend mkdir -p /root/.cache/ms-playwright
-            docker compose cp "$HOME/.cache/ms-playwright/." frontend:/root/.cache/ms-playwright/
-            echo "Restored Playwright browser cache from host into container."
-          fi
-      - name: Install Playwright browser in container
-        run: |
-          docker compose exec -T -u root frontend apk add --no-cache chromium gcompat
-          docker compose exec -T frontend pnpm exec playwright install chromium
-      - name: Save Playwright browser cache to host
-        if: always()
-        run: |
-          mkdir -p "$HOME/.cache/ms-playwright"
-          docker compose cp frontend:/root/.cache/ms-playwright/. "$HOME/.cache/ms-playwright/" 2>/dev/null || true
-      - name: Smoke test - API claim and status update
-        run: |
-          echo "===== Login as tech1 ====="
-          LOGIN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
-            -H "Content-Type: application/json" \
-            -d '{"username":"tech1","password":"Tech1Pass!"}')
-          TOKEN=$(echo "$LOGIN" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
-          if [ -z "$TOKEN" ]; then
-            echo "ERROR: could not login"
-            docker compose logs api --tail=50
-            exit 1
-          fi
-          echo "Login OK"
-          
-          echo "===== POST /api/tickets/11/claim ====="
-          CLAIM_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST http://localhost:8080/api/tickets/11/claim \
-            -H "Authorization: Bearer $TOKEN")
-          if [ "$CLAIM_HTTP" != "200" ]; then
-            echo "ERROR: claim returned $CLAIM_HTTP (expected 200)"
-            docker compose logs api --tail=50
-            exit 1
-          fi
-          echo "Claim OK (200)"
-          
-          echo "===== PATCH /api/tickets/11/status ====="
-          # GLPI can briefly serve HTML (instead of the JSON API) right after the
-          # container restart while PHP-FPM warms up; the API surfaces that as a 500.
-          # Retry a few times so a transient GLPI startup race doesn't fail the job.
-          STATUS_HTTP=000
-          for attempt in 1 2 3 4 5; do
-            STATUS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-              -X PATCH http://localhost:8080/api/tickets/11/status \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d '{"status":3}')
-            if [ "$STATUS_HTTP" = "204" ]; then
-              break
-            fi
-            echo "Status update returned $STATUS_HTTP (attempt $attempt/5), retrying in 5s..."
-            sleep 5
-          done
-          if [ "$STATUS_HTTP" != "204" ]; then
-            echo "ERROR: status update returned $STATUS_HTTP (expected 204)"
-            docker compose logs api --tail=50
-            docker compose logs glpi --tail=50
-            exit 1
-          fi
-          echo "Status update OK (204)"
-
-          echo "===== POST /api/tickets/11/solutions ====="
-          SOL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST http://localhost:8080/api/tickets/11/solutions \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"content":"Smoke test solution via API"}')
-          if [ "$SOL_HTTP" != "201" ]; then
-            echo "ERROR: solution creation returned $SOL_HTTP (expected 201)"
-            docker compose logs api --tail=50
-            exit 1
-          fi
-          echo "Solution created OK (201)"
-          
-          echo "===== Reset ticket #11 for E2E ====="
-          MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
-          docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e \
-            "UPDATE glpi_tickets SET status=1, date_mod=NOW() WHERE id=11; 
-             DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
-             DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;"
-          echo "Reset OK"
-          
-          echo "Smoke test PASSED - API can claim, update status and create solutions"
-      - name: Seed E2E state
-        run: ./scripts/seed-e2e.sh
-      - name: Seed GLPI visual forms and Hardware routing
-        run: node scripts/seed-visual-forms.js
-      - name: Run E2E inside container
-        run: >-
-          docker compose exec -T
-          -e CI=true
-          -e E2E_GLPI_URL=http://glpi
-          -e E2E_DESK_URL=http://localhost:5173
-          -e E2E_TECH_USERNAME=tech1
-          -e E2E_TECH_PASSWORD=Tech1Pass!
-          -e E2E_REQUESTER_USERNAME=user1
-          -e E2E_REQUESTER_PASSWORD=User1Pass!
-          -e E2E_ADMIN_USERNAME=admin_test
-          -e E2E_ADMIN_PASSWORD=Password123!
-          -e E2E_GLPI_NATIVE=false
-          frontend pnpm exec playwright test
-      - name: Run audit smoke test
-        run: bash scripts/test-audit.sh
-        if: success()
-      - name: Copy Playwright report and test results from container
-        if: always()
-        run: |
-          mkdir -p e2e-artifacts
-          docker compose cp frontend:/app/playwright-report ./e2e-artifacts/playwright-report
-          docker compose cp frontend:/app/test-results ./e2e-artifacts/test-results
-      - name: Collect stack logs
-        if: always()
-        run: |
-          mkdir -p e2e-artifacts/logs
-          docker compose ps | tee e2e-artifacts/logs/compose-ps.txt
-          for svc in frontend api glpi app-db; do
-            echo "===== ${svc} logs ====="
-            docker compose logs --timestamps "${svc}" > "e2e-artifacts/logs/${svc}.log" 2>&1
-            cat "e2e-artifacts/logs/${svc}.log"
-            echo ""
-          done
+      - name: Install browser on ephemeral runner
+        run: pnpm --dir frontend exec playwright install --with-deps chromium
+      - name: Run disposable full-stack fixture
+        # Creates unique resources and synthetic secrets, verifies identity before
+        # writes, and removes only its own resources in finally. Never uses .env.
+        run: node scripts/e2e/run.mjs
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-e2e-artifacts
-          path: e2e-artifacts/
-          if-no-files-found: error
+          path: |
+            frontend/e2e-artifacts/*/playwright-report/
+            frontend/e2e-artifacts/*/test-results/
+          if-no-files-found: warn
           retention-days: 7
-      - name: Tear down stack
-        if: always()
-        run: docker compose down -v

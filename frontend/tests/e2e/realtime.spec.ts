@@ -1,10 +1,16 @@
 import { test, expect } from '@playwright/test'
+import { fixtureUrl } from './support/fixture-url'
 
-const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
-const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_dev'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
-const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
+const DESK = fixtureUrl('desk')
+const required = (name: string): string => {
+  const value = process.env[name]
+  if (!value) throw new Error(`E2E blocked: ${name} must be provided by the fixture runner.`)
+  return value
+}
+const TECH_USERNAME = required('E2E_TECH_USERNAME')
+const TECH_PASSWORD = required('E2E_TECH_PASSWORD')
+const REQUESTER_USERNAME = required('E2E_REQUESTER_USERNAME')
+const REQUESTER_PASSWORD = required('E2E_REQUESTER_PASSWORD')
 
 test('realtime: connection indicator connects and maintains real-time link across contexts', async ({ browser }) => {
   test.setTimeout(90000)
