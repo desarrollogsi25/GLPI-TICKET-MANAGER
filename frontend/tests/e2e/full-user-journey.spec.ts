@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { fixtureUrl } from './support/fixture-url'
 
-const GLPI = process.env.E2E_GLPI_URL ?? 'http://localhost:8081'
-const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const GLPI = fixtureUrl('glpi')
+const DESK = fixtureUrl('desk')
 const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
 const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
 const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_sd'
@@ -11,10 +10,9 @@ const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin_test'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Password123!'
 
-test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }) => {
+test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }, testInfo) => {
   test.setTimeout(120000)
   const title = `E2E demo Hardware ${Date.now()}`
-  mkdirSync(resolve(process.cwd(), 'test-results/full-user-journey'), { recursive: true })
   const serviceDesk = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const page = await serviceDesk.newPage()
   page.setDefaultTimeout(15000)
@@ -50,7 +48,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     }
     await glpi.getByRole('link', { name: /Reportar un problema/ }).last().click()
     await expect(glpi).toHaveURL(/Form\/Render\/1/)
-    await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-form.png', fullPage: true }).catch(() => {})
+    await glpi.screenshot({ path: testInfo.outputPath('glpi-form.png'), fullPage: true }).catch(() => {})
     await glpi.getByRole('textbox', { name: 'Título' }).fill(title)
     await glpi.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body').fill('Prueba completa del flujo de Hardware.')
     const category = glpi.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
@@ -61,7 +59,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     const submit = await glpiResponse
     expect(submit.status(), 'GLPI SubmitAnswers no debe responder con error 500').toBeLessThan(500)
     await expect(glpi.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
-    await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-submitted.png', fullPage: true }).catch(() => {})
+    await glpi.screenshot({ path: testInfo.outputPath('glpi-submitted.png'), fullPage: true }).catch(() => {})
   }
 
   // Técnico: abrir la cola en el Service Desk, asignar e intentar resolver.
@@ -104,7 +102,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await dialog.getByRole('button', { name: /^Resolver$/ }).last().click()
   await expect(dialog).not.toBeVisible({ timeout: 15000 })
   await expect(page.getByText(/Ticket resuelto/i).first()).toBeVisible({ timeout: 15000 })
-  await page.screenshot({ path: 'test-results/full-user-journey/technician-resolved.png', fullPage: true }).catch(() => {})
+  await page.screenshot({ path: testInfo.outputPath('technician-resolved.png'), fullPage: true }).catch(() => {})
 
   // Filtros: el rango inválido se bloquea en español antes de hacer petición.
   // El calendario impide invertir el rango en la UI; un enlace profundo sigue ejercitando el guard.
@@ -118,7 +116,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await page.goto(`${DESK}/tickets?startDate=2026-10-20&endDate=2026-10-19`)
   await expect(page.getByRole('alert')).toContainText('La fecha de inicio no puede ser posterior a la fecha de fin.')
   expect(rangedTicketRequests).toBe(0)
-  await page.screenshot({ path: 'test-results/full-user-journey/date-filter.png', fullPage: true }).catch(() => {})
+  await page.screenshot({ path: testInfo.outputPath('date-filter.png'), fullPage: true }).catch(() => {})
 
   // Admin: reabrir el ticket recién resuelto y avanzar a En progreso.
   const adminContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })

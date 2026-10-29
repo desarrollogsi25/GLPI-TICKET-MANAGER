@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
 
-test.use({ storageState: 'tests/e2e/.auth/tech1.json' })
 
 test('multi-group: tech1 can access Desarrollo group', async ({ page }) => {
   const consoleErrors: string[] = []

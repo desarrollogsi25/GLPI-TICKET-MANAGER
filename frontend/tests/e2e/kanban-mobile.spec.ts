@@ -8,7 +8,7 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/kanban')
+  await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
   // 1. Segmented tabs visibles

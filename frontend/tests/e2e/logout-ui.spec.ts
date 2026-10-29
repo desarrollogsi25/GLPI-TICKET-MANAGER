@@ -12,7 +12,7 @@ test('logout UI: click button, redirects to login, token revoked', async ({ page
   })
 
   // 1. Login fresco vía UI
-  await page.goto('http://localhost:5173/login')
+  await page.goto('/login')
   await page.fill('input[name="username"]', 'tech1')
   await page.fill('input[name="password"]', 'Tech1Pass!')
   await page.click('button[type="submit"]')
@@ -35,7 +35,7 @@ test('logout UI: click button, redirects to login, token revoked', async ({ page
   await page.waitForURL(/\/login/, { timeout: 10000 })
 
   // 4. Verificar que el token fue revocado (401)
-  const resp = await page.request.get('http://localhost:5173/api/auth/me', {
+  const resp = await page.request.get('/api/auth/me', {
     headers: { Authorization: `Bearer ${token}` }
   })
   expect(resp.status()).toBe(401)

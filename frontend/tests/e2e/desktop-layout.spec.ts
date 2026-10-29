@@ -8,7 +8,7 @@ test('desktop: sidebar visible, mobile tabs hidden', async ({ page }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/kanban')
+  await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
   // Sidebar visible

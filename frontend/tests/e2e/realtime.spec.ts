@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { fixtureUrl } from './support/fixture-url'
 
-const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const DESK = fixtureUrl('desk')
 const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_dev'
 const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
 const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'

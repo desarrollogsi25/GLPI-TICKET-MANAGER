@@ -1,0 +1,94 @@
+# Standalone fixture. Never merge with docker-compose.yml or load the local .env.
+# Every writable data directory is memory-backed and every host port is ephemeral.
+x-fixture-labels: &fixture-labels
+  io.glpi.e2e.run-id: ${E2E_RUN_ID:?runner required}
+
+services:
+  glpi-db:
+    image: mariadb:10.11
+    labels: *fixture-labels
+    environment:
+      MARIADB_ROOT_PASSWORD: ${E2E_MARIA_ROOT_PASSWORD:?runner required}
+      MARIADB_DATABASE: glpi
+      MARIADB_USER: e2e
+      MARIADB_PASSWORD: ${E2E_MARIA_PASSWORD:?runner required}
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  app-db:
+    image: postgres:16-alpine
+    labels: *fixture-labels
+    environment:
+      POSTGRES_DB: glpi_ticket_manager
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: ${E2E_APP_PASSWORD:?runner required}
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "e2e", "-d", "glpi_ticket_manager"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  glpi:
+    image: glpi/glpi:11.0@sha256:45572164994cbd12bedd99bf6dd954b7962076dd3b529f0fdc4a84131f30a32a
+    labels: *fixture-labels
+    tmpfs:
+      - /var/glpi:uid=33,gid=33,mode=0770
+      - /var/www/glpi/plugins:uid=33,gid=33,mode=0770
+    ports:
+      - "127.0.0.1::80"
+    depends_on:
+      glpi-db:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: src/GlpiTicketManager.Api/Dockerfile
+    labels: *fixture-labels
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: "Server=glpi-db;Port=3306;Database=glpi;User=e2e;Password=${E2E_MARIA_PASSWORD};"
+      AppDb__ConnectionString: "Host=app-db;Port=5432;Database=glpi_ticket_manager;Username=e2e;Password=${E2E_APP_PASSWORD}"
+      GlpiApi__BaseUrl: "http://glpi/apirest.php/"
+      GlpiApi__AppToken: ${E2E_GLPI_APP_TOKEN:?runner required}
+      GlpiApi__UserToken: ${E2E_GLPI_USER_TOKEN:?runner required}
+      Jwt__Key: ${E2E_JWT_KEY:?runner required}
+      GlpiWebhook__Secret: ${E2E_WEBHOOK_SECRET:?runner required}
+    ports:
+      - "127.0.0.1::8080"
+    depends_on:
+      glpi-db:
+        condition: service_healthy
+      app-db:
+        condition: service_healthy
+      glpi:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    labels: *fixture-labels
+    environment:
+      VITE_API_URL: /api
+      VITE_PROXY_TARGET: http://api:8080
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    ports:
+      - "127.0.0.1::5173"
+    depends_on:
+      - api
+
+networks:
+  default:
+    labels: *fixture-labels

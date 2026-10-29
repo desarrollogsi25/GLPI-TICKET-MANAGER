@@ -8,7 +8,7 @@ test('mobile: bottom tab bar navigation works', async ({ page }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/kanban')
+  await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
   // Verificar bottom tabs visibles

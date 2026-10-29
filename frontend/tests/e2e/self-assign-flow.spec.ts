@@ -6,7 +6,7 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/queue')
+  await page.goto('/queue')
   await page.waitForLoadState('networkidle')
 
   await expect(page.locator('text=#57').first()).toBeVisible({ timeout: 15000 })
@@ -18,7 +18,7 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
 
   await expect(page.locator('text=#57').first()).not.toBeVisible({ timeout: 15000 })
 
-  await page.goto('http://localhost:5173/tickets/57')
+  await page.goto('/tickets/57')
   await page.waitForLoadState('networkidle')
 
   // H-62: Un ticket en Asignado (2) debe iniciarse (En Progreso) antes de resolverse
