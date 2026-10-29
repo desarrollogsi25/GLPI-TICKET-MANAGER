@@ -7,7 +7,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -148,24 +148,29 @@ export function List() {
   const navigate = useNavigate()
 
   /** Rebuilds the /tickets URL from a filter snapshot, so every filter stays shareable. */
-  const buildUrl = (next: {
-    status: string
-    priority: string
-    startDate: string
-    endDate: string
-    search: string
-    serviceId?: string | null
-  }) => {
-    const sp = new URLSearchParams()
-    if (next.status && next.status !== 'all') sp.set('status', next.status)
-    if (next.priority && next.priority !== 'all') sp.set('priority', next.priority)
-    if (next.startDate) sp.set('startDate', next.startDate)
-    if (next.endDate) sp.set('endDate', next.endDate)
-    if (next.serviceId) sp.set('serviceId', String(next.serviceId))
-    if (next.search.trim()) sp.set('q', next.search.trim())
-    const searchStr = sp.toString() ? `?${sp.toString()}` : ''
-    navigate(`/tickets${searchStr}`, { replace: true })
-  }
+  const buildUrl = useCallback(
+    (next: {
+      status: string
+      priority: string
+      startDate: string
+      endDate: string
+      search: string
+      serviceId?: string | null
+    }) => {
+      const sp = new URLSearchParams()
+      if (next.status && next.status !== 'all') sp.set('status', next.status)
+      if (next.priority && next.priority !== 'all') sp.set('priority', next.priority)
+      if (next.startDate) sp.set('startDate', next.startDate)
+      if (next.endDate) sp.set('endDate', next.endDate)
+      if (next.serviceId) sp.set('serviceId', String(next.serviceId))
+      if (next.search.trim()) sp.set('q', next.search.trim())
+      const query = sp.toString()
+      // Navigating to the URL we already have would re-render the route for nothing.
+      if (query === searchParams.toString()) return
+      navigate(query ? `/tickets?${query}` : '/tickets', { replace: true })
+    },
+    [navigate, searchParams],
+  )
 
   const applyCombinedFilters = (newStatus: string, newPriority: string) => {
     setStatusFilter(newStatus)
@@ -200,29 +205,35 @@ export function List() {
     applyCombinedFilters(statusFilter, value)
   }
 
-  const handleStartDateChange = (value: string) => {
-    setStartDate(value)
-    buildUrl({
-      status: statusFilter,
-      priority: priorityFilter,
-      startDate: value,
-      endDate,
-      search: globalFilter,
-      serviceId: serviceIdParam,
-    })
-  }
+  const handleStartDateChange = useCallback(
+    (value: string) => {
+      setStartDate(value)
+      buildUrl({
+        status: statusFilter,
+        priority: priorityFilter,
+        startDate: value,
+        endDate,
+        search: globalFilter,
+        serviceId: serviceIdParam,
+      })
+    },
+    [buildUrl, statusFilter, priorityFilter, endDate, globalFilter, serviceIdParam],
+  )
 
-  const handleEndDateChange = (value: string) => {
-    setEndDate(value)
-    buildUrl({
-      status: statusFilter,
-      priority: priorityFilter,
-      startDate,
-      endDate: value,
-      search: globalFilter,
-      serviceId: serviceIdParam,
-    })
-  }
+  const handleEndDateChange = useCallback(
+    (value: string) => {
+      setEndDate(value)
+      buildUrl({
+        status: statusFilter,
+        priority: priorityFilter,
+        startDate,
+        endDate: value,
+        search: globalFilter,
+        serviceId: serviceIdParam,
+      })
+    },
+    [buildUrl, statusFilter, priorityFilter, startDate, globalFilter, serviceIdParam],
+  )
 
   /** Clears every filter (status, priority, dates and search) back to the default view. */
   const handleClearFilters = () => {

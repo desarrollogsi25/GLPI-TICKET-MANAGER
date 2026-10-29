@@ -8,6 +8,8 @@
 
 Login recupera bienvenida centrada en el panel de olas con Fraunces e Inter. Los filtros de tickets (escritorio y sheet móvil) y equipo comparten DatePicker con Popover y react-day-picker; se conservan valores YYYY-MM-DD, callbacks, URLs y reglas de rango. No cambian backend, contratos, permisos ni reglas de negocio.
 
+Desde H-65.1 el calendario mantiene un borrador local: seleccionar un día no escribe la URL ni el filtro del padre. Solo Aplicar o Borrar fecha confirman el cambio; Cerrar, Escape o clic fuera descartan el borrador. El DatePicker está memoizado y su onSelect es estable, y List.tsx ignora navegaciones a una URL idéntica, de modo que un ciclo URL → render → URL no puede repetirse.
+
 El layout autenticado solicita permiso de notificaciones al primer clic confiable, únicamente cuando el permiso es default, hay contexto seguro y soporte; iOS requiere instalación. Guarda un intento por origen para no insistir tras descartarlo. La campana no contiene Activar Push. Los avisos nativos proceden de una única suscripción a eventos SignalR y se muestran mediante el Service Worker registrado.
 
 ## Límites de la plataforma
@@ -38,13 +40,15 @@ flowchart LR
 
 - Typecheck y build local: aprobados. Build Docker de API y frontend: aprobado.
 - compose down y up -d --build: ejecutados; volúmenes originales preservados.
-- curl descargó el mismo /assets/index-CAq6tU7w.js desde localhost, localhost:5173 y 10.10.40.25.
-- SHA256 idéntico: c0fe724b06001713c26d688f7cdff870b365d6cd44709012f50ae54597a252f5.
+- curl descargó el mismo /assets/index-BTE68mFX.js desde localhost, localhost:5173 y 10.10.40.25.
+- SHA256 idéntico: 6cc68eab287c13c980144bde6d26d5f5fb30baba01f930bd6208e4bf9f65d82c.
 - nginx -t: aprobado en ambos contenedores; scripts SW responden Cache-Control no-cache.
 - Diagnóstico cola previo al seed de la suite: HTTP200 y ticket1002 visible para tech1/lider_dev en Desarrollo; sin errores500/429 asociados. No se añadieron tickets para ocultar un problema. La suite restablece sus fixtures reservadas mediante el seed habitual.
 - Los contextos de build excluyen .auth, .env, dependencias y artefactos QA locales.
 - Playwright 40/40 aprobado (6,5 min, exit 0) contra el contenedor servido en localhost:5173.
 - Corrección del listado: `List.tsx` usaba `data?.items ?? []`, un array nuevo por render que reactivaba `autoResetPageIndex` de TanStack Table durante la carga y bloqueaba la navegación al elegir fecha. Se sustituyó por una constante `EMPTY_TICKETS` a nivel de módulo; `typecheck`, `build` y la suite completa vuelven a pasar.
 - Comprobación visual: filtro de fecha aplicado navega a /tickets?startDate=2026-10-15 y reduce el listado.
+- H-65.1: `date-filter.spec.ts --repeat-each=5` → 25/25 en verde (5 ejecuciones de cada uno de los 5 tests). Aplicar escribe la URL en ~120 ms; 5 ciclos abrir/seleccionar/aplicar consecutivos sin bloqueo ni errores de página.
+- Suite completa con `--repeat-each=5`: 193/205. Los 12 fallos restantes están en kanban-flow, realtime-reopen y self-assign-flow, que esperan fixtures fijos (#11, #70, #57) ya consumidos por la repetición anterior; ninguna ejecución de date-filter falló. La estabilidad global se valida con pasadas completas consecutivas sobre un seed limpio.
 
-Capturas de esta entrega: docs/qa/evidence/H65/login.png, datepicker-light.png, datepicker-dark.png y notifications.png.
+Capturas de esta entrega: docs/qa/evidence/H65/login.png, datepicker-light.png, datepicker-dark.png y notifications.png. H-65.1: docs/qa/evidence/H65.1/datepicker-selected.png, datepicker-applied.png y datepicker-light.png.
