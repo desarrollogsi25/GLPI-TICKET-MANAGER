@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertDisposableFixture, verifyFixtureResources, runFixtureSql, resetFixtures, resetTicket, main } from './guard.mjs'
+import { assertDisposableFixture, verifyFixtureResources, runFixtureSql, runFixtureCommand, resetFixtures, resetTicket, main } from './guard.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const NOW = Date.UTC(2026, 9, 29)
@@ -18,26 +18,48 @@ function fixture() {
     credentials: { mariaUser: 'e2e', mariaPassword: 'synthetic-maria-'.repeat(3), appUser: 'e2e', appPassword: 'synthetic-postgres-'.repeat(3) },
     expiresAt: new Date(NOW + 60_000).toISOString(),
   }
-  const networkId = 'f'.repeat(64)
+  const dataNetworkId = 'f'.repeat(64)
+  const edgeNetworkId = 'e'.repeat(64)
   const labels = { 'com.docker.compose.project': m.project, 'io.glpi.e2e.run-id': m.runId }
   const portNames = { frontend: '5173/tcp', glpi: '80/tcp', api: '8080/tcp' }
+  // Databases live only on the internal data network; the browser/API/GLPI
+  // surface lives on the published edge network. GLPI and the API join both.
+  const memberships = {
+    'glpi-db': ['e2e_data'], 'app-db': ['e2e_data'], glpi: ['e2e_data', 'e2e_edge'],
+    api: ['e2e_data', 'e2e_edge'], frontend: ['e2e_edge'],
+  }
+  const networkIdByName = { e2e_data: dataNetworkId, e2e_edge: edgeNetworkId }
   const containers = services.map(service => {
     const port = portNames[service]
     const bindings = port ? { [port]: [{ HostIp: '127.0.0.1', HostPort: new URL(m[`${service}Url`]).port }] } : {}
     return {
       Id: m.containers[service], State: { Running: true },
       Config: { Labels: { ...labels, 'com.docker.compose.service': service } },
-      HostConfig: { NetworkMode: `${m.project}_default`, Privileged: false, PortBindings: structuredClone(bindings) },
-      NetworkSettings: { Networks: { [`${m.project}_default`]: { NetworkID: networkId } }, Ports: structuredClone(bindings) },
+      HostConfig: { NetworkMode: `${m.project}_${memberships[service][0]}`, Privileged: false, PortBindings: structuredClone(bindings) },
+      NetworkSettings: {
+        Networks: Object.fromEntries(memberships[service].map((name, i) =>
+          [`${m.project}_${name}`, { NetworkID: networkIdByName[name], IPAddress: `172.2${i}.0.${services.indexOf(service) + 2}` }])),
+        Ports: structuredClone(bindings),
+      },
       Mounts: service === 'glpi-db' ? [{ Type: 'tmpfs', Destination: '/var/lib/mysql', RW: true }] :
         service === 'app-db' ? [{ Type: 'tmpfs', Destination: '/var/lib/postgresql/data', RW: true }] : [],
     }
   })
-  const network = { Id: networkId, Labels: labels, Driver: 'bridge', Scope: 'local', Containers: Object.fromEntries(Object.values(m.containers).map(id => [id, {}])) }
+  const networkMembers = name => Object.fromEntries(services
+    .filter(service => memberships[service].includes(name))
+    .map(service => [m.containers[service], {}]))
+  const dataNetwork = {
+    Id: dataNetworkId, Name: `${m.project}_e2e_data`, Labels: labels, Driver: 'bridge', Scope: 'local',
+    Internal: true, Containers: networkMembers('e2e_data'),
+  }
+  const edgeNetwork = {
+    Id: edgeNetworkId, Name: `${m.project}_e2e_edge`, Labels: labels, Driver: 'bridge', Scope: 'local',
+    Internal: false, Containers: networkMembers('e2e_edge'),
+  }
   const contexts = [{ Name: m.context, Endpoints: { docker: { Host: 'npipe:////./pipe/dockerDesktopLinuxEngine' } } }]
   const calls = []
-  const state = { manifest: m, containers, network, contexts, sentinel: runId, failCommand: false }
-  const env = { E2E_FIXTURE_MANIFEST: resolve(ROOT, 'test-manifest.json') }
+  const state = { manifest: m, containers, dataNetwork, edgeNetwork, contexts, sentinel: runId, database: null, failCommand: false }
+  const env = { E2E_FIXTURE_MANIFEST: resolve(ROOT, 'test-manifest.json'), E2E_CONFIRM_DESTRUCTIVE: runId }
   const deps = {
     now: () => NOW,
     readFileSync(path) {
@@ -52,8 +74,13 @@ function fixture() {
       assert.deepEqual(args.slice(0, 2), ['--context', m.context])
       if (args[2] === 'context') return JSON.stringify(state.contexts)
       if (args[2] === 'inspect') return JSON.stringify(state.containers)
-      if (args[2] === 'network') return JSON.stringify([state.network])
-      if (args[2] === 'exec') return options.input.startsWith('SELECT run_id') ? `${state.sentinel}\n` : ''
+      if (args[2] === 'network') return JSON.stringify([state.dataNetwork, state.edgeNetwork])
+      if (args[2] === 'exec') {
+        if (!options.input.includes('e2e_fixture_identity')) return ''
+        const database = args.includes('--dbname=glpi_ticket_manager')
+          ? (state.database ?? 'glpi_ticket_manager') : (state.database ?? 'glpi')
+        return `${database}:${state.sentinel}\n`
+      }
       throw new Error('unexpected command')
     },
   }
@@ -61,7 +88,7 @@ function fixture() {
 }
 
 function writes(calls) {
-  return calls.filter(c => c.args[2] === 'exec' && !c.options.input.startsWith('SELECT run_id'))
+  return calls.filter(c => c.args[2] === 'exec' && !c.options.input.includes('e2e_fixture_identity'))
 }
 
 test('absent manifest fails before Docker or mutation even in CI', () => {
@@ -78,6 +105,9 @@ const manifestCases = {
   'invalid expiry': m => { m.expiresAt = 'invalid' },
   'remote frontend': m => { m.frontendUrl = 'https://example.org' },
   'localhost ambiguity': m => { m.apiUrl = 'http://localhost:49153' },
+  'development frontend port': m => { m.frontendUrl = 'http://127.0.0.1:5173' },
+  'development API port': m => { m.apiUrl = 'http://127.0.0.1:8080' },
+  'development GLPI port': m => { m.glpiUrl = 'http://127.0.0.1:8081' },
   'credential in URL': m => { m.glpiUrl = 'http://u:p@127.0.0.1:49152' },
   'production user': m => { m.credentials.mariaUser = 'root' },
   'missing credential': m => { delete m.credentials.appPassword },
@@ -110,12 +140,32 @@ const resourceCases = {
   'renamed Docker socket bind': f => { f.state.containers[4].Mounts = [{ Type: 'bind', RW: false, Source: '/var/run/docker.sock', Destination: '/tmp/socket' }] },
   'privileged container': f => { f.state.containers[0].HostConfig.Privileged = true },
   'host network': f => { f.state.containers[0].HostConfig.NetworkMode = 'host' },
-  'second network': f => { f.state.containers[0].NetworkSettings.Networks.other = { NetworkID: 'e'.repeat(64) } },
-  'foreign network label': f => { f.state.network.Labels = {} },
-  'foreign network member': f => { f.state.network.Containers['e'.repeat(64)] = {} },
+  'third network': f => { f.state.containers[0].NetworkSettings.Networks.third = { NetworkID: 'd'.repeat(64), IPAddress: '172.29.0.9' } },
+  'foreign network label': f => { f.state.dataNetwork.Labels = {} },
+  'network with non-bridge driver': f => { f.state.edgeNetwork.Driver = 'overlay' },
+  'network with non-local scope': f => { f.state.dataNetwork.Scope = 'swarm' },
+  'foreign network member': f => { f.state.edgeNetwork.Containers['d'.repeat(64)] = {} },
   'published database': f => { f.state.containers[0].HostConfig.PortBindings = { '3306/tcp': [{ HostIp: '127.0.0.1', HostPort: '3306' }] } },
+  'database effective host binding': f => { f.state.containers[0].NetworkSettings.Ports = { '3306/tcp': [{ HostIp: '127.0.0.1', HostPort: '3306' }] } },
   'public frontend': f => { f.state.containers[4].HostConfig.PortBindings['5173/tcp'][0].HostIp = '0.0.0.0' },
   'wrong effective port': f => { f.state.containers[4].NetworkSettings.Ports['5173/tcp'][0].HostPort = '5173' },
+  'database on the edge network': f => {
+    f.state.containers[0].NetworkSettings.Networks[`${f.m.project}_e2e_edge`] = { NetworkID: f.state.edgeNetwork.Id, IPAddress: '172.21.0.9' }
+    f.state.edgeNetwork.Containers[f.m.containers['glpi-db']] = {}
+  },
+  'frontend on the data network': f => {
+    f.state.containers[4].NetworkSettings.Networks[`${f.m.project}_e2e_data`] = { NetworkID: f.state.dataNetwork.Id, IPAddress: '172.20.0.9' }
+    f.state.dataNetwork.Containers[f.m.containers.frontend] = {}
+  },
+  'edge network marked internal': f => { f.state.edgeNetwork.Internal = true },
+  'data network left public': f => { f.state.dataNetwork.Internal = false },
+  'single shared network': f => {
+    for (const c of f.state.containers) {
+      c.NetworkSettings.Networks = { [`${f.m.project}_e2e_edge`]: { NetworkID: f.state.edgeNetwork.Id, IPAddress: '172.21.0.2' } }
+    }
+    f.state.edgeNetwork.Containers = Object.fromEntries(Object.values(f.m.containers).map(id => [id, {}]))
+    f.state.dataNetwork = undefined
+  },
 }
 for (const [name, mutate] of Object.entries(resourceCases)) {
   test(`resources reject ${name} with zero writes`, () => {
@@ -133,6 +183,48 @@ test('missing/wrong sentinel blocks every write', () => {
   assert.equal(writes(f.calls).length, 0)
 })
 
+const optInCases = {
+  'missing confirmation': env => { delete env.E2E_CONFIRM_DESTRUCTIVE },
+  'confirmation for another run': env => { env.E2E_CONFIRM_DESTRUCTIVE = 'cd'.repeat(16) },
+  'CI flag without confirmation': env => { delete env.E2E_CONFIRM_DESTRUCTIVE; env.CI = 'true' },
+  'empty confirmation': env => { env.E2E_CONFIRM_DESTRUCTIVE = '' },
+}
+for (const [name, mutate] of Object.entries(optInCases)) {
+  test(`${name} blocks destructive SQL with zero writes`, () => {
+    const f = fixture()
+    const env = { ...f.env }
+    mutate(env)
+    assert.throws(() => runFixtureSql('mariadb', 'DELETE FROM real_data;', env, f.deps), /E2E blocked/)
+    assert.throws(() => resetFixtures(env, f.deps), /E2E blocked/)
+    assert.equal(writes(f.calls).length, 0)
+  })
+}
+
+test('wrong database name blocks every write even with a matching sentinel', () => {
+  const f = fixture()
+  f.state.database = 'glpi_prod'
+  assert.throws(() => resetFixtures(f.env, f.deps), /E2E blocked/)
+  assert.equal(writes(f.calls).length, 0)
+})
+
+test('fixture command runs only inside the exact verified container', () => {
+  const f = fixture()
+  runFixtureCommand('glpi', ['php', '-v'], f.env, f.deps, '')
+  const call = f.calls.at(-1)
+  assert.equal(call.args[2], 'exec')
+  assert.ok(call.args.includes(f.m.containers.glpi))
+  assert.ok(call.args.includes('php') && call.args.includes('-v'))
+  assert.equal(writes(f.calls).length, 1)
+  assert.equal(f.calls.filter(c => c.args[2] === 'exec' && c.options.input.includes('e2e_fixture_identity')).length, 2)
+})
+
+test('fixture command rejects unknown services and empty argv before Docker', () => {
+  const f = fixture()
+  assert.throws(() => runFixtureCommand('glpi-prod', ['php'], f.env, f.deps), /E2E blocked/)
+  assert.throws(() => runFixtureCommand('glpi', [], f.env, f.deps), /E2E blocked/)
+  assert.equal(f.calls.length, 0)
+})
+
 test('child process failure is fatal and does not disclose child output or credentials', () => {
   const f = fixture()
   f.state.failCommand = true
@@ -145,6 +237,20 @@ test('valid resources allow bootstrap verification without sentinel or writes', 
   const f = fixture()
   assert.equal(verifyFixtureResources(f.env, f.deps).runId, f.m.runId)
   assert.equal(f.calls.filter(c => c.args[2] === 'exec').length, 0)
+})
+
+test('valid fixture inspects both networks and keeps databases off the edge', () => {
+  const f = fixture()
+  assert.equal(assertDisposableFixture(f.env, f.deps).runId, f.m.runId)
+  const networkCalls = f.calls.filter(c => c.args[2] === 'network')
+  assert.equal(networkCalls.length, 1)
+  // --context <ctx> network inspect <data-id> <edge-id>
+  assert.equal(networkCalls[0].args.length, 6)
+  assert.equal(f.state.dataNetwork.Internal, true)
+  assert.equal(f.state.edgeNetwork.Internal, false)
+  assert.ok(!(f.m.containers['glpi-db'] in f.state.edgeNetwork.Containers))
+  assert.ok(!(f.m.containers['app-db'] in f.state.edgeNetwork.Containers))
+  assert.equal(writes(f.calls).length, 0)
 })
 
 test('Docker reports Compose tmpfs in HostConfig without a Mounts entry', () => {
@@ -229,4 +335,51 @@ test('CLI URL emits only the verified origin and rejects unknown commands', () =
   assert.equal(main(['url', 'other'], f.env, f.deps, io), 1)
   assert.equal(main(['sql', 'other'], f.env, f.deps, io), 1)
   assert.equal(writes(f.calls).length, 0)
+})
+
+test('CLI destructive modes require run-scoped confirmation before stdin or writes', () => {
+  const f = fixture()
+  const output = []
+  const io = { write: x => output.push(x), error: x => output.push(x) }
+  const unconfirmed = { ...f.env }
+  delete unconfirmed.E2E_CONFIRM_DESTRUCTIVE
+  assert.equal(main(['verify', '--destructive'], unconfirmed, f.deps, io), 1)
+  assert.equal(main(['reset'], unconfirmed, f.deps, io), 1)
+  assert.equal(writes(f.calls).length, 0)
+  assert.equal(main(['verify', '--destructive'], f.env, f.deps, io), 0)
+  assert.equal(writes(f.calls).length, 0)
+})
+
+test('Compose declares an internal data network and a non-internal bridge edge', async () => {
+  const { readFileSync } = await import('node:fs')
+  const compose = readFileSync(resolve(ROOT, 'docker-compose.e2e.yml'), 'utf8')
+  // Allow indented comment lines between the network key and its flags.
+  const block = key => new RegExp(`${key}:\\s*\\n(?:[ \\t]*#[^\\n]*\\n)*[ \\t]*(\\w+):\\s*([\\w]+)`)
+  assert.match(compose, block('e2e_data'))
+  assert.match(compose, /e2e_data:\s*\n(?:[ \t]*#[^\n]*\n)*[ \t]*internal:\s*true/)
+  assert.match(compose, /e2e_edge:\s*\n(?:[ \t]*#[^\n]*\n)*[ \t]*driver:\s*bridge/)
+  assert.doesNotMatch(compose, /e2e_edge:\s*\n(?:[ \t]*#[^\n]*\n)*[ \t]*internal:\s*true/)
+  // Databases are attached to the data network and never to the edge network.
+  const serviceBlock = name => compose.split(/\n  (?=[a-z-]+:)/).find(part => part.startsWith(`${name}:`)) ?? ''
+  assert.match(serviceBlock('glpi-db'), /networks:\s*\n\s*-\s*e2e_data/)
+  assert.doesNotMatch(serviceBlock('glpi-db'), /e2e_edge/)
+  assert.match(serviceBlock('app-db'), /networks:\s*\n\s*-\s*e2e_data/)
+  assert.doesNotMatch(serviceBlock('app-db'), /e2e_edge/)
+  assert.match(serviceBlock('frontend'), /networks:\s*\n\s*-\s*e2e_edge/)
+})
+
+test('fixture keeps both rate limiters enforced with a finite, bounded budget', async () => {
+  const { readFileSync } = await import('node:fs')
+  const compose = readFileSync(resolve(ROOT, 'docker-compose.e2e.yml'), 'utf8')
+  const value = name => Number(compose.match(new RegExp(`${name}:\\s*"?(\\d+)"?`))?.[1])
+  const perUser = value('RateLimiting__PerUserRequestLimit')
+  const tokens = value('RateLimiting__ExpensiveTokenLimit')
+  const refill = value('RateLimiting__ExpensiveReplenishmentSeconds')
+  for (const limit of [perUser, tokens, refill]) assert.ok(Number.isSafeInteger(limit) && limit > 0)
+  // Fixture-only headroom for a whole suite as one user, still finite.
+  assert.ok(perUser >= 100 && perUser <= 1000)
+  assert.ok(tokens >= 20 && tokens <= 500)
+  assert.ok(refill >= 1 && refill <= 5)
+  // A disabled or unbounded limiter must never reach the fixture.
+  assert.doesNotMatch(compose, /DisableRateLimiting|RateLimiting__(Enabled|PerUserRequestLimit)\s*:\s*"?(0|false)/i)
 })

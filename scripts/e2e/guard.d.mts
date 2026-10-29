@@ -18,7 +18,9 @@ export interface GuardDependencies {
 }
 export function verifyFixtureResources(env?: NodeJS.ProcessEnv, deps?: GuardDependencies): FixtureManifest;
 export function assertDisposableFixture(env?: NodeJS.ProcessEnv, deps?: GuardDependencies): FixtureManifest;
+export function assertDestructiveOptIn(env: NodeJS.ProcessEnv, manifest: FixtureManifest): void;
 export function runFixtureSql(engine: 'mariadb' | 'postgres', sql: string, env?: NodeJS.ProcessEnv, deps?: GuardDependencies): string;
+export function runFixtureCommand(service: 'glpi-db' | 'app-db' | 'glpi' | 'api' | 'frontend', argv: string[], env?: NodeJS.ProcessEnv, deps?: GuardDependencies, input?: string): string;
 export function resetFixtures(env?: NodeJS.ProcessEnv, deps?: GuardDependencies): void;
 export function resetTicket(ticketId: number, name: string, env?: NodeJS.ProcessEnv, deps?: GuardDependencies): string;
 export function main(argv?: string[], env?: NodeJS.ProcessEnv, deps?: GuardDependencies, io?: { write: (value: string) => unknown; error: (value: string) => unknown }): number;

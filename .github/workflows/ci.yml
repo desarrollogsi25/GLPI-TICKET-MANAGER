@@ -115,18 +115,20 @@ jobs:
         run: pnpm --dir frontend install --frozen-lockfile
       - name: Test entrypoints without Docker or browser
         run: |
-          node --test scripts/e2e/negative-entrypoints.test.mjs scripts/e2e/runner-cleanup.test.mjs
-          bash -n scripts/seed-e2e.sh scripts/test-audit.sh
-          for script in scripts/seed-e2e.sh scripts/test-audit.sh; do
-            if env -u E2E_FIXTURE_MANIFEST bash "$script"; then
+          node --test scripts/e2e/negative-entrypoints.test.mjs scripts/e2e/runner-cleanup.test.mjs scripts/e2e/manual-scripts.test.mjs
+          bash -n scripts/seed-e2e.sh scripts/test-audit.sh scripts/provision-glpi-test-users.sh
+          for script in scripts/seed-e2e.sh scripts/test-audit.sh scripts/provision-glpi-test-users.sh; do
+            if env -u E2E_FIXTURE_MANIFEST -u E2E_CONFIRM_DESTRUCTIVE bash "$script"; then
               echo "ERROR: unverified reset entrypoint was accepted"
               exit 1
             fi
           done
-          if env -u E2E_FIXTURE_MANIFEST node scripts/seed-visual-forms.js; then
-            echo "ERROR: unverified visual fixture entrypoint was accepted"
-            exit 1
-          fi
+          for script in scripts/seed-glpi-users.js scripts/seed-tickets.js scripts/seed-glpi-categories.js scripts/verify-glpi-categories-flow.js scripts/seed-visual-forms.js; do
+            if env -u E2E_FIXTURE_MANIFEST -u E2E_CONFIRM_DESTRUCTIVE node "$script"; then
+              echo "ERROR: unverified fixture entrypoint was accepted ($script)"
+              exit 1
+            fi
+          done
       - name: Install browser on ephemeral runner
         run: pnpm --dir frontend exec playwright install --with-deps chromium
       - name: Run disposable full-stack fixture

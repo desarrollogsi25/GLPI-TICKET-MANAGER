@@ -22,14 +22,18 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
   const queueTab = page.getByTestId('kanban-tab-queue')
   await expect(queueTab).toHaveAttribute('aria-selected', 'true')
 
-  // 3. Ticket en cola (primer ticket disponible de la lista)
+  // 3. Ticket en cola dedicado a este spec (el seed reserva #61 para kanban-mobile).
+  // H-20: no reclamar "el primer ticket" de la lista: ese ticket era #57, que
+  // pertenecía a self-assign-flow.spec.ts, y rompía ese spec al consumirlo.
   const mobileList = page.locator('[data-testid="kanban-mobile-list"]')
-  const ticketBadge = mobileList.getByText(/^#\d+$/).first()
+  const ticketToClaim = '#61'
+  const ticketBadge = mobileList.getByText(ticketToClaim, { exact: true }).first()
   await expect(ticketBadge).toBeVisible({ timeout: 10000 })
-  const ticketToClaim = (await ticketBadge.innerText()).trim()
 
-  // 4. Tap en "Asignarme" inline del primer ticket de la cola
-  const claimBtn = mobileList.getByRole('button', { name: 'Asignarme' }).first()
+  // 4. Tap en "Asignarme" inline del ticket dedicado de la cola
+  const claimBtn = ticketBadge
+    .locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
+    .getByRole('button', { name: 'Asignarme' })
   await expect(claimBtn).toBeVisible()
   await claimBtn.click()
 

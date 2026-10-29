@@ -8,6 +8,19 @@
 -- (o scripts/seed-e2e.sql para la suite Playwright).
 -- ============================================================================
 
+-- Abort before any DELETE when the disposable fixture sentinel is absent.
+DROP PROCEDURE IF EXISTS e2e_assert_fixture;
+DELIMITER //
+CREATE PROCEDURE e2e_assert_fixture()
+BEGIN
+  IF (SELECT COUNT(*) FROM e2e_fixture_identity) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'E2E disposable fixture sentinel missing';
+  END IF;
+END//
+DELIMITER ;
+CALL e2e_assert_fixture();
+DROP PROCEDURE e2e_assert_fixture;
+
 -- 1. Datos ligados a tickets (primero las tablas hijas).
 DELETE FROM glpi_itilfollowups;
 DELETE FROM glpi_itilsolutions;

@@ -6,6 +6,8 @@ import { assertDisposableFixture, resetFixtures } from '../../../scripts/e2e/gua
 export default async function globalSetup(_config: FullConfig) {
   // No browser or reset may target a stack that the disposable runner did not create.
   const fixture = assertDisposableFixture()
+  const techPassword = process.env.E2E_TECH_PASSWORD
+  if (!techPassword) throw new Error('E2E blocked: the fixture runner must provide E2E_TECH_PASSWORD.')
   const authFile = resolve('e2e-artifacts', fixture.runId, 'auth/tech1.json')
   resetFixtures()
 
@@ -15,7 +17,7 @@ export default async function globalSetup(_config: FullConfig) {
     const page = await context.newPage()
     await page.goto('/login')
     await page.fill('input[name="username"]', 'tech1')
-    await page.fill('input[name="password"]', 'Tech1Pass!')
+    await page.fill('input[name="password"]', techPassword)
     await page.click('button[type="submit"]')
     await page.waitForURL(/\/(kanban|dashboard|tickets|queue)/, { timeout: 60000 })
 

@@ -6,34 +6,31 @@
  * =============================================================================
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const { seedGlpiUsers } = require('./seed-glpi-users');
+
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
+
+function guard(args, input) {
+  try {
+    return execFileSync(process.execPath, [GUARD, ...args], {
+      input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
+  }
+}
+
+// Refuse before users, SQL generation or any child process when no confirmed
+// disposable fixture exists.
+guard(['verify', '--destructive']);
 
 // 0. Ejecutar creación e inicialización de usuarios y roles de prueba en GLPI
 try {
   seedGlpiUsers();
 } catch (err) {
   console.warn('[!] Advertencia al inicializar usuarios GLPI:', err.message);
-}
-
-// 1. Obtener credenciales desde .env o variables de entorno
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
-
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
-  }
-}
-
-if (!mariadbPassword) {
-  mariadbPassword = 'secret'; // fallback
 }
 
 // 2. Definir catálogo de 50 tickets realistas
@@ -165,21 +162,13 @@ UPDATE glpi_tickets SET solvedate = NOW() WHERE id = ${t.id};
 }
 
 const fullSql = sqlStatements.join('\n');
-const tmpSqlPath = path.resolve(__dirname, 'seed-data.sql');
-fs.writeFileSync(tmpSqlPath, fullSql, 'utf8');
 
 console.log(`[+] Ejecutando inserción en base de datos MariaDB (glpi)...`);
 
 try {
-  execSync(`docker compose exec -T glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" ${mariadbDatabase} < "${tmpSqlPath}"`, {
-    stdio: 'inherit'
-  });
+  guard(['sql', 'mariadb'], fullSql);
   console.log(`[+] Éxito: ${SAMPLE_TICKETS.length} tickets de simulación insertados/actualizados correctamente.`);
 } catch (err) {
   console.error(`[-] Error al ejecutar inserción SQL: ${err.message}`);
   process.exit(1);
-} finally {
-  if (fs.existsSync(tmpSqlPath)) {
-    fs.unlinkSync(tmpSqlPath);
-  }
 }

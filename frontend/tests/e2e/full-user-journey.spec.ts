@@ -3,12 +3,17 @@ import { fixtureUrl } from './support/fixture-url'
 
 const GLPI = fixtureUrl('glpi')
 const DESK = fixtureUrl('desk')
-const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
-const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_sd'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
-const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin_test'
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Password123!'
+const required = (name: string): string => {
+  const value = process.env[name]
+  if (!value) throw new Error(`E2E blocked: ${name} must be provided by the fixture runner.`)
+  return value
+}
+const REQUESTER_USERNAME = required('E2E_REQUESTER_USERNAME')
+const REQUESTER_PASSWORD = required('E2E_REQUESTER_PASSWORD')
+const TECH_USERNAME = required('E2E_TECH_USERNAME')
+const TECH_PASSWORD = required('E2E_TECH_PASSWORD')
+const ADMIN_USERNAME = required('E2E_ADMIN_USERNAME')
+const ADMIN_PASSWORD = required('E2E_ADMIN_PASSWORD')
 
 test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }, testInfo) => {
   test.setTimeout(120000)

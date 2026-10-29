@@ -156,6 +156,8 @@ try {
     }
     writeFileSync(manifestFile, JSON.stringify(manifest), { mode: 0o600 })
     env.E2E_FIXTURE_MANIFEST = manifestFile
+    // Consent is scoped to this random run; stale manifests cannot authorize a reset.
+    env.E2E_CONFIRM_DESTRUCTIVE = runId
     verifyFixtureResources(env)
 
     // Install clean GLPI reference data; never import the tracked legacy DB dump.

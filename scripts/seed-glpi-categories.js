@@ -12,24 +12,21 @@
  * =============================================================================
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 
-// 1. Obtener credenciales de MariaDB
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
 
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
+function runSql(sql) {
+  try {
+    return execFileSync(process.execPath, [GUARD, 'sql', 'mariadb'], {
+      input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    // Never echo child output: it could contain credentials or fixture data.
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
   }
 }
-if (!mariadbPassword) mariadbPassword = 'secret';
 
 // Definición de las 7 categorías ITIL requeridas con sus descripciones e iconos
 const ITIL_CATEGORIES = [
@@ -76,18 +73,6 @@ const ITIL_CATEGORIES = [
     illustration: 'file-sheet',
   },
 ];
-
-function runSql(sql) {
-  try {
-    return execSync(
-      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-  } catch (err) {
-    const msg = err.stderr || err.message;
-    throw new Error(`Error MariaDB: ${msg}`);
-  }
-}
 
 function escapeSql(str) {
   if (!str) return '';

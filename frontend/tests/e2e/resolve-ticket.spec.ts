@@ -14,8 +14,8 @@ import { resetFixtureTicket } from './support/ticket-fixtures'
  * after a successful mutation, and the ticket not moving to the Resuelto column.
  *
  * This spec provisions its OWN ticket (id 901) instead of reusing a shared seed
- * fixture: self-assign-flow.spec.ts already consumes #57, so resolving the same
- * ticket twice would break it (workers: 1 runs specs sequentially).
+ * fixture: other specs claim tickets from the group queue, so resolving a shared
+ * ticket twice would break the suite (workers: 1 runs specs sequentially).
  */
 
 const TICKET_ID = 901

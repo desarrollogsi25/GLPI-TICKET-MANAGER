@@ -11,6 +11,20 @@
 -- replica el cambio allí (el reset E2E lo ejecuta antes de cada suite).
 -- ============================================================================
 
+-- Direct execution is only valid on the disposable fixture. Abort before DML
+-- when its sentinel is absent; the guard also enforces this.
+DROP PROCEDURE IF EXISTS e2e_assert_fixture;
+DELIMITER //
+CREATE PROCEDURE e2e_assert_fixture()
+BEGIN
+  IF (SELECT COUNT(*) FROM e2e_fixture_identity) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'E2E disposable fixture sentinel missing';
+  END IF;
+END//
+DELIMITER ;
+CALL e2e_assert_fixture();
+DROP PROCEDURE e2e_assert_fixture;
+
 -- 1. GRUPOS -----------------------------------------------------------------
 INSERT INTO glpi_groups (id, name, entities_id, completename, is_assign)
 VALUES
@@ -36,7 +50,7 @@ ON DUPLICATE KEY UPDATE
   date_mod = NOW();
 
 -- Eliminar duplicados actuales (conservando el ID más bajo de cada par duplicado).
-DELETE FROM glpi_itilcategories WHERE id IN (8, 9, 10, 12, 13, 14) OR id > 19;
+DELETE FROM glpi_itilcategories WHERE id IN (8, 9, 10, 12, 13, 14);
 
 -- Estructura jerárquica limpia sin nombres repetidos:
 -- Raíces por grupo/servicio:

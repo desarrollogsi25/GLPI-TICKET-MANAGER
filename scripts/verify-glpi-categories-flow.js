@@ -11,33 +11,23 @@
  *    se asigna al grupo técnico correspondiente con status = 1 (Nuevo).
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
 
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
+function guard(args, input) {
+  try {
+    return execFileSync(process.execPath, [GUARD, ...args], {
+      input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
   }
 }
-if (!mariadbPassword) mariadbPassword = 'secret';
 
 function runSql(sql) {
-  try {
-    return execSync(
-      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-  } catch (err) {
-    throw new Error(`Error MariaDB: ${err.stderr || err.message}`);
-  }
+  return guard(['sql', 'mariadb'], sql);
 }
 
 function verifyFlow() {
@@ -116,7 +106,7 @@ $id = $ticket->add([
 echo $id;
 `;
 
-  execSync(`docker exec -i glpi php`, { input: phpRunner, encoding: 'utf8' });
+  guard(['exec', 'glpi', '--', 'php'], phpRunner);
   
   // 4. Verificar en base de datos la asignación al grupo Hardware y al técnico
   const verifyTicketSql = `

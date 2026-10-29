@@ -7,6 +7,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const COMPOSE = resolve(ROOT, 'docker-compose.e2e.yml')
 const SERVICES = ['glpi-db', 'app-db', 'glpi', 'api', 'frontend']
 const PORTS = { frontend: '5173/tcp', glpi: '80/tcp', api: '8080/tcp' }
+const DATABASES = { mariadb: 'glpi', postgres: 'glpi_ticket_manager' }
+// Host ports published by the development/acceptance stacks. A fixture must
+// never look like an existing stack, even though it binds to loopback only.
+const RESERVED_PORTS = new Set([80, 443, 3000, 3306, 5173, 5432, 8080, 8081])
 const MESSAGE = 'E2E blocked: a verified disposable fixture is required.'
 const fail = () => { throw new Error(MESSAGE) }
 
@@ -32,8 +36,8 @@ function manifestFrom(env, deps) {
     for (const service of ['frontend', 'glpi', 'api']) {
       const url = new URL(m[`${service}Url`])
       if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' ||
-          !url.port || Number(url.port) < 1024 || url.username || url.password ||
-          url.pathname !== '/' || url.search || url.hash) fail()
+          !url.port || Number(url.port) < 1024 || RESERVED_PORTS.has(Number(url.port)) ||
+          url.username || url.password || url.pathname !== '/' || url.search || url.hash) fail()
     }
     if (new Set([m.frontendUrl, m.glpiUrl, m.apiUrl].map(u => new URL(u).port)).size !== 3) fail()
     if (m.credentials?.mariaUser !== 'e2e' || m.credentials?.appUser !== 'e2e') fail()
@@ -45,11 +49,20 @@ function manifestFrom(env, deps) {
   } catch { fail() }
 }
 
+// Never let an inherited DOCKER_* override the verified context or TLS material.
+function dockerEnvironment(extra) {
+  return {
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+      !/^DOCKER_(HOST|CONTEXT|TLS|CERT)/.test(key))),
+    ...extra,
+  }
+}
+
 function docker(m, args, deps, input, extraEnv) {
   try {
     return deps.execFileSync('docker', ['--context', m.context, ...args], {
       encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'pipe'],
-      ...(extraEnv ? { env: { ...process.env, ...extraEnv } } : {}),
+      env: dockerEnvironment(extraEnv),
       windowsHide: true, timeout: 60_000, maxBuffer: 8 * 1024 * 1024,
     }).toString()
   } catch { fail() }
@@ -73,7 +86,9 @@ export function verifyFixtureResources(env = process.env, suppliedDeps) {
         typeof host !== 'string' || !/^(unix:\/\/\/|npipe:\/\/\/)/.test(host)) fail()
     const containers = JSON.parse(docker(m, ['inspect', ...SERVICES.map(s => m.containers[s])], deps))
     if (!Array.isArray(containers) || containers.length !== SERVICES.length) fail()
-    let networkId
+    // Services may only be attached to this run's two dedicated networks.
+    const byService = new Map()
+    const networkIds = new Set()
     for (const service of SERVICES) {
       check = `${service} identity`
       const c = containers.find(c => c.Id === m.containers[service])
@@ -84,11 +99,17 @@ export function verifyFixtureResources(env = process.env, suppliedDeps) {
           ['host', 'none', 'bridge'].includes(h.NetworkMode) || h.PublishAllPorts ||
           (h.VolumesFrom?.length ?? 0) > 0 || (h.Devices?.length ?? 0) > 0 ||
           (h.CapAdd?.length ?? 0) > 0) fail()
-      const networks = Object.values(c.NetworkSettings?.Networks ?? {})
+      const networks = Object.entries(c.NetworkSettings?.Networks ?? {})
       check = `${service} network`
-      if (networks.length !== 1 || !/^[a-f0-9]{64}$/.test(networks[0].NetworkID ?? '')) fail()
-      if (networkId && networkId !== networks[0].NetworkID) fail()
-      networkId = networks[0].NetworkID
+      if (networks.length < 1 || networks.length > 2) fail()
+      for (const [, net] of networks) {
+        if (!/^[a-f0-9]{64}$/.test(net.NetworkID ?? '') ||
+            typeof net.IPAddress !== 'string' || !net.IPAddress) fail()
+        networkIds.add(net.NetworkID)
+      }
+      const serviceNetworks = new Set(networks.map(([, net]) => net.NetworkID))
+      if (serviceNetworks.size !== networks.length) fail()
+      byService.set(service, serviceNetworks)
       const mounts = c.Mounts ?? []
       check = `${service} storage`
       if (mounts.some(x => x.Type !== 'tmpfs' || x.Destination === '/var/run/docker.sock')) fail()
@@ -110,13 +131,39 @@ export function verifyFixtureResources(env = process.env, suppliedDeps) {
         if (!effective || effective.length !== 1 || effective[0].HostIp !== '127.0.0.1' ||
             effective[0].HostPort !== url.port) fail()
       } else if (bindings.length) fail()
+      // Databases must never expose an effective host binding either.
+      const published = Object.entries(c.NetworkSettings?.Ports ?? {}).filter(([, value]) => value?.length)
+      if (!PORTS[service] && published.length) fail()
     }
-    check = 'exclusive network membership'
-    const network = JSON.parse(docker(m, ['network', 'inspect', networkId], deps))
-    if (network.length !== 1 || network[0].Id !== networkId || network[0].Driver !== 'bridge' ||
-        !labelsMatch(network[0].Labels, m) || network[0].Scope !== 'local') fail()
-    const members = Object.keys(network[0].Containers ?? {})
-    if (members.length !== SERVICES.length || members.some(id => !Object.values(m.containers).includes(id))) fail()
+    check = 'two dedicated networks'
+    if (networkIds.size !== 2) fail()
+    const networks = JSON.parse(docker(m, ['network', 'inspect', ...networkIds], deps))
+    if (!Array.isArray(networks) || networks.length !== 2) fail()
+    const dataNetwork = networks.find(n => n.Internal === true)
+    const edgeNetwork = networks.find(n => n.Internal !== true)
+    if (!dataNetwork || !edgeNetwork || dataNetwork.Id === edgeNetwork.Id) fail()
+    for (const network of [dataNetwork, edgeNetwork]) {
+      if (network.Driver !== 'bridge' || network.Scope !== 'local' ||
+          !labelsMatch(network.Labels, m)) fail()
+    }
+    check = 'network membership by role'
+    const members = (network) => SERVICES.filter(service => byService.get(service).has(network.Id)).sort()
+    const expected = {
+      data: ['glpi-db', 'app-db', 'glpi', 'api'].sort(),
+      edge: ['glpi', 'api', 'frontend'].sort(),
+    }
+    if (members(dataNetwork).join() !== expected.data.join() ||
+        members(edgeNetwork).join() !== expected.edge.join()) fail()
+    // Databases must never reach the published edge network.
+    if (byService.get('glpi-db').has(edgeNetwork.Id) ||
+        byService.get('app-db').has(edgeNetwork.Id)) fail()
+    // No foreign container may attach to either fixture network.
+    for (const network of [dataNetwork, edgeNetwork]) {
+      const attached = Object.keys(network.Containers ?? {})
+      const allowed = SERVICES.filter(service => byService.get(service).has(network.Id))
+        .map(service => m.containers[service])
+      if (attached.length !== allowed.length || attached.some(id => !allowed.includes(id))) fail()
+    }
     return m
   } catch { throw new Error(`${MESSAGE} Check: ${check}.`) }
 }
@@ -133,26 +180,48 @@ function sqlCommand(m, engine, sql, deps) {
     m.containers[maria ? 'glpi-db' : 'app-db'], ...args], deps, sql, { [passwordVariable]: password })
 }
 
-/** Full reset authorization requires both engine identities as well as resource checks. */
+/** Full reset authorization requires engine/database identity as well as resource checks. */
 export function assertDisposableFixture(env = process.env, suppliedDeps) {
   const deps = dependencies(suppliedDeps)
   const m = verifyFixtureResources(env, deps)
+  const sentinels = {
+    mariadb: `SELECT CONCAT(DATABASE(), ':', run_id) FROM e2e_fixture_identity;\n`,
+    postgres: `SELECT current_database() || ':' || run_id FROM e2e_fixture_identity;\n`,
+  }
   for (const engine of ['mariadb', 'postgres']) {
-    if (sqlCommand(m, engine, 'SELECT run_id FROM e2e_fixture_identity;\n', deps).trim() !== m.runId) fail()
+    if (sqlCommand(m, engine, sentinels[engine], deps).trim() !== `${DATABASES[engine]}:${m.runId}`) fail()
   }
   return m
+}
+
+// CI is not consent. Destructive work requires a confirmation tied to this
+// exact run, so a stale manifest cannot authorize a reset by itself.
+export function assertDestructiveOptIn(env, m) {
+  if (env.E2E_CONFIRM_DESTRUCTIVE !== m.runId) fail()
 }
 
 export function runFixtureSql(engine, sql, env = process.env, suppliedDeps) {
   const deps = dependencies(suppliedDeps)
   const m = assertDisposableFixture(env, deps)
+  assertDestructiveOptIn(env, m)
   return sqlCommand(m, engine, sql, deps)
+}
+
+/** Execute a command inside one verified fixture container. */
+export function runFixtureCommand(service, argv, env = process.env, suppliedDeps, input = '') {
+  if (!SERVICES.includes(service) || !Array.isArray(argv) || !argv.length ||
+      argv.some(value => typeof value !== 'string')) fail()
+  const deps = dependencies(suppliedDeps)
+  const m = assertDisposableFixture(env, deps)
+  assertDestructiveOptIn(env, m)
+  return docker(m, ['exec', '-i', m.containers[service], ...argv], deps, input)
 }
 
 export function resetFixtures(env = process.env, suppliedDeps) {
   const deps = dependencies(suppliedDeps)
   // Validate before reading/resetting any fixture and again at each SQL boundary.
-  assertDisposableFixture(env, deps)
+  const m = assertDisposableFixture(env, deps)
+  assertDestructiveOptIn(env, m)
   runFixtureSql('mariadb', deps.readFileSync(resolve(ROOT, 'scripts/seed-e2e.sql'), 'utf8'), env, deps)
   runFixtureSql('postgres', 'DELETE FROM user_preferences WHERE user_id IN (7, 18); DELETE FROM revoked_tokens WHERE user_id IN (7, 18);', env, deps)
 }
@@ -177,12 +246,20 @@ export function main(argv = process.argv.slice(2), env = process.env, suppliedDe
   try {
     const deps = dependencies(suppliedDeps)
     if (argv.length === 1 && argv[0] === 'verify') assertDisposableFixture(env, deps)
-    else if (argv.length === 1 && argv[0] === 'reset') resetFixtures(env, deps)
+    else if (argv.length === 2 && argv[0] === 'verify' && argv[1] === '--destructive') {
+      assertDestructiveOptIn(env, assertDisposableFixture(env, deps))
+    } else if (argv.length === 1 && argv[0] === 'reset') resetFixtures(env, deps)
     else if (argv.length === 2 && argv[0] === 'sql' && ['mariadb', 'postgres'].includes(argv[1])) {
-      // Check the target before consuming stdin; SQL and credentials never enter argv.
-      assertDisposableFixture(env, deps)
+      // Check the target and consent before consuming stdin; SQL and credentials never enter argv.
+      assertDestructiveOptIn(env, assertDisposableFixture(env, deps))
       const sql = deps.readFileSync(0, 'utf8').toString()
       io.write(runFixtureSql(argv[1], sql, env, deps))
+    } else if (argv[0] === 'exec' && argv.length >= 3 && SERVICES.includes(argv[1])) {
+      const command = argv[2] === '--' ? argv.slice(3) : argv.slice(2)
+      if (!command.length) fail()
+      // Validate before consuming stdin; the command runs in the exact container ID.
+      assertDestructiveOptIn(env, assertDisposableFixture(env, deps))
+      io.write(runFixtureCommand(argv[1], command, env, deps, deps.readFileSync(0, 'utf8').toString()))
     } else if (argv.length === 2 && argv[0] === 'url' && ['desk', 'api', 'glpi'].includes(argv[1])) {
       const m = assertDisposableFixture(env, deps)
       io.write(`${m[`${argv[1] === 'desk' ? 'frontend' : argv[1]}Url`]}\n`)

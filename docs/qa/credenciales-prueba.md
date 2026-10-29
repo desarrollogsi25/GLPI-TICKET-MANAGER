@@ -107,16 +107,24 @@ Los cuatro están **sin técnico asignado**, por lo que aparecen en la cola de s
 
 ## 7. Scripts de mantenimiento
 
-```powershell
-# Limpieza profunda (borra tickets/usuarios/followups/soluciones de prueba)
-Get-Content scripts\clean-glpi.sql | docker exec -i glpi-db mariadb -uglpi -p$env:MARIADB_PASSWORD glpi
+Los scripts mutantes ya **no** se ejecutan contra `glpi-db`/`glpi-dev` por nombre.
+Todos pasan por `scripts/e2e/guard.mjs`, exigen un manifiesto de fixture efímero y
+la confirmación `E2E_CONFIRM_DESTRUCTIVE=<runId>` emitida por el runner. Sin esa
+confirmación abortan antes del primer DML. Los SQL (`clean-glpi.sql`,
+`seed-h38.sql`, `seed-e2e.sql`) además abortan dentro de MariaDB si no existe el
+centinela `e2e_fixture_identity`.
 
-# Estructura de 3 grupos + tickets demo (sin fixtures)
-Get-Content scripts\seed-h38.sql | docker exec -i glpi-db mariadb -uglpi -p$env:MARIADB_PASSWORD glpi
+```sh
+# Fixture efímero completo (crea proyecto aleatorio, datos y ejecuta Playwright)
+node scripts/e2e/run.mjs
 
-# Estructura + fixtures Playwright (lo ejecuta global-setup.ts antes de cada suite)
-Get-Content scripts\seed-e2e.sql | docker exec -i glpi-db mariadb -uglpi -p$env:MARIADB_PASSWORD glpi
+# Aplicar un SQL concreto sólo al fixture ya verificado
+node scripts/e2e/guard.mjs sql mariadb < scripts/seed-h38.sql
 ```
+
+Los antiguos comandos `docker exec -i glpi-db mariadb ...` ya no son una ruta
+válida: apuntan al stack de desarrollo y quedan bloqueados por diseño. El seeding
+de desarrollo se rediseñará en un PR posterior con un guard propio.
 
 ```powershell
 # Aceptación con clics reales (39 comprobaciones, capturas y reporte JSON)
