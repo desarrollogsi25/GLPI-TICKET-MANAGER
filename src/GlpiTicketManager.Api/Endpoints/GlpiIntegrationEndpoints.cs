@@ -136,37 +136,50 @@ public static class GlpiIntegrationEndpoints
         // Buscar técnicos del grupo
         var techIds = await dashboardRepository.GetTechnicianUserIdsInGroupAsync(groupId.Value, cancellationToken);
 
-        // Emitir notificación persistente a cada técnico del grupo (idempotente por ticketId)
+        // H-02/H-14: PostgreSQL atomically reserves (userId,ticketId) and inserts
+        // the notification. A paginated look-up before CreateAsync is NOT safe:
+        // older notices fall outside the first page, and replicas can race.
+        var newlyNotified = 0;
+        var failedNotifications = 0;
         foreach (var techId in techIds)
         {
             try
             {
-                var existing = await notificationService.GetByUserAsync(techId, 10, 0, cancellationToken);
-                if (!existing.Any(n => n.TicketId == ticketId && n.Type == "TicketCreated"))
+                if (await notificationService.CreateTicketCreatedOnceAsync(
+                    techId, ticketId, $"Nuevo ticket #{ticketId}",
+                    $"Se ha asignado el ticket '{ticketTitle}' a tu grupo.", cancellationToken))
                 {
-                    await notificationService.CreateAsync(
-                        techId,
-                        "TicketCreated",
-                        ticketId,
-                        $"Nuevo ticket #{ticketId}",
-                        $"Se ha asignado el ticket '{ticketTitle}' a tu grupo.",
-                        cancellationToken);
+                    newlyNotified++;
                 }
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to create persistent notification for technician {TechId}", techId);
+                failedNotifications++;
             }
         }
 
-        // Emitir evento SignalR en tiempo real
-        try
+        if (failedNotifications > 0)
         {
-            await ticketNotificationService.NotifyTicketCreatedAsync(ticketId, groupId.Value, cancellationToken);
+            // At least one user still needs a delivery. A non-2xx response asks
+            // GLPI to retry, while successfully delivered users remain deduped.
+            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Notificación incompleta",
+                detail: "Se requiere reintento del webhook para completar las notificaciones.");
         }
-        catch (Exception ex)
+
+        // Do not send an extra group event for a pure replay. The per-user
+        // notification is durable; SignalR remains best-effort and transient.
+        if (newlyNotified > 0)
         {
-            logger.LogWarning(ex, "Failed to emit TicketCreated SignalR event for ticket {TicketId}", ticketId);
+            try
+            {
+                await ticketNotificationService.NotifyTicketCreatedAsync(ticketId, groupId.Value, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to emit TicketCreated SignalR event for ticket {TicketId}", ticketId);
+            }
         }
 
         return Results.Ok(new
@@ -174,7 +187,7 @@ public static class GlpiIntegrationEndpoints
             success = true,
             ticketId,
             groupId = groupId.Value,
-            notifiedCount = techIds.Count
+            notifiedCount = newlyNotified
         });
     }
 

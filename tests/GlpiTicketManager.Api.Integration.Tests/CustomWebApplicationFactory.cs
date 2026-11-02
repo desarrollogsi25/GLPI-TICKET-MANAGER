@@ -1313,6 +1313,20 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                         return n.Id;
                     }
                 });
+            notificationRepoMock.Setup(n => n.TryCreateTicketCreatedAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Notification n, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_notificationsList.Any(existing => existing.UserId == n.UserId &&
+                            existing.TicketId == n.TicketId && existing.Type == "TicketCreated"))
+                            return (long?)null;
+
+                        n.Id = _notificationsList.Count + 1;
+                        _notificationsList.Add(n);
+                        return (long?)n.Id;
+                    }
+                });
             notificationRepoMock.Setup(n => n.GetByUserAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int userId, int limit, int offset, CancellationToken _) =>
                 {

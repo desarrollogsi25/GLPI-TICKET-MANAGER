@@ -55,9 +55,38 @@ public sealed class NotificationService : INotificationService
             entity.IsRead,
             entity.CreatedAt);
 
+        await EmitReceivedAsync(dto, ct);
+        return dto;
+    }
+
+    public async Task<bool> CreateTicketCreatedOnceAsync(
+        int userId, int ticketId, string title, string message, CancellationToken ct = default)
+    {
+        var entity = new Notification
+        {
+            UserId = userId,
+            Type = "TicketCreated",
+            TicketId = ticketId,
+            Title = title,
+            Message = message,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var id = await _repository.TryCreateTicketCreatedAsync(entity, ct);
+        if (id is null) return false; // duplicate replay; no SignalR either
+
+        var dto = new NotificationDto(id.Value, userId, entity.Type, ticketId,
+            title, message, false, entity.CreatedAt);
+        await EmitReceivedAsync(dto, ct);
+        return true;
+    }
+
+    private async Task EmitReceivedAsync(NotificationDto dto, CancellationToken ct)
+    {
         try
         {
-            await _hubContext.Clients.Group($"user-{userId}")
+            await _hubContext.Clients.Group($"user-{dto.UserId}")
                 .SendAsync("NotificationReceived", new
                 {
                     id = dto.Id,
@@ -74,10 +103,8 @@ public sealed class NotificationService : INotificationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to emit SignalR NotificationReceived for user {UserId}", userId);
+            _logger.LogWarning(ex, "Failed to emit SignalR NotificationReceived for user {UserId}", dto.UserId);
         }
-
-        return dto;
     }
 
     public async Task<IReadOnlyList<NotificationDto>> GetByUserAsync(

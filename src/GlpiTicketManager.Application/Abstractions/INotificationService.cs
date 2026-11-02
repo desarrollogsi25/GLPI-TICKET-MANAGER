@@ -12,6 +12,11 @@ public interface INotificationService
         string message,
         CancellationToken ct = default);
 
+    /// <summary>Persist and emit TicketCreated exactly once per user/ticket in PostgreSQL.</summary>
+    Task<bool> CreateTicketCreatedOnceAsync(
+        int userId, int ticketId, string title, string message,
+        CancellationToken ct = default);
+
     Task<IReadOnlyList<NotificationDto>> GetByUserAsync(
         int userId,
         int limit = 50,

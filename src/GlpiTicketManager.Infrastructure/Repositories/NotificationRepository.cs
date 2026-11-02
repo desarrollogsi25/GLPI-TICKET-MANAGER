@@ -32,6 +32,24 @@ public sealed class NotificationRepository : INotificationRepository
                 cancellationToken: ct));
     }
 
+    public async Task<long?> TryCreateTicketCreatedAsync(Notification notification, CancellationToken ct = default)
+    {
+        if (notification.Type != "TicketCreated" || notification.TicketId is null or <= 0)
+            throw new ArgumentException("Requires a TicketCreated notification with a valid ticket ID.", nameof(notification));
+
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        return await conn.ExecuteScalarAsync<long?>(new CommandDefinition(
+            NotificationQueries.InsertTicketCreatedOnce,
+            new
+            {
+                notification.UserId,
+                notification.TicketId,
+                notification.Title,
+                notification.Message,
+                notification.CreatedAt
+            }, cancellationToken: ct));
+    }
+
     public async Task<IReadOnlyList<Notification>> GetByUserAsync(int userId, int limit = 50, int offset = 0, CancellationToken ct = default)
     {
         await using var conn = (DbConnection)await _factory.CreateAsync(ct);

@@ -3,9 +3,11 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Security.Cryptography;
 using FluentAssertions;
+using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Auth;
 using GlpiTicketManager.Application.Dtos.Notifications;
 using Moq;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GlpiTicketManager.Api.Integration.Tests;
@@ -123,6 +125,43 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task HandleTicketCreated_ReplaysWithOlderNotifications_AreDeduplicated()
+    {
+        _factory.ResetNotifications();
+
+        async Task<HttpStatusCode> DeliverAsync()
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
+            Sign(request, "{\"ticketId\": 11}");
+            request.Content = new StringContent("{\"ticketId\": 11}", Encoding.UTF8, "application/json");
+            using var response = await _client.SendAsync(request);
+            return response.StatusCode;
+        }
+
+        (await DeliverAsync()).Should().Be(HttpStatusCode.OK);
+
+        // Simulate a busy inbox: the legacy "first 10" existence test would
+        // miss the earlier TicketCreated notification and create a duplicate.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
+            for (var i = 0; i < 15; i++)
+                await notifications.CreateAsync(CustomWebApplicationFactory.Tech1Id,
+                    "TicketUpdated", 900 + i, "Event", "Other event");
+        }
+
+        var concurrent = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => DeliverAsync()));
+        concurrent.Should().OnlyContain(status => status == HttpStatusCode.OK);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var service = verifyScope.ServiceProvider.GetRequiredService<INotificationService>();
+        var all = await service.GetByUserAsync(CustomWebApplicationFactory.Tech1Id, 100, 0);
+        all.Count(n => n.Type == "TicketCreated" && n.TicketId == 11).Should().Be(1);
+        _factory.NotificationMock.Verify(n => n.NotifyTicketCreatedAsync(11,
+            CustomWebApplicationFactory.Group1Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

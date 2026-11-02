@@ -9,7 +9,7 @@ if [ ! -d "${MIGRATIONS_DIR}" ]; then
 fi
 
 # Asegurar tabla de control
-docker compose exec -T app-db psql -U app -d glpi_ticket_manager <<'SQL'
+docker compose exec -T app-db psql -v ON_ERROR_STOP=1 -U app -d glpi_ticket_manager <<'SQL'
 CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -39,9 +39,11 @@ for migration in $(ls "${MIGRATIONS_DIR}"/*.sql | sort); do
     fi
     
     echo "Applying ${version}..."
-    docker compose exec -T app-db psql -U app -d glpi_ticket_manager < "${migration}"
+    # Never mark a partially executed migration as applied when PostgreSQL
+    # reports an SQL error (psql defaults to continuing without this flag).
+    docker compose exec -T app-db psql -v ON_ERROR_STOP=1 -U app -d glpi_ticket_manager < "${migration}"
     
-    docker compose exec -T app-db psql -U app -d glpi_ticket_manager <<SQL
+    docker compose exec -T app-db psql -v ON_ERROR_STOP=1 -U app -d glpi_ticket_manager <<SQL
     INSERT INTO schema_migrations (version, checksum, applied_by)
     VALUES ('${version}', '${checksum}', 'migrate-app-db.sh');
 SQL

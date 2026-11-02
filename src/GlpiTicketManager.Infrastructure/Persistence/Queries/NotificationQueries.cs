@@ -8,6 +8,21 @@ public static class NotificationQueries
         RETURNING id;
         """;
 
+    // A concurrent loser observes no row; on an insertion failure the key is
+    // rolled back with the notification. Works across all API replicas sharing PG.
+    public const string InsertTicketCreatedOnce = """
+        WITH claim AS (
+            INSERT INTO glpi_ticket_created_notification_keys (user_id, ticket_id)
+            VALUES (@UserId, @TicketId)
+            ON CONFLICT DO NOTHING
+            RETURNING user_id
+        )
+        INSERT INTO notifications (user_id, type, ticket_id, title, message, is_read, created_at)
+        SELECT @UserId, 'TicketCreated', @TicketId, @Title, @Message, FALSE, @CreatedAt
+        FROM claim
+        RETURNING id;
+        """;
+
     public const string GetByUser = """
         SELECT
             id AS Id,

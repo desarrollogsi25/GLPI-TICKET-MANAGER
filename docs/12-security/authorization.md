@@ -122,3 +122,11 @@ La política `TicketAccessPolicy.CanSeePrivateFollowupsAsync(userId, role, ticke
 - **CORS (H-06):** el backend deniega por defecto cualquier origen diferente. Los despliegues con proxy same-origin no necesitan configurar CORS. Si navegador y API están separados, establecer `CORS_ALLOWED_ORIGIN=https://frontend.ejemplo.com` en el entorno de la API (admite varios orígenes exactos separados por comas); solo se aceptan autoridades HTTP(S), sin comodines ni rutas. La lista debe configurarse por entorno y comprobarse con preflight `OPTIONS` real.
 
 Estos cambios se validan en una PR borrador y **no implican autorización de producción**. Rotar cualquier secreto divulgado históricamente y ejecutar la revisión de permisos por entidad antes del despliegue.
+
+## 8. Deduplicación durable de notificaciones de webhook (H-02/H-14)
+
+La migración PostgreSQL `009_webhook_notification_idempotency.sql` crea la tabla `glpi_ticket_created_notification_keys` con clave primaria `(user_id, ticket_id)` y registra los eventos históricos `TicketCreated` existentes sin borrar notificaciones. En una sola sentencia SQL se reserva la clave y se inserta la notificación: otra réplica o un replay firmado que intente la misma entrega no genera una segunda notificación. Si la inserción falla, PostgreSQL revierte también la reserva.
+
+El receptor devuelve `503` si falta entregar la notificación a algún técnico; GLPI puede reintentar y solo se completan los destinatarios pendientes. Un replay completo no vuelve a emitir eventos SignalR. SignalR sigue siendo un canal transitorio, no un sustituto de la persistencia. Se debe ejecutar la migración antes de arrancar la nueva API en un despliegue con base de datos existente.
+
+**Pendiente de validación operativa:** dos réplicas de API contra PostgreSQL compartido, fallos a mitad de lote, reintentos y reconexiones reales desde GLPI 11, y política de retención de claves de deduplicación. Hasta entonces el hallazgo no se declara cerrado en producción.
