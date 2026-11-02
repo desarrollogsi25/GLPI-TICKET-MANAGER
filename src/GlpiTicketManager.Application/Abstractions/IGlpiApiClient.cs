@@ -1,4 +1,5 @@
 using GlpiTicketManager.Application.Models;
+using GlpiTicketManager.Application.Dtos.Tickets;
 
 namespace GlpiTicketManager.Application.Abstractions;
 
@@ -16,6 +17,16 @@ public interface IGlpiApiClient
     Task<int> CreatePlannedTaskAsync(
         int ticketId, int technicianId, string content, DateTimeOffset startAt,
         DateTimeOffset endAt, CancellationToken cancellationToken);
+
+    /// <summary>Read native GLPI TicketTasks, including scheduled and completed tasks.</summary>
+    Task<IReadOnlyList<TicketTaskDto>> GetTicketTasksAsync(int ticketId, CancellationToken cancellationToken);
+
+    Task UpdateTicketTaskAsync(int taskId, int state, CancellationToken cancellationToken);
+
+    Task ReplanTicketTaskAsync(int taskId, string content, DateTimeOffset startAt,
+        DateTimeOffset endAt, CancellationToken cancellationToken);
+
+    Task DeleteTicketTaskAsync(int taskId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Reads the ticket state back from GLPI.

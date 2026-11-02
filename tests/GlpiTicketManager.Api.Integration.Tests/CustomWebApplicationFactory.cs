@@ -2,6 +2,7 @@ using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Dtos.Groups;
+using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
@@ -39,6 +40,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
+    private readonly Dictionary<int, List<TicketTaskDto>> _nativeTasks = new();
     private readonly List<Notification> _notificationsList = new();
 
     /// <summary>
@@ -185,6 +187,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             SimulateInsertFailure = false;
             _notificationsList.Clear();
             _ticketSolutions.Clear();
+            _nativeTasks.Clear();
+            _nativeTasks[Ticket12Id] =
+            [
+                new TicketTaskDto(8012, Ticket12Id, Tech1Id, "Visita programada", 1, false,
+                    new DateTimeOffset(2026, 11, 3, 9, 0, 0, TimeSpan.Zero),
+                    new DateTimeOffset(2026, 11, 3, 10, 0, 0, TimeSpan.Zero), 3600),
+                new TicketTaskDto(8013, Ticket12Id, Tech1Id, "Tarea interna privada", 0, true,
+                    null, null, 0)
+            ];
             _glpiTicketStates.Clear();
             _glpiStatusOverrides.Clear();
             _allTickets.Clear();
@@ -567,6 +578,50 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             var glpiMock = new Mock<IGlpiApiClient>();
             _glpiMock = glpiMock;
+            glpiMock.Setup(g => g.GetTicketTasksAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return _nativeTasks.TryGetValue(ticketId, out var items)
+                            ? items.ToArray() : Array.Empty<TicketTaskDto>();
+                });
+            glpiMock.Setup(g => g.UpdateTicketTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int taskId, int state, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        foreach (var items in _nativeTasks.Values)
+                        {
+                            var index = items.FindIndex(item => item.Id == taskId);
+                            if (index >= 0) { items[index] = items[index] with { State = state }; break; }
+                        }
+                    return Task.CompletedTask;
+                });
+            glpiMock.Setup(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+                    It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+                .Returns((int taskId, string content, DateTimeOffset start, DateTimeOffset end, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        foreach (var items in _nativeTasks.Values)
+                        {
+                            var index = items.FindIndex(item => item.Id == taskId);
+                            if (index >= 0)
+                            {
+                                items[index] = items[index] with { Content = content, State = 1,
+                                    StartAt = start, EndAt = end,
+                                    DurationSeconds = (int)(end - start).TotalSeconds };
+                                break;
+                            }
+                        }
+                    return Task.CompletedTask;
+                });
+            glpiMock.Setup(g => g.DeleteTicketTaskAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int taskId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        foreach (var items in _nativeTasks.Values)
+                            items.RemoveAll(item => item.Id == taskId);
+                    return Task.CompletedTask;
+                });
             glpiMock.Setup(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(),
                     It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int ticketId, int technicianId, string content, DateTimeOffset start,
@@ -575,6 +630,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     lock (_stateLock)
                     {
                         var taskId = 9000 + ticketId;
+                        if (!_nativeTasks.TryGetValue(ticketId, out var nativeTasks))
+                        {
+                            nativeTasks = [];
+                            _nativeTasks[ticketId] = nativeTasks;
+                        }
+                        if (!nativeTasks.Any(item => item.Id == taskId))
+                            nativeTasks.Add(new TicketTaskDto(taskId, ticketId, technicianId, content, 1,
+                                false, start, end, (int)(end - start).TotalSeconds));
                         _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, (int)TicketStatus.Planned);
                         if (_allTickets.TryGetValue(ticketId, out var current))
                         {

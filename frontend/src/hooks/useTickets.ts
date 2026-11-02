@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { queryKeys } from '@/lib/api/queryKeys'
 import {
   getTicket,
+  listTicketTasks,
+  replanTicketTask,
+  completeTicketTask,
+  cancelTicketTask,
   listTickets,
   updateTicketStatus,
   planTicket,
@@ -76,6 +80,15 @@ export function useTicketQuery(ticketId: number) {
   })
 }
 
+export function useTicketTasksQuery(ticketId: number) {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: queryKeys.tickets.tasks(ticketId),
+    queryFn: () => listTicketTasks(ticketId),
+    enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
+  })
+}
+
 /**
  * H-36: `queryKeys.tickets.all` is a prefix of the detail, list, assignee AND
  * group-queue keys, so a single invalidation refreshes all of them. Invalidating
@@ -106,6 +119,34 @@ export function usePlanTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, payload }: { ticketId: number; payload: PlanTicketRequest }) =>
       planTicket(ticketId, payload),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
+
+export function useReplanTicketTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, taskId, payload }: {
+      ticketId: number; taskId: number; payload: import('@/lib/api/tickets').ReplanTicketTaskRequest
+    }) => replanTicketTask(ticketId, taskId, payload),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
+
+export function useCompleteTicketTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
+      completeTicketTask(ticketId, taskId),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
+
+export function useCancelTicketTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
+      cancelTicketTask(ticketId, taskId),
     onSuccess: async () => { await invalidateTicketCaches(queryClient) },
   })
 }

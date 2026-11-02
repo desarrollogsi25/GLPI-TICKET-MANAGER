@@ -1,5 +1,8 @@
 # Registro y Matriz de Mitigación de Vulnerabilidades (Auditoría H-01 a H-25)
 
+> [!WARNING]
+> **Registro histórico, no certificación de producción.** Los IDs H-01/H-02/H-03 de esta auditoría histórica **no corresponden necesariamente** a los hallazgos del checkpoint de misión actual (por ejemplo, H-02/H-14 allí son webhooks y H-03 es autorización de soluciones). «Mitigado» significa que hay controles de código descritos; no acredita una validación de staging ni la rotación de secretos. Véase [el checkpoint actualizado](CODEX-MISSION-CHECKPOINT.md) antes de aprobar un despliegue.
+
 > **Control Documental ISO 9001 / ISO 27001**  
 > **Código:** DOC-12-SEC-VULNERABILITIES | **Versión:** 1.0.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
 

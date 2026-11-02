@@ -73,6 +73,17 @@ public interface ITicketService
 
     Task<PlanTicketResponse> PlanAsync(int ticketId, PlanTicketRequest request, int userId, AppRole role, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<TicketTaskDto>> GetTasksAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketTaskMutationResponse> ReplanTaskAsync(int ticketId, int taskId,
+        ReplanTicketTaskRequest request, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketTaskMutationResponse> CompleteTaskAsync(int ticketId, int taskId,
+        int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketTaskMutationResponse> CancelTaskAsync(int ticketId, int taskId,
+        int userId, AppRole role, CancellationToken cancellationToken);
+
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,
         int limit,

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GlpiTicketManager.Application.Abstractions;
+using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
 using Microsoft.Extensions.Logging;
@@ -155,6 +156,114 @@ public sealed class GlpiApiClient : IGlpiApiClient
         {
             await KillSessionAsync(sessionToken, cancellationToken);
         }
+    }
+
+    public async Task<IReadOnlyList<TicketTaskDto>> GetTicketTasksAsync(int ticketId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            const int pageSize = 100;
+            const int maxTasks = 2000;
+            var tasks = new List<TicketTaskDto>();
+            for (var offset = 0; offset < maxTasks;)
+            {
+                // GLPI REST v1 exposes TicketTask as a native Ticket sub-item.
+                using var request = new HttpRequestMessage(HttpMethod.Get,
+                    $"Ticket/{ticketId}/TicketTask?range={offset}-{offset + pageSize - 1}");
+                request.Headers.TryAddWithoutValidation("Session-Token", sessionToken);
+                if (!string.IsNullOrWhiteSpace(_options.AppToken))
+                    request.Headers.TryAddWithoutValidation("App-Token", _options.AppToken);
+
+                using var response = await _httpClient.SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new GlpiApiException((int)response.StatusCode,
+                        $"GLPI rejected GET Ticket/{ticketId}/TicketTask.");
+                }
+
+                var page = await response.Content.ReadFromJsonAsync<List<TicketTaskResponse>>(
+                    SerializerOptions, cancellationToken) ?? [];
+                foreach (var task in page)
+                {
+                    if (task.Id is not > 0 || task.TicketId != ticketId || task.IsDeleted == 1)
+                        continue;
+                    tasks.Add(new TicketTaskDto(task.Id.Value, ticketId,
+                        task.TechnicianId ?? 0, task.Content ?? string.Empty,
+                        task.State ?? 0, task.IsPrivate == 1,
+                        ParseGlpiTaskDate(task.Begin), ParseGlpiTaskDate(task.End),
+                        task.ActionTime ?? 0));
+                }
+
+                // Respect GLPI's actual returned range: the server may cap the
+                // requested pageSize. Without this, >50 tasks could be omitted.
+                var range = response.Content.Headers.ContentRange;
+                var last = range?.To ?? (offset + page.Count - 1);
+                var total = range?.Length;
+                if (page.Count == 0 || (total.HasValue && last >= total - 1) ||
+                    (!total.HasValue && page.Count < pageSize))
+                    return tasks;
+                offset = checked((int)last + 1);
+            }
+
+            throw new GlpiApiException(502,
+                $"Ticket {ticketId} has more than {maxTasks} tasks; refusing a partial timeline.");
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    private static DateTimeOffset? ParseGlpiTaskDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return DateTime.TryParseExact(value, "yyyy-MM-dd HH:mm:ss",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var date) ? new DateTimeOffset(date) : null;
+    }
+
+    public async Task UpdateTicketTaskAsync(int taskId, int state, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Put, $"TicketTask/{taskId}", sessionToken,
+                new { input = new { state } }, cancellationToken);
+        }
+        finally { await KillSessionAsync(sessionToken, cancellationToken); }
+    }
+
+    public async Task ReplanTicketTaskAsync(int taskId, string content,
+        DateTimeOffset startAt, DateTimeOffset endAt, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Put, $"TicketTask/{taskId}", sessionToken,
+                new { input = new
+                {
+                    content,
+                    state = 1,
+                    begin = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                    end = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                    actiontime = (int)(endAt - startAt).TotalSeconds
+                } }, cancellationToken);
+        }
+        finally { await KillSessionAsync(sessionToken, cancellationToken); }
+    }
+
+    public async Task DeleteTicketTaskAsync(int taskId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            // GLPI v1 soft-deletes by default (no force_purge=1).
+            using var response = await SendAsync(HttpMethod.Delete, $"TicketTask/{taskId}", sessionToken,
+                new { input = new { } }, cancellationToken);
+        }
+        finally { await KillSessionAsync(sessionToken, cancellationToken); }
     }
 
     /// <summary>
@@ -479,6 +588,18 @@ public sealed class GlpiApiClient : IGlpiApiClient
     private sealed record CreateItemResponse(
         [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("message")] string? Message);
+
+    private sealed record TicketTaskResponse(
+        [property: JsonPropertyName("id")] int? Id,
+        [property: JsonPropertyName("tickets_id")] int? TicketId,
+        [property: JsonPropertyName("users_id_tech")] int? TechnicianId,
+        [property: JsonPropertyName("content")] string? Content,
+        [property: JsonPropertyName("state")] int? State,
+        [property: JsonPropertyName("is_private")] int? IsPrivate,
+        [property: JsonPropertyName("is_deleted")] int? IsDeleted,
+        [property: JsonPropertyName("begin")] string? Begin,
+        [property: JsonPropertyName("end")] string? End,
+        [property: JsonPropertyName("actiontime")] int? ActionTime);
 
     /// <summary>
     /// The shape of `GET Ticket/{id}` as GLPI 11 answers it. Only the fields the API

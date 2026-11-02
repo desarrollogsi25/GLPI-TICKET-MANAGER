@@ -49,6 +49,41 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapGet("/{id:int}/tasks", GetTasks)
+            .WithName("GetTicketTasks")
+            .WithSummary("Native GLPI TicketTasks timeline, scoped by ticket access and private-task permissions")
+            .Produces<IReadOnlyList<TicketTaskDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPut("/{id:int}/tasks/{taskId:int}", ReplanTask)
+            .WithName("ReplanTicketTask")
+            .Accepts<ReplanTicketTaskRequest>("application/json")
+            .Produces<TicketTaskMutationResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/{id:int}/tasks/{taskId:int}/complete", CompleteTask)
+            .WithName("CompleteTicketTask")
+            .Produces<TicketTaskMutationResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapDelete("/{id:int}/tasks/{taskId:int}", CancelTask)
+            .WithName("CancelTicketTask")
+            .Produces<TicketTaskMutationResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         group.MapPatch("/{id:int}/status", UpdateStatus)
             .WithName("UpdateTicketStatus")
             .WithSummary("Change the status of a ticket through the GLPI REST API")
@@ -274,6 +309,93 @@ public static class TicketEndpoints
                 statusCode: StatusCodes.Status403Forbidden,
                 title: "Acceso denegado",
                 detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> GetTasks(
+        int id,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        try
+        {
+            return Results.Ok(await ticketService.GetTasksAsync(
+                id, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Identificador inválido", detail: ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado", detail: ex.Message);
+        }
+    }
+
+    private static Task<IResult> ReplanTask(int id, int taskId,
+        ReplanTicketTaskRequest request, ITicketService ticketService,
+        ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        return userId is null
+            ? Task.FromResult<IResult>(Results.Unauthorized())
+            : TaskMutationResultAsync(ticketService.ReplanTaskAsync(
+                id, taskId, request, userId.Value, principal.GetRole(), cancellationToken));
+    }
+
+    private static Task<IResult> CompleteTask(int id, int taskId,
+        ITicketService ticketService, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        return userId is null
+            ? Task.FromResult<IResult>(Results.Unauthorized())
+            : TaskMutationResultAsync(ticketService.CompleteTaskAsync(
+                id, taskId, userId.Value, principal.GetRole(), cancellationToken));
+    }
+
+    private static Task<IResult> CancelTask(int id, int taskId,
+        ITicketService ticketService, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        return userId is null
+            ? Task.FromResult<IResult>(Results.Unauthorized())
+            : TaskMutationResultAsync(ticketService.CancelTaskAsync(
+                id, taskId, userId.Value, principal.GetRole(), cancellationToken));
+    }
+
+    private static async Task<IResult> TaskMutationResultAsync(Task<TicketTaskMutationResponse> mutation)
+    {
+        try { return Results.Ok(await mutation); }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Tarea inválida", detail: ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Tarea no encontrada", detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Tarea no confirmada", detail: ex.Message);
         }
     }
 

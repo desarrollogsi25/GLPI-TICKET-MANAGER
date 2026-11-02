@@ -48,6 +48,44 @@ export async function planTicket(id: number, payload: PlanTicketRequest): Promis
   return data
 }
 
+/** Actual GLPI TicketTask (not a synthetic ticket-status event). */
+export interface TicketTask {
+  id: number
+  ticketId: number
+  technicianId: number
+  content: string
+  state: number
+  isPrivate: boolean
+  startAt: string | null
+  endAt: string | null
+  durationSeconds: number
+}
+
+export async function listTicketTasks(ticketId: number): Promise<TicketTask[]> {
+  const { data } = await apiClient.get<TicketTask[]>(`/tickets/${ticketId}/tasks`)
+  return data
+}
+
+export interface ReplanTicketTaskRequest extends PlanTicketRequest {}
+
+export interface TicketTaskMutationResponse { ticketId: number; taskId: number; ticketStatus: number }
+
+export async function replanTicketTask(ticketId: number, taskId: number,
+  payload: ReplanTicketTaskRequest): Promise<TicketTaskMutationResponse> {
+  const { data } = await apiClient.put<TicketTaskMutationResponse>(`/tickets/${ticketId}/tasks/${taskId}`, payload)
+  return data
+}
+
+export async function completeTicketTask(ticketId: number, taskId: number): Promise<TicketTaskMutationResponse> {
+  const { data } = await apiClient.post<TicketTaskMutationResponse>(`/tickets/${ticketId}/tasks/${taskId}/complete`)
+  return data
+}
+
+export async function cancelTicketTask(ticketId: number, taskId: number): Promise<TicketTaskMutationResponse> {
+  const { data } = await apiClient.delete<TicketTaskMutationResponse>(`/tickets/${ticketId}/tasks/${taskId}`)
+  return data
+}
+
 export async function listGroups(): Promise<import('@/lib/api/types').Group[]> {
   const { data } = await apiClient.get('/groups')
   return data
