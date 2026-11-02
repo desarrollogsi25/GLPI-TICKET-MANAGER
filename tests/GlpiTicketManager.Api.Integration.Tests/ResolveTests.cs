@@ -216,6 +216,21 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Resolve_ByOtherTechnicianInSameGroup_Returns403()
+    {
+        // Tech1 and Tech2 both belong to Group 1, but ticket 13 is assigned
+        // only to Tech2. Group membership does not grant resolution rights.
+        var token = await AuthenticateAsTech1Async();
+
+        using var response = await ResolveAsync(
+            CustomWebApplicationFactory.Ticket13Id,
+            "Intento de resolver ticket de otro tecnico",
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Resolve_EmitsExactlyOneRealtimeEvent()
     {
         var token = await AuthenticateAsTech1Async();
