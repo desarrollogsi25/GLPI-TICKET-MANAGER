@@ -112,3 +112,13 @@ WHERE f.itemtype = 'Ticket'
 ```
 
 La política `TicketAccessPolicy.CanSeePrivateFollowupsAsync(userId, role, ticketId)` evalúa las relaciones antes de la consulta, asegurando que los seguimientos confidenciales nunca viajen por la red hacia clientes no autorizados.
+
+---
+
+## 7. Listados de tickets, soluciones y CORS (revisión 2026-11-02)
+
+- **Listados de técnicos (H-01, remediación parcial):** `GET /api/tickets` aplica siempre `assigneeId = usuario autenticado` para técnicos; `serviceId` solo restringe esa lista. La cola de tickets nuevos sin asignar se consulta por `GET /api/tickets/by-group` con verificación de grupo. Permanecen pendientes la revisión de listados de supervisor, entidades GLPI, perfiles y metadatos agregados.
+- **Soluciones (H-03):** los técnicos solo pueden registrar soluciones en tickets expresamente asignados a ellos. Pertenecer al mismo grupo no autoriza la modificación. Administradores y supervisores conservan su política de acceso correspondiente; solicitantes no pueden añadir soluciones técnicas.
+- **CORS (H-06):** el backend deniega por defecto cualquier origen diferente. Los despliegues con proxy same-origin no necesitan configurar CORS. Si navegador y API están separados, establecer `CORS_ALLOWED_ORIGIN=https://frontend.ejemplo.com` en el entorno de la API (admite varios orígenes exactos separados por comas); solo se aceptan autoridades HTTP(S), sin comodines ni rutas. La lista debe configurarse por entorno y comprobarse con preflight `OPTIONS` real.
+
+Estos cambios se validan en una PR borrador y **no implican autorización de producción**. Rotar cualquier secreto divulgado históricamente y ejecutar la revisión de permisos por entidad antes del despliegue.

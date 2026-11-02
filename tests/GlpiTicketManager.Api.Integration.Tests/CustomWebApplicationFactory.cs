@@ -356,6 +356,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("GlpiApi__UserToken", TestCredentials.UserToken);
         Environment.SetEnvironmentVariable("Jwt__Key", TestCredentials.JwtKey);
         Environment.SetEnvironmentVariable("GlpiWebhook__Secret", TestCredentials.WebhookSecret);
+        // Program.cs registers CORS while building services, before the test
+        // host's late ConfigureAppConfiguration callback is applied.
+        Environment.SetEnvironmentVariable("CORS_ALLOWED_ORIGIN", "https://front.example.test");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -370,6 +373,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["GlpiApi:UserToken"] = TestCredentials.UserToken,
                 ["Jwt:Key"] = TestCredentials.JwtKey,
                 ["GlpiWebhook:Secret"] = TestCredentials.WebhookSecret,
+                ["CORS_ALLOWED_ORIGIN"] = "https://front.example.test",
                 ["Jwt:Issuer"] = "GlpiTicketManager.Api",
                 ["Jwt:Audience"] = "GlpiTicketManager.Frontend",
                 ["RateLimiting:ExpensiveTokenLimit"] = "20",

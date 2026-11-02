@@ -132,6 +132,32 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Test4b_Tech1_CannotAddSolutionToColleagueTicketInSameGroup_Returns403()
+    {
+        var token = await AuthenticateAsTech1Async();
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/tickets/{CustomWebApplicationFactory.Ticket13Id}/solutions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Should not be allowed" });
+
+        var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Test4c_Tech1_CannotResolveColleagueTicketInSameGroup_Returns403()
+    {
+        var token = await AuthenticateAsTech1Async();
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/tickets/{CustomWebApplicationFactory.Ticket13Id}/resolve");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Should not be allowed" });
+
+        var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Test5_Tech1_DoesNotSeeOtherTicketsWhenListing_IgnoresClientAssigneeId()
     {
         var token = await AuthenticateAsTech1Async();

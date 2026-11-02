@@ -104,16 +104,32 @@ builder.Services
         };
     });
 
-builder.Services.AddCors(options =>
+// H-06: CORS is deny-by-default. A browser client on another origin must be
+// explicitly listed by the deployment. Never reflect arbitrary origins while
+// allowing credentialed requests (cookies, SignalR, etc.).
+var corsAllowedOrigins = (builder.Configuration["CORS_ALLOWED_ORIGIN"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+foreach (var origin in corsAllowedOrigins)
 {
-    options.AddDefaultPolicy(policy =>
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var parsed) ||
+        (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps) ||
+        !string.IsNullOrEmpty(parsed.UserInfo) ||
+        !string.Equals(parsed.GetLeftPart(UriPartial.Authority), origin, StringComparison.OrdinalIgnoreCase))
     {
-        policy.SetIsOriginAllowed(_ => true)
+        throw new InvalidOperationException(
+            "CORS_ALLOWED_ORIGIN debe contener únicamente orígenes HTTP(S) exactos, separados por comas.");
+    }
+}
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+{
+    if (corsAllowedOrigins.Length > 0)
+    {
+        policy.WithOrigins(corsAllowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
-    });
-});
+    }
+}));
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
