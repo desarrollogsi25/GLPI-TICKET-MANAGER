@@ -111,7 +111,8 @@ and `are_users_tokens_encrypted` are `1`). This means:
 2. Set the same value in the API's `GlpiWebhook__Secret` environment variable
    (`GLPI_WEBHOOK_SECRET` in Docker Compose) and in GLPI's **webhook Security / Secret**
    field using the GLPI web UI. Never enter it in a SQL migration.
-3. If migration `007_glpi_webhook_config.sql` is used, it creates an **inactive**
+3. If the optional **MariaDB-only** setup `db/glpi/007_glpi_webhook_config.sql`
+   is used, it creates an **inactive**
    webhook draft. Configure the secret in GLPI's UI, confirm the event, destination,
    custom JSON payload and 600-second expiration, then explicitly activate it.
 4. GLPI 11 sends `X-GLPI-timestamp` (Unix seconds) and `X-GLPI-signature`

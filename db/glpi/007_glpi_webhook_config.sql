@@ -1,4 +1,5 @@
--- Migration 007: GLPI 11 Webhook configuration for ticket creation events (H-35)
+-- GLPI/MariaDB-only setup 007: GLPI 11 webhook for ticket creation (H-35).
+-- IMPORTANT: Do not run this script with PostgreSQL's migration runner.
 -- This script creates an INACTIVE webhook draft. Activate it in GLPI's own UI,
 -- which encrypts its secret at rest, after configuring the matching API secret.
 -- Never provision plaintext secrets directly into GLPI's encrypted secret column.
