@@ -5,6 +5,8 @@ import {
   getTicket,
   listTickets,
   updateTicketStatus,
+  planTicket,
+  type PlanTicketRequest,
   listGroups,
   listChannels,
   listGroupQueue,
@@ -96,6 +98,15 @@ export function useUpdateTicketStatusMutation() {
     onSuccess: async () => {
       await invalidateTicketCaches(queryClient)
     },
+  })
+}
+
+export function usePlanTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, payload }: { ticketId: number; payload: PlanTicketRequest }) =>
+      planTicket(ticketId, payload),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
   })
 }
 

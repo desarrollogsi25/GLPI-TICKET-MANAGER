@@ -1,3 +1,7 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
@@ -35,6 +39,7 @@ public sealed class TicketService : ITicketService
     private readonly INotificationService? _persistentNotifications;
     private readonly IDashboardRepository? _dashboard;
     private readonly ILogger<TicketService> _logger;
+    private readonly ITicketPlanningRequestStore _planningRequests;
 
     public TicketService(
         ITicketRepository tickets,
@@ -43,6 +48,7 @@ public sealed class TicketService : ITicketService
         ITicketAccessPolicy accessPolicy,
         ITicketNotificationService notifications,
         ILogger<TicketService> logger,
+        ITicketPlanningRequestStore planningRequests,
         INotificationService? persistentNotifications = null,
         IDashboardRepository? dashboard = null)
     {
@@ -52,6 +58,7 @@ public sealed class TicketService : ITicketService
         _accessPolicy = accessPolicy;
         _notifications = notifications;
         _logger = logger;
+        _planningRequests = planningRequests;
         _persistentNotifications = persistentNotifications;
         _dashboard = dashboard;
     }
@@ -244,6 +251,12 @@ public sealed class TicketService : ITicketService
             throw Invalid("status", "status must be between 1 (New) and 6 (Closed).");
         }
 
+        if (status == (int)TicketStatus.Planned)
+        {
+            throw new UnprocessableEntityException(
+                "El estado Planificado requiere programar una tarea con fechas. Usa POST /api/tickets/{id}/plan.");
+        }
+
         // H-39: a Waiting (4) ticket cannot be resolved (5) or closed (6) directly. The
         // check must run BEFORE the solution insert below: otherwise a rejected request
         // would still write a solution (and GLPI would auto-solve the ticket as a side
@@ -382,6 +395,102 @@ public sealed class TicketService : ITicketService
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Native GLPI workflow: creating a scheduled TODO TicketTask moves the ticket
+    /// from Assigned to Processing (planned). PATCH status=3 is never used.
+    /// </summary>
+    public async Task<PlanTicketResponse> PlanAsync(
+        int ticketId, PlanTicketRequest request, int userId, AppRole role, CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0) throw Invalid("id", "id must be a positive integer.");
+        if (userId <= 0) throw new ForbiddenException("Usuario no válido.");
+        if (request is null || request.RequestId == Guid.Empty)
+            throw Invalid("requestId", "Se requiere un identificador único de solicitud.");
+
+        var content = request.Content?.Trim() ?? string.Empty;
+        if (content.Length is < 1 or > 4000)
+            throw Invalid("content", "La descripción debe contener entre 1 y 4000 caracteres.");
+        if (request.StartAt == default || request.EndAt == default || request.EndAt <= request.StartAt)
+            throw Invalid("startAt", "El inicio debe ser anterior al fin y ambos deben incluir zona horaria.");
+        if (request.EndAt - request.StartAt > TimeSpan.FromDays(30) ||
+            request.EndAt - request.StartAt < TimeSpan.FromMinutes(1))
+            throw Invalid("endAt", "La tarea debe durar entre 1 minuto y 30 días.");
+        // The GLPI API v1 date format has one-second precision.
+        if (request.StartAt.Offset.TotalMinutes % 1 != 0 || request.EndAt.Offset.TotalMinutes % 1 != 0)
+            throw Invalid("startAt", "La zona horaria debe tener un desfase de minutos completos.");
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} not found.");
+        var decision = await _accessPolicy.EvaluateStatusTransitionAsync(
+            userId, role, ticketId, (int)TicketStatus.Planned, cancellationToken);
+        if (!decision.Allowed) throw new ForbiddenException(decision.Reason ?? "No tienes permisos para planificar el ticket.");
+
+        // Read from GLPI, not the eventually-consistent MariaDB projection.
+        var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} not found in GLPI.");
+
+        var canonical = string.Join("|", ticketId.ToString(CultureInfo.InvariantCulture),
+            userId.ToString(CultureInfo.InvariantCulture), content,
+            request.StartAt.UtcTicks.ToString(CultureInfo.InvariantCulture),
+            request.EndAt.UtcTicks.ToString(CultureInfo.InvariantCulture));
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+        var claim = await _planningRequests.ClaimAsync(
+            request.RequestId, ticketId, userId, hash, cancellationToken);
+
+        if (claim.State == PlanningRequestState.Mismatched)
+            throw new ConflictException("El identificador de solicitud ya se usó para otra planificación.");
+        if (claim.State == PlanningRequestState.InProgress)
+            throw new ConflictException("La planificación ya está en curso o tuvo una respuesta incierta. Verifica la tarea en GLPI antes de reintentar.");
+        if (claim.State == PlanningRequestState.Completed)
+            return new PlanTicketResponse(ticketId, claim.TaskId!.Value, current.Status);
+
+        if (current.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Waiting)
+        {
+            // No write was sent to GLPI, so releasing this key is safe.
+            await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
+            throw new ConflictException("Solo un ticket Asignado o Pendiente puede programarse; consulta su estado actual en GLPI.");
+        }
+
+        // Reservation happens before GLPI's non-idempotent POST. Do not automatically
+        // release it on timeout / 5xx: GLPI may have persisted the task already.
+        var taskId = await _glpi.CreatePlannedTaskAsync(
+            ticketId, userId, content, request.StartAt, request.EndAt, cancellationToken);
+        await _planningRequests.CompleteAsync(request.RequestId, taskId, cancellationToken);
+
+        var updated = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        if (updated is null || updated.Status != (int)TicketStatus.Planned)
+        {
+            _logger.LogWarning("GLPI created planned task {TaskId} but ticket {TicketId} is status {Status}",
+                taskId, ticketId, updated?.Status);
+            throw new ConflictException(
+                $"GLPI creó la tarea #{taskId}, pero no confirmó el estado Planificado. Revisa GLPI antes de repetir.");
+        }
+
+        try
+        {
+            await _audit.LogAsync(userId, "plan", ticketId, JsonSerializer.Serialize(new
+            {
+                taskId, startAt = request.StartAt, endAt = request.EndAt
+            }), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not audit planned task {TaskId}", taskId);
+        }
+
+        try
+        {
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId,
+                updated.Status, ticket.AssigneeIds?.FirstOrDefault(), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not broadcast planned ticket {TicketId}", ticketId);
+        }
+
+        return new PlanTicketResponse(ticketId, taskId, updated.Status);
     }
 
     public Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(

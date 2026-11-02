@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test'
 
 const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
 const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_dev'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD
 const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD
 
 test('realtime: connection indicator connects and maintains real-time link across contexts', async ({ browser }) => {
+  if (!TECH_PASSWORD || !REQUESTER_PASSWORD) throw new Error('Configura E2E_TECH_PASSWORD y E2E_REQUESTER_PASSWORD.')
   test.setTimeout(90000)
   const contextA = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const pageA = await contextA.newPage()

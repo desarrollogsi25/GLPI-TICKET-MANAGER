@@ -238,7 +238,7 @@ La lista (`frontend/src/features/tickets/List.tsx`) incorpora dos campos `<input
 El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 columnas de atención ágil:
 1. **Cola del grupo**: Tickets en estado Nuevo (`status = 1`) pertenecientes al grupo técnico del usuario y sin técnico asignado (`GET /api/tickets/by-group?groupId=X&unassigned=true`). Incluye botón directo "Asignarme".
 2. **Mis tickets**: Tickets asignados al resolutor en estado Nuevo o Asignado (`status = 1, 2`) listos para comenzar.
-3. **En progreso**: Incidencias bajo diagnóstico o resolución activa (`status = 3`).
+3. **En proceso (planificado)**: Tickets con al menos una tarea `TicketTask` pendiente y programada por GLPI (`status = 3`).
 4. **Pendiente**: Tickets con atención pausada por espera externa (`status = 4`).
 5. **Resuelto**: Tickets solucionados o cerrados (`status = 5` y `status = 6`, según ADR-006). La resolución exige una solución documentada; al resolver, el ticket se cierra automáticamente (véase [Reglas de estado](#reglas-de-estado-y-cierre-automático)).
 
@@ -254,11 +254,11 @@ El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 co
 
 ### Transiciones permitidas (Drag & Drop)
 - `queue → mine`: Dispara autoasignación (`POST /api/tickets/{id}/claim`).
-- `mine → in_progress`: Cambia el estado a planificado (`PATCH /api/tickets/{id}/status { status: 3 }`).
-- `in_progress → pending`: Pausa la incidencia (`PATCH /api/tickets/{id}/status { status: 4 }`).
-- `pending → in_progress`: Reanuda la incidencia (`PATCH /api/tickets/{id}/status { status: 3 }`).
-- `in_progress → resolved`: Abre el modal `ResolveTicketDialog` para ingreso mandatorio de solución escrita (`POST /api/tickets/{id}/solutions` y posterior cambio a `status = 5`). El ticket se cierra automáticamente (`status = 6`).
-- `pending → resolved`: Permite resolver directamente desde Pendiente reutilizando el mismo modal de solución.
+- `mine → in_progress`: Abre el formulario de programación (descripción, inicio, fin); crea una `TicketTask` nativa pendiente (`POST /api/tickets/{id}/plan`) y comprueba que GLPI cambió el estado a 3.
+- `in_progress → pending`: Abre el modal de motivo y seguimiento privado (`POST /api/tickets/{id}/pending`).
+- `pending → in_progress`: Programa una nueva tarea pendiente en GLPI con el mismo endpoint `/plan`.
+- `in_progress → resolved`: Abre `ResolveTicketDialog` y resuelve mediante `POST /api/tickets/{id}/resolve` con solución documentada. El ticket se cierra automáticamente (`status = 6`).
+- `pending → resolved`: Bloqueado (H-39). Primero es obligatorio replanificar la tarea.
 - **No se permite** `mine → queue` (devolver un ticket asignado a Nuevo) ni mover fuera de Resuelto/Cerrado.
 - Las transiciones no permitidas se rechazan en el backend con `403` y un mensaje claro; la interfaz lo muestra en un *toast* de error en lugar de revertir en silencio.
 
@@ -271,9 +271,20 @@ En dispositivos móviles, el tablero Kanban sustituye el scroll horizontal de 5 
 - **Lista vertical unificada**: Solo la columna seleccionada se renderiza a la vez, permitiendo navegación natural vertical con tarjetas compactas de tickets.
 - **Acciones inline contextuales**: Se evita el drag & drop táctil en favor de botones directos por columna:
   - Cola: `[Asignarme]` (claim directo al usuario con spinner de carga interactivo).
-  - Mis tickets: `[Empezar]` (cambio a estado 3 / En progreso).
+  - Mis tickets: `[Planificar]` (programación de tarea nativa en GLPI).
   - En progreso: `[Resolver]` (apertura de `ResolveTicketDialog`).
-  - Pendiente: `[Retomar]` (reanudación a estado 3 / En progreso).
+  - Pendiente: `[Replanificar]` (nueva tarea programada en GLPI).
+
+### Estado planificado: contrato de integración GLPI 11
+
+- **Única vía para entrar en estado 3**: `POST /api/tickets/{id}/plan` con `{ requestId, content, startAt, endAt }`. `PATCH /status {status:3}` devuelve `422` sin escribir nada.
+- Fechas ISO 8601 con zona horaria (la interfaz convierte la hora local a UTC). El servidor valida orden, duración de 1 minuto a 30 días y descripción de 1 a 4000 caracteres. El formulario rechaza horas ambiguas o inexistentes por cambio de horario.
+- La API autoriza al técnico asignado o al supervisor del grupo (administrador global), toma el estado actual desde GLPI y crea una tarea `TicketTask` con `state=1` (pendiente), `begin`, `end`, `actiontime` y `users_id_tech`. GLPI controla el cambio de estado; la API **no** fuerza un `PUT Ticket/status=3`.
+- Se verifica `GET Ticket/{id}` tras crear la tarea: si GLPI no devuelve estado 3, la respuesta es `409` con el identificador de la tarea para conciliación, nunca un falso éxito.
+- `requestId` UUID y migración PostgreSQL `008_ticket_planning_idempotency.sql`: una reserva única compartida evita duplicados ante doble clic y reintentos entre réplicas. Si un POST a GLPI termina en 429/5xx/timeout con resultado incierto, la reserva se conserva; el operador debe conciliarla con GLPI **antes** de otro intento (no se reenvía automáticamente).
+- Ejecutar `scripts/migrate-app-db.sh` en instalaciones con PostgreSQL ya inicializado. No modifica tablas internas de GLPI.
+- Para cerrar la integración de producción se necesita prueba real con GLPI 11, huso horario configurado en GLPI y PostgreSQL compartido; las pruebas automatizadas usan dobles de GLPI y de la tabla de deduplicación.
+- La ejecución E2E de GitHub Actions requiere tres secretos: `E2E_TECH_PASSWORD`, `E2E_REQUESTER_PASSWORD` y `E2E_ADMIN_PASSWORD`, correspondientes a las cuentas de fixture. El código y la definición del workflow no contienen contraseñas literales. Cualquier credencial previamente versionada debe rotarse; borrarla del último commit no la elimina del historial de Git.
   - Resuelto: sin acción (enlace de detalle).
 - **Smart default tab**: Selección inteligente de la pestaña activa inicial en móvil: `in_progress` (si se está trabajando activamente) > `queue` (si hay tickets en cola) > `mine` > `pending`.
 - **Swipe horizontal entre tabs**: Gesto de arrastre horizontal (swipe) con Motion sobre la lista para alternar ágilmente entre columnas contiguas con retroalimentación elástica.

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { resetFixtureTicket } from './support/ticket-fixtures'
+import { confirmPlanning } from './support/planning'
 
 /**
  * BUG-031 (H-31) — regression spec for the "short solution" defect.
@@ -99,10 +100,11 @@ test('UI: resolver con la solucion corta "OK" deja el ticket en Resuelto', async
     .getByText(`#${UI_TICKET_ID}`)
     .first()
     .locator('xpath=ancestor::div[.//button][1]')
-  const startButton = mineCard.getByRole('button', { name: /Iniciar/i }).first()
+  const startButton = mineCard.getByRole('button', { name: /Planificar/i }).first()
   await expect(startButton).toBeVisible({ timeout: 10000 })
   await mineCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await startButton.click()
+  await confirmPlanning(page)
 
   const inProgressColumn = page.locator('[data-column-id="in_progress"]')
   await expect(inProgressColumn.locator(`text=#${UI_TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })

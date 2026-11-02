@@ -14,7 +14,7 @@ test('logout UI: click button, redirects to login, token revoked', async ({ page
   // 1. Login fresco vía UI
   await page.goto('http://localhost:5173/login')
   await page.fill('input[name="username"]', 'tech1')
-  await page.fill('input[name="password"]', 'Tech1Pass!')
+  await page.fill('input[name="password"]', process.env.E2E_TECH_PASSWORD ?? '')
   await page.click('button[type="submit"]')
   await page.waitForURL(/\/(kanban|dashboard|tickets|queue|services)/, { timeout: 10000 })
 

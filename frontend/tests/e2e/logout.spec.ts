@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 test('logout: revokes token, subsequent calls return 401', async ({ request }) => {
   // Login FRESCO (no usar storageState para no invalidar tech1)
   const login = await request.post('http://localhost:5173/api/auth/login', {
-    data: { username: 'tech1', password: 'Tech1Pass!' }
+    data: { username: 'tech1', password: process.env.E2E_TECH_PASSWORD ?? '' }
   })
   expect(login.status()).toBe(200)
   const { accessToken } = await login.json()

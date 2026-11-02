@@ -69,7 +69,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task SetPending_WithoutComment_Returns422()
     {
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         using var response = await SetPendingAsync(CustomWebApplicationFactory.Ticket12Id, 1, string.Empty, token);
 
@@ -79,7 +79,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task SetPending_WithWhitespaceComment_Returns422()
     {
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         using var response = await SetPendingAsync(CustomWebApplicationFactory.Ticket12Id, 1, "    ", token);
 
@@ -89,7 +89,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task SetPending_Successful_Returns200AndWritesToGlpi()
     {
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         const string comment = "Esperando piezas de repuesto del proveedor";
 
         using var response = await SetPendingAsync(CustomWebApplicationFactory.Ticket12Id, 2, comment, token);
@@ -116,7 +116,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     public async Task SetPending_WhenUserNotAssigned_Returns403()
     {
         // Ticket 12 is assigned to Tech1. Tech2 should be forbidden.
-        var token = await AuthenticateAsAsync("tech2", "Tech2Pass!");
+        var token = await AuthenticateAsAsync("tech2", TestCredentials.Tech2);
 
         using var response = await SetPendingAsync(
             CustomWebApplicationFactory.Ticket12Id,
@@ -131,7 +131,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     public async Task SetPending_WhenSupervisorInGroup_Returns200()
     {
         // Ticket 12 is in Group 1. Supervisor is in Group 1.
-        var token = await AuthenticateAsAsync("supervisor_test", "SupervisorPass123!");
+        var token = await AuthenticateAsAsync("supervisor_test", TestCredentials.Supervisor);
         const string comment = "Supervisor pone en espera para coordinar con cliente";
 
         using var response = await SetPendingAsync(
@@ -148,7 +148,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task SetPending_WhenTicketClosed_Returns409()
     {
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         _factory.SetTicketStatus(CustomWebApplicationFactory.Ticket12Id, (int)TicketStatus.Closed);
 
         using var response = await SetPendingAsync(
@@ -163,7 +163,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task SetPending_WhenTicketNotFound_Returns404()
     {
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         using var response = await SetPendingAsync(
             999999,

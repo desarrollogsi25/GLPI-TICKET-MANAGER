@@ -348,11 +348,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     static CustomWebApplicationFactory()
     {
-        Environment.SetEnvironmentVariable("Database__ConnectionString", "Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password=SecretNonDefaultPass123!;");
-        Environment.SetEnvironmentVariable("AppDb__ConnectionString", "Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password=SecretAppDbPass123!;");
-        Environment.SetEnvironmentVariable("GlpiApi__AppToken", "integration-test-app-token-32-chars-minimum!!");
-        Environment.SetEnvironmentVariable("GlpiApi__UserToken", "integration-test-user-token-32-chars-minimum!!");
-        Environment.SetEnvironmentVariable("Jwt__Key", "integration-test-secret-signing-key-32-chars-minimum!!");
+        Environment.SetEnvironmentVariable("Database__ConnectionString", $"Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password={TestCredentials.DbPassword};");
+        Environment.SetEnvironmentVariable("AppDb__ConnectionString", $"Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password={TestCredentials.DbPassword};");
+        Environment.SetEnvironmentVariable("GlpiApi__AppToken", TestCredentials.AppToken);
+        Environment.SetEnvironmentVariable("GlpiApi__UserToken", TestCredentials.UserToken);
+        Environment.SetEnvironmentVariable("Jwt__Key", TestCredentials.JwtKey);
+        Environment.SetEnvironmentVariable("GlpiWebhook__Secret", TestCredentials.WebhookSecret);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -361,11 +362,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Database:ConnectionString"] = "Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password=secretpass123;",
-                ["AppDb:ConnectionString"] = "Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password=secretpass123",
-                ["GlpiApi:AppToken"] = "integration-test-app-token-32-chars-minimum!!",
-                ["GlpiApi:UserToken"] = "integration-test-user-token-32-chars-minimum!!",
-                ["Jwt:Key"] = "integration-test-secret-signing-key-32-chars-minimum!!",
+                ["Database:ConnectionString"] = $"Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password={TestCredentials.DbPassword};",
+                ["AppDb:ConnectionString"] = $"Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password={TestCredentials.DbPassword}",
+                ["GlpiApi:AppToken"] = TestCredentials.AppToken,
+                ["GlpiApi:UserToken"] = TestCredentials.UserToken,
+                ["Jwt:Key"] = TestCredentials.JwtKey,
+                ["GlpiWebhook:Secret"] = TestCredentials.WebhookSecret,
                 ["Jwt:Issuer"] = "GlpiTicketManager.Api",
                 ["Jwt:Audience"] = "GlpiTicketManager.Frontend",
                 ["RateLimiting:ExpensiveTokenLimit"] = "20",
@@ -385,6 +387,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IPasswordHasher) ||
                 d.ServiceType == typeof(IRevokedTokenRepository) ||
                 d.ServiceType == typeof(IGlpiApiClient) ||
+                d.ServiceType == typeof(ITicketPlanningRequestStore) ||
                 d.ServiceType == typeof(IAuditRepository) ||
                 d.ServiceType == typeof(IGroupRepository) ||
                 d.ServiceType == typeof(IChannelRepository) ||
@@ -499,12 +502,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             // Mock IPasswordHasher
             var hasherMock = new Mock<IPasswordHasher>();
-            hasherMock.Setup(h => h.Verify("Tech1Pass!", "hash1")).Returns(true);
-            hasherMock.Setup(h => h.Verify("Tech2Pass!", "hash2")).Returns(true);
-            hasherMock.Setup(h => h.Verify("AdminPass123!", "admin_hash")).Returns(true);
-            hasherMock.Setup(h => h.Verify("SupervisorPass123!", "sup_hash")).Returns(true);
-            hasherMock.Setup(h => h.Verify("Solicitante123!", "solicitante_hash")).Returns(true);
-            hasherMock.Setup(h => h.Verify("User1Pass!", "user1_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Tech1, "hash1")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Tech2, "hash2")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Admin, "admin_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Supervisor, "sup_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Solicitante, "solicitante_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.User1, "user1_hash")).Returns(true);
 
             // Mock IRevokedTokenRepository
             var revokedMock = new Mock<IRevokedTokenRepository>();
@@ -517,8 +520,74 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 .ReturnsAsync(1L);
 
             // Mock IGlpiApiClient
+            // Shared in-memory stand-in for the PostgreSQL unique request-id constraint.
+            var planningRequests = new Dictionary<Guid, (int TicketId, int UserId, string Hash, int? TaskId)>();
+            var planningStoreMock = new Mock<ITicketPlanningRequestStore>();
+            planningStoreMock.Setup(s => s.ClaimAsync(It.IsAny<Guid>(), It.IsAny<int>(),
+                    It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid id, int ticketId, int userId, string hash, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (!planningRequests.TryGetValue(id, out var existing))
+                        {
+                            planningRequests[id] = (ticketId, userId, hash, null);
+                            return new PlanningRequestClaim(PlanningRequestState.Started);
+                        }
+
+                        if (existing.TicketId != ticketId || existing.UserId != userId || existing.Hash != hash)
+                            return new PlanningRequestClaim(PlanningRequestState.Mismatched);
+                        return existing.TaskId is > 0
+                            ? new PlanningRequestClaim(PlanningRequestState.Completed, existing.TaskId)
+                            : new PlanningRequestClaim(PlanningRequestState.InProgress);
+                    }
+                });
+            planningStoreMock.Setup(s => s.CompleteAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((Guid id, int taskId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var existing = planningRequests[id];
+                        planningRequests[id] = (existing.TicketId, existing.UserId, existing.Hash, taskId);
+                    }
+                    return Task.CompletedTask;
+                });
+            planningStoreMock.Setup(s => s.CancelAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .Returns((Guid id, CancellationToken _) =>
+                {
+                    lock (_stateLock) planningRequests.Remove(id);
+                    return Task.CompletedTask;
+                });
+
             var glpiMock = new Mock<IGlpiApiClient>();
             _glpiMock = glpiMock;
+            glpiMock.Setup(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(),
+                    It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, int technicianId, string content, DateTimeOffset start,
+                    DateTimeOffset end, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var taskId = 9000 + ticketId;
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, (int)TicketStatus.Planned);
+                        if (_allTickets.TryGetValue(ticketId, out var current))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = current.Id, Name = current.Name, Content = current.Content,
+                                Status = (int)TicketStatus.Planned, Type = current.Type,
+                                Priority = current.Priority, Urgency = current.Urgency, Impact = current.Impact,
+                                CategoryId = current.CategoryId, CreatedAt = current.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow, SolvedAt = current.SolvedAt,
+                                ClosedAt = current.ClosedAt, IsDeleted = current.IsDeleted,
+                                HasSolution = current.HasSolution, AssigneeIds = current.AssigneeIds,
+                                RequesterIds = current.RequesterIds, Followups = current.Followups,
+                                Solutions = current.Solutions
+                            };
+                        }
+                        return taskId;
+                    }
+                });
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, int status, CancellationToken _) =>
                 {
@@ -1273,6 +1342,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(revokedMock.Object);
             services.AddSingleton(auditMock.Object);
             services.AddSingleton(glpiMock.Object);
+            services.AddSingleton(planningStoreMock.Object);
             services.AddSingleton(ticketRepoMock.Object);
             services.AddSingleton(groupRepoMock.Object);
             services.AddSingleton(channelRepoMock.Object);

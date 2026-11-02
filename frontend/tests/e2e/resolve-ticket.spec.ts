@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 import { resetFixtureTicket } from './support/ticket-fixtures'
+import { confirmPlanning } from './support/planning'
 
 /**
  * QA audit spec for the resolve-dialog hotfix.
@@ -62,10 +63,11 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
   await expect(mineColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })
 
   // 3. Moverlo a "En progreso" (status 3) desde la tarjeta asignada.
-  const startButton = mineCard.getByRole('button', { name: /Iniciar|En progreso|Empezar/i }).first()
+  const startButton = mineCard.getByRole('button', { name: /Planificar/i }).first()
   await expect(startButton).toBeVisible({ timeout: 10000 })
   await mineCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await startButton.click()
+  await confirmPlanning(page)
 
   const inProgressColumn = page.locator('[data-column-id="in_progress"]')
   await expect(inProgressColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({

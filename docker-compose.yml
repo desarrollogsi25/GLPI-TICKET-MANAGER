@@ -68,6 +68,7 @@ services:
       GlpiApi__AppToken: "${GLPI_APP_TOKEN}"
       GlpiApi__UserToken: "${GLPI_USER_TOKEN}"
       Jwt__Key: "${JWT_SECRET}"
+      GlpiWebhook__Secret: "${GLPI_WEBHOOK_SECRET:?Provide a strong GLPI_WEBHOOK_SECRET}"
     ports:
       - "127.0.0.1:8080:8080"
 

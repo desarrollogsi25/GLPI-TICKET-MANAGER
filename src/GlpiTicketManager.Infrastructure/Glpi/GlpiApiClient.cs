@@ -116,6 +116,47 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    public async Task<int> CreatePlannedTaskAsync(
+        int ticketId, int technicianId, string content, DateTimeOffset startAt,
+        DateTimeOffset endAt, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            // GLPI stores its datetimes in UTC (without an offset in API v1).
+            // `state=1` is TODO; a completed task must NOT turn the ticket planned.
+            var payload = new
+            {
+                input = new
+                {
+                    tickets_id = ticketId,
+                    users_id_tech = technicianId,
+                    content,
+                    state = 1,
+                    is_private = 0,
+                    begin = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                    end = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                    actiontime = (int)(endAt - startAt).TotalSeconds
+                }
+            };
+
+            using var response = await SendAsync(HttpMethod.Post, "TicketTask", sessionToken, payload, cancellationToken);
+            var created = await response.Content.ReadFromJsonAsync<CreateItemResponse>(SerializerOptions, cancellationToken);
+            if (created is null || created.Id <= 0)
+            {
+                throw new GlpiApiException((int)response.StatusCode,
+                    "GLPI may have created the planned task but returned no valid identifier. Reconcile before retrying.");
+            }
+
+            _logger.LogInformation("Created GLPI planned task {TaskId} for ticket {TicketId}", created.Id, ticketId);
+            return created.Id;
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
     /// <summary>
     /// Reads the ticket state back from GLPI.
     ///

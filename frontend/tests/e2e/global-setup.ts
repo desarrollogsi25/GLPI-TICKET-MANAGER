@@ -11,16 +11,19 @@ export default async function globalSetup(_config: FullConfig) {
   const projectRoot = resolve(process.cwd(), '..')
   const envPath = resolve(projectRoot, '.env')
   const envContent = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
-  const readEnv = (name: string, fallback: string) =>
-    process.env[name] ?? envContent.match(new RegExp(`^${name}=(.*)$`, 'm'))?.[1]?.trim() ?? fallback
+  const readEnv = (name: string, fallback?: string) => {
+    const value = process.env[name] ?? envContent.match(new RegExp(`^${name}=(.*)$`, 'm'))?.[1]?.trim() ?? fallback
+    if (!value) throw new Error(`Configura ${name} en el entorno E2E.`)
+    return value
+  }
 
-  try {
+  if (!process.env.CI) try {
     execFileSync(
       'docker',
       [
         'exec', '-i', 'glpi-db', 'mariadb',
         `-u${readEnv('MARIADB_USER', 'glpi')}`,
-        `-p${readEnv('MARIADB_PASSWORD', 'VW9Qr7m2XSkGd0tHegGGq3hhrHcD')}`,
+        `-p${readEnv('MARIADB_PASSWORD')}`,
         readEnv('MARIADB_DATABASE', 'glpi'),
       ],
       {
@@ -29,7 +32,9 @@ export default async function globalSetup(_config: FullConfig) {
         stdio: ['pipe', 'inherit', 'inherit'],
       },
     )
-    console.log('[e2e] GLPI fixtures reset from scripts/seed-e2e.sql')
+    // SQL contains no credentials. Provision bcrypt hashes via environment.
+    execFileSync('bash', ['scripts/seed-e2e.sh'], { cwd: projectRoot, stdio: 'inherit' })
+    console.log('[e2e] GLPI fixtures reset and credentials provisioned from environment')
 
     try {
       execFileSync(
@@ -60,7 +65,7 @@ export default async function globalSetup(_config: FullConfig) {
 
   await page.goto('http://localhost:5173/login')
   await page.fill('input[name="username"]', 'tech1')
-  await page.fill('input[name="password"]', 'Tech1Pass!')
+  await page.fill('input[name="password"]', readEnv('E2E_TECH_PASSWORD'))
   await page.click('button[type="submit"]')
   await page.waitForURL(/\/(kanban|dashboard|tickets|queue)/, { timeout: 60000 })
 

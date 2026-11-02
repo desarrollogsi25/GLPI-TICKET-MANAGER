@@ -1,17 +1,21 @@
 import { test, expect } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { confirmPlanning } from './support/planning'
 
 const GLPI = process.env.E2E_GLPI_URL ?? 'http://localhost:8081'
 const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
 const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
-const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD ?? 'Password123!'
+const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD
 const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_sd'
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? 'Password123!'
+const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin_test'
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Password123!'
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
 
 test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }) => {
+  if (!REQUESTER_PASSWORD || !TECH_PASSWORD || !ADMIN_PASSWORD) {
+    throw new Error('Configura E2E_REQUESTER_PASSWORD, E2E_TECH_PASSWORD y E2E_ADMIN_PASSWORD en el entorno de pruebas.')
+  }
   test.setTimeout(120000)
   const title = `E2E demo Hardware ${Date.now()}`
   mkdirSync(resolve(process.cwd(), 'test-results/full-user-journey'), { recursive: true })
@@ -95,9 +99,9 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await expect(page.getByText(/Ticket asignado correctamente/i).first()).toBeVisible({ timeout: 15000 })
   await page.goto(`${DESK}/tickets/${ticketId}`)
   await expect(page.getByText(title)).toBeVisible({ timeout: 15000 })
-  await page.getByRole('button', { name: 'Planificado' }).click()
-  await expect(page.getByText('Estado actualizado').first()).toBeVisible({ timeout: 15000 })
-  await expect(page.getByText('Planificado', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Planificar tarea' }).click()
+  await confirmPlanning(page)
+  await expect(page.getByText('En proceso (planificado)', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: /^Resolver$/ }).first().click()
   const dialog = page.getByRole('dialog')
   await dialog.locator('textarea').fill('Solución aplicada durante la prueba automatizada.')
@@ -137,9 +141,9 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await reopenDialog.locator('textarea').fill('Reapertura verificada en la demo E2E.')
   await reopenDialog.getByRole('button', { name: /^Reabrir$/ }).last().click()
   await expect(admin.getByText(/Ticket reabierto/i).first()).toBeVisible({ timeout: 15000 })
-  await admin.getByRole('button', { name: 'Planificado' }).click()
-  await expect(admin.getByText('Estado actualizado').first()).toBeVisible({ timeout: 15000 })
-  await expect(admin.getByText('Planificado', { exact: true }).first()).toBeVisible()
+  await admin.getByRole('button', { name: 'Planificar tarea' }).click()
+  await confirmPlanning(admin)
+  await expect(admin.getByText('En proceso (planificado)', { exact: true }).first()).toBeVisible()
   await adminContext.close()
 
   // Restricción de rol: un solicitante no puede entrar al Kanban.

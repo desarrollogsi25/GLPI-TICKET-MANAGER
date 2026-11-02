@@ -60,6 +60,18 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status502BadGateway)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapPost("/{id:int}/plan", Plan)
+            .WithName("PlanTicket")
+            .WithSummary("Schedule a native GLPI TicketTask and confirm planned status")
+            .Accepts<PlanTicketRequest>("application/json")
+            .Produces<PlanTicketResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         // POST /api/tickets/{id}/claim -> self-assign (tech claims ticket)
         group.MapPost("/{id:int}/claim", Claim)
             .WithName("ClaimTicket")
@@ -335,6 +347,44 @@ public static class TicketEndpoints
                 statusCode: StatusCodes.Status403Forbidden,
                 title: "Acceso denegado",
                 detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> Plan(
+        int id,
+        PlanTicketRequest request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        try
+        {
+            return Results.Ok(await ticketService.PlanAsync(
+                id, request, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Planificación inválida", detail: ex.Message, extensions:
+                new Dictionary<string, object?> { ["errors"] = ex.Errors });
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado", detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Planificación no confirmada", detail: ex.Message);
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using System.Security.Cryptography;
 using FluentAssertions;
 using GlpiTicketManager.Application.Dtos.Auth;
 using GlpiTicketManager.Application.Dtos.Notifications;
@@ -17,7 +18,7 @@ namespace GlpiTicketManager.Api.Integration.Tests;
 /// </summary>
 public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private const string ExpectedSecret = "glpi-webhook-secret-token-32-chars-minimum!!";
+    private static readonly string ExpectedSecret = TestCredentials.WebhookSecret;
     private readonly HttpClient _client;
     private readonly CustomWebApplicationFactory _factory;
 
@@ -41,7 +42,7 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
     public async Task HandleTicketCreated_InvalidSecretHeader_Returns401Unauthorized()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
-        request.Headers.Add("X-Webhook-Secret", "wrong-secret-token");
+        request.Headers.Add("X-Webhook-Secret", ExpectedSecret);
         request.Content = new StringContent("{\"ticketId\": 11}", Encoding.UTF8, "application/json");
 
         var response = await _client.SendAsync(request);
@@ -53,7 +54,7 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
     public async Task HandleTicketCreated_InvalidPayload_MissingTicketId_Returns400BadRequest()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
-        request.Headers.Add("X-Webhook-Secret", ExpectedSecret);
+        Sign(request, "{\"ticketId\": 0}");
         request.Content = new StringContent("{\"ticketId\": 0}", Encoding.UTF8, "application/json");
 
         var response = await _client.SendAsync(request);
@@ -67,7 +68,7 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
         _factory.ResetNotifications();
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
-        request.Headers.Add("X-Webhook-Secret", ExpectedSecret);
+        Sign(request, "{\"ticketId\": 11}");
         request.Content = new StringContent("{\"ticketId\": 11}", Encoding.UTF8, "application/json");
 
         var response = await _client.SendAsync(request);
@@ -83,7 +84,7 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
             Username = "tech1",
-            Password = "Tech1Pass!"
+            Password = TestCredentials.Tech1
         });
         loginResponse.EnsureSuccessStatusCode();
         var tokenBody = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
@@ -100,7 +101,7 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task HandleTicketCreated_ValidWithBearerToken_Returns200()
+    public async Task HandleTicketCreated_BearerTokenInsteadOfHmac_Returns401()
     {
         // Using standard GLPI items_id attribute
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
@@ -109,23 +110,56 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await _client.SendAsync(request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Ticket 21 is in Group 2
-        _factory.NotificationMock.Verify(
-            n => n.NotifyTicketCreatedAsync(21, CustomWebApplicationFactory.Group2Id, It.IsAny<CancellationToken>()),
-            Times.Once);
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
     public async Task HandleTicketCreated_ValidWithGlpiSignatureHeader_Returns200()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
-        request.Headers.Add("X-Glpi-Signature", $"sha256={ExpectedSecret}");
+        Sign(request, "{\"ticketId\": 12}");
         request.Content = new StringContent("{\"ticketId\": 12}", Encoding.UTF8, "application/json");
 
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task HandleTicketCreated_StaleSignature_Returns401()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
+        Sign(request, "{\"ticketId\": 11}", DateTimeOffset.UtcNow.AddMinutes(-11));
+        request.Content = new StringContent("{\"ticketId\": 11}", Encoding.UTF8, "application/json");
+
+        (await _client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task HandleTicketCreated_ModifiedBody_Returns401()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
+        Sign(request, "{\"ticketId\": 11}");
+        request.Content = new StringContent("{\"ticketId\": 21}", Encoding.UTF8, "application/json");
+
+        (await _client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task HandleTicketCreated_OversizedBody_Returns413()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
+        request.Content = new StringContent(new string('x', 65537), Encoding.UTF8, "application/json");
+
+        (await _client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+    }
+
+    private static void Sign(HttpRequestMessage request, string rawBody, DateTimeOffset? time = null)
+    {
+        var timestamp = (time ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var signature = HMACSHA256.HashData(Encoding.UTF8.GetBytes(ExpectedSecret),
+            Encoding.UTF8.GetBytes(rawBody + timestamp));
+        request.Headers.Add("X-GLPI-timestamp", timestamp);
+        request.Headers.Add("X-GLPI-signature", Convert.ToHexString(signature).ToLowerInvariant());
     }
 }

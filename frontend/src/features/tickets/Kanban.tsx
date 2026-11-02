@@ -25,7 +25,6 @@ import {
   useGroupQueueQuery,
   useGroupsQuery,
   useTicketsQuery,
-  useUpdateTicketStatusMutation,
 } from '@/hooks/useTickets'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useRole } from '@/hooks/useRole'
@@ -38,6 +37,7 @@ import { useToastStore } from '@/store/toastStore'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { KanbanSegmentedTabs, type KanbanColumnTab } from './KanbanSegmentedTabs'
 import { PendingTicketDialog } from './PendingTicketDialog'
+import { PlanTicketDialog } from './PlanTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
@@ -70,8 +70,8 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     id: 'in_progress',
-    title: 'En progreso',
-    description: 'Trabajando',
+    title: 'En proceso (planificado)',
+    description: 'Tarea programada en GLPI',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
@@ -144,7 +144,7 @@ const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: 
   },
   in_progress: {
     title: 'No estás trabajando en ningún ticket',
-    subtitle: 'Elige un ticket de "Mis tickets" y pulsa "Empezar".',
+    subtitle: 'Elige un ticket asignado y programa una tarea.',
     icon: '⚡',
   },
   pending: {
@@ -364,14 +364,14 @@ function KanbanColumn({
                                   onResume?.(ticket.id)
                                 }}
                               >
-                                Retomar
+                                Replanificar
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 aria-disabled="true"
                                 data-testid="pending-resolve-blocked-trigger"
-                                title="No se puede resolver un ticket desde este estado. Primero debe reanudarse a En Progreso."
+                                title="No se puede resolver desde Pendiente. Primero debe replanificarse una tarea."
                                 className="h-7 px-2 text-xs opacity-50 cursor-not-allowed"
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
@@ -380,7 +380,7 @@ function KanbanColumn({
                                   useToastStore.getState().push({
                                     title: 'Transición bloqueada',
                                     description:
-                                      'No se puede resolver un ticket en este estado. Primero debe reanudarse a En Progreso.',
+                                      'No se puede resolver un ticket en este estado. Primero debe replanificarse una tarea.',
                                     variant: 'destructive',
                                   })
                                 }}
@@ -390,7 +390,7 @@ function KanbanColumn({
                             </div>
                           </div>
                           <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-tight">
-                            No se puede resolver un ticket en este estado. Primero debe reanudarse a En Progreso.
+                            No se puede resolver un ticket en este estado. Primero debe replanificarse una tarea.
                           </p>
                         </div>
                       ) : null
@@ -459,13 +459,13 @@ export function Kanban() {
   const queueQuery = useGroupQueueQuery(currentGroupId)
   const myTicketsQuery = useTicketsQuery(currentUserId)
 
-  const updateStatus = useUpdateTicketStatusMutation()
   const claimMutation = useClaimTicketMutation()
   const pushToast = useToastStore((state) => state.push)
 
   const [activeId, setActiveId] = useState<number | null>(null)
   const [resolveTicketId, setResolveTicketId] = useState<number | null>(null)
   const [pendingTicketId, setPendingTicketId] = useState<number | null>(null)
+  const [planTicketId, setPlanTicketId] = useState<number | null>(null)
   const [selectedMobileTicket, setSelectedMobileTicket] = useState<TicketSummary | null>(null)
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<number>>(new Set())
   const [invalidDropTicketId, setInvalidDropTicketId] = useState<number | null>(null)
@@ -628,43 +628,11 @@ export function Kanban() {
   }
 
   const handleStart = (ticketId: number) => {
-    updateStatus.mutate(
-      { ticketId, status: 3 },
-      {
-        onSuccess: () =>
-          pushToast({
-            title: `Ticket #${ticketId} en progreso`,
-            description: `El ticket #${ticketId} pasó a En Progreso`,
-            variant: 'success',
-          }),
-        onError: (err) =>
-          pushToast({
-            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          }),
-      },
-    )
+    setPlanTicketId(ticketId)
   }
 
   const handleResume = (ticketId: number) => {
-    updateStatus.mutate(
-      { ticketId, status: 3 },
-      {
-        onSuccess: () =>
-          pushToast({
-            title: `Ticket #${ticketId} retomado`,
-            description: `El ticket #${ticketId} pasó a En Progreso`,
-            variant: 'success',
-          }),
-        onError: (err) =>
-          pushToast({
-            title: getApiErrorTitle(err, 'No se pudo cambiar el estado'),
-            description: getApiErrorMessage(err),
-            variant: 'destructive',
-          }),
-      },
-    )
+    setPlanTicketId(ticketId)
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -710,7 +678,7 @@ export function Kanban() {
       } else if (sourceId === 'mine' && targetId === 'resolved') {
         pushToast({
           title: 'Transición bloqueada',
-          description: 'Primero debes iniciar el ticket (En Progreso) para resolverlo.',
+          description: 'Primero debes planificar una tarea para resolverlo.',
           variant: 'destructive',
         })
       } else {
@@ -803,13 +771,13 @@ export function Kanban() {
             size="sm"
             variant="default"
             className="min-h-[44px] px-3.5 text-xs"
-            disabled={updateStatus.isPending}
+            disabled={planTicketId !== null}
             onClick={(e) => {
               e.stopPropagation()
               handleStart(ticket.id)
             }}
           >
-            Empezar
+            Planificar
           </Button>
         )
       case 'in_progress':
@@ -819,7 +787,7 @@ export function Kanban() {
               size="sm"
               variant="outline"
               className="min-h-[44px] px-3 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
-              disabled={updateStatus.isPending}
+              disabled={planTicketId !== null}
               onClick={(e) => {
                 e.stopPropagation()
                 handlePauseWithModal(ticket.id)
@@ -846,13 +814,13 @@ export function Kanban() {
             size="sm"
             variant="outline"
             className="min-h-[44px] px-3.5 text-xs"
-            disabled={updateStatus.isPending}
+            disabled={planTicketId !== null}
             onClick={(e) => {
               e.stopPropagation()
               handleResume(ticket.id)
             }}
           >
-            Retomar
+            Replanificar
           </Button>
         )
       case 'resolved':
@@ -1160,6 +1128,14 @@ export function Kanban() {
             setPendingTicketId(null)
             void queryClient.invalidateQueries({ queryKey: ['tickets'] })
           }
+        }}
+      />
+
+      <PlanTicketDialog
+        ticketId={planTicketId ?? 0}
+        open={planTicketId !== null}
+        onOpenChange={(value) => {
+          if (!value) setPlanTicketId(null)
         }}
       />
 

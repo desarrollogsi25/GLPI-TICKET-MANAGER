@@ -34,6 +34,20 @@ export async function updateTicketStatus(id: number, status: number): Promise<vo
   await apiClient.patch(`/tickets/${id}/status`, { status })
 }
 
+export interface PlanTicketRequest {
+  requestId: string
+  content: string
+  startAt: string
+  endAt: string
+}
+
+export interface PlanTicketResponse { ticketId: number; taskId: number; status: number }
+
+export async function planTicket(id: number, payload: PlanTicketRequest): Promise<PlanTicketResponse> {
+  const { data } = await apiClient.post<PlanTicketResponse>(`/tickets/${id}/plan`, payload)
+  return data
+}
+
 export async function listGroups(): Promise<import('@/lib/api/types').Group[]> {
   const { data } = await apiClient.get('/groups')
   return data

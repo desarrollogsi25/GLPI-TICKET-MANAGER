@@ -47,7 +47,7 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
             Username = "tech1",
-            Password = "Tech1Pass!"
+            Password = TestCredentials.Tech1
         });
 
         loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -157,7 +157,7 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
 
         using var response = await PatchStatusAsync(
             CustomWebApplicationFactory.Ticket12Id,
-            (int)TicketStatus.Planned,
+            (int)TicketStatus.Assigned,
             token);
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -180,7 +180,7 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
 
         using var response = await PatchStatusAsync(
             CustomWebApplicationFactory.Ticket12Id,
-            (int)TicketStatus.Planned,
+            (int)TicketStatus.Waiting,
             token);
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 

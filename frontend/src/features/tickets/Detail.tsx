@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useCurrentTime } from '@/hooks/useCurrentTime'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
 import { PendingTicketDialog } from './PendingTicketDialog'
+import { PlanTicketDialog } from './PlanTicketDialog'
 import { ReopenTicketDialog } from './ReopenTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
@@ -29,6 +30,7 @@ export function Detail() {
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
   const [pendingOpen, setPendingOpen] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
 
   const changeStatus = (status: number) => {
     updateStatus.mutate(
@@ -185,9 +187,9 @@ export function Detail() {
                     className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
                     disabled={updateStatus.isPending}
                     data-testid="start-ticket-btn"
-                    onClick={() => changeStatus(3)}
+                    onClick={() => setPlanOpen(true)}
                   >
-                    Iniciar ticket
+                    Planificar tarea
                   </Button>
                 )}
                 <Button
@@ -203,9 +205,9 @@ export function Detail() {
                   }
                   title={
                     ticket.status === 2
-                      ? 'Primero debes iniciar el ticket (En Progreso) para resolverlo.'
+                      ? 'Primero debes programar una tarea para resolverlo.'
                       : ticket.status === 4
-                        ? 'Debes reanudar a En Progreso primero.'
+                        ? 'Debes replanificar una tarea primero.'
                         : undefined
                   }
                   onClick={() => setResolveOpen(true)}
@@ -272,15 +274,17 @@ export function Detail() {
                       disabled={isDisabled}
                       title={
                         isAssigneeDirectResolveBlocked
-                          ? 'Primero debes iniciar el ticket (En Progreso) para resolverlo.'
+                          ? 'Primero debes programar una tarea para resolverlo.'
                           : isPendingInvalidTransition
-                            ? 'Debes reanudar a En Progreso primero.'
+                            ? 'Debes replanificar una tarea primero.'
                             : isBackwardBlocked
                               ? 'No se puede retroceder el estado de este ticket.'
                               : undefined
                       }
                       onClick={() => {
-                        if (option.value === 5) {
+                        if (option.value === 3) {
+                          setPlanOpen(true)
+                        } else if (option.value === 5) {
                           setResolveOpen(true)
                         } else {
                           changeStatus(option.value)
@@ -295,12 +299,12 @@ export function Detail() {
 
               {ticket.status === 2 && (
                 <p className="text-xs text-muted-foreground font-medium">
-                  Primero debes iniciar el ticket (En Progreso) para poder resolverlo.
+                  Primero debes planificar una tarea en GLPI para poder resolverlo.
                 </p>
               )}
               {ticket.status === 4 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                  Debes reanudar a En Progreso primero.
+                  Debes replanificar una tarea en GLPI antes de resolverlo.
                 </p>
               )}
             </CardContent>
@@ -339,6 +343,7 @@ export function Detail() {
       <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />
       <ReopenTicketDialog ticketId={ticketId} open={reopenOpen} onOpenChange={setReopenOpen} />
       <PendingTicketDialog ticketId={ticketId} open={pendingOpen} onOpenChange={setPendingOpen} />
+      <PlanTicketDialog ticketId={ticketId} open={planOpen} onOpenChange={setPlanOpen} />
     </div>
   )
 }

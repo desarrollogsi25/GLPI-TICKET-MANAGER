@@ -12,6 +12,11 @@ public interface IGlpiApiClient
 
     Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
 
+    /// <summary>Create a native, scheduled TODO TicketTask (GLPI owns the status change).</summary>
+    Task<int> CreatePlannedTaskAsync(
+        int ticketId, int technicianId, string content, DateTimeOffset startAt,
+        DateTimeOffset endAt, CancellationToken cancellationToken);
+
     /// <summary>
     /// Reads the ticket state back from GLPI.
     ///

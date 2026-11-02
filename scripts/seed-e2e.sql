@@ -2,9 +2,8 @@
 -- H-38 / H-41 · Estructura organizacional REAL: 3 grupos (Desarrollo, BI, Service Desk)
 -- ----------------------------------------------------------------------------
 -- Seed idempotente. Se puede ejecutar N veces sin duplicar filas.
--- Todos los usuarios de la estructura tienen la contraseña: Password123!
--- (hash bcrypt $2y$12 generado con `php -r password_hash(...)` sobre el propio
---  contenedor GLPI, por lo que es verificable por BCrypt.Net).
+-- Las contraseñas se proporcionan por entorno al ejecutar seed-e2e.sh.
+-- El SQL deja hashes vacíos hasta la provisión segura desde el contenedor PHP.
 --
 -- NOTA: scripts/seed-e2e.sql contiene esta misma sección organizacional MAS los
 -- fixtures que Playwright necesita. Si cambias grupos/usuarios/categorías aquí,
@@ -131,7 +130,7 @@ VALUES
   (2, 'Solucion alternativa', 'Workaround temporal', 0, 1, 1, 1, 1, 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
--- 5. USUARIOS DE LA ESTRUCTURA (contraseña: Password123!) --------------------
+-- 5. USUARIOS DE LA ESTRUCTURA (hashes inyectados tras el seed) ------------
 -- H-39: GLPI 11 only authenticates users with authtype = 1 (DB_GLPI) AND
 -- auths_id = 0. Rows inserted without these columns default to authtype = 0 and
 -- are invisible to Auth::connection_db() (HTTP 400 "Usuario o contraseña
@@ -139,14 +138,14 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 INSERT INTO glpi_users
   (id, name, password, password_last_update, authtype, auths_id, is_active, is_deleted, profiles_id, entities_id, date_creation, date_mod)
 VALUES
-  (10, 'admin_test', '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (11, 'lider_dev',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (12, 'lider_bi',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (13, 'lider_sd',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (14, 'tech_dev',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (15, 'tech_bi',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (16, 'tech_sd',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (17, 'user_test',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
+  (10, 'admin_test', '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (11, 'lider_dev',  '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (12, 'lider_bi',   '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (13, 'lider_sd',   '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (14, 'tech_dev',   '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (15, 'tech_bi',    '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (16, 'tech_sd',    '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (17, 'user_test',  '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   password = VALUES(password),
@@ -209,8 +208,8 @@ ALTER TABLE glpi_users AUTO_INCREMENT = 18;
 -- ============================================================================
 -- SECCIÓN 2 · FIXTURES E2E (Playwright)
 -- ----------------------------------------------------------------------------
--- Usuarios y tickets reservados por los specs. tech1 conserva la contraseña
--- histórica Tech1Pass! porque playwright.config.ts y global-setup.ts la usan.
+-- Usuarios y tickets reservados por los specs. Los secretos se inyectan
+-- únicamente desde las variables del entorno E2E.
 -- Todos los tickets de fixture viven en el grupo 1 (Desarrollo) y tech1 es
 -- miembro de Desarrollo + Service Desk para probar el selector multi-grupo.
 -- ============================================================================
@@ -219,9 +218,9 @@ ALTER TABLE glpi_users AUTO_INCREMENT = 18;
 INSERT INTO glpi_users
   (id, name, password, password_last_update, authtype, auths_id, is_active, is_deleted, profiles_id, entities_id, date_creation, date_mod)
 VALUES
-  (7,  'tech1',            '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (8,  'tech2',            '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (18, 'solicitante_test', '$2y$12$P.ZiC0.ym8zmfw1WHIMf1OH6NenRUoODqaO.WviG65v.HhCW/pTmW', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
+  (7,  'tech1',            '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (8,  'tech2',            '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (18, 'solicitante_test', '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
 ON DUPLICATE KEY UPDATE
   password = VALUES(password),
   password_last_update = VALUES(password_last_update),
@@ -261,6 +260,7 @@ INSERT INTO glpi_useremails (users_id, is_default, is_dynamic, email) VALUES
 -- Limpiar tickets dinámicos creados por tests E2E anteriores (id >= 1000)
 DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id >= 1000;
 DELETE FROM glpi_itilfollowups WHERE itemtype = 'Ticket' AND items_id >= 1000;
+DELETE FROM glpi_tickettasks WHERE tickets_id >= 1000;
 DELETE FROM glpi_tickets_users WHERE tickets_id >= 1000;
 DELETE FROM glpi_groups_tickets WHERE tickets_id >= 1000;
 DELETE FROM glpi_tickets WHERE id >= 1000;
@@ -294,6 +294,7 @@ INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) VALUES
 DELETE FROM glpi_tickets_users WHERE tickets_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904) AND type = 2;
 DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904);
 DELETE FROM glpi_itilfollowups WHERE itemtype = 'Ticket' AND items_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904);
+DELETE FROM glpi_tickettasks WHERE tickets_id IN (11, 57, 61, 70, 81, 82, 83, 84, 85, 86, 901, 902, 903, 904);
 
 -- Orden del Kanban (ids reservados 81-86, asignados a tech1).
 INSERT INTO glpi_tickets

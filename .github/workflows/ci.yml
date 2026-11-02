@@ -132,6 +132,13 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
           GLPI_CRYPT_KEY: ${{ secrets.GLPI_CRYPT_KEY }}
+      - name: Generate isolated E2E and webhook secrets
+        run: |
+          for name in GLPI_WEBHOOK_SECRET E2E_TECH_PASSWORD E2E_REQUESTER_PASSWORD E2E_ADMIN_PASSWORD; do
+            value=$(openssl rand -base64 48 | tr -d '\n')
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done
       - name: Create .env for compose
         run: |
           cat > .env <<EOF
@@ -142,6 +149,7 @@ jobs:
           GLPI_APP_TOKEN=${{ secrets.GLPI_APP_TOKEN }}
           GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
+          GLPI_WEBHOOK_SECRET=${GLPI_WEBHOOK_SECRET}
           APP_DB_PASSWORD=${{ secrets.APP_DB_PASSWORD }}
           EOF
       - name: Start database
@@ -248,12 +256,19 @@ jobs:
         run: |
           mkdir -p "$HOME/.cache/ms-playwright"
           docker compose cp frontend:/root/.cache/ms-playwright/. "$HOME/.cache/ms-playwright/" 2>/dev/null || true
+      - name: Seed E2E state
+        run: ./scripts/seed-e2e.sh
       - name: Smoke test - API claim and status update
         run: |
           echo "===== Login as tech1 ====="
+          if [ -z "$E2E_TECH_PASSWORD" ]; then
+            echo "ERROR: E2E_TECH_PASSWORD secret not configured"
+            exit 1
+          fi
+          LOGIN_PAYLOAD=$(jq -n --arg pwd "$E2E_TECH_PASSWORD" '{username: "tech1", password: $pwd}')
           LOGIN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"username":"tech1","password":"Tech1Pass!"}')
+            -d "$LOGIN_PAYLOAD")
           TOKEN=$(echo "$LOGIN" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
           if [ -z "$TOKEN" ]; then
             echo "ERROR: could not login"
@@ -320,8 +335,6 @@ jobs:
           echo "Reset OK"
           
           echo "Smoke test PASSED - API can claim, update status and create solutions"
-      - name: Seed E2E state
-        run: ./scripts/seed-e2e.sh
       - name: Seed GLPI visual forms and Hardware routing
         run: node scripts/seed-visual-forms.js
       - name: Run E2E inside container
@@ -331,11 +344,11 @@ jobs:
           -e E2E_GLPI_URL=http://glpi
           -e E2E_DESK_URL=http://localhost:5173
           -e E2E_TECH_USERNAME=tech1
-          -e E2E_TECH_PASSWORD=Tech1Pass!
+          -e E2E_TECH_PASSWORD
           -e E2E_REQUESTER_USERNAME=user1
-          -e E2E_REQUESTER_PASSWORD=User1Pass!
+          -e E2E_REQUESTER_PASSWORD
           -e E2E_ADMIN_USERNAME=admin_test
-          -e E2E_ADMIN_PASSWORD=Password123!
+          -e E2E_ADMIN_PASSWORD
           -e E2E_GLPI_NATIVE=false
           frontend pnpm exec playwright test
       - name: Run audit smoke test
