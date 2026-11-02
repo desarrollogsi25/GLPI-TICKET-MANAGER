@@ -302,7 +302,7 @@ function KanbanColumn({
                             onStart?.(ticket.id)
                           }}
                         >
-                          Iniciar
+                          Planificar
                         </Button>
                       ) : column.id === 'in_progress' ? (
                         <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
