@@ -54,6 +54,7 @@ Set the required values (replace `<...>` with the real values, never commit them
 dotnet user-secrets set "GlpiApi:AppToken"  "<GLPI_APP_TOKEN>"  --project src/GlpiTicketManager.Api
 dotnet user-secrets set "GlpiApi:UserToken" "<GLPI_USER_TOKEN>" --project src/GlpiTicketManager.Api
 dotnet user-secrets set "GlpiWebhook:Secret" "<RANDOM_WEBHOOK_SECRET>" --project src/GlpiTicketManager.Api
+dotnet user-secrets set "Jwt:Key" "<RANDOM_JWT_SECRET_MINIMUM_32_CHARS>" --project src/GlpiTicketManager.Api
 dotnet user-secrets set "Database:ConnectionString" `
   "Server=127.0.0.1;Port=3306;Database=glpi;User ID=glpi;Password=<MARIADB_PASSWORD>;Allow User Variables=true;UseAffectedRows=false" `
   --project src/GlpiTicketManager.Api
@@ -171,15 +172,11 @@ grep -RInE '"(AppToken|UserToken)"[[:space:]]*:[[:space:]]*"[^"]+' --include='ap
 # no output = clean
 ```
 
-> The development `Jwt:Key` is a **known, non-secret placeholder** that only exists so
-> a fresh checkout can boot locally; it is ≥32 chars to pass the validator. It MUST be
-> overridden by `JWT_SECRET` (env var)/(user-secrets) in any shared or deployed
-> environment — never rely on the placeholder outside local dev.
-
-The DB placeholder is different: `appsettings.Development.json` intentionally keeps
-`Password=glpi` as a **tripwire** — the startup validator rejects it, forcing every dev
-to supply the real string from user-secrets. Non-development config must never contain
-it:
+`appsettings.Development.json` contains only empty placeholders for the JWT key
+and database connection strings. The API fails fast until real values are
+provided by user-secrets or environment variables. **Rotate any historically
+published JWT signing key and invalidate tokens signed with it.** Verify that
+no tracked application config has weak database password placeholders:
 
 ```bash
 grep -RIn 'Password=glpi\|Password=changeme' --include='appsettings.json' --include='appsettings.Production.json' .
