@@ -38,3 +38,7 @@ La tarea se puede **consultar, reprogramar, completar y cancelar** con permisos 
 5. Revisar el riesgo global CRÍTICO, analizar los hallazgos restantes de la matriz histórica contra el despliegue real, efectuar revisión humana y conservar la PR en borrador mientras haya bloqueos.
 
 **Prohibido interpretar esta rama como despliegue aprobado.** No se ha realizado merge, despliegue ni migración en producción.
+
+## Migración 007: borrador MariaDB
+
+La regresión de 007 usa una copia descartable de GLPI 11. Verifica la selección explícita del destino, el rollback ante conflictos y dos ejecuciones con datos idénticos. Preview, firma HMAC real y reintentos entre réplicas siguen pendientes. Véase [la guía del webhook](../07-operations/glpi-webhook-setup.md).

@@ -183,6 +183,12 @@ jobs:
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
           echo "Applying schema for glpi_events and glpi_logs (excluded from base dump)"
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-schema-events-logs.sql
+      - name: Verify MariaDB migration 007 on a disposable GLPI schema
+        run: |
+          docker compose cp scripts/test-glpi-007.sh glpi-db:/tmp/test-glpi-007.sh
+          docker compose cp db/glpi/007_glpi_webhook_config.sql glpi-db:/tmp/007.sql
+          docker compose cp scripts/glpi-base.sql glpi-db:/tmp/test007-base.sql
+          docker compose exec -T glpi-db sh -ec 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; bash /tmp/test-glpi-007.sh /tmp/007.sql /tmp/test007-base.sql'
       - name: Verify app-db migrations
         run: |
           TABLES=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
