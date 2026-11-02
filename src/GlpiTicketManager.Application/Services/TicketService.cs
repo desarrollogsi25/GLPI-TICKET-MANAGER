@@ -89,7 +89,7 @@ public sealed class TicketService : ITicketService
         CancellationToken cancellationToken) =>
         GetFilteredAsync(assigneeId, serviceId, requesterId, null, null, limit, offset, cancellationToken);
 
-    public async Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+    public Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
         int? assigneeId,
         int? serviceId,
         int? requesterId,
@@ -97,6 +97,26 @@ public sealed class TicketService : ITicketService
         DateTime? endDate,
         int limit,
         int offset,
+        CancellationToken cancellationToken) =>
+        GetFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate, endDate,
+            limit, offset, supervisorId: null, allowedGroupIds: null, cancellationToken);
+
+    public async Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
+        int supervisorId, int? assigneeId, int? serviceId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        CancellationToken cancellationToken)
+    {
+        if (supervisorId <= 0) throw new ForbiddenException("Supervisor no válido.");
+        // Groups come from GLPI for every request, not a JWT/client-provided list.
+        var groups = await _tickets.GetGroupIdsForUserAsync(supervisorId, cancellationToken);
+        return await GetFilteredCoreAsync(assigneeId, serviceId, null, startDate, endDate,
+            limit, offset, supervisorId, groups, cancellationToken);
+    }
+
+    private async Task<PagedResult<TicketSummaryDto>> GetFilteredCoreAsync(
+        int? assigneeId, int? serviceId, int? requesterId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        int? supervisorId, IReadOnlyList<int>? allowedGroupIds,
         CancellationToken cancellationToken)
     {
         if (assigneeId.HasValue && assigneeId.Value <= 0)
@@ -128,22 +148,18 @@ public sealed class TicketService : ITicketService
         var effectiveLimit = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
         var effectiveOffset = Math.Max(offset, 0);
 
-        var rows = await _tickets.GetFilteredAsync(
-            assigneeId,
-            serviceId,
-            requesterId,
-            startUtc,
-            endUtc,
-            effectiveLimit,
-            effectiveOffset,
-            cancellationToken);
-        var total = await _tickets.CountFilteredAsync(
-            assigneeId,
-            serviceId,
-            requesterId,
-            startUtc,
-            endUtc,
-            cancellationToken);
+        var rows = supervisorId.HasValue
+            ? await _tickets.GetSupervisorFilteredAsync(supervisorId.Value,
+                allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
+                startUtc, endUtc, effectiveLimit, effectiveOffset, cancellationToken)
+            : await _tickets.GetFilteredAsync(assigneeId, serviceId, requesterId,
+                startUtc, endUtc, effectiveLimit, effectiveOffset, cancellationToken);
+        var total = supervisorId.HasValue
+            ? await _tickets.CountSupervisorFilteredAsync(supervisorId.Value,
+                allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
+                startUtc, endUtc, cancellationToken)
+            : await _tickets.CountFilteredAsync(assigneeId, serviceId, requesterId,
+                startUtc, endUtc, cancellationToken);
 
         // Only the date-aware overload is called here, so the repository is free to return
         // `null` for a result set that has no rows (e.g. mocked/empty implementations).

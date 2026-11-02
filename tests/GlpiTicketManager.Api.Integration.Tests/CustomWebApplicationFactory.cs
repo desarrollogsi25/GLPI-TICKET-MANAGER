@@ -1159,6 +1159,55 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     }
                 });
 
+            // H-01 supervisor BOLA: apply visibility before pagination AND count,
+            // modeling the same assigned-to-self OR current-group predicate as SQL.
+            IEnumerable<Ticket> SupervisorVisible(
+                int supervisorId, IReadOnlyList<int> groups, int? assigneeId, int? serviceId,
+                DateTime? startDate, DateTime? endDate)
+            {
+                var assignedToSupervisor = _ticketUsers
+                    .Where(u => u.UserId == supervisorId && u.Type == (int)TicketUserType.Assigned)
+                    .Select(u => u.TicketId).ToHashSet();
+                var visible = _allTickets.Values.Where(t => !t.IsDeleted &&
+                    (assignedToSupervisor.Contains(t.Id) ||
+                     (groups.Contains(Group1Id) && (t.Id is Ticket11Id or Ticket12Id or Ticket13Id or Ticket31Id)) ||
+                     (groups.Contains(Group2Id) && (t.Id is Ticket21Id or Ticket22Id))));
+                if (assigneeId.HasValue)
+                {
+                    var assigned = _ticketUsers
+                        .Where(u => u.UserId == assigneeId && u.Type == (int)TicketUserType.Assigned)
+                        .Select(u => u.TicketId).ToHashSet();
+                    visible = visible.Where(t => assigned.Contains(t.Id));
+                }
+                if (serviceId.HasValue) visible = visible.Where(t => t.CategoryId == serviceId);
+                if (startDate.HasValue) visible = visible.Where(t => t.CreatedAt >= startDate);
+                if (endDate.HasValue) visible = visible.Where(t => t.CreatedAt <= endDate);
+                return visible;
+            }
+
+            ticketRepoMock.Setup(t => t.GetSupervisorFilteredAsync(It.IsAny<int>(),
+                    It.IsAny<IReadOnlyList<int>>(), It.IsAny<int?>(), It.IsAny<int?>(),
+                    It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int>(),
+                    It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int supervisorId, IReadOnlyList<int> groups, int? assigneeId,
+                    int? serviceId, DateTime? start, DateTime? end, int limit, int offset,
+                    CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return SupervisorVisible(supervisorId, groups, assigneeId, serviceId,
+                            start, end).Skip(offset).Take(limit).ToList();
+                });
+            ticketRepoMock.Setup(t => t.CountSupervisorFilteredAsync(It.IsAny<int>(),
+                    It.IsAny<IReadOnlyList<int>>(), It.IsAny<int?>(), It.IsAny<int?>(),
+                    It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int supervisorId, IReadOnlyList<int> groups, int? assigneeId,
+                    int? serviceId, DateTime? start, DateTime? end, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return (long)SupervisorVisible(supervisorId, groups, assigneeId,
+                            serviceId, start, end).Count();
+                });
+
             ticketRepoMock.Setup(t => t.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyCollection<int> ids, CancellationToken _) =>
                 {

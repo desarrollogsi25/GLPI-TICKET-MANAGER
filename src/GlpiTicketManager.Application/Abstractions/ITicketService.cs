@@ -49,6 +49,12 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    /// <summary>Supervisor list constrained to their current GLPI groups or own assignments.</summary>
+    Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
+        int supervisorId, int? assigneeId, int? serviceId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        CancellationToken cancellationToken);
+
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken);

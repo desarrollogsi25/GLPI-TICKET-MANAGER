@@ -49,6 +49,11 @@ public interface ITicketRepository
         int offset,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int limit, int offset, CancellationToken cancellationToken);
+
     Task<long> CountFilteredAsync(
         int? assigneeId,
         int? serviceId,
@@ -70,6 +75,11 @@ public interface ITicketRepository
         int? requesterId,
         DateTime? startDate,
         DateTime? endDate,
+        CancellationToken cancellationToken);
+
+    Task<long> CountSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
         CancellationToken cancellationToken);
 
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);

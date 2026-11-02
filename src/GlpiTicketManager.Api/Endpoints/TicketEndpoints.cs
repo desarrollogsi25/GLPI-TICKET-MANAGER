@@ -185,15 +185,15 @@ public static class TicketEndpoints
 
         try
         {
-            var result = await ticketService.GetFilteredAsync(
-                effectiveAssigneeId,
-                serviceId,
-                effectiveRequesterId,
-                startDate,
-                endDate,
-                limit ?? 0,
-                offset ?? 0,
-                cancellationToken);
+            // H-01: supervisors may filter by colleague but MUST NOT enumerate
+            // other groups. Both rows and Total are scoped inside the SQL query.
+            var result = role == AppRole.Supervisor
+                ? await ticketService.GetSupervisorFilteredAsync(userId.Value,
+                    effectiveAssigneeId, serviceId, startDate, endDate,
+                    limit ?? 0, offset ?? 0, cancellationToken)
+                : await ticketService.GetFilteredAsync(
+                    effectiveAssigneeId, serviceId, effectiveRequesterId,
+                    startDate, endDate, limit ?? 0, offset ?? 0, cancellationToken);
 
             return Results.Ok(result);
         }

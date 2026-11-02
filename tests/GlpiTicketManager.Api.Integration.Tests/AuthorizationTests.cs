@@ -17,6 +17,7 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
     private readonly CustomWebApplicationFactory _factory;
     private static string? s_cachedTech1Token;
     private static string? s_cachedAdminToken;
+    private static string? s_cachedSupervisorToken;
     private static readonly SemaphoreSlim s_lock = new(1, 1);
 
     public AuthorizationTests(CustomWebApplicationFactory factory)
@@ -74,6 +75,30 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
             body!.AccessToken.Should().NotBeNullOrEmpty();
             s_cachedAdminToken = body.AccessToken;
             return s_cachedAdminToken;
+        }
+        finally
+        {
+            s_lock.Release();
+        }
+    }
+
+    private async Task<string> AuthenticateAsSupervisorAsync()
+    {
+        if (s_cachedSupervisorToken is not null) return s_cachedSupervisorToken;
+
+        await s_lock.WaitAsync();
+        try
+        {
+            if (s_cachedSupervisorToken is not null) return s_cachedSupervisorToken;
+            var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+            {
+                Username = "supervisor_test",
+                Password = TestCredentials.Supervisor
+            });
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            s_cachedSupervisorToken = body!.AccessToken;
+            return s_cachedSupervisorToken;
         }
         finally
         {
@@ -350,5 +375,43 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
         var stats = await response.Content.ReadFromJsonAsync<DashboardStatsDto>();
         stats.Should().NotBeNull();
         stats!.TotalTickets.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task Test18_SupervisorList_ExcludesOtherGroupsBeforePaginationAndTotal()
+    {
+        var token = await AuthenticateAsSupervisorAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/tickets?limit=2&offset=0");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<TicketSummaryDto>>();
+        result.Should().NotBeNull();
+        result!.Total.Should().Be(4);
+        result.Items.Should().HaveCount(2);
+        var allowedIds = new[]
+        {
+            CustomWebApplicationFactory.Ticket11Id, CustomWebApplicationFactory.Ticket12Id,
+            CustomWebApplicationFactory.Ticket13Id, CustomWebApplicationFactory.Ticket31Id
+        };
+        result.Items.Should().OnlyContain(t => allowedIds.Contains(t.Id));
+    }
+
+    [Fact]
+    public async Task Test19_SupervisorCannotEnumerateOtherGroupUsingAssigneeAndCatalog()
+    {
+        var token = await AuthenticateAsSupervisorAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            $"/api/tickets?assigneeId={CustomWebApplicationFactory.Tech2Id}&serviceId=17");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<TicketSummaryDto>>();
+        result.Should().NotBeNull();
+        result!.Total.Should().Be(1);
+        result.Items.Should().ContainSingle(t => t.Id == CustomWebApplicationFactory.Ticket13Id);
+        result.Items.Should().NotContain(t => t.Id == CustomWebApplicationFactory.Ticket21Id);
     }
 }
