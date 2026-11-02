@@ -1391,9 +1391,8 @@ public sealed class TicketService : ITicketService
                 {
                     try
                     {
-                        await _persistentNotifications.CreateAsync(
+                        await _persistentNotifications.CreateTicketCreatedOnceAsync(
                             techId,
-                            "TicketCreated",
                             ticketId,
                             $"Nuevo ticket #{ticketId}",
                             $"Se ha asignado el ticket '{title}' a tu grupo.",

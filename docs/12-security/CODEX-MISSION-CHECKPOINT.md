@@ -107,3 +107,24 @@ Se implementó y validó la arquitectura de reconciliación durable para `GlpiNa
    - GitNexus Code Intelligence: `risk_level: low`, 0 procesos afectados.
    - Los 7 contenedores originales de laboratorio permanecen intactos, en ejecución y saludables.
    - La PR #38 permanece estrictamente **abierta y en borrador** (no merge, no despliegue).
+
+### Validación Integral en Entorno de Staging Aislado, Pasarela de Demostración y Recuperación Operativa HTTP/UI (2026-11-02)
+
+Se construyó y verificó un entorno completo de staging descartable (`glpi-pr38-staging-20261102`) estrictamente aislado de internet (`internal: true`, `enable_ipv6: false`, `gateway_mode_ipv4: isolated`, DNS interno `172.31.138.53` sin reenviadores externos) con pasarela endurecida Nginx (`https://10.10.40.31:8443` y `http://10.10.40.31:8088`), dos réplicas de API (`api` y `api-replica`), PostgreSQL 16 (`glpi_ticket_manager_staging`), MariaDB 11 (`glpi11_staging`) y motor real GLPI 11.0.2:
+
+1. **Visibilidad y Recuperación Operativa de Fallos Permanentes (`PermanentlyFailed`) y Banner de Demostración:**
+   - `/health/ready` expone `watcherPermanentlyFailedCount` y `watcherAlert` para observabilidad externa.
+   - Se agregaron los endpoints exclusivos para administradores `GET /api/admin/watcher-status` y `POST /api/admin/watcher/recover/{ticketId:int}` (`AdminEndpoints.cs`), cubiertos por el escenario 17 de `GlpiWatcherReconciliationTests.cs` (**205/205 pruebas backend aprobadas**: 35 Application + 170 Integration).
+   - En `AdminDashboard.tsx` (`/administracion`) se incorporó la tarjeta `Estado operativo del Watcher GLPI` con botón interactivo `"Recuperar ticket"` y en `App.tsx` el banner persistente `"ENTORNO DE DEMOSTRACIÓN — NO PRODUCCIÓN"` (`data-testid="demo-environment-banner"`).
+
+2. **Corrección de Deduplicación en `TicketService.CreateTicketAsync`:**
+   - Durante las pruebas reales de staging con `POST /api/tickets` + Watcher + Webhook HMAC concurrentes se detectó que `TicketService.CreateTicketAsync` invocaba `_persistentNotifications.CreateAsync(...)` directamente sin registrar la clave de idempotencia en `glpi_ticket_created_notification_keys`, permitiendo una segunda fila cuando el watcher o el webhook procesaban el mismo ticket.
+   - Se corrigió `TicketService.CreateTicketAsync` (`src/GlpiTicketManager.Application/Services/TicketService.cs`) para utilizar `_persistentNotifications.CreateTicketCreatedOnceAsync(...)`, garantizando exactamente 1 fila en `notifications` por `(user_id, ticket_id)` independientemente de si el ticket entra por API, Watcher o Webhook.
+
+3. **Migraciones, Respaldos y Regresión 007 / 008–010:**
+   - PostgreSQL (`glpi_ticket_manager_staging`): migraciones `001`..`006`, `008`..`010` aplicadas en dos pasadas idempotentes mediante `scripts/migrate-app-db.sh`, verificación de guardas de seguridad, prueba con duplicados históricos previos y ensayo completo de `pg_dump -Fc` + `pg_restore`.
+   - MariaDB (`glpi11_staging`): migración `007_glpi_webhook_config.sql` aplicada en dos pasadas idempotentes, regresión automatizada `scripts/test-glpi-007.sh` aprobada, entrega nativa real de `QueuedWebhook` firmada por GLPI 11 (`last_status_code = 200` tras habilitar `GLPI_SERVERSIDE_URL_ALLOWLIST` en `/var/www/glpi/config/local_define.php`) y ensayo de restauración con sumas SHA-256.
+
+4. **Auditoría Visual y Funcional en Navegador Real (Playwright Chromium):**
+   - Verificados los 5 roles (`admin_test`, `lider_dev`, `tech1`, `tech_bi`, `solicitante_test`) y los 4 viewports obligatorios (`1440x900`, `1366x768`, `390x844`, `360x800`) sobre `https://10.10.40.31:8443` con `ip_hash` en el upstream de Nginx para sesiones sticky de SignalR WebSockets (`/hubs/tickets`): **0 errores de consola, 0 errores de página, 0 respuestas 5xx y 0 desbordamientos horizontales**.
+   - Los 7 contenedores originales del laboratorio permanecen intactos y saludables; la PR #38 continúa **abierta y en borrador**.
