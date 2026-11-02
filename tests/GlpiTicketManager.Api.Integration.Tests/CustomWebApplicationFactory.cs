@@ -1,4 +1,5 @@
 using GlpiTicketManager.Application.Abstractions;
+using System.Collections.Concurrent;
 using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Dtos.Groups;
@@ -41,6 +42,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
     private readonly Dictionary<int, List<TicketTaskDto>> _nativeTasks = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _technicianScheduleGates = new();
+
+    private sealed class ScheduleGateLease(SemaphoreSlim gate) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() { gate.Release(); return ValueTask.CompletedTask; }
+    }
+
+    public void AddScheduledTask(TicketTaskDto task)
+    {
+        lock (_stateLock)
+        {
+            if (!_nativeTasks.TryGetValue(task.TicketId, out var list))
+                _nativeTasks[task.TicketId] = list = [];
+            list.Add(task);
+        }
+    }
     private readonly List<Notification> _notificationsList = new();
 
     /// <summary>
@@ -540,6 +557,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             // Shared in-memory stand-in for the PostgreSQL unique request-id constraint.
             var planningRequests = new Dictionary<Guid, (int TicketId, int UserId, string Hash, int? TaskId)>();
             var planningStoreMock = new Mock<ITicketPlanningRequestStore>();
+            planningStoreMock.Setup(s => s.AcquireTechnicianScheduleLockAsync(
+                    It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns(async (int technicianId, CancellationToken ct) =>
+                {
+                    var gate = _technicianScheduleGates.GetOrAdd(technicianId, _ => new SemaphoreSlim(1, 1));
+                    await gate.WaitAsync(ct);
+                    return (IAsyncDisposable)new ScheduleGateLease(gate);
+                });
             planningStoreMock.Setup(s => s.ClaimAsync(It.IsAny<Guid>(), It.IsAny<int>(),
                     It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Guid id, int ticketId, int userId, string hash, CancellationToken _) =>
@@ -962,6 +987,17 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             // Mock ITicketRepository
             var ticketRepoMock = new Mock<ITicketRepository>();
+            ticketRepoMock.Setup(t => t.HasOverlappingScheduledTaskAsync(It.IsAny<int>(),
+                    It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int technicianId, DateTime start, DateTime end, int? excluded, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return _nativeTasks.Values.SelectMany(items => items).Any(task =>
+                            task.TechnicianId == technicianId && task.State == 1 && task.Id != excluded &&
+                            task.StartAt.HasValue && task.EndAt.HasValue &&
+                            task.StartAt.Value.UtcDateTime < end && task.EndAt.Value.UtcDateTime > start &&
+                            _allTickets.TryGetValue(task.TicketId, out var owner) && owner.Status is not (5 or 6));
+                });
 
             ticketRepoMock.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int id, CancellationToken _) =>

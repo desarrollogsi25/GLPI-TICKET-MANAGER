@@ -10,9 +10,58 @@ namespace GlpiTicketManager.Infrastructure.Repositories;
 /// </summary>
 public sealed class TicketPlanningRequestStore : ITicketPlanningRequestStore
 {
+    private const int ScheduleLockNamespace = 0x474C5049; // "GLPI", scoped per technician
     private readonly IAppDbConnectionFactory _factory;
 
     public TicketPlanningRequestStore(IAppDbConnectionFactory factory) => _factory = factory;
+
+    public async Task<IAsyncDisposable> AcquireTechnicianScheduleLockAsync(
+        int technicianId, CancellationToken cancellationToken)
+    {
+        if (technicianId <= 0) throw new ArgumentOutOfRangeException(nameof(technicianId));
+        var connection = (DbConnection)await _factory.CreateAsync(cancellationToken);
+        try
+        {
+            // Session-level lock spans the MariaDB availability read and GLPI REST
+            // write; it works across API replicas sharing this PostgreSQL server.
+            await connection.ExecuteAsync(new CommandDefinition(
+                "SELECT pg_advisory_lock(@Namespace, @TechnicianId)",
+                new { Namespace = ScheduleLockNamespace, TechnicianId = technicianId },
+                cancellationToken: cancellationToken));
+            return new TechnicianScheduleLock(connection, technicianId);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    private sealed class TechnicianScheduleLock : IAsyncDisposable
+    {
+        private readonly DbConnection _connection;
+        private readonly int _technicianId;
+
+        public TechnicianScheduleLock(DbConnection connection, int technicianId)
+        {
+            _connection = connection;
+            _technicianId = technicianId;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await _connection.ExecuteAsync(new CommandDefinition(
+                    "SELECT pg_advisory_unlock(@Namespace, @TechnicianId)",
+                    new { Namespace = ScheduleLockNamespace, TechnicianId = _technicianId }));
+            }
+            finally
+            {
+                await _connection.DisposeAsync();
+            }
+        }
+    }
 
     public async Task<PlanningRequestClaim> ClaimAsync(
         Guid requestId, int ticketId, int userId, string payloadHash, CancellationToken cancellationToken)

@@ -159,6 +159,16 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await admin.getByRole('button', { name: 'Planificar tarea' }).click()
   await confirmPlanning(admin)
   await expect(admin.getByText('En proceso (planificado)', { exact: true }).first()).toBeVisible()
+  const taskToCancel = admin.getByTestId('ticket-tasks-timeline').locator('li')
+    .filter({ hasText: 'Intervención técnica planificada por prueba E2E' }).last()
+  await expect(taskToCancel.getByRole('button', { name: 'Cancelar tarea' })).toBeVisible()
+  await taskToCancel.getByRole('button', { name: 'Cancelar tarea' }).click()
+  const cancelDialog = admin.getByRole('dialog', { name: 'Cancelar tarea' })
+  await expect(cancelDialog).toContainText('puede ser definitivo')
+  await cancelDialog.getByRole('button', { name: 'Confirmar en GLPI' }).click()
+  await expect(cancelDialog).not.toBeVisible({ timeout: 20_000 })
+  await expect(admin.getByText(/Tarea #\d+ cancelada/).first()).toBeVisible()
+  await expect(taskToCancel).not.toBeVisible({ timeout: 20_000 })
   await adminContext.close()
 
   // Restricción de rol: un solicitante no puede entrar al Kanban.

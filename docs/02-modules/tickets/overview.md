@@ -25,7 +25,7 @@ for speed; mutations go through the GLPI REST API / DB transactions according to
 | `GET` | `/api/tickets/{id}/tasks` | JWT con acceso al ticket | Lista tareas reales de GLPI; aplica visibilidad de privadas |
 | `PUT` | `/api/tickets/{id}/tasks/{taskId}` | JWT autorizado | Reprograma tarea pendiente, con `requestId` idempotente y confirmación de lectura |
 | `POST` | `/api/tickets/{id}/tasks/{taskId}/complete` | JWT autorizado | Marca tarea pendiente como realizada y confirma GLPI |
-| `DELETE` | `/api/tickets/{id}/tasks/{taskId}` | JWT autorizado | Cancelación lógica vía GLPI; confirma que ya no figura entre tareas activas |
+| `DELETE` | `/api/tickets/{id}/tasks/{taskId}` | JWT autorizado | Elimina tarea vía GLPI, con auditoría previa y confirmación; **puede ser irreversible** porque la tabla nativa no tiene `is_deleted` |
 | `POST` | `/api/tickets/{id}/resolve` | JWT | **Preferred (atomic)**: write the solution and resolve/close the ticket in one call (ADR-020, BUG-031) |
 | `POST` | `/api/tickets/{id}/solutions` | JWT | Insert a written solution into glpi_itilsolutions (ADR-006). In GLPI 11 this auto-solves the ticket. |
 | `POST` | `/api/tickets/{id}/claim` | JWT | Technician claims an unassigned ticket (ADR-017) |
@@ -35,7 +35,7 @@ for speed; mutations go through the GLPI REST API / DB transactions according to
 | `POST` | `/api/auth/login` | anonymous, rate-limited | Exchange credentials for a JWT |
 | `GET` | `/api/auth/me` | JWT | Profile encoded in the current token |
 
-**Precaución:** el timeline actual es por ticket. La disponibilidad global del técnico y la prevención atómica de solapamientos entre tickets aún no están implementadas; véase [checkpoint de misión](../../12-security/CODEX-MISSION-CHECKPOINT.md).
+**Precaución:** el timeline actual es por ticket. Los solapamientos entre tareas **pendientes** del mismo técnico se rechazan por consulta Dapper de `glpi_tickettasks` protegida por un advisory lock PostgreSQL que comparten las réplicas de esta API. No protege frente a escritores externos de GLPI ni constituye un calendario global por técnico; véase [checkpoint de misión](../../12-security/CODEX-MISSION-CHECKPOINT.md).
 
 ### Filtros disponibles
 

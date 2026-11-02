@@ -7,7 +7,7 @@
 
 La rama `codex/planned-ticket-task-20261102` incorpora el paso **En proceso (planificado)** mediante la creación de una `TicketTask` nativa pendiente (`state=1`) con `begin`, `end` y `actiontime`. No establece arbitrariamente `status=3`: GLPI 11 debe confirmarlo por lectura posterior. Si el ticket está Pendiente (4), el backend primero solicita volver a Asignado (2), lo confirma, y entonces crea la tarea. La clave de solicitud de planificación se reserva en PostgreSQL mediante la migración `008` para tolerar reintentos y dos instancias de API.
 
-La tarea se puede **consultar, reprogramar, completar y cancelar** con permisos de ticket y técnico; las operaciones se realizan por API REST nativa de GLPI (nunca con SQL directo). `GET /api/tickets/{id}/tasks` ofrece la línea temporal y oculta tareas privadas a solicitantes. Reprogramar usa una clave durable de idempotencia y exige lectura de confirmación de fechas; completar valida `state=2`; cancelar comprueba que ya no aparezca la tarea. Las transiciones de estado que pueda realizar GLPI como efecto secundario se leen desde GLPI y se transmiten por SignalR; la API no fuerza artificialmente `status=3` al terminar o borrar una tarea.
+La tarea se puede **consultar, reprogramar, completar y cancelar** con permisos de ticket y técnico; las operaciones se realizan por API REST nativa de GLPI (nunca con SQL directo). `GET /api/tickets/{id}/tasks` ofrece la línea temporal y oculta tareas privadas a solicitantes. Reprogramar usa una clave durable de idempotencia y exige lectura de confirmación de fechas; completar valida `state=2`; cancelar audita previamente y comprueba que ya no aparezca la tarea. Las planificaciones y mutaciones comparten un **bloqueo asesor por técnico en PostgreSQL**; antes de programar consultan en MariaDB las otras `glpi_tickettasks` pendientes con intervalos solapados. Esta exclusión funciona entre réplicas de **nuestra API**, pero **no impide cambios concurrentes ejecutados directamente desde GLPI o integraciones ajenas**. **ATENCIÓN:** el esquema nativo `glpi_tickettasks` no tiene columna `is_deleted`; `DELETE` puede eliminar la tarea definitivamente, por lo que se exige confirmación explícita y validación específica en staging. Las transiciones de estado que pueda realizar GLPI como efecto secundario se leen desde GLPI y se transmiten por SignalR; la API no fuerza artificialmente `status=3` al terminar o borrar una tarea.
 
 ## Hallazgos de la misión (identificadores del checkpoint original)
 
@@ -23,16 +23,16 @@ La tarea se puede **consultar, reprogramar, completar y cancelar** con permisos 
 
 ## Pruebas y criterios de aceptación
 
-- `.NET Release`: 35 pruebas de aplicación + 147 de integración (**182/182**), incluyendo privacidad y control de acceso a tareas, y reprogramación, finalización y cancelación contra el doble de GLPI.
-- `frontend`: `npm run build` / TypeScript y Vite correctos. Un E2E real en `full-user-journey.spec.ts` comprueba que la tarea aparece tras planificar y se reprograma por REST; su resultado en CI es requisito de aceptación.
-- Antes de este lote, CI #139 de la corrección H-01 pasó backend, frontend, escaneo de secretos y E2E. La verificación de **este** lote queda pendiente del nuevo commit y CI.
+- `.NET Release`: 35 pruebas de aplicación + 149 de integración (**184/184**), incluyendo privacidad y control de acceso a tareas, reprogramación, finalización, cancelación y rechazo de horarios solapados entre tickets contra el doble de GLPI.
+- `frontend`: `npm run build` / TypeScript y Vite correctos. Un E2E real en `full-user-journey.spec.ts` comprueba la lectura y reprogramación de tareas nativas. La revisión siguiente añade la cancelación de una tarea de pruebas y exige confirmar su borrado contra GLPI.
+- CI #139 de la corrección H-01 y CI **#140** (primera entrega del ciclo completo) pasaron backend, frontend, Gitleaks y E2E de pila completa GLPI 11. La nueva revisión de conflictos y cancelación requiere su propia ejecución CI.
 - GitNexus, tras estos cambios, reporta **riesgo CRÍTICO** por el amplio conjunto de procesos modificados. Es una señal de impacto, **no** una prueba de explotación ni una garantía de seguridad.
 
 ## Bloqueos para cerrar la misión
 
 1. Ejecutar migraciones `008` y `009` en **staging**, sobre un PostgreSQL compartido y respaldado; verificar planificaciones y webhooks con **dos instancias** de API y reintentos de GLPI 11 con fallos de red reales.
 2. Validar el comportamiento exacto de GLPI 11 instalado en staging para `GET`, `PUT` y `DELETE TicketTask` (incluidas transiciones automáticas, privacidad y soft delete) y el E2E de reprogramación.
-3. **Disponibilidad entre técnicos y conflictos de calendario**: el timeline muestra tareas del ticket, pero todavía **no bloquea solapamientos entre tickets** de un mismo técnico. No se debe prometer reserva atómica de agenda entre GLPI y la API sin una solución transaccional coordinada.
+3. **Disponibilidad y conflictos de calendario**: la API rechaza solapamientos conocidos **entre solicitudes de nuestra API** mediante consulta a la agenda GLPI y bloqueo compartido PostgreSQL. Sin embargo, otras interfaces de GLPI no respetan este bloqueo; siguen pendientes calendario global/por técnico, validación de precisión de fechas, pruebas con otros escritores y eventual reconciliación de carreras externas. No se debe prometer reserva atómica de agenda entre GLPI y sistemas externos.
 4. Configurar CORS para cada origen real y rotar secretos expuestos. Validar además reglas GLPI, entidades, roles y perfiles representativos.
 5. Revisar el riesgo global CRÍTICO, analizar los hallazgos restantes de la matriz histórica contra el despliegue real, efectuar revisión humana y conservar la PR en borrador mientras haya bloqueos.
 

@@ -430,7 +430,7 @@ export function Detail() {
         title={taskAction?.action === 'complete' ? 'Completar tarea' : 'Cancelar tarea'}
         description={taskAction?.action === 'complete'
           ? 'GLPI marcará la tarea como realizada. Se volverá a consultar el estado del ticket.'
-          : 'GLPI eliminará esta tarea de forma lógica. Esta acción requiere confirmación.'}>
+          : 'GLPI eliminará esta tarea. Según la versión y configuración, puede ser definitivo. Confirma solo si estás seguro.'}>
         <div className="flex justify-end gap-2">
           <Button variant="outline" disabled={completeTask.isPending || cancelTask.isPending}
             onClick={() => setTaskAction(null)}>Volver</Button>

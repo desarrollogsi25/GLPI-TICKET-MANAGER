@@ -158,4 +158,38 @@ public class TicketTasksTests : IClassFixture<CustomWebApplicationFactory>
             HttpMethod.Post, "8123/complete");
         foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task Plan_RejectsExistingTechnicianScheduleOverlap()
+    {
+        var payload = new PlanTicketRequest
+        {
+            RequestId = Guid.NewGuid(), Content = "Intervención conflictiva",
+            StartAt = new DateTimeOffset(2026, 11, 3, 9, 30, 0, TimeSpan.Zero),
+            EndAt = new DateTimeOffset(2026, 11, 3, 10, 30, 0, TimeSpan.Zero)
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tickets/12/plan");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+            await AuthenticateAsync("tech1", TestCredentials.Tech1));
+        request.Content = JsonContent.Create(payload);
+        using var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _factory.GetTicket(12)!.Status.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Replan_RejectsOverlapWithAnotherTicketOfSameTechnician()
+    {
+        _factory.AddScheduledTask(new TicketTaskDto(8113, 13, CustomWebApplicationFactory.Tech1Id,
+            "Otra intervención", 1, false,
+            new DateTimeOffset(2026, 11, 5, 11, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 11, 5, 12, 0, 0, TimeSpan.Zero), 3600));
+        using var response = await MutateAsync("tech1", TestCredentials.Tech1,
+            HttpMethod.Put, "8012", new ReplanTicketTaskRequest(Guid.NewGuid(),
+                "Trabajo solapado", new DateTimeOffset(2026, 11, 5, 11, 30, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 11, 5, 12, 30, 0, TimeSpan.Zero)));
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var tasks = await _factory.GlpiMock.Object.GetTicketTasksAsync(12, CancellationToken.None);
+        tasks.Single(task => task.Id == 8012).Content.Should().Be("Visita programada");
+    }
 }

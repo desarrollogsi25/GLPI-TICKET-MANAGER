@@ -81,6 +81,33 @@ public sealed class TicketRepository : ITicketRepository
         GetFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate,
             endDate, limit, offset, supervisorId: null, allowedGroupIds: null, cancellationToken);
 
+    public async Task<bool> HasOverlappingScheduledTaskAsync(int technicianId,
+        DateTime startUtc, DateTime endUtc, int? excludingTaskId, CancellationToken cancellationToken)
+    {
+        // Read the native GLPI task table; no shadow schedule is maintained.
+        // This read is serialized with API-originating GLPI task writes by the
+        // shared PostgreSQL advisory lock held in TicketService.
+        using var connection = _connectionFactory.CreateConnection();
+        var count = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            """
+            SELECT COUNT(*)
+            FROM glpi_tickettasks tt
+            JOIN glpi_tickets t ON t.id = tt.tickets_id
+            WHERE tt.users_id_tech = @TechnicianId
+              AND tt.state = 1
+              AND tt.`begin` IS NOT NULL AND tt.`end` IS NOT NULL
+              AND tt.`begin` < @EndUtc AND tt.`end` > @StartUtc
+              AND (@ExcludedTaskId IS NULL OR tt.id <> @ExcludedTaskId)
+              AND t.is_deleted = 0 AND t.status NOT IN (5, 6)
+            """, new
+            {
+                TechnicianId = technicianId, StartUtc = startUtc, EndUtc = endUtc,
+                ExcludedTaskId = excludingTaskId
+            }, commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+        return count > 0;
+    }
+
     public Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
         int supervisorId, IReadOnlyList<int> allowedGroupIds,
         int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,

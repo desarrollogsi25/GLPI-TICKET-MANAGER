@@ -291,6 +291,27 @@ public sealed class TicketService : ITicketService
         if (claim.State == PlanningRequestState.Completed)
             return new TicketTaskMutationResponse(ticketId, taskId, state.Status);
 
+        // The PostgreSQL advisory lock closes the check-then-write race between
+        // API replicas for this technician (external GLPI writers bypass it).
+        await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
+            task.TechnicianId, cancellationToken);
+        task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
+            .FirstOrDefault(item => item.Id == taskId && item.TicketId == ticketId)
+            ?? throw new ConflictException("La tarea cambió mientras se adquiría el bloqueo; actualiza la vista.");
+        if (role == AppRole.Technician && task.TechnicianId != userId)
+            throw new ForbiddenException("La tarea ya no está asignada al técnico autenticado.");
+        var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        if (current?.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Planned)
+            throw new ConflictException("El ticket cambió de estado; actualiza la vista antes de reprogramar.");
+        if (task.State != 1)
+            throw new ConflictException("La tarea dejó de estar Por hacer; actualiza la vista.");
+        if (await _tickets.HasOverlappingScheduledTaskAsync(task.TechnicianId,
+                request.StartAt.UtcDateTime, request.EndAt.UtcDateTime, taskId, cancellationToken))
+        {
+            await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
+            throw new ConflictException("El técnico ya tiene otra tarea programada durante ese horario.");
+        }
+
         await _glpi.ReplanTicketTaskAsync(taskId, content, request.StartAt, request.EndAt, cancellationToken);
         var readback = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
             .FirstOrDefault(item => item.Id == taskId);
@@ -310,6 +331,16 @@ public sealed class TicketService : ITicketService
         int userId, AppRole role, CancellationToken cancellationToken)
     {
         var (ticket, task, state) = await GetEditableTaskAsync(ticketId, taskId, userId, role, cancellationToken);
+        await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
+            task.TechnicianId, cancellationToken);
+        task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
+            .FirstOrDefault(item => item.Id == taskId)
+            ?? throw new NotFoundException("La tarea ya no existe en GLPI.");
+        if (role == AppRole.Technician && task.TechnicianId != userId)
+            throw new ForbiddenException("La tarea ya no está asignada al técnico autenticado.");
+        var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        if (current?.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Planned and not (int)TicketStatus.Waiting)
+            throw new ConflictException("El ticket dejó de estar activo; actualiza la vista.");
         if (task.State == 2)
             return new TicketTaskMutationResponse(ticketId, taskId, state.Status);
         if (task.State != 1) throw new ConflictException("Solo se puede completar una tarea Por hacer.");
@@ -329,8 +360,22 @@ public sealed class TicketService : ITicketService
         int userId, AppRole role, CancellationToken cancellationToken)
     {
         var (ticket, task, _) = await GetEditableTaskAsync(ticketId, taskId, userId, role, cancellationToken);
+        await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
+            task.TechnicianId, cancellationToken);
+        task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
+            .FirstOrDefault(item => item.Id == taskId)
+            ?? throw new NotFoundException("La tarea ya no existe en GLPI.");
+        if (role == AppRole.Technician && task.TechnicianId != userId)
+            throw new ForbiddenException("La tarea ya no está asignada al técnico autenticado.");
+        var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+        if (current?.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Planned and not (int)TicketStatus.Waiting)
+            throw new ConflictException("El ticket dejó de estar activo; actualiza la vista.");
         if (task.State != 1) throw new ConflictException("Solo se puede cancelar una tarea Por hacer.");
 
+        // GLPI's native TicketTask table has no is_deleted marker. This is a
+        // potentially irreversible action, so an unavailable audit log blocks it.
+        await _audit.LogAsync(userId, "cancel_task_requested", ticketId,
+            JsonSerializer.Serialize(new { taskId, previousState = task.State }), cancellationToken);
         await _glpi.DeleteTicketTaskAsync(taskId, cancellationToken);
         if ((await _glpi.GetTicketTasksAsync(ticketId, cancellationToken)).Any(item => item.Id == taskId))
             throw new ConflictException("GLPI no confirmó la cancelación de la tarea.");
@@ -601,11 +646,24 @@ public sealed class TicketService : ITicketService
         if (claim.State == PlanningRequestState.Completed)
             return new PlanTicketResponse(ticketId, claim.TaskId!.Value, current.Status);
 
+        await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
+            userId, cancellationToken);
+        // The ticket may have changed while we waited for another API replica.
+        current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} not found in GLPI.");
+
         if (current.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Waiting)
         {
             // No write was sent to GLPI, so releasing this key is safe.
             await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
             throw new ConflictException("Solo un ticket Asignado o Pendiente puede programarse; consulta su estado actual en GLPI.");
+        }
+
+        if (await _tickets.HasOverlappingScheduledTaskAsync(userId,
+                request.StartAt.UtcDateTime, request.EndAt.UtcDateTime, excludingTaskId: null, cancellationToken))
+        {
+            await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
+            throw new ConflictException("Ya tienes otra tarea programada durante ese horario. Elige otro intervalo.");
         }
 
         // GLPI 11 does not automatically take a Waiting (4) ticket to Planned (3)

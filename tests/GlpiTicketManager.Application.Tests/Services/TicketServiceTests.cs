@@ -18,6 +18,10 @@ namespace GlpiTicketManager.Application.Tests.Services;
 
 public class TicketServiceTests
 {
+    private sealed class EmptyScheduleLease : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
     private readonly Mock<ITicketRepository> _repo = new();
     private readonly Mock<IGlpiApiClient> _glpi = new();
     private readonly Mock<IAuditRepository> _audit = new();
@@ -29,6 +33,9 @@ public class TicketServiceTests
 
     public TicketServiceTests()
     {
+        _planningRequests.Setup(s => s.AcquireTechnicianScheduleLockAsync(
+                It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EmptyScheduleLease());
         _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _accessPolicy.Object, _notifications.Object, _logger.Object, _planningRequests.Object);
     }
 
@@ -75,6 +82,7 @@ public class TicketServiceTests
             .ReturnsAsync(StatusTransitionDecision.Allow());
         _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GlpiTicketState(10, 2))
+            .ReturnsAsync(new GlpiTicketState(10, 2))
             .ReturnsAsync(new GlpiTicketState(10, 3));
         _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -104,6 +112,7 @@ public class TicketServiceTests
 
         var calls = new List<string>();
         _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
             .ReturnsAsync(new GlpiTicketState(10, 4))
             .ReturnsAsync(new GlpiTicketState(10, 2))
             .ReturnsAsync(new GlpiTicketState(10, 3));
@@ -135,6 +144,7 @@ public class TicketServiceTests
                 10, 3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(StatusTransitionDecision.Allow());
         _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
             .ReturnsAsync(new GlpiTicketState(10, 4))
             .ReturnsAsync(new GlpiTicketState(10, 4));
         _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,

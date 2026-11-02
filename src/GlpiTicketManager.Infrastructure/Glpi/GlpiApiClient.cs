@@ -259,7 +259,9 @@ public sealed class GlpiApiClient : IGlpiApiClient
         var sessionToken = await InitSessionAsync(cancellationToken);
         try
         {
-            // GLPI v1 soft-deletes by default (no force_purge=1).
+            // TicketTask has no is_deleted column in GLPI 11's schema. A DELETE
+            // may be permanent; the service must audit the intent first and the
+            // browser must require explicit confirmation.
             using var response = await SendAsync(HttpMethod.Delete, $"TicketTask/{taskId}", sessionToken,
                 new { input = new { } }, cancellationToken);
         }
