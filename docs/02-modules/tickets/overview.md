@@ -274,18 +274,19 @@ En dispositivos móviles, el tablero Kanban sustituye el scroll horizontal de 5 
   - Mis tickets: `[Planificar]` (programación de tarea nativa en GLPI).
   - En progreso: `[Resolver]` (apertura de `ResolveTicketDialog`).
   - Pendiente: `[Replanificar]` (nueva tarea programada en GLPI).
+  - Resuelto: sin acción (enlace de detalle).
 
 ### Estado planificado: contrato de integración GLPI 11
 
 - **Única vía para entrar en estado 3**: `POST /api/tickets/{id}/plan` con `{ requestId, content, startAt, endAt }`. `PATCH /status {status:3}` devuelve `422` sin escribir nada.
 - Fechas ISO 8601 con zona horaria (la interfaz convierte la hora local a UTC). El servidor valida orden, duración de 1 minuto a 30 días y descripción de 1 a 4000 caracteres. El formulario rechaza horas ambiguas o inexistentes por cambio de horario.
 - La API autoriza al técnico asignado o al supervisor del grupo (administrador global), toma el estado actual desde GLPI y crea una tarea `TicketTask` con `state=1` (pendiente), `begin`, `end`, `actiontime` y `users_id_tech`. GLPI controla el cambio de estado; la API **no** fuerza un `PUT Ticket/status=3`.
+- Para replanificar desde **Pendiente (4)**, GLPI 11 requiere primero reanudar a **Asignado (2)**: la API hace `PUT Ticket/{id}` con estado 2, confirma con `GET Ticket/{id}` y después crea la `TicketTask` programada. Nunca escribe directamente el estado 3.
 - Se verifica `GET Ticket/{id}` tras crear la tarea: si GLPI no devuelve estado 3, la respuesta es `409` con el identificador de la tarea para conciliación, nunca un falso éxito.
 - `requestId` UUID y migración PostgreSQL `008_ticket_planning_idempotency.sql`: una reserva única compartida evita duplicados ante doble clic y reintentos entre réplicas. Si un POST a GLPI termina en 429/5xx/timeout con resultado incierto, la reserva se conserva; el operador debe conciliarla con GLPI **antes** de otro intento (no se reenvía automáticamente).
 - Ejecutar `scripts/migrate-app-db.sh` en instalaciones con PostgreSQL ya inicializado. No modifica tablas internas de GLPI.
-- Para cerrar la integración de producción se necesita prueba real con GLPI 11, huso horario configurado en GLPI y PostgreSQL compartido; las pruebas automatizadas usan dobles de GLPI y de la tabla de deduplicación.
-- La ejecución E2E de GitHub Actions requiere tres secretos: `E2E_TECH_PASSWORD`, `E2E_REQUESTER_PASSWORD` y `E2E_ADMIN_PASSWORD`, correspondientes a las cuentas de fixture. El código y la definición del workflow no contienen contraseñas literales. Cualquier credencial previamente versionada debe rotarse; borrarla del último commit no la elimina del historial de Git.
-  - Resuelto: sin acción (enlace de detalle).
+- GitHub Actions realiza un smoke real contra GLPI 11 y PostgreSQL en contenedores. Faltan aún pruebas con dos API y PostgreSQL compartido, reintentos inciertos, husos horarios y operaciones completas de reprogramación/cancelación antes de producción.
+- GitHub Actions genera contraseñas E2E efímeras para las cuentas sintéticas en cada ejecución; localmente hay que proveer `E2E_TECH_PASSWORD`, `E2E_REQUESTER_PASSWORD` y `E2E_ADMIN_PASSWORD` en el entorno. Cualquier credencial versionada históricamente debe rotarse; borrarla del último commit no la elimina del historial de Git.
 - **Smart default tab**: Selección inteligente de la pestaña activa inicial en móvil: `in_progress` (si se está trabajando activamente) > `queue` (si hay tickets en cola) > `mine` > `pending`.
 - **Swipe horizontal entre tabs**: Gesto de arrastre horizontal (swipe) con Motion sobre la lista para alternar ágilmente entre columnas contiguas con retroalimentación elástica.
 - **Automatizaciones en cola**: Auto-refresco en segundo plano cada 30 segundos mientras la tab "Cola" está activa, indicador pulsante suave si ingresan nuevos tickets a la cola y badge en el Bottom Tab Bar.

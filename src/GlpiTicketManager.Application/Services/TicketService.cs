@@ -453,6 +453,22 @@ public sealed class TicketService : ITicketService
             throw new ConflictException("Solo un ticket Asignado o Pendiente puede programarse; consulta su estado actual en GLPI.");
         }
 
+        // GLPI 11 does not automatically take a Waiting (4) ticket to Planned (3)
+        // merely because a new task is scheduled. Resume to Assigned (2) first;
+        // only the subsequent native TicketTask may change the ticket to Planned.
+        // This is NOT a direct PATCH/PUT to state 3. The request is already reserved
+        // so two API replicas cannot execute the same resume+schedule twice.
+        if (current.Status == (int)TicketStatus.Waiting)
+        {
+            await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Assigned, cancellationToken);
+            var resumed = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
+            if (resumed?.Status != (int)TicketStatus.Assigned)
+            {
+                throw new ConflictException(
+                    "GLPI no confirmó la reanudación a Asignado. Revisa el estado antes de intentar otra planificación.");
+            }
+        }
+
         // Reservation happens before GLPI's non-idempotent POST. Do not automatically
         // release it on timeout / 5xx: GLPI may have persisted the task already.
         var taskId = await _glpi.CreatePlannedTaskAsync(
@@ -472,7 +488,8 @@ public sealed class TicketService : ITicketService
         {
             await _audit.LogAsync(userId, "plan", ticketId, JsonSerializer.Serialize(new
             {
-                taskId, startAt = request.StartAt, endAt = request.EndAt
+                taskId, startAt = request.StartAt, endAt = request.EndAt,
+                previousStatus = current.Status
             }), cancellationToken);
         }
         catch (Exception ex)
