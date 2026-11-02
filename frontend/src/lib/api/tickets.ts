@@ -166,3 +166,14 @@ export async function getAdminDashboard(): Promise<GroupSummary[]> {
   const { data } = await apiClient.get<GroupSummary[]>('/admin/groups-summary')
   return data
 }
+
+export async function getAdminWatcherStatus(): Promise<import('@/lib/api/types').AdminWatcherStatus> {
+  const { data } = await apiClient.get<import('@/lib/api/types').AdminWatcherStatus>('/admin/watcher-status')
+  return data
+}
+
+export async function recoverAdminWatcherTicket(ticketId: number): Promise<{ recovered: boolean; ticketId: number }> {
+  const { data } = await apiClient.post<{ recovered: boolean; ticketId: number }>(`/admin/watcher/recover/${ticketId}`)
+  return data
+}
+

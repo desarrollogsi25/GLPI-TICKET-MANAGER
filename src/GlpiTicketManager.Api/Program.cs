@@ -262,11 +262,13 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 app.MapGet("/health/ready", async (
     IDbConnectionFactory mariaDbFactory,
     IAppDbConnectionFactory appDbFactory,
+    IGlpiWatcherStateRepository watcherStateRepository,
     ILogger<Program> logger,
     CancellationToken ct) =>
 {
     var checks = new Dictionary<string, bool>();
     var allOk = true;
+    var watcherPermanentlyFailedCount = 0;
 
     // MariaDB check
     try
@@ -291,6 +293,16 @@ app.MapGet("/health/ready", async (
         await using var cmd = new NpgsqlCommand("SELECT 1", conn);
         await cmd.ExecuteScalarAsync(ct);
         checks["postgresql"] = true;
+
+        try
+        {
+            var failed = await watcherStateRepository.GetPermanentlyFailedTicketsAsync(100, ct);
+            watcherPermanentlyFailedCount = failed.Count;
+        }
+        catch
+        {
+            // Table might not exist before migration 010 runs; do not fail readiness probe.
+        }
     }
     catch (Exception ex)
     {
@@ -302,7 +314,9 @@ app.MapGet("/health/ready", async (
     var response = new
     {
         status = allOk ? "ready" : "not ready",
-        checks
+        checks,
+        watcherPermanentlyFailedCount,
+        watcherAlert = watcherPermanentlyFailedCount > 0
     };
 
     return allOk

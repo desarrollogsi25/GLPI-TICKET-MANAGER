@@ -546,6 +546,75 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketId));
     }
 
+    [Fact]
+    public async Task Scenario17_AdminWatcherStatusAndRecoverEndpoint_SurfacesPermanentFailuresAndRecoversForAdminOnly()
+    {
+        // Arrange: Ticket 4101 is marked PermanentlyFailed in watcher state
+        const int ticketId = 4101;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+            await stateRepo.SetLastSeenTicketIdAsync(4105, default);
+            await stateRepo.RecordPendingTicketAsync(ticketId, 0, "Operator Alert Ticket", "Pending", "Initial failure", default);
+            await stateRepo.MarkPermanentlyFailedAsync(ticketId, "Exceeded 50 retry attempts", default);
+        }
+
+        using var client = _factory.CreateClient();
+
+        // 1. Non-admin (tech1) should receive 403 Forbidden
+        var techLogin = await client.PostAsJsonAsync("/api/auth/login", new GlpiTicketManager.Application.Dtos.Auth.LoginRequest
+        {
+            Username = "tech1",
+            Password = TestCredentials.Tech1
+        });
+        techLogin.EnsureSuccessStatusCode();
+        var techToken = (await techLogin.Content.ReadFromJsonAsync<GlpiTicketManager.Application.Dtos.Auth.LoginResponse>())!.AccessToken;
+
+        using var forbiddenGet = new HttpRequestMessage(HttpMethod.Get, "/api/admin/watcher-status");
+        forbiddenGet.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", techToken);
+        var forbiddenGetResp = await client.SendAsync(forbiddenGet);
+        forbiddenGetResp.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+
+        using var forbiddenPost = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/watcher/recover/{ticketId}");
+        forbiddenPost.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", techToken);
+        var forbiddenPostResp = await client.SendAsync(forbiddenPost);
+        forbiddenPostResp.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+
+        // 2. Admin (admin_test) inspects watcher status -> sees operational alert and permanently failed ticket
+        var adminLogin = await client.PostAsJsonAsync("/api/auth/login", new GlpiTicketManager.Application.Dtos.Auth.LoginRequest
+        {
+            Username = "admin_test",
+            Password = TestCredentials.Admin
+        });
+        adminLogin.EnsureSuccessStatusCode();
+        var adminToken = (await adminLogin.Content.ReadFromJsonAsync<GlpiTicketManager.Application.Dtos.Auth.LoginResponse>())!.AccessToken;
+
+        using var statusReq = new HttpRequestMessage(HttpMethod.Get, "/api/admin/watcher-status");
+        statusReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+        var statusResp = await client.SendAsync(statusReq);
+        statusResp.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        var statusJson = await statusResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        statusJson.GetProperty("lastSeenTicketId").GetInt32().Should().Be(4105);
+        statusJson.GetProperty("permanentlyFailedCount").GetInt32().Should().Be(1);
+        statusJson.GetProperty("hasOperationalAlert").GetBoolean().Should().BeTrue();
+
+        // 3. Admin triggers explicit recovery via HTTP endpoint
+        using var recoverReq = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/watcher/recover/{ticketId}");
+        recoverReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+        var recoverResp = await client.SendAsync(recoverReq);
+        recoverResp.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+
+        // 4. Watcher status now shows 0 permanent failures and 1 pending ticket
+        using var statusAfterReq = new HttpRequestMessage(HttpMethod.Get, "/api/admin/watcher-status");
+        statusAfterReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+        var statusAfterResp = await client.SendAsync(statusAfterReq);
+        statusAfterResp.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        var statusAfterJson = await statusAfterResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        statusAfterJson.GetProperty("permanentlyFailedCount").GetInt32().Should().Be(0);
+        statusAfterJson.GetProperty("pendingCount").GetInt32().Should().Be(1);
+        statusAfterJson.GetProperty("hasOperationalAlert").GetBoolean().Should().BeFalse();
+    }
+
     private static HttpRequestMessage CreateSignedRequest(string uri, string rawBody)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, uri);

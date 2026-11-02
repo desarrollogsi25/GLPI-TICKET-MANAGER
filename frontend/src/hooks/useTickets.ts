@@ -22,6 +22,8 @@ import {
   createTicket,
   getTeamDashboard,
   getAdminDashboard,
+  getAdminWatcherStatus,
+  recoverAdminWatcherTicket,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
@@ -319,3 +321,23 @@ export function useAdminDashboardQuery() {
     enabled: sessionValid,
   })
 }
+
+export function useAdminWatcherStatusQuery() {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: ['admin', 'watcher-status'],
+    queryFn: getAdminWatcherStatus,
+    enabled: sessionValid,
+  })
+}
+
+export function useRecoverWatcherTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketId: number) => recoverAdminWatcherTicket(ticketId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'watcher-status'] })
+    },
+  })
+}
+
