@@ -351,10 +351,36 @@ jobs:
           -e E2E_ADMIN_PASSWORD
           -e E2E_GLPI_NATIVE=false
           frontend pnpm exec playwright test
+      - name: Start a second API replica with the shared MariaDB and PostgreSQL
+        run: |
+          docker compose run -d --no-deps --name glpi-api-replica -p 127.0.0.1:8084:8080 api
+          for i in {1..30}; do
+            if curl -sf http://localhost:8084/health/ready > /dev/null; then
+              echo "Second API replica ready on localhost:8084"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs glpi-api-replica --tail=100
+          echo "ERROR: second API replica did not become ready"
+          exit 1
       # This follows Playwright, so the synthetic ticket/user state exists.
-      # The POSTs overlap, exercising the shared PostgreSQL uniqueness key.
-      - name: Run webhook deduplication smoke test
+      # Concurrent signed POSTs alternate between two real .NET API containers.
+      - name: Run webhook deduplication smoke test across both API replicas
+        env:
+          SECONDARY_API_URL: http://localhost:8084
         run: bash scripts/test-webhook-dedup.sh
+      - name: Restart secondary API and replay signed webhook
+        env:
+          SECONDARY_API_URL: http://localhost:8084
+        run: |
+          docker restart glpi-api-replica
+          for i in {1..30}; do
+            if curl -sf http://localhost:8084/health/ready > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8084/health/ready > /dev/null
+          bash scripts/test-webhook-dedup.sh
       - name: Run audit smoke test
         run: bash scripts/test-audit.sh
         if: success()
@@ -385,4 +411,6 @@ jobs:
           retention-days: 7
       - name: Tear down stack
         if: always()
-        run: docker compose down -v
+        run: |
+          docker rm -f glpi-api-replica 2>/dev/null || true
+          docker compose down -v

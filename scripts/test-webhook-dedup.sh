@@ -17,9 +17,15 @@ trap 'rm -r -- "$OUTPUT_DIR"' EXIT
 
 # Issue overlapping requests: the DB unique key, not a per-process lock or
 # a page of ten notifications, must decide who can persist TicketCreated.
+# When SECONDARY_API_URL is configured, alternate API replicas against the
+# same PostgreSQL database. Both must accept the same signed GLPI retry.
 for i in $(seq 1 12); do
+  TARGET_API_URL="http://localhost:8080"
+  if [ -n "${SECONDARY_API_URL:-}" ] && [ $((i % 2)) -eq 0 ]; then
+    TARGET_API_URL="$SECONDARY_API_URL"
+  fi
   curl -sS -o "$OUTPUT_DIR/body-$i" -w '%{http_code}' \
-    -X POST http://localhost:8080/api/integrations/glpi/ticket-created \
+    -X POST "$TARGET_API_URL/api/integrations/glpi/ticket-created" \
     -H "Content-Type: application/json" \
     -H "X-GLPI-timestamp: $TIMESTAMP" \
     -H "X-GLPI-signature: $SIGNATURE" \
@@ -45,4 +51,4 @@ if [ "$NOTIFICATIONS" != "1" ] || [ "$CLAIMS" != "1" ]; then
   echo "ERROR: dedup failed (notifications=$NOTIFICATIONS, claims=$CLAIMS; expected one each)" >&2
   exit 1
 fi
-echo "Webhook H-02/H-14 idempotency smoke passed (12 concurrent retries, 1 notification)."
+echo "Webhook H-02/H-14 idempotency smoke passed (12 concurrent retries, 1 notification; secondary=${SECONDARY_API_URL:-none})."
