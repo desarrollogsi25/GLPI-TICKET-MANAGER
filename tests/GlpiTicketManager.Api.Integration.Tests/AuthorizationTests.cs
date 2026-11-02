@@ -149,6 +149,26 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Test5b_Tech1_ServiceFilterCannotExposeSameGroupColleagueTickets()
+    {
+        // Both tickets have the same catalog category; a filter cannot expand
+        // access beyond the technician's own assignment (H-01 / BOLA).
+        var token = await AuthenticateAsTech1Async();
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            $"/api/tickets?serviceId=17&assigneeId={CustomWebApplicationFactory.Tech2Id}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PagedResult<TicketSummaryDto>>();
+        result.Should().NotBeNull();
+        result!.Total.Should().Be(1);
+        result.Items.Should().ContainSingle(t => t.Id == CustomWebApplicationFactory.Ticket12Id);
+        result.Items.Should().NotContain(t => t.Id == CustomWebApplicationFactory.Ticket13Id);
+    }
+
+    [Fact]
     public async Task Test6_Tech1_CannotViewGroupQueueOfAnotherGroup_Returns403()
     {
         var token = await AuthenticateAsTech1Async();

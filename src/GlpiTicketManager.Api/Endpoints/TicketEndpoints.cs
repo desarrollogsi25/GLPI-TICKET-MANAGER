@@ -176,10 +176,11 @@ public static class TicketEndpoints
         }
         else
         {
-            // BOLA fix: Client-provided assigneeId is ignored for technicians;
-            // When filtering by a specific service catalog, list tickets under that service;
-            // otherwise scope to the technician's own assigned tickets.
-            effectiveAssigneeId = serviceId.HasValue ? null : userId.Value;
+            // H-01/BOLA: a catalog filter must only NARROW visibility. Previously
+            // serviceId removed the assignee predicate entirely, exposing ticket
+            // summaries (and total counts) belonging to other technicians/groups.
+            // The separate by-group endpoint is the authorized unassigned queue.
+            effectiveAssigneeId = userId.Value;
         }
 
         try

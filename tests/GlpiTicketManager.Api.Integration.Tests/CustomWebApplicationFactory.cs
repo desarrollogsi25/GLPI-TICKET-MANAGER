@@ -201,6 +201,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 Id = Ticket12Id,
                 Name = "Ticket 12 (Tech1 assigned)",
+                CategoryId = 17,
                 Status = (int)TicketStatus.Assigned,
                 CreatedAt = OldTicketCreatedAt,
                 RequesterIds = new[] { 9 },
@@ -210,6 +211,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 Id = Ticket13Id,
                 Name = "Ticket 13 (Tech2 assigned same group)",
+                CategoryId = 17,
                 Status = (int)TicketStatus.Assigned,
                 CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
