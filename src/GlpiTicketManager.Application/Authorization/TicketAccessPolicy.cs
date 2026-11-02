@@ -226,15 +226,11 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // Technician: asignado a él O perteneciente a su grupo
-        if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
-        {
-            return true;
-        }
-
-        var userGroups2 = await _tickets.GetGroupIdsForUserAsync(userId, ct);
-        var ticketGroups2 = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
-        return userGroups2.Intersect(ticketGroups2).Any();
+        // A technician may solve only tickets explicitly assigned to that technician.
+        // Group membership alone grants queue visibility, never permission to solve
+        // another technician's ticket (H-03 / BOLA).
+        return role == AppRole.Technician
+            && await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
     }
 
     public async Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default)

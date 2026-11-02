@@ -132,6 +132,23 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Tech1_CannotAddSolutionToOtherTechnicianTicket_InSameGroup_Returns403()
+    {
+        // Ticket 13 belongs to Tech2 and Group 1, which also contains Tech1.
+        // Sharing a group must not be enough to modify another person's ticket.
+        var token = await AuthenticateAsTech1Async();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/api/tickets/{CustomWebApplicationFactory.Ticket13Id}/solutions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Intento no autorizado" });
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Test5_Tech1_DoesNotSeeOtherTicketsWhenListing_IgnoresClientAssigneeId()
     {
         var token = await AuthenticateAsTech1Async();

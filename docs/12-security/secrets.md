@@ -52,6 +52,7 @@ Set the required values (replace `<...>` with the real values, never commit them
 ```powershell
 dotnet user-secrets set "GlpiApi:AppToken"  "<GLPI_APP_TOKEN>"  --project src/GlpiTicketManager.Api
 dotnet user-secrets set "GlpiApi:UserToken" "<GLPI_USER_TOKEN>" --project src/GlpiTicketManager.Api
+dotnet user-secrets set "Jwt:Key" "<RANDOM_32_PLUS_CHARACTER_SIGNING_KEY>" --project src/GlpiTicketManager.Api
 dotnet user-secrets set "Database:ConnectionString" `
   "Server=127.0.0.1;Port=3306;Database=glpi;User ID=glpi;Password=<MARIADB_PASSWORD>;Allow User Variables=true;UseAffectedRows=false" `
   --project src/GlpiTicketManager.Api

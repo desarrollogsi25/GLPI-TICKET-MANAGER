@@ -92,6 +92,7 @@ docker compose up -d glpi glpi-db      # GLPI UI -> http://localhost:8081
 # 2. Configure the API secrets (see next section)
 dotnet user-secrets set "GlpiApi:AppToken"  "<GLPI_APP_TOKEN>"  --project src/GlpiTicketManager.Api
 dotnet user-secrets set "GlpiApi:UserToken" "<GLPI_USER_TOKEN>" --project src/GlpiTicketManager.Api
+dotnet user-secrets set "Jwt:Key" "<RANDOM_32_PLUS_CHARACTER_SIGNING_KEY>" --project src/GlpiTicketManager.Api
 dotnet user-secrets set "Database:ConnectionString" "Server=127.0.0.1;Port=3306;Database=glpi;User ID=glpi;Password=<MARIADB_PASSWORD>;Allow User Variables=true;UseAffectedRows=false" --project src/GlpiTicketManager.Api
 
 # 3. Run the API (Development profile -> http://localhost:5280)
@@ -129,10 +130,10 @@ dotnet user-secrets list  --project src/GlpiTicketManager.Api
 dotnet user-secrets clear --project src/GlpiTicketManager.Api
 ```
 
-`Jwt:Key` ships with a known, non-secret development placeholder (≥32 chars) so a fresh
-checkout can boot; **override it outside local development** with `JWT_SECRET` (env var)
-or user-secrets. See [`docs/12-security/secrets.md`](docs/12-security/secrets.md) for the
-full variable list, rotation steps and verification commands.
+`Jwt:Key` is intentionally empty in the committed development configuration.
+Set a unique random key with user-secrets locally, `Jwt__Key` in the API's
+environment, or `JWT_SECRET` in the Docker Compose `.env`. See
+[`docs/12-security/secrets.md`](docs/12-security/secrets.md) for rotation steps.
 
 ## Configuring CI secrets
 

@@ -104,11 +104,37 @@ builder.Services
         };
     });
 
+// Cross-origin credentialed requests must be allowed only from explicitly trusted
+// frontend origins. An empty list is safe for same-origin reverse-proxy deployments.
+var configuredCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+var corsOrigins = configuredCorsOrigins
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(origin => origin.Trim().TrimEnd('/'))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+foreach (var origin in corsOrigins)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        || uri.AbsolutePath != "/"
+        || uri.Query.Length != 0
+        || uri.Fragment.Length != 0
+        || uri.UserInfo.Length != 0
+        || origin.Contains('*', StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Cors:AllowedOrigins must contain only explicit HTTP(S) origins without paths, credentials or wildcards.");
+    }
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

@@ -46,6 +46,9 @@ services:
       Jwt__Issuer: ${JWT_ISSUER:-GlpiTicketManager}
       Jwt__Audience: ${JWT_AUDIENCE:-GlpiTicketManager}
       Jwt__ExpiryMinutes: ${JWT_EXPIRY_MINUTES:-480}
+      # Leave empty for same-origin nginx; specify the exact HTTPS origin if
+      # frontend and API are hosted separately.
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN:-}
       Seq__ServerUrl: ${SEQ_SERVER_URL:-http://seq:5341}
     ports:
       - "0.0.0.0:8081:8080"
