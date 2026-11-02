@@ -192,4 +192,32 @@ public class TicketTasksTests : IClassFixture<CustomWebApplicationFactory>
         var tasks = await _factory.GlpiMock.Object.GetTicketTasksAsync(12, CancellationToken.None);
         tasks.Single(task => task.Id == 8012).Content.Should().Be("Visita programada");
     }
+
+    [Fact]
+    public async Task Plan_WithoutConflict_CreatesNativeTaskAndTransitionsTicket()
+    {
+        var payload = new PlanTicketRequest
+        {
+            RequestId = Guid.NewGuid(),
+            Content = "Planificacion exitosa sin conflicto",
+            StartAt = new DateTimeOffset(2026, 11, 4, 14, 0, 0, TimeSpan.Zero),
+            EndAt = new DateTimeOffset(2026, 11, 4, 15, 30, 0, TimeSpan.Zero)
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tickets/12/plan");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+            await AuthenticateAsync("tech1", TestCredentials.Tech1));
+        request.Content = JsonContent.Create(payload);
+        using var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PlanTicketResponse>();
+        result.Should().NotBeNull();
+        result!.TaskId.Should().BeGreaterThan(0);
+        result.Status.Should().Be(3); // Planned
+
+        // Verify readback through our API reflects state and task
+        using var readback = await ReadTasksAsync("tech1", TestCredentials.Tech1, 12);
+        readback.StatusCode.Should().Be(HttpStatusCode.OK);
+        var tasks = await readback.Content.ReadFromJsonAsync<List<TicketTaskDto>>();
+        tasks.Should().Contain(t => t.Id == result.TaskId && t.Content == payload.Content);
+    }
 }

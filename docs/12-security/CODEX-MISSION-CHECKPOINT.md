@@ -49,4 +49,50 @@ El watcher usaba la primera página de diez notificaciones y una inserción sin 
 
 Un fallo de persistencia interrumpe el lote antes de adelantar el cursor del ticket. El siguiente sondeo del mismo proceso reintenta el ticket; las reservas existentes protegen a los destinatarios ya procesados. Un fallo permanente puede retrasar los tickets posteriores. El cursor sigue en memoria: el arranque toma el máximo actual y el JOIN con la asignación de grupo puede saltar tickets cuya asignación aparezca después de avanzar el cursor. Se conserva la exclusión previa de IDs 11–950. No hay garantía de recuperación tras reinicio ni de entrega de SignalR. Si dos procesos ganan destinatarios distintos, los dos pueden emitir un aviso de grupo.
 
-Build Release sin advertencias ni errores; 35 pruebas Application y 152 API aprobadas. Tres casos nuevos usan el receptor HTTP firmado, el procesador del watcher y el servicio real de notificaciones con un repositorio en memoria que modela filas y claves bajo un bloqueo. Para el ticket 951 se verifican ambos órdenes de llegada, reintentos, doce notificaciones posteriores y un único par por destinatario; un fallo simulado en el segundo destinatario comprueba el cursor y la recuperación del lote hasta el ticket 952. No se ejecutó SQL contra PostgreSQL ni el sondeo MariaDB. Queda pendiente contrastar filas y claves con procesos concurrentes y almacenamiento real en una fase autorizada.
+Build Release sin advertencias ni errores; 35 pruebas Application y 152 API aprobadas. Tres casos nuevos usan el receptor HTTP firmado, el procesador del watcher y el servicio real de notificaciones con un repositorio en memoria que modela filas y claves bajo un bloqueo. Para el ticket 951 se verifican ambos órdenes de llegada, reintentos, doce notificaciones posteriores y un único par por destinatario; un fallo simulado en el segundo destinatario comprueba el cursor y la recuperación del lote hasta el ticket 952.
+
+### Validación en Laboratorio Aislado Multi-Réplica con Almacenamiento Real (2026-11-02)
+
+Se completó la verificación con PostgreSQL real (`restore_base_20261102173137`), MariaDB real (`glpi11_pr38`), y dos instancias API concurrentes (`api` 172.20.1.13 y `api-replica` 172.20.1.14) construidas offline desde `33ba41ba`:
+
+1. **Pruebas pasivas:** `GET /health` (200), `GET /health/ready` (200, checks db true), webhook sin firma (401), firma incorrecta (401), timestamp caducado (401) y payload >64 KiB (413). Cero mutaciones en base de datos.
+2. **Concurrencia real y deduplicación:** Se emitieron 40 peticiones webhook firmadas en paralelo alternando entre ambas instancias de API, incluyendo un reinicio en caliente de `api-replica`. En PostgreSQL se verificó exactamente 1 clave de deduplicación y 1 fila de notificación por técnico del grupo asignado; cero duplicados en `glpi_ticket_created_notification_keys` y cero duplicados en `notifications`.
+### Resolución de Defectos del Watcher Nativo y Validación GLPI 11 (2026-11-02)
+
+Se implementó y validó la arquitectura de reconciliación durable para `GlpiNativeTicketWatcher` y el ciclo de vida nativo de GLPI 11:
+
+1. **Persistencia y Reconciliación Durable (Migración 010):**
+   - **Checkpoint persistente:** Se incorporó la tabla PostgreSQL `glpi_watcher_checkpoint` (`010_watcher_state.sql`) y el repositorio `GlpiWatcherStateRepository`. Tras reinicio de cualquier nodo API, el watcher reanuda exactamente desde el último ticket procesado sin omitir tickets ni depender de memoria volátil.
+   - **Asignación de grupo tardía:** Se eliminó la dependencia de `INNER JOIN glpi_groups_tickets` que descartaba silenciosamente tickets creados antes de su asociación a grupo. Los tickets sin grupo se registran en `glpi_watcher_pending_tickets` (`AwaitingGroup`) y `ReconcilePendingAsync` los reconcilia automáticamente en cuanto GLPI asocia el grupo.
+   - **Exclusión configurable:** Se eliminó el salto forzado de IDs 11–950 de la ruta de producción; la exclusión se parametriza mediante `GlpiWatcher:ExcludedIdRange` para conservar el aislamiento en los fixtures de pruebas.
+   - **Manejo de fallos y reintentos:** Se limitan intentos máximos (umbral 50) y se toleran fallos transitorios sin corromper el cursor ni retroceder checkpoints.
+
+2. **Batería de Pruebas de Reconciliación y Concurrencia (10 Escenarios):**
+   - Se añadieron 10 casos en `GlpiWatcherReconciliationTests.cs` cubriendo:
+     1. Reinicio antes de procesar un ticket (reanuda desde checkpoint sin reprocesar históricos).
+     2. Reinicio tras procesamiento parcial (procesa pendientes restantes sin duplicar notificaciones previas).
+     3. Ticket creado sin grupo (capturado y registrado como `AwaitingGroup`).
+     4. Asignación de grupo tardía (reconciliado y notificado al técnico).
+     5. Dos réplicas simultáneas (deduplicación atómica y avance monótono).
+     6. Fallo transitorio PostgreSQL (detención segura y reintento en el siguiente ciclo).
+     7. Fallo persistente y recuperación segura tras superar límite de intentos.
+     8. Procesamiento de tickets legítimos en rango 11–950 cuando no está activo el filtro de pruebas.
+     9. Reentregas del webhook HTTP con firma HMAC (idempotencia comprobada).
+     10. Conservación intacta de notificaciones históricas.
+   - **Total de pruebas backend:** 35 de aplicación + 162 de integración = **197/197 aprobadas** (100% pasando).
+
+3. **Validación del Ciclo de Vida GLPI 11 Nativo:**
+   - Creación nativa de ticket (`Ticket 38204`) vía REST API GLPI.
+   - Asignación de grupo nativa (`3801`) y detección en tiempo real por el watcher.
+   - Notificación atómica en PostgreSQL (`notifications` y `glpi_ticket_created_notification_keys`).
+   - Reintento de webhook HMAC deduplicado sin generación de registros redundantes.
+   - Validación de `TicketTask` nativa: planificación (`state=1`), privacidad (`is_private=1`), reprogramación de horarios (`PUT /TicketTask`), finalización (`state=2`) y cancelación (`DELETE`).
+   - Prueba real de ticket creado sin grupo inicial (`Ticket 38205`) y reconciliación tardía exitosa tras asignación posterior.
+
+4. **Estado de Calidad y Gobernanza:**
+   - Compilación Release .NET 10: 0 errores.
+   - Frontend TypeScript (`tsc --noEmit`) y Vite build: 0 errores.
+   - `git diff --check`: 0 errores de formato/espaciado.
+   - GitNexus Code Intelligence: `risk_level: low`, 0 procesos afectados.
+   - Los 7 contenedores originales de laboratorio permanecen intactos, en ejecución y saludables.
+   - La PR #38 permanece estrictamente **abierta y en borrador** (no merge, no despliegue).

@@ -59,6 +59,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
     internal HashSet<(int UserId, int TicketId)> TicketCreatedKeys { get; } = new();
+    public int? WatcherCheckpoint { get; set; }
+    public ConcurrentDictionary<int, GlpiWatcherPendingTicket> WatcherPendingTickets { get; } = new();
     private readonly List<Notification> _notificationsList = new();
 
     /// <summary>
@@ -205,6 +207,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             SimulateInsertFailure = false;
             _notificationsList.Clear();
             TicketCreatedKeys.Clear();
+            WatcherCheckpoint = null;
+            WatcherPendingTickets.Clear();
             _ticketSolutions.Clear();
             _nativeTasks.Clear();
             _nativeTasks[Ticket12Id] =
@@ -410,7 +414,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["RateLimiting:ExpensiveTokensPerPeriod"] = "1",
                 ["RateLimiting:ExpensiveReplenishmentSeconds"] = "3",
                 ["RateLimiting:PerUserRequestLimit"] = "100",
-                ["RateLimiting:LoginAttemptLimit"] = "100"
+                ["RateLimiting:LoginAttemptLimit"] = "100",
+                ["GlpiWatcher:ExcludedIdRange"] = "11-950"
             });
         });
 
@@ -1516,6 +1521,47 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(ticketRepoMock.Object);
             services.AddSingleton(groupRepoMock.Object);
             services.AddSingleton(channelRepoMock.Object);
+
+            var watcherStateRepoMock = new Mock<IGlpiWatcherStateRepository>();
+            watcherStateRepoMock.Setup(w => w.GetLastSeenTicketIdAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() => WatcherCheckpoint);
+            watcherStateRepoMock.Setup(w => w.SetLastSeenTicketIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int id, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        WatcherCheckpoint = Math.Max(WatcherCheckpoint ?? 0, id);
+                        return Task.CompletedTask;
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.RecordPendingTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, int categoryId, string name, string status, string? error, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        WatcherPendingTickets[ticketId] = new GlpiWatcherPendingTicket(
+                            ticketId, categoryId, name, status, 1, DateTime.UtcNow, error);
+                        return Task.CompletedTask;
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.GetPendingTicketsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int limit, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return WatcherPendingTickets.Values.Take(limit).ToList();
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.RemovePendingTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        WatcherPendingTickets.TryRemove(ticketId, out var _);
+                        return Task.CompletedTask;
+                    }
+                });
+            services.AddSingleton(watcherStateRepoMock.Object);
 
             var dashboardRepoMock = new Mock<IDashboardRepository>();
             dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(Group1Id, It.IsAny<CancellationToken>()))
