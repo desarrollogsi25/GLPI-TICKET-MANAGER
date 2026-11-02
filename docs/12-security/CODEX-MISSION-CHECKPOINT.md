@@ -42,3 +42,11 @@ La tarea se puede **consultar, reprogramar, completar y cancelar** con permisos 
 ## Migración 007: borrador MariaDB
 
 La regresión de 007 usa una copia descartable de GLPI 11. Verifica la selección explícita del destino, el rollback ante conflictos y dos ejecuciones con datos idénticos. Preview, firma HMAC real y reintentos entre réplicas siguen pendientes. Véase [la guía del webhook](../07-operations/glpi-webhook-setup.md).
+
+## H-02/H-14 — watcher nativo y webhook (revisión local sobre 0b37957)
+
+El watcher usaba la primera página de diez notificaciones y una inserción sin reserva. El webhook ya utilizaba la sentencia PostgreSQL que inserta la clave de 009 y la notificación en una misma operación. Ambos caminos usan ahora esa operación para TicketCreated. El evento de grupo solo se intenta si el camino creó al menos una notificación. Otros tipos conservan su comportamiento.
+
+Un fallo de persistencia interrumpe el lote antes de adelantar el cursor del ticket. El siguiente sondeo del mismo proceso reintenta el ticket; las reservas existentes protegen a los destinatarios ya procesados. Un fallo permanente puede retrasar los tickets posteriores. El cursor sigue en memoria: el arranque toma el máximo actual y el JOIN con la asignación de grupo puede saltar tickets cuya asignación aparezca después de avanzar el cursor. Se conserva la exclusión previa de IDs 11–950. No hay garantía de recuperación tras reinicio ni de entrega de SignalR. Si dos procesos ganan destinatarios distintos, los dos pueden emitir un aviso de grupo.
+
+Build Release sin advertencias ni errores; 35 pruebas Application y 152 API aprobadas. Tres casos nuevos usan el receptor HTTP firmado, el procesador del watcher y el servicio real de notificaciones con un repositorio en memoria que modela filas y claves bajo un bloqueo. Para el ticket 951 se verifican ambos órdenes de llegada, reintentos, doce notificaciones posteriores y un único par por destinatario; un fallo simulado en el segundo destinatario comprueba el cursor y la recuperación del lote hasta el ticket 952. No se ejecutó SQL contra PostgreSQL ni el sondeo MariaDB. Queda pendiente contrastar filas y claves con procesos concurrentes y almacenamiento real en una fase autorizada.

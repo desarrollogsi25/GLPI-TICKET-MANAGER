@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Security.Cryptography;
 using FluentAssertions;
+using GlpiTicketManager.Api.Notifications;
+using GlpiTicketManager.Domain.Entities;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Auth;
 using GlpiTicketManager.Application.Dtos.Notifications;
@@ -191,6 +193,105 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
         request.Content = new StringContent(new string('x', 65537), Encoding.UTF8, "application/json");
 
         (await _client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WatcherAndSignedWebhook_ShareClaimsAcrossRetries(bool watcherFirst)
+    {
+        const int ticketId = 951;
+        using var factory = new CustomWebApplicationFactory();
+        using var client = factory.CreateClient();
+        var watcher = ActivatorUtilities.CreateInstance<GlpiNativeTicketWatcher>(factory.Services);
+        using var scope = factory.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        var dashboard = Mock.Get(scope.ServiceProvider.GetRequiredService<IDashboardRepository>());
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var attempts = 0;
+        int[] technicians = [CustomWebApplicationFactory.Tech1Id, CustomWebApplicationFactory.Tech2Id];
+        dashboard.Setup(d => d.GetTechnicianUserIdsInGroupAsync(CustomWebApplicationFactory.Group1Id,
+                It.IsAny<CancellationToken>()))
+            .Returns(async (int _, CancellationToken ct) =>
+            {
+                if (Interlocked.Increment(ref attempts) == 1)
+                {
+                    entered.SetResult();
+                    await resume.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+                }
+                return (IReadOnlyList<int>)technicians;
+            });
+
+        Task Poll() => watcher.ProcessBatchAsync([new(ticketId, "Synthetic", 0)], default);
+        async Task Deliver()
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created");
+            var body = $"{{\"ticketId\":{ticketId}}}";
+            Sign(request, body);
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+            using var response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+        }
+
+        // Both paths have resolved the same ticket before the first path resumes.
+        var first = watcherFirst ? Poll() : Deliver();
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await (watcherFirst ? Deliver() : Poll());
+        }
+        finally { resume.TrySetResult(); }
+        await first;
+
+        foreach (var tech in technicians)
+        {
+            for (int i = 0; i < 12; i++)
+                await service.CreateAsync(tech, "TicketUpdated", ticketId, "Update", "Unrelated");
+            (await service.GetByUserAsync(tech, 10, 0)).Should().NotContain(n => n.Type == "TicketCreated");
+        }
+        await Task.WhenAll(Poll(), Deliver());
+        foreach (var tech in technicians)
+        {
+            var rows = await service.GetByUserAsync(tech, 100, 0);
+            rows.Count(n => n.Type == "TicketCreated" && n.TicketId == ticketId).Should().Be(1);
+            rows.Count(n => n.Type == "TicketUpdated").Should().Be(12);
+        }
+        factory.TicketCreatedKeys.Should().BeEquivalentTo(technicians.Select(tech => (tech, ticketId)));
+        factory.NotificationMock.Verify(n => n.NotifyTicketCreatedAsync(ticketId, CustomWebApplicationFactory.Group1Id,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WatcherRetriesPartialTicketBeforeAdvancingItsCursor()
+    {
+        using var factory = new CustomWebApplicationFactory();
+        using var client = factory.CreateClient();
+        var watcher = ActivatorUtilities.CreateInstance<GlpiNativeTicketWatcher>(factory.Services);
+        using var scope = factory.Services.CreateScope();
+        var repo = Mock.Get(scope.ServiceProvider.GetRequiredService<INotificationRepository>());
+        var fail = true;
+        repo.Setup(r => r.TryCreateTicketCreatedAsync(It.Is<Notification>(n =>
+                fail && n.UserId == CustomWebApplicationFactory.Tech2Id && n.TicketId == 951),
+                It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                fail = false;
+                throw new TimeoutException("Synthetic persistence failure");
+            });
+        await watcher.ProcessBatchAsync([new(950, "Skipped fixture", 0)], default);
+        GlpiNativeTicketWatcher.NewTicketRow[] batch = [new(951, "Retry", 0), new(952, "Later", 0)];
+        await Assert.ThrowsAsync<TimeoutException>(() => watcher.ProcessBatchAsync(batch, default));
+        watcher.LastSeenTicketId.Should().Be(950);
+        factory.TicketCreatedKeys.Should().ContainSingle().Which.Should().Be((CustomWebApplicationFactory.Tech1Id, 951));
+        await watcher.ProcessBatchAsync(batch, default);
+        watcher.LastSeenTicketId.Should().Be(952);
+        foreach (int tech in new[] { CustomWebApplicationFactory.Tech1Id, CustomWebApplicationFactory.Tech2Id })
+        {
+            var rows = await repo.Object.GetByUserAsync(tech, 100, 0, default);
+            rows.Select(n => n.TicketId).Should().BeEquivalentTo(new int?[] { 951, 952 });
+        }
+        factory.TicketCreatedKeys.Should().HaveCount(4);
     }
 
     private static void Sign(HttpRequestMessage request, string rawBody, DateTimeOffset? time = null)

@@ -58,6 +58,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             list.Add(task);
         }
     }
+    internal HashSet<(int UserId, int TicketId)> TicketCreatedKeys { get; } = new();
     private readonly List<Notification> _notificationsList = new();
 
     /// <summary>
@@ -203,6 +204,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             SimulateInsertFailure = false;
             _notificationsList.Clear();
+            TicketCreatedKeys.Clear();
             _ticketSolutions.Clear();
             _nativeTasks.Clear();
             _nativeTasks[Ticket12Id] =
@@ -416,6 +418,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             // Remove existing repo registrations if present
             var descriptors = services.Where(d =>
+                d.ImplementationType == typeof(GlpiTicketManager.Api.Notifications.GlpiNativeTicketWatcher) ||
                 d.ServiceType == typeof(ITicketRepository) ||
                 d.ServiceType == typeof(IUserRepository) ||
                 d.ServiceType == typeof(IPasswordHasher) ||
@@ -1466,8 +1469,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
-                        if (_notificationsList.Any(existing => existing.UserId == n.UserId &&
-                            existing.TicketId == n.TicketId && existing.Type == "TicketCreated"))
+                        if (!TicketCreatedKeys.Add((n.UserId, n.TicketId!.Value)))
                             return (long?)null;
 
                         n.Id = _notificationsList.Count + 1;
@@ -1480,7 +1482,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
-                        return _notificationsList.Where(n => n.UserId == userId).Skip(offset).Take(limit).ToList();
+                        return _notificationsList.Where(n => n.UserId == userId).OrderByDescending(n => n.CreatedAt).Skip(offset).Take(limit).ToList();
                     }
                 });
             notificationRepoMock.Setup(n => n.GetUnreadCountAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

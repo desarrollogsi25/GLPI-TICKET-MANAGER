@@ -20,7 +20,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IDbConnectionFactory _dbFactory;
     private readonly ILogger<GlpiNativeTicketWatcher> _logger;
-    private int _lastSeenTicketId = -1;
+    internal int LastSeenTicketId { get; private set; } = -1;
 
     public GlpiNativeTicketWatcher(
         IServiceScopeFactory scopeFactory,
@@ -32,7 +32,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         _logger = logger;
     }
 
-    private sealed record NewTicketRow(long Id, string Name, long CategoryId);
+    internal sealed record NewTicketRow(long Id, string Name, long CategoryId);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -84,13 +84,13 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
             conn.Open();
         }
 
-        if (_lastSeenTicketId < 0)
+        if (LastSeenTicketId < 0)
         {
             var maxId = await conn.ExecuteScalarAsync<int?>(
                 new CommandDefinition(
                     "SELECT COALESCE(MAX(id), 0) FROM glpi_tickets WHERE is_deleted = 0;",
                     cancellationToken: ct));
-            _lastSeenTicketId = maxId ?? 0;
+            LastSeenTicketId = maxId ?? 0;
             return;
         }
 
@@ -108,8 +108,13 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
             """;
 
         var newTickets = (await conn.QueryAsync<NewTicketRow>(
-            new CommandDefinition(sql, new { LastId = _lastSeenTicketId }, cancellationToken: ct))).ToList();
+            new CommandDefinition(sql, new { LastId = LastSeenTicketId }, cancellationToken: ct))).ToList();
 
+        await ProcessBatchAsync(newTickets, ct);
+    }
+
+    internal async Task ProcessBatchAsync(IReadOnlyList<NewTicketRow> newTickets, CancellationToken ct)
+    {
         if (newTickets.Count == 0)
         {
             return;
@@ -125,14 +130,10 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         {
             var ticketId = (int)row.Id;
             var categoryId = (int)row.CategoryId;
-            if (ticketId > _lastSeenTicketId)
-            {
-                _lastSeenTicketId = ticketId;
-            }
-
             // Skip synthetic E2E fixture resets (IDs 11..950) if any
             if (ticketId is >= 11 and <= 950)
             {
+                LastSeenTicketId = ticketId;
                 continue;
             }
 
@@ -150,40 +151,25 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
             if (groupId is null || groupId <= 0)
             {
+                LastSeenTicketId = ticketId;
                 continue;
             }
 
-            // Only emit persistent notifications if not already emitted for this ticketId
             var techIds = await dashboardRepository.GetTechnicianUserIdsInGroupAsync(groupId.Value, ct);
+            var created = false;
             foreach (var techId in techIds)
             {
-                try
-                {
-                    var existing = await notificationService.GetByUserAsync(techId, 10, 0, ct);
-                    if (!existing.Any(n => n.TicketId == ticketId && n.Type == "TicketCreated"))
-                    {
-                        await notificationService.CreateAsync(
-                            techId,
-                            "TicketCreated",
-                            ticketId,
-                            $"Nuevo ticket #{ticketId}",
-                            $"Se ha asignado el ticket '{row.Name}' a tu grupo.",
-                            ct);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Watcher notification skipped for tech {TechId}", techId);
-                }
+                // Retry the row after a persistence failure. Earlier recipients
+                // already have a durable claim and will not be notified again.
+                created |= await notificationService.CreateTicketCreatedOnceAsync(
+                    techId, ticketId, $"Nuevo ticket #{ticketId}",
+                    $"Se ha asignado el ticket '{row.Name}' a tu grupo.", ct);
             }
 
-            try
+            LastSeenTicketId = ticketId;
+            if (created)
             {
                 await ticketNotificationService.NotifyTicketCreatedAsync(ticketId, groupId.Value, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Watcher SignalR emit skipped for ticket {TicketId}", ticketId);
             }
         }
     }
