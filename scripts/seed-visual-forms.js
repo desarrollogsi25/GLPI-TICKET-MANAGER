@@ -20,7 +20,10 @@ if (!mariadbPassword) {
     if (match) mariadbPassword = match[1].trim();
   }
 }
-if (!mariadbPassword) mariadbPassword = 'VW9Qr7m2XSkGd0tHegGGq3hhrHcD';
+if (!mariadbPassword) {
+  console.error('ERROR: MARIADB_PASSWORD is required in environment or .env file');
+  process.exit(1);
+}
 
 function runSql(sql) {
   try {

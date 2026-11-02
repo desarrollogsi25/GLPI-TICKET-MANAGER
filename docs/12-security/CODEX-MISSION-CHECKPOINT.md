@@ -79,7 +79,13 @@ Se implementó y validó la arquitectura de reconciliación durable para `GlpiNa
      8. Procesamiento de tickets legítimos en rango 11–950 cuando no está activo el filtro de pruebas.
      9. Reentregas del webhook HTTP con firma HMAC (idempotencia comprobada).
      10. Conservación intacta de notificaciones históricas.
-   - **Total de pruebas backend:** 35 de aplicación + 162 de integración = **197/197 aprobadas** (100% pasando).
+     11. Ticket sin técnicos asignados en el grupo (`AwaitingTechnician`).
+     12. Fallo de persistencia fuera de orden en un lote concurrentemente avanzado.
+     13. Reintentos agotados (umbral 50): transición a `PermanentlyFailed`, alerta operativa y auto-recuperación tras asignación tardía de grupo en GLPI.
+     14. Caída total de PostgreSQL durante notificación y registro pendiente: el checkpoint permanece intacto en BD y la segunda réplica recupera el ticket sin omisiones.
+     15. Inicialización de cursor: distinción estricta entre checkpoint 0, checkpoint > 0 y checkpoint inexistente (null), respetando el valor 0 sin saltar a MAX(id).
+     16. Protección de producción: verificación de que `GlpiWatcher:ExcludedIdRange` se ignora incondicionalmente en entorno de producción.
+   - **Total de pruebas backend:** 35 de aplicación + 169 de integración = **204/204 aprobadas** (100% pasando).
 
 3. **Validación del Ciclo de Vida GLPI 11 Nativo:**
    - Creación nativa de ticket (`Ticket 38204`) vía REST API GLPI.
@@ -89,9 +95,14 @@ Se implementó y validó la arquitectura de reconciliación durable para `GlpiNa
    - Validación de `TicketTask` nativa: planificación (`state=1`), privacidad (`is_private=1`), reprogramación de horarios (`PUT /TicketTask`), finalización (`state=2`) y cancelación (`DELETE`).
    - Prueba real de ticket creado sin grupo inicial (`Ticket 38205`) y reconciliación tardía exitosa tras asignación posterior.
 
-4. **Estado de Calidad y Gobernanza:**
+4. **Hardening de Migraciones y Seguridad Operativa:**
+   - `scripts/migrate-app-db.sh`: exige destino explícito con regex, protege bases críticas y el nombre de laboratorio de referencia `glpi_ticket_manager` (requiere `ALLOW_REFERENCE_DB=1`), verifica identidad de contenedor/proyecto Docker y confirma `current_database()` antes de ejecutar SQL en transacciones atómicas con checksum SHA-256.
+   - Eliminación de fallback de credenciales en `scripts/seed-visual-forms.js`: auditoría Gitleaks con 0 fugas.
+
+5. **Estado de Calidad y Gobernanza:**
    - Compilación Release .NET 10: 0 errores.
    - Frontend TypeScript (`tsc --noEmit`) y Vite build: 0 errores.
+   - Gitleaks secret scanner: 0 fugas detectadas.
    - `git diff --check`: 0 errores de formato/espaciado.
    - GitNexus Code Intelligence: `risk_level: low`, 0 procesos afectados.
    - Los 7 contenedores originales de laboratorio permanecen intactos, en ejecución y saludables.

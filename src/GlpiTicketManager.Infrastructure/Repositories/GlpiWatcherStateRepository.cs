@@ -71,6 +71,36 @@ public sealed class GlpiWatcherStateRepository : IGlpiWatcherStateRepository
         return entries.AsList();
     }
 
+    public async Task<IReadOnlyList<GlpiWatcherPendingTicket>> GetPermanentlyFailedTicketsAsync(int limit = 20, CancellationToken ct = default)
+    {
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        var entries = await conn.QueryAsync<GlpiWatcherPendingTicket>(
+            new CommandDefinition(
+                WatcherQueries.GetPermanentlyFailed,
+                new { Limit = limit },
+                cancellationToken: ct));
+        return entries.AsList();
+    }
+
+    public async Task MarkPermanentlyFailedAsync(int ticketId, string reason, CancellationToken ct = default)
+    {
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            WatcherQueries.MarkPermanentlyFailed,
+            new { TicketId = ticketId, Reason = reason },
+            cancellationToken: ct));
+    }
+
+    public async Task<bool> RecoverPendingTicketAsync(int ticketId, CancellationToken ct = default)
+    {
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        var affected = await conn.ExecuteAsync(new CommandDefinition(
+            WatcherQueries.RecoverPending,
+            new { TicketId = ticketId },
+            cancellationToken: ct));
+        return affected > 0;
+    }
+
     public async Task RemovePendingTicketAsync(int ticketId, CancellationToken ct = default)
     {
         await using var conn = (DbConnection)await _factory.CreateAsync(ct);

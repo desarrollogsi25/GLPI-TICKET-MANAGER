@@ -52,4 +52,36 @@ public static class WatcherQueries
         DELETE FROM glpi_watcher_pending_tickets
         WHERE ticket_id = @TicketId;
         """;
+
+    public const string MarkPermanentlyFailed = """
+        UPDATE glpi_watcher_pending_tickets
+        SET status = 'PermanentlyFailed',
+            last_error = @Reason,
+            last_attempt_at = NOW()
+        WHERE ticket_id = @TicketId;
+        """;
+
+    public const string RecoverPending = """
+        UPDATE glpi_watcher_pending_tickets
+        SET status = 'AwaitingGroup',
+            attempts = 0,
+            next_retry_at = NOW(),
+            last_error = 'Explicitly recovered'
+        WHERE ticket_id = @TicketId;
+        """;
+
+    public const string GetPermanentlyFailed = """
+        SELECT
+            ticket_id AS TicketId,
+            category_id AS CategoryId,
+            ticket_name AS TicketName,
+            status AS Status,
+            attempts AS Attempts,
+            next_retry_at AS NextRetryAt,
+            last_error AS LastError
+        FROM glpi_watcher_pending_tickets
+        WHERE status = 'PermanentlyFailed'
+        ORDER BY ticket_id ASC
+        LIMIT @Limit;
+        """;
 }

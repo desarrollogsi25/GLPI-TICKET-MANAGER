@@ -6,8 +6,11 @@ using GlpiTicketManager.Api.Notifications;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Integrations;
 using GlpiTicketManager.Domain.Entities;
+using GlpiTicketManager.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -230,8 +233,9 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         // Reconcile pending tickets
         await watcher.ReconcilePendingAsync(default);
 
-        // Dropped safely to prevent infinite blocking
-        _factory.WatcherPendingTickets.Should().NotContainKey(unresolvableTicket);
+        // Transitioned durably to PermanentlyFailed instead of being silently deleted
+        _factory.WatcherPendingTickets[unresolvableTicket].Status.Should().Be("PermanentlyFailed");
+        (await stateRepo.GetPendingTicketsAsync(10, default)).Should().NotContain(p => p.TicketId == unresolvableTicket);
     }
 
     [Fact]
@@ -376,6 +380,170 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketEarlier));
         _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketLater));
         (await stateRepo.GetPendingTicketsAsync(10, default)).Should().NotContain(p => p.TicketId == ticketEarlier);
+    }
+
+    [Fact]
+    public async Task Scenario13_ExceededRetries_MarkedPermanentlyFailed_RecoveredOnLateGroupAssignment()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+        var dashboardRepo = Mock.Get(scope.ServiceProvider.GetRequiredService<IDashboardRepository>());
+
+        const int ticketId = 2601;
+
+        // Arrange: ticket had reached 50 attempts with no group assigned
+        for (var i = 0; i < 50; i++)
+        {
+            await stateRepo.RecordPendingTicketAsync(
+                ticketId, 0, "No Group Ticket", "AwaitingGroup", "Waiting for group", default);
+        }
+
+        dashboardRepo.Setup(d => d.GetTicketGroupAssignmentAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GlpiTicketGroupInfo?)null);
+
+        var watcher = ActivatorUtilities.CreateInstance<GlpiNativeTicketWatcher>(_factory.Services);
+
+        // Act 1: Reconcile runs when attempts >= 50
+        await watcher.ReconcilePendingAsync(default);
+
+        // Assert 1: Ticket was NOT deleted, but transitioned to 'PermanentlyFailed'
+        var permanentlyFailed = await stateRepo.GetPermanentlyFailedTicketsAsync(10, default);
+        permanentlyFailed.Should().Contain(p => p.TicketId == ticketId);
+        (await stateRepo.GetPendingTicketsAsync(10, default)).Should().NotContain(p => p.TicketId == ticketId);
+
+        // Act 2: Later, an operator assigns Group 1 to this ticket in GLPI
+        dashboardRepo.Setup(d => d.GetTicketGroupAssignmentAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketGroupInfo(ticketId, "No Group Ticket", CustomWebApplicationFactory.Group1Id));
+
+        // Reconcile runs again: detects group assignment and recovers ticket
+        await watcher.ReconcilePendingAsync(default);
+
+        // Assert 2: Ticket recovered and active again
+        var pendingAfterRecovery = await stateRepo.GetPendingTicketsAsync(10, default);
+        pendingAfterRecovery.Should().Contain(p => p.TicketId == ticketId);
+        (await stateRepo.GetPermanentlyFailedTicketsAsync(10, default)).Should().NotContain(p => p.TicketId == ticketId);
+
+        // Act 3: Next reconciliation delivers notification to assigned technicians
+        await watcher.ReconcilePendingAsync(default);
+        _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketId));
+        _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech2Id, ticketId));
+    }
+
+    [Fact]
+    public async Task Scenario14_PostgresFailureDuringProcessAndPendingRecord_CheckpointNotAdvanced_SecondReplicaRecovers()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+        var notifRepo = Mock.Get(scope.ServiceProvider.GetRequiredService<INotificationRepository>());
+
+        const int ticketId = 2701;
+        await stateRepo.SetLastSeenTicketIdAsync(2700, default);
+
+        var failDb = true;
+        notifRepo.Setup(r => r.TryCreateTicketCreatedAsync(
+                It.Is<Notification>(n => failDb && n.TicketId == ticketId),
+                It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (failDb)
+                {
+                    throw new TimeoutException("PostgreSQL connection timed out abnormally");
+                }
+                return Task.FromResult<long?>(999L);
+            });
+
+        var failingStateRepo = new Mock<IGlpiWatcherStateRepository>();
+        failingStateRepo.Setup(s => s.GetLastSeenTicketIdAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2700);
+        failingStateRepo.Setup(s => s.RecordPendingTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TimeoutException("Database completely unreachable during pending record"));
+
+        var servicesReplicaA = new Mock<IServiceProvider>();
+        var scopeReplicaA = new Mock<IServiceScope>();
+        scopeReplicaA.Setup(s => s.ServiceProvider).Returns(servicesReplicaA.Object);
+        var scopeFactoryA = new Mock<IServiceScopeFactory>();
+        scopeFactoryA.Setup(f => f.CreateScope()).Returns(scopeReplicaA.Object);
+
+        servicesReplicaA.Setup(s => s.GetService(typeof(IGlpiWatcherStateRepository))).Returns(failingStateRepo.Object);
+        servicesReplicaA.Setup(s => s.GetService(typeof(ITicketRepository))).Returns(scope.ServiceProvider.GetRequiredService<ITicketRepository>());
+        servicesReplicaA.Setup(s => s.GetService(typeof(IDashboardRepository))).Returns(scope.ServiceProvider.GetRequiredService<IDashboardRepository>());
+        servicesReplicaA.Setup(s => s.GetService(typeof(INotificationService))).Returns(scope.ServiceProvider.GetRequiredService<INotificationService>());
+        servicesReplicaA.Setup(s => s.GetService(typeof(ITicketNotificationService))).Returns(scope.ServiceProvider.GetRequiredService<ITicketNotificationService>());
+
+        var replicaA = new GlpiNativeTicketWatcher(
+            scopeFactoryA.Object,
+            scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>(),
+            Mock.Of<ILogger<GlpiNativeTicketWatcher>>());
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            replicaA.ProcessBatchAsync([new(ticketId, "Ticket 2701", 0)], default));
+
+        // Checkpoint in persistent database remains at 2700!
+        (await stateRepo.GetLastSeenTicketIdAsync(default)).Should().Be(2700);
+
+        // Database recovers: failDb = false
+        failDb = false;
+
+        // Replica B starts its poll iteration. It reads checkpoint 2700 from database
+        var replicaB = ActivatorUtilities.CreateInstance<GlpiNativeTicketWatcher>(_factory.Services);
+        await replicaB.ProcessBatchAsync([new(ticketId, "Ticket 2701", 0)], default);
+
+        // Checkpoint is now safely advanced to 2701 and event was not lost
+        (await stateRepo.GetLastSeenTicketIdAsync(default)).Should().Be(ticketId);
+        _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketId));
+    }
+
+    [Fact]
+    public async Task Scenario15_CursorInitialization_DistinguishesZeroFromNull_DoesNotSkipToMaxId()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+
+        // Explicitly set checkpoint to 0 (valid checkpoint from migration 010)
+        _factory.ResetState();
+        _factory.WatcherCheckpoint = 0;
+
+        var watcher = ActivatorUtilities.CreateInstance<GlpiNativeTicketWatcher>(_factory.Services);
+        watcher.LastSeenTicketId.Should().Be(-1);
+
+        // Act: Poll once
+        await watcher.PollOnceAsync(default);
+
+        // Assert: Cursor was initialized to 0, not jumped to MAX(id)
+        watcher.LastSeenTicketId.Should().Be(0);
+        (await stateRepo.GetLastSeenTicketIdAsync(default)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Scenario16_ProductionEnvironment_StrictlyIgnoresExcludedIdRange()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        const int ticketId = 15; // Within 11-950 range
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["GlpiWatcher:ExcludedIdRange"] = "11-950",
+                ["GlpiWatcher:AllowTestExclusions"] = "true"
+            })
+            .Build();
+
+        var prodEnvMock = new Mock<IHostEnvironment>();
+        prodEnvMock.Setup(e => e.EnvironmentName).Returns(Environments.Production);
+
+        var watcher = new GlpiNativeTicketWatcher(
+            _factory.Services.GetRequiredService<IServiceScopeFactory>(),
+            _factory.Services.GetRequiredService<IDbConnectionFactory>(),
+            Mock.Of<ILogger<GlpiNativeTicketWatcher>>(),
+            config,
+            prodEnvMock.Object);
+
+        // Act: Process batch with ticket 15
+        await watcher.ProcessBatchAsync([new(ticketId, "Prod Ticket 15", 0)], default);
+
+        // Assert: Ticket 15 was NOT excluded; notification was created!
+        _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketId));
     }
 
     private static HttpRequestMessage CreateSignedRequest(string uri, string rawBody)

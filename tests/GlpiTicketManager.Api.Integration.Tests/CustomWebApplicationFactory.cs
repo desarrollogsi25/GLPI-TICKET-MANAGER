@@ -1539,8 +1539,13 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
+                        var attempts = 1;
+                        if (WatcherPendingTickets.TryGetValue(ticketId, out var existing))
+                        {
+                            attempts = existing.Attempts + 1;
+                        }
                         WatcherPendingTickets[ticketId] = new GlpiWatcherPendingTicket(
-                            ticketId, categoryId, name, status, 1, DateTime.UtcNow, error);
+                            ticketId, categoryId, name, status, attempts, DateTime.UtcNow, error);
                         return Task.CompletedTask;
                     }
                 });
@@ -1549,7 +1554,40 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
-                        return WatcherPendingTickets.Values.Take(limit).ToList();
+                        return WatcherPendingTickets.Values.Where(p => p.Status != "PermanentlyFailed").Take(limit).ToList();
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.GetPermanentlyFailedTicketsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int limit, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return WatcherPendingTickets.Values.Where(p => p.Status == "PermanentlyFailed").Take(limit).ToList();
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.MarkPermanentlyFailedAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, string reason, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (WatcherPendingTickets.TryGetValue(ticketId, out var existing))
+                        {
+                            WatcherPendingTickets[ticketId] = existing with { Status = "PermanentlyFailed", LastError = reason };
+                        }
+                        return Task.CompletedTask;
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.RecoverPendingTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (WatcherPendingTickets.TryGetValue(ticketId, out var existing))
+                        {
+                            WatcherPendingTickets[ticketId] = existing with { Status = "AwaitingGroup", Attempts = 0, LastError = "Explicitly recovered" };
+                            return Task.FromResult(true);
+                        }
+                        return Task.FromResult(false);
                     }
                 });
             watcherStateRepoMock.Setup(w => w.RemovePendingTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

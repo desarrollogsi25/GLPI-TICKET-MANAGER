@@ -28,6 +28,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
     private readonly IDbConnectionFactory _dbFactory;
     private readonly ILogger<GlpiNativeTicketWatcher> _logger;
     private readonly IConfiguration? _configuration;
+    private readonly IHostEnvironment? _hostEnvironment;
 
     internal int LastSeenTicketId { get; private set; } = -1;
 
@@ -35,12 +36,14 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         IServiceScopeFactory scopeFactory,
         IDbConnectionFactory dbFactory,
         ILogger<GlpiNativeTicketWatcher> logger,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        IHostEnvironment? hostEnvironment = null)
     {
         _scopeFactory = scopeFactory;
         _dbFactory = dbFactory;
         _logger = logger;
         _configuration = configuration;
+        _hostEnvironment = hostEnvironment;
     }
 
     internal sealed record NewTicketRow(long Id, string Name, long CategoryId);
@@ -91,29 +94,51 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         if (LastSeenTicketId < 0)
         {
             var persistedId = await stateRepo.GetLastSeenTicketIdAsync(ct);
-            if (persistedId is not null and > 0)
+            if (persistedId is not null)
             {
+                // Case 1 & 2: Valid durable checkpoint exists in PostgreSQL (0 or > 0)
                 LastSeenTicketId = persistedId.Value;
                 return;
             }
 
-            using var initConn = _dbFactory.CreateConnection();
-            if (initConn is MySqlConnection mConn)
+            // Case 3: Checkpoint does not exist yet (null).
+            // Policy must be explicitly configured; default safe policy is 'Zero' (inspect all tickets from ID 1).
+            var bootstrapPolicy = _configuration?["GlpiWatcher:BootstrapPolicy"] ?? "Zero";
+            if (string.Equals(bootstrapPolicy, "FromLatest", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(bootstrapPolicy, "Max", StringComparison.OrdinalIgnoreCase))
             {
-                await mConn.OpenAsync(ct);
+                using var initConn = _dbFactory.CreateConnection();
+                if (initConn is MySqlConnection mConn)
+                {
+                    await mConn.OpenAsync(ct);
+                }
+                else
+                {
+                    initConn.Open();
+                }
+
+                var maxId = await initConn.ExecuteScalarAsync<int?>(
+                    new CommandDefinition(
+                        "SELECT COALESCE(MAX(id), 0) FROM glpi_tickets WHERE is_deleted = 0;",
+                        cancellationToken: ct));
+                LastSeenTicketId = maxId ?? 0;
+                _logger.LogInformation("GlpiWatcher checkpoint initialized from MariaDB MAX(id)={MaxId} via explicit bootstrap policy '{Policy}'.", LastSeenTicketId, bootstrapPolicy);
             }
             else
             {
-                initConn.Open();
+                LastSeenTicketId = 0;
+                _logger.LogInformation("GlpiWatcher checkpoint initialized to 0 (default safe policy). Inspecting tickets from ID 1.");
             }
 
-            var maxId = await initConn.ExecuteScalarAsync<int?>(
-                new CommandDefinition(
-                    "SELECT COALESCE(MAX(id), 0) FROM glpi_tickets WHERE is_deleted = 0;",
-                    cancellationToken: ct));
-            LastSeenTicketId = maxId ?? 0;
             await stateRepo.SetLastSeenTicketIdAsync(LastSeenTicketId, ct);
             return;
+        }
+
+        // On subsequent polls, sync with PostgreSQL if checkpoint was advanced by another replica
+        var currentCheckpoint = await stateRepo.GetLastSeenTicketIdAsync(ct);
+        if (currentCheckpoint is not null && currentCheckpoint.Value > LastSeenTicketId)
+        {
+            LastSeenTicketId = currentCheckpoint.Value;
         }
 
         using var conn = _dbFactory.CreateConnection();
@@ -266,14 +291,15 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         var ticketNotificationService = scope.ServiceProvider.GetRequiredService<ITicketNotificationService>();
 
         var pending = await stateRepo.GetPendingTicketsAsync(20, ct);
-        if (pending.Count == 0) return;
 
         foreach (var item in pending)
         {
             if (item.Attempts >= 50)
             {
-                _logger.LogInformation("Ticket {TicketId} exceeded max reconciliation attempts without completion.", item.TicketId);
-                await stateRepo.RemovePendingTicketAsync(item.TicketId, ct);
+                _logger.LogError(
+                    "OPERATIONAL ALERT: Ticket {TicketId} reached max reconciliation attempts ({Attempts}). Transitioning to 'PermanentlyFailed'. Operator intervention required. Last error: {LastError}",
+                    item.TicketId, item.Attempts, item.LastError ?? "Exceeded 50 attempts");
+                await stateRepo.MarkPermanentlyFailedAsync(item.TicketId, $"Exceeded max reconciliation attempts (50). Last error: {item.LastError}", ct);
                 continue;
             }
 
@@ -336,6 +362,20 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
                 }
             }
         }
+
+        // Automatic recovery for permanently failed tickets if a group was assigned subsequently in GLPI
+        var permanentlyFailed = await stateRepo.GetPermanentlyFailedTicketsAsync(10, ct);
+        foreach (var failed in permanentlyFailed)
+        {
+            var groupInfo = await dashboardRepository.GetTicketGroupAssignmentAsync(failed.TicketId, ct);
+            if (groupInfo?.GroupId > 0)
+            {
+                _logger.LogInformation(
+                    "OPERATIONAL RECOVERY: Ticket {TicketId} in 'PermanentlyFailed' received late group assignment (Group {GroupId}). Recovering ticket.",
+                    failed.TicketId, groupInfo.GroupId);
+                await stateRepo.RecoverPendingTicketAsync(failed.TicketId, ct);
+            }
+        }
     }
 
     private bool IsExcluded(int ticketId)
@@ -343,6 +383,22 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         var range = _configuration?["GlpiWatcher:ExcludedIdRange"];
         if (string.IsNullOrWhiteSpace(range))
         {
+            return false;
+        }
+
+        // STRICT PRODUCTION GUARD: ExcludedIdRange must NEVER activate in Production environment
+        if (_hostEnvironment is not null && _hostEnvironment.IsProduction())
+        {
+            _logger.LogWarning("GlpiWatcher:ExcludedIdRange ('{Range}') is ignored in Production environment to protect legitimate tickets.", range);
+            return false;
+        }
+
+        // In non-production, requires explicit opt-in via AllowTestExclusions flag or Development/Testing environment
+        var allowExclusions = _configuration?.GetValue<bool>("GlpiWatcher:AllowTestExclusions") ?? false;
+        var isTestOrDev = _hostEnvironment is null || _hostEnvironment.IsDevelopment() || _hostEnvironment.IsEnvironment("Testing");
+        if (!allowExclusions && !isTestOrDev)
+        {
+            _logger.LogWarning("GlpiWatcher:ExcludedIdRange ('{Range}') is ignored because GlpiWatcher:AllowTestExclusions is false and environment is not Dev/Testing.", range);
             return false;
         }
 
