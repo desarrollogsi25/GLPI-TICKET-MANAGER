@@ -56,7 +56,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     public async Task GetGroupDashboard_AsSupervisorOfGroup_Returns200WithTeamMembers()
     {
         // Supervisor belongs to Group 1 in fixtures
-        var token = await AuthenticateAsAsync("supervisor_test", "SupervisorPass123!");
+        var token = await AuthenticateAsAsync("supervisor_test", TestCredentials.Supervisor);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/groups/1/dashboard");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -75,7 +75,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     public async Task GetGroupDashboard_AsSupervisorOfDifferentGroup_Returns403Forbidden()
     {
         // Supervisor belongs to Group 1, attempting to access Group 2
-        var token = await AuthenticateAsAsync("supervisor_test", "SupervisorPass123!");
+        var token = await AuthenticateAsAsync("supervisor_test", TestCredentials.Supervisor);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/groups/2/dashboard");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -88,7 +88,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     public async Task GetGroupDashboard_AsAdmin_Returns200EvenForAnyGroup()
     {
         // Admin has global access to all group dashboards
-        var token = await AuthenticateAsAsync("admin_test", "AdminPass123!");
+        var token = await AuthenticateAsAsync("admin_test", TestCredentials.Admin);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/groups/2/dashboard");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -106,7 +106,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     public async Task GetGroupDashboard_AsTechnician_Returns403Forbidden()
     {
         // Technicians are not allowed to view supervisor team dashboards
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/groups/1/dashboard");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -128,7 +128,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAdminDashboard_AsAdmin_Returns200WithGroupSummaries()
     {
-        var token = await AuthenticateAsAsync("admin_test", "AdminPass123!");
+        var token = await AuthenticateAsAsync("admin_test", TestCredentials.Admin);
 
         // 1. Check primary endpoint /api/admin/dashboard
         using var request1 = new HttpRequestMessage(HttpMethod.Get, "/api/admin/dashboard");
@@ -155,7 +155,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAdminDashboard_AsSupervisor_Returns403Forbidden()
     {
-        var token = await AuthenticateAsAsync("supervisor_test", "SupervisorPass123!");
+        var token = await AuthenticateAsAsync("supervisor_test", TestCredentials.Supervisor);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/dashboard");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -167,7 +167,7 @@ public class DashboardTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAdminDashboard_AsTechnician_Returns403Forbidden()
     {
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/groups-summary");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

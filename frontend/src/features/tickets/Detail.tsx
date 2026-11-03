@@ -3,9 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTicketQuery, useUpdateTicketStatusMutation } from '@/hooks/useTickets'
+import { useTicketQuery, useTicketTasksQuery, useUpdateTicketStatusMutation,
+  useCompleteTicketTaskMutation, useCancelTicketTaskMutation } from '@/hooks/useTickets'
+import type { TicketTask } from '@/lib/api/tickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, formatRelative, toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
@@ -14,6 +17,8 @@ import { useAuthStore } from '@/store/authStore'
 import { useCurrentTime } from '@/hooks/useCurrentTime'
 import { priorityMeta, statusMeta, TICKET_STATUSES, TICKET_TYPES } from './labels'
 import { PendingTicketDialog } from './PendingTicketDialog'
+import { PlanTicketDialog } from './PlanTicketDialog'
+import { ReplanTicketTaskDialog } from './ReplanTicketTaskDialog'
 import { ReopenTicketDialog } from './ReopenTicketDialog'
 import { ResolveTicketDialog } from './ResolveTicketDialog'
 
@@ -21,7 +26,10 @@ export function Detail() {
   const { id } = useParams<{ id: string }>()
   const ticketId = Number(id)
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
+  const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
   const updateStatus = useUpdateTicketStatusMutation()
+  const completeTask = useCompleteTicketTaskMutation()
+  const cancelTask = useCancelTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
   const currentUser = useAuthStore((state) => state.user)
   const role = useAuthStore((state) => state.role ?? state.user?.role)
@@ -29,6 +37,23 @@ export function Detail() {
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
   const [pendingOpen, setPendingOpen] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
+  const [replanTask, setReplanTask] = useState<TicketTask | null>(null)
+  const [taskAction, setTaskAction] = useState<{ taskId: number; action: 'complete' | 'cancel' } | null>(null)
+
+  const confirmTaskAction = async () => {
+    if (!taskAction) return
+    const { taskId, action } = taskAction
+    try {
+      await (action === 'complete' ? completeTask : cancelTask).mutateAsync({ ticketId, taskId })
+      pushToast({ title: action === 'complete' ? `Tarea #${taskId} completada` : `Tarea #${taskId} cancelada`,
+        variant: 'success' })
+      setTaskAction(null)
+    } catch (mutationError) {
+      pushToast({ title: getApiErrorTitle(mutationError, 'No se pudo actualizar la tarea'),
+        description: getApiErrorMessage(mutationError), variant: 'destructive' })
+    }
+  }
 
   const changeStatus = (status: number) => {
     updateStatus.mutate(
@@ -167,6 +192,63 @@ export function Detail() {
               )}
             </CardContent>
           </Card>
+          <Card className="border-border/60 shadow-xs backdrop-blur-md bg-card/90 rounded-2xl">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Tareas de GLPI</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {tasksLoading ? (
+                <Skeleton className="h-20 w-full" />
+              ) : tasksFailed ? (
+                <p role="alert" className="text-sm text-destructive">
+                  No se pudo consultar el calendario de tareas: {getApiErrorMessage(tasksError)}
+                </p>
+              ) : !tasks?.length ? (
+                <p className="text-sm text-muted-foreground">No hay tareas registradas en GLPI.</p>
+              ) : (
+                <ol className="space-y-4" data-testid="ticket-tasks-timeline">
+                  {[...tasks].sort((a, b) => (a.startAt ?? '').localeCompare(b.startAt ?? '') || a.id - b.id).map((task) => (
+                    <li key={task.id} className="border-l-2 border-primary/50 pl-4 py-0.5">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Tarea #{task.id}</span>
+                        <Badge variant={task.state === 2 ? 'secondary' : 'outline'}>
+                          {task.state === 2 ? 'Realizada' : task.state === 1 ? 'Por hacer' : 'Información'}
+                        </Badge>
+                        {task.isPrivate ? <Badge variant="secondary">Privada</Badge> : null}
+                        <span>Técnico #{task.technicianId}</span>
+                      </div>
+                      <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground">{toPlainText(task.content) || '—'}</p>
+                      {task.startAt && task.endAt && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatDateTime(task.startAt)} – {formatDateTime(task.endAt)}
+                        </p>
+                      )}
+                      {task.state === 1 && ticket.status >= 2 && ticket.status <= 4 &&
+                        (role === 'admin' || role === 'supervisor' ||
+                          (currentUser?.userId === task.technicianId &&
+                            ticket.assigneeIds.includes(task.technicianId))) && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {ticket.status !== 4 && (
+                              <Button size="sm" variant="outline" onClick={() => setReplanTask(task)}>
+                                Reprogramar
+                              </Button>
+                            )}
+                            <Button size="sm" variant="outline"
+                              onClick={() => setTaskAction({ taskId: task.id, action: 'complete' })}>
+                              Completar
+                            </Button>
+                            <Button size="sm" variant="destructive"
+                              onClick={() => setTaskAction({ taskId: task.id, action: 'cancel' })}>
+                              Cancelar tarea
+                            </Button>
+                          </div>
+                        )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Columna Derecha (1/3): Cambiar estado y Detalles */}
@@ -185,9 +267,9 @@ export function Detail() {
                     className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
                     disabled={updateStatus.isPending}
                     data-testid="start-ticket-btn"
-                    onClick={() => changeStatus(3)}
+                    onClick={() => setPlanOpen(true)}
                   >
-                    Iniciar ticket
+                    Planificar tarea
                   </Button>
                 )}
                 <Button
@@ -203,9 +285,9 @@ export function Detail() {
                   }
                   title={
                     ticket.status === 2
-                      ? 'Primero debes iniciar el ticket (En Progreso) para resolverlo.'
+                      ? 'Primero debes programar una tarea para resolverlo.'
                       : ticket.status === 4
-                        ? 'Debes reanudar a En Progreso primero.'
+                        ? 'Debes replanificar una tarea primero.'
                         : undefined
                   }
                   onClick={() => setResolveOpen(true)}
@@ -272,15 +354,17 @@ export function Detail() {
                       disabled={isDisabled}
                       title={
                         isAssigneeDirectResolveBlocked
-                          ? 'Primero debes iniciar el ticket (En Progreso) para resolverlo.'
+                          ? 'Primero debes programar una tarea para resolverlo.'
                           : isPendingInvalidTransition
-                            ? 'Debes reanudar a En Progreso primero.'
+                            ? 'Debes replanificar una tarea primero.'
                             : isBackwardBlocked
                               ? 'No se puede retroceder el estado de este ticket.'
                               : undefined
                       }
                       onClick={() => {
-                        if (option.value === 5) {
+                        if (option.value === 3) {
+                          setPlanOpen(true)
+                        } else if (option.value === 5) {
                           setResolveOpen(true)
                         } else {
                           changeStatus(option.value)
@@ -295,12 +379,12 @@ export function Detail() {
 
               {ticket.status === 2 && (
                 <p className="text-xs text-muted-foreground font-medium">
-                  Primero debes iniciar el ticket (En Progreso) para poder resolverlo.
+                  Primero debes planificar una tarea en GLPI para poder resolverlo.
                 </p>
               )}
               {ticket.status === 4 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                  Debes reanudar a En Progreso primero.
+                  Debes replanificar una tarea en GLPI antes de resolverlo.
                 </p>
               )}
             </CardContent>
@@ -339,6 +423,23 @@ export function Detail() {
       <ResolveTicketDialog ticketId={ticketId} open={resolveOpen} onOpenChange={setResolveOpen} />
       <ReopenTicketDialog ticketId={ticketId} open={reopenOpen} onOpenChange={setReopenOpen} />
       <PendingTicketDialog ticketId={ticketId} open={pendingOpen} onOpenChange={setPendingOpen} />
+      <PlanTicketDialog ticketId={ticketId} open={planOpen} onOpenChange={setPlanOpen} />
+      <ReplanTicketTaskDialog ticketId={ticketId} task={replanTask} onClose={() => setReplanTask(null)} />
+      <Dialog open={taskAction !== null}
+        onClose={() => { if (!completeTask.isPending && !cancelTask.isPending) setTaskAction(null) }}
+        title={taskAction?.action === 'complete' ? 'Completar tarea' : 'Cancelar tarea'}
+        description={taskAction?.action === 'complete'
+          ? 'GLPI marcará la tarea como realizada. Se volverá a consultar el estado del ticket.'
+          : 'GLPI eliminará esta tarea. Según la versión y configuración, puede ser definitivo. Confirma solo si estás seguro.'}>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" disabled={completeTask.isPending || cancelTask.isPending}
+            onClick={() => setTaskAction(null)}>Volver</Button>
+          <Button variant={taskAction?.action === 'cancel' ? 'destructive' : 'default'}
+            disabled={completeTask.isPending || cancelTask.isPending} onClick={confirmTaskAction}>
+            {completeTask.isPending || cancelTask.isPending ? 'Guardando...' : 'Confirmar en GLPI'}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }

@@ -204,3 +204,23 @@ export interface GroupSummary {
   pendingTickets: number
   activeTechnicians: number
 }
+
+
+export interface WatcherPendingTicket {
+  ticketId: number
+  categoryId: number
+  ticketName: string
+  status: string
+  attempts: number
+  nextRetryAt: string
+  lastError: string | null
+}
+
+export interface AdminWatcherStatus {
+  lastSeenTicketId: number | null
+  pendingCount: number
+  permanentlyFailedCount: number
+  hasOperationalAlert: boolean
+  permanentlyFailedTicketsTruncated?: boolean
+  permanentlyFailedTickets: WatcherPendingTicket[]
+}

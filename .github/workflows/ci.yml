@@ -132,6 +132,13 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
           GLPI_CRYPT_KEY: ${{ secrets.GLPI_CRYPT_KEY }}
+      - name: Generate isolated E2E and webhook secrets
+        run: |
+          for name in GLPI_WEBHOOK_SECRET E2E_TECH_PASSWORD E2E_REQUESTER_PASSWORD E2E_ADMIN_PASSWORD; do
+            value=$(openssl rand -base64 48 | tr -d '\n')
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done
       - name: Create .env for compose
         run: |
           cat > .env <<EOF
@@ -142,6 +149,7 @@ jobs:
           GLPI_APP_TOKEN=${{ secrets.GLPI_APP_TOKEN }}
           GLPI_USER_TOKEN=${{ secrets.GLPI_USER_TOKEN }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
+          GLPI_WEBHOOK_SECRET=${GLPI_WEBHOOK_SECRET}
           APP_DB_PASSWORD=${{ secrets.APP_DB_PASSWORD }}
           EOF
       - name: Start database
@@ -175,17 +183,23 @@ jobs:
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-base.sql
           echo "Applying schema for glpi_events and glpi_logs (excluded from base dump)"
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi < scripts/glpi-schema-events-logs.sql
+      - name: Verify MariaDB migration 007 on a disposable GLPI schema
+        run: |
+          docker compose cp scripts/test-glpi-007.sh glpi-db:/tmp/test-glpi-007.sh
+          docker compose cp db/glpi/007_glpi_webhook_config.sql glpi-db:/tmp/007.sql
+          docker compose cp scripts/glpi-base.sql glpi-db:/tmp/test007-base.sql
+          docker compose exec -T glpi-db sh -ec 'export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"; bash /tmp/test-glpi-007.sh /tmp/007.sql /tmp/test007-base.sql'
       - name: Verify app-db migrations
         run: |
           TABLES=$(docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc \
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('app_settings','user_preferences','audit_log','revoked_tokens');")
-          echo "Tables found: ${TABLES} / 4"
-          if [ "${TABLES}" != "4" ]; then
-            echo "ERROR: Expected 4 tables, found ${TABLES}"
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('app_settings','user_preferences','audit_log','revoked_tokens','ticket_planning_requests','glpi_ticket_created_notification_keys');")
+          echo "Tables found: ${TABLES} / 6"
+          if [ "${TABLES}" != "6" ]; then
+            echo "ERROR: Expected 6 tables, found ${TABLES}"
             docker compose logs app-db --tail=50
             exit 1
           fi
-          echo "app-db migrations verified: 4 tables present."
+          echo "app-db migrations verified: 6 tables present."
       - name: Start full stack
         run: docker compose up -d --build
       - name: Copy GLPI configuration and encryption key
@@ -248,12 +262,19 @@ jobs:
         run: |
           mkdir -p "$HOME/.cache/ms-playwright"
           docker compose cp frontend:/root/.cache/ms-playwright/. "$HOME/.cache/ms-playwright/" 2>/dev/null || true
-      - name: Smoke test - API claim and status update
+      - name: Seed E2E state
+        run: ./scripts/seed-e2e.sh
+      - name: Smoke test - API claim and native GLPI planning
         run: |
           echo "===== Login as tech1 ====="
+          if [ -z "$E2E_TECH_PASSWORD" ]; then
+            echo "ERROR: E2E_TECH_PASSWORD secret not configured"
+            exit 1
+          fi
+          LOGIN_PAYLOAD=$(jq -n --arg pwd "$E2E_TECH_PASSWORD" '{username: "tech1", password: $pwd}')
           LOGIN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"username":"tech1","password":"Tech1Pass!"}')
+            -d "$LOGIN_PAYLOAD")
           TOKEN=$(echo "$LOGIN" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
           if [ -z "$TOKEN" ]; then
             echo "ERROR: could not login"
@@ -273,30 +294,29 @@ jobs:
           fi
           echo "Claim OK (200)"
           
-          echo "===== PATCH /api/tickets/11/status ====="
-          # GLPI can briefly serve HTML (instead of the JSON API) right after the
-          # container restart while PHP-FPM warms up; the API surfaces that as a 500.
-          # Retry a few times so a transient GLPI startup race doesn't fail the job.
-          STATUS_HTTP=000
-          for attempt in 1 2 3 4 5; do
-            STATUS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-              -X PATCH http://localhost:8080/api/tickets/11/status \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d '{"status":3}')
-            if [ "$STATUS_HTTP" = "204" ]; then
-              break
-            fi
-            echo "Status update returned $STATUS_HTTP (attempt $attempt/5), retrying in 5s..."
-            sleep 5
-          done
-          if [ "$STATUS_HTTP" != "204" ]; then
-            echo "ERROR: status update returned $STATUS_HTTP (expected 204)"
+          echo "===== POST /api/tickets/11/plan ====="
+          # GLPI owns status 3: only a real scheduled TicketTask may activate it.
+          # Do not automatically replay a non-idempotent external write after an
+          # uncertain response; inspect the task/claim if this call fails.
+          PLAN_REQUEST_ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
+          PLAN_START=$(date -u -d '+10 minutes' '+%Y-%m-%dT%H:%M:00+00:00')
+          PLAN_END=$(date -u -d '+40 minutes' '+%Y-%m-%dT%H:%M:00+00:00')
+          PLAN_PAYLOAD=$(jq -n --arg id "$PLAN_REQUEST_ID" --arg start "$PLAN_START" --arg end "$PLAN_END" \
+            '{requestId: $id, content: "Smoke: revisión programada", startAt: $start, endAt: $end}')
+          PLAN_RESPONSE=$(curl -s -w '\n%{http_code}' \
+            -X POST http://localhost:8080/api/tickets/11/plan \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PLAN_PAYLOAD")
+          PLAN_HTTP=$(echo "$PLAN_RESPONSE" | tail -n 1)
+          if [ "$PLAN_HTTP" != "200" ]; then
+            echo "ERROR: GLPI planning returned $PLAN_HTTP (expected 200)"
+            echo "$PLAN_RESPONSE" | head -n -1
             docker compose logs api --tail=50
             docker compose logs glpi --tail=50
             exit 1
           fi
-          echo "Status update OK (204)"
+          echo "GLPI planning confirmed (200)"
 
           echo "===== POST /api/tickets/11/solutions ====="
           SOL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -316,12 +336,11 @@ jobs:
           docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e \
             "UPDATE glpi_tickets SET status=1, date_mod=NOW() WHERE id=11; 
              DELETE FROM glpi_tickets_users WHERE tickets_id=11 AND type=2;
+             DELETE FROM glpi_tickettasks WHERE tickets_id=11;
              DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=11;"
           echo "Reset OK"
           
-          echo "Smoke test PASSED - API can claim, update status and create solutions"
-      - name: Seed E2E state
-        run: ./scripts/seed-e2e.sh
+          echo "Smoke test PASSED - API can claim, schedule a GLPI task and create solutions"
       - name: Seed GLPI visual forms and Hardware routing
         run: node scripts/seed-visual-forms.js
       - name: Run E2E inside container
@@ -331,13 +350,43 @@ jobs:
           -e E2E_GLPI_URL=http://glpi
           -e E2E_DESK_URL=http://localhost:5173
           -e E2E_TECH_USERNAME=tech1
-          -e E2E_TECH_PASSWORD=Tech1Pass!
+          -e E2E_TECH_PASSWORD
           -e E2E_REQUESTER_USERNAME=user1
-          -e E2E_REQUESTER_PASSWORD=User1Pass!
+          -e E2E_REQUESTER_PASSWORD
           -e E2E_ADMIN_USERNAME=admin_test
-          -e E2E_ADMIN_PASSWORD=Password123!
+          -e E2E_ADMIN_PASSWORD
           -e E2E_GLPI_NATIVE=false
           frontend pnpm exec playwright test
+      - name: Start a second API replica with the shared MariaDB and PostgreSQL
+        run: |
+          docker compose run -d --no-deps --name glpi-api-replica -p 127.0.0.1:8084:8080 api
+          for i in {1..30}; do
+            if curl -sf http://localhost:8084/health/ready > /dev/null; then
+              echo "Second API replica ready on localhost:8084"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs glpi-api-replica --tail=100
+          echo "ERROR: second API replica did not become ready"
+          exit 1
+      # This follows Playwright, so the synthetic ticket/user state exists.
+      # Concurrent signed POSTs alternate between two real .NET API containers.
+      - name: Run webhook deduplication smoke test across both API replicas
+        env:
+          SECONDARY_API_URL: http://localhost:8084
+        run: bash scripts/test-webhook-dedup.sh
+      - name: Restart secondary API and replay signed webhook
+        env:
+          SECONDARY_API_URL: http://localhost:8084
+        run: |
+          docker restart glpi-api-replica
+          for i in {1..30}; do
+            if curl -sf http://localhost:8084/health/ready > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8084/health/ready > /dev/null
+          bash scripts/test-webhook-dedup.sh
       - name: Run audit smoke test
         run: bash scripts/test-audit.sh
         if: success()
@@ -368,4 +417,6 @@ jobs:
           retention-days: 7
       - name: Tear down stack
         if: always()
-        run: docker compose down -v
+        run: |
+          docker rm -f glpi-api-replica 2>/dev/null || true
+          docker compose down -v

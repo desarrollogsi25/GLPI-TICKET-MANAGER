@@ -112,3 +112,22 @@ WHERE f.itemtype = 'Ticket'
 ```
 
 La política `TicketAccessPolicy.CanSeePrivateFollowupsAsync(userId, role, ticketId)` evalúa las relaciones antes de la consulta, asegurando que los seguimientos confidenciales nunca viajen por la red hacia clientes no autorizados.
+
+---
+
+## 7. Listados de tickets, soluciones y CORS (revisión 2026-11-02)
+
+- **Listados de técnicos (H-01, remediación parcial):** `GET /api/tickets` aplica siempre `assigneeId = usuario autenticado` para técnicos; `serviceId` solo restringe esa lista. La cola de tickets nuevos sin asignar se consulta por `GET /api/tickets/by-group` con verificación de grupo.
+- **Listados de supervisores (H-01):** la misma consulta SQL y su `COUNT` restringen los registros a tickets expresamente asignados al supervisor o vinculados a sus grupos GLPI actuales; los parámetros de asignado, catálogo y fecha no amplían ese alcance. Las reglas coinciden con `TicketAccessPolicy.CanViewAsync`. Sigue pendiente verificar la jerarquía de entidades GLPI, perfiles/derechos efectivos y metadatos agregados en todos los endpoints antes del cierre de H-01.
+- **Soluciones (H-03):** los técnicos solo pueden registrar soluciones en tickets expresamente asignados a ellos. Pertenecer al mismo grupo no autoriza la modificación. Administradores y supervisores conservan su política de acceso correspondiente; solicitantes no pueden añadir soluciones técnicas.
+- **CORS (H-06):** el backend deniega por defecto cualquier origen diferente. Los despliegues con proxy same-origin no necesitan configurar CORS. Si navegador y API están separados, establecer `CORS_ALLOWED_ORIGIN=https://frontend.ejemplo.com` en el entorno de la API (admite varios orígenes exactos separados por comas); solo se aceptan autoridades HTTP(S), sin comodines ni rutas. La lista debe configurarse por entorno y comprobarse con preflight `OPTIONS` real.
+
+Estos cambios se validan en una PR borrador y **no implican autorización de producción**. Rotar cualquier secreto divulgado históricamente y ejecutar la revisión de permisos por entidad antes del despliegue.
+
+## 8. Deduplicación durable de notificaciones de webhook (H-02/H-14)
+
+La migración PostgreSQL `009_webhook_notification_idempotency.sql` crea la tabla `glpi_ticket_created_notification_keys` con clave primaria `(user_id, ticket_id)` y registra los eventos históricos `TicketCreated` existentes sin borrar notificaciones. En una sola sentencia SQL se reserva la clave y se inserta la notificación: otra réplica o un replay firmado que intente la misma entrega no genera una segunda notificación. Si la inserción falla, PostgreSQL revierte también la reserva.
+
+El receptor devuelve `503` si falta entregar la notificación a algún técnico; GLPI puede reintentar y solo se completan los destinatarios pendientes. Un replay completo no vuelve a emitir eventos SignalR. SignalR sigue siendo un canal transitorio, no un sustituto de la persistencia. Se debe ejecutar la migración antes de arrancar la nueva API en un despliegue con base de datos existente.
+
+**Pendiente de validación operativa:** dos réplicas de API contra PostgreSQL compartido, fallos a mitad de lote, reintentos y reconexiones reales desde GLPI 11, y política de retención de claves de deduplicación. Hasta entonces el hallazgo no se declara cerrado en producción.

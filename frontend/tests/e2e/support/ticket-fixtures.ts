@@ -26,7 +26,7 @@ function readMariaDbPassword(): string {
     if (match) return match[1].trim()
   }
 
-  return 'VW9Qr7m2XSkGd0tHegGGq3hhrHcD'
+  throw new Error('MARIADB_PASSWORD no configurada: exporta la variable o crea un .env local fuera de Git.')
 }
 
 /**
@@ -50,6 +50,7 @@ export function resetFixtureTicket(ticketId: number, name: string): void {
     `DELETE FROM glpi_tickets_users WHERE tickets_id = ${ticketId} AND type = 2;`,
     `DELETE FROM glpi_itilsolutions WHERE itemtype = 'Ticket' AND items_id = ${ticketId};`,
     `DELETE FROM glpi_itilfollowups WHERE itemtype = 'Ticket' AND items_id = ${ticketId};`,
+    `DELETE FROM glpi_tickettasks WHERE tickets_id = ${ticketId};`,
   ].join('\n')
 
   try {

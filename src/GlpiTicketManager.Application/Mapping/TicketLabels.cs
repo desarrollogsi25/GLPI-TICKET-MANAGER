@@ -11,7 +11,7 @@ public static class TicketLabels
     {
         TicketStatus.New => "Nuevo",
         TicketStatus.Assigned => "Asignado",
-        TicketStatus.Planned => "Planificado",
+        TicketStatus.Planned => "En proceso (planificado)",
         TicketStatus.Waiting => "Pendiente",
         TicketStatus.Solved => "Resuelto",
         TicketStatus.Closed => "Cerrado",

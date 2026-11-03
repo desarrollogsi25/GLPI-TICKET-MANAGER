@@ -49,6 +49,41 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapGet("/{id:int}/tasks", GetTasks)
+            .WithName("GetTicketTasks")
+            .WithSummary("Native GLPI TicketTasks timeline, scoped by ticket access and private-task permissions")
+            .Produces<IReadOnlyList<TicketTaskDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPut("/{id:int}/tasks/{taskId:int}", ReplanTask)
+            .WithName("ReplanTicketTask")
+            .Accepts<ReplanTicketTaskRequest>("application/json")
+            .Produces<TicketTaskMutationResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/{id:int}/tasks/{taskId:int}/complete", CompleteTask)
+            .WithName("CompleteTicketTask")
+            .Produces<TicketTaskMutationResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapDelete("/{id:int}/tasks/{taskId:int}", CancelTask)
+            .WithName("CancelTicketTask")
+            .Produces<TicketTaskMutationResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         group.MapPatch("/{id:int}/status", UpdateStatus)
             .WithName("UpdateTicketStatus")
             .WithSummary("Change the status of a ticket through the GLPI REST API")
@@ -57,6 +92,18 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/{id:int}/plan", Plan)
+            .WithName("PlanTicket")
+            .WithSummary("Schedule a native GLPI TicketTask and confirm planned status")
+            .Accepts<PlanTicketRequest>("application/json")
+            .Produces<PlanTicketResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status502BadGateway)
             .Produces(StatusCodes.Status401Unauthorized);
 
@@ -164,23 +211,24 @@ public static class TicketEndpoints
         }
         else
         {
-            // BOLA fix: Client-provided assigneeId is ignored for technicians;
-            // When filtering by a specific service catalog, list tickets under that service;
-            // otherwise scope to the technician's own assigned tickets.
-            effectiveAssigneeId = serviceId.HasValue ? null : userId.Value;
+            // H-01/BOLA: a catalog filter must only NARROW visibility. Previously
+            // serviceId removed the assignee predicate entirely, exposing ticket
+            // summaries (and total counts) belonging to other technicians/groups.
+            // The separate by-group endpoint is the authorized unassigned queue.
+            effectiveAssigneeId = userId.Value;
         }
 
         try
         {
-            var result = await ticketService.GetFilteredAsync(
-                effectiveAssigneeId,
-                serviceId,
-                effectiveRequesterId,
-                startDate,
-                endDate,
-                limit ?? 0,
-                offset ?? 0,
-                cancellationToken);
+            // H-01: supervisors may filter by colleague but MUST NOT enumerate
+            // other groups. Both rows and Total are scoped inside the SQL query.
+            var result = role == AppRole.Supervisor
+                ? await ticketService.GetSupervisorFilteredAsync(userId.Value,
+                    effectiveAssigneeId, serviceId, startDate, endDate,
+                    limit ?? 0, offset ?? 0, cancellationToken)
+                : await ticketService.GetFilteredAsync(
+                    effectiveAssigneeId, serviceId, effectiveRequesterId,
+                    startDate, endDate, limit ?? 0, offset ?? 0, cancellationToken);
 
             return Results.Ok(result);
         }
@@ -264,6 +312,93 @@ public static class TicketEndpoints
         }
     }
 
+    private static async Task<IResult> GetTasks(
+        int id,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        try
+        {
+            return Results.Ok(await ticketService.GetTasksAsync(
+                id, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Identificador inválido", detail: ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado", detail: ex.Message);
+        }
+    }
+
+    private static Task<IResult> ReplanTask(int id, int taskId,
+        ReplanTicketTaskRequest request, ITicketService ticketService,
+        ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        return userId is null
+            ? Task.FromResult<IResult>(Results.Unauthorized())
+            : TaskMutationResultAsync(ticketService.ReplanTaskAsync(
+                id, taskId, request, userId.Value, principal.GetRole(), cancellationToken));
+    }
+
+    private static Task<IResult> CompleteTask(int id, int taskId,
+        ITicketService ticketService, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        return userId is null
+            ? Task.FromResult<IResult>(Results.Unauthorized())
+            : TaskMutationResultAsync(ticketService.CompleteTaskAsync(
+                id, taskId, userId.Value, principal.GetRole(), cancellationToken));
+    }
+
+    private static Task<IResult> CancelTask(int id, int taskId,
+        ITicketService ticketService, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        return userId is null
+            ? Task.FromResult<IResult>(Results.Unauthorized())
+            : TaskMutationResultAsync(ticketService.CancelTaskAsync(
+                id, taskId, userId.Value, principal.GetRole(), cancellationToken));
+    }
+
+    private static async Task<IResult> TaskMutationResultAsync(Task<TicketTaskMutationResponse> mutation)
+    {
+        try { return Results.Ok(await mutation); }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Tarea inválida", detail: ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Tarea no encontrada", detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Tarea no confirmada", detail: ex.Message);
+        }
+    }
+
     private static async Task<IResult> UpdateStatus(
         int id,
         UpdateTicketStatusRequest request,
@@ -335,6 +470,44 @@ public static class TicketEndpoints
                 statusCode: StatusCodes.Status403Forbidden,
                 title: "Acceso denegado",
                 detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> Plan(
+        int id,
+        PlanTicketRequest request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        try
+        {
+            return Results.Ok(await ticketService.PlanAsync(
+                id, request, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Planificación inválida", detail: ex.Message, extensions:
+                new Dictionary<string, object?> { ["errors"] = ex.Errors });
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado", detail: ex.Message);
+        }
+        catch (ConflictException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "Planificación no confirmada", detail: ex.Message);
         }
     }
 
@@ -531,6 +704,7 @@ public static class TicketEndpoints
                 request.Urgency,
                 request.CategoryId,
                 userId.Value,
+                principal.GetEntityId(),
                 cancellationToken);
 
             return Results.Created($"/api/tickets/{ticketId}", new CreateTicketResponse(ticketId));

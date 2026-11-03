@@ -226,15 +226,11 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // Technician: asignado a él O perteneciente a su grupo
-        if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
-        {
-            return true;
-        }
-
-        var userGroups2 = await _tickets.GetGroupIdsForUserAsync(userId, ct);
-        var ticketGroups2 = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
-        return userGroups2.Intersect(ticketGroups2).Any();
+        // H-03: belonging to the same group grants queue visibility, never
+        // permission to insert a solution on another technician's ticket.
+        // Requesters/observers cannot author technician solutions either.
+        return role == AppRole.Technician
+            && await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
     }
 
     public async Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default)

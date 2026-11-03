@@ -26,7 +26,7 @@ async function pickCalendarOption(page: Page, field: 'Mes' | 'Año', option: str
 test.describe('ticket date filters', () => {
   async function loginToken(request: import('@playwright/test').APIRequestContext) {
     const response = await request.post(`${BASE_URL}/api/auth/login`, {
-      data: { username: 'tech1', password: 'Tech1Pass!' },
+      data: { username: 'tech1', password: process.env.E2E_TECH_PASSWORD ?? '' },
     })
     expect(response.ok()).toBeTruthy()
     const body = await response.json()

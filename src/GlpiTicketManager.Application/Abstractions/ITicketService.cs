@@ -49,6 +49,12 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    /// <summary>Supervisor list constrained to their current GLPI groups or own assignments.</summary>
+    Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
+        int supervisorId, int? assigneeId, int? serviceId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        CancellationToken cancellationToken);
+
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, int userId, CancellationToken cancellationToken);
@@ -64,6 +70,19 @@ public interface ITicketService
     Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, string? solution, CancellationToken cancellationToken);
+
+    Task<PlanTicketResponse> PlanAsync(int ticketId, PlanTicketRequest request, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TicketTaskDto>> GetTasksAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketTaskMutationResponse> ReplanTaskAsync(int ticketId, int taskId,
+        ReplanTicketTaskRequest request, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketTaskMutationResponse> CompleteTaskAsync(int ticketId, int taskId,
+        int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketTaskMutationResponse> CancelTaskAsync(int ticketId, int taskId,
+        int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<PagedResult<TicketSummaryDto>> GetUnassignedByGroupAsync(
         int groupId,
@@ -125,6 +144,16 @@ public interface ITicketService
         int? categoryId,
         int requesterUserId,
         CancellationToken cancellationToken);
+
+    Task<int> CreateTicketAsync(
+        string title,
+        string description,
+        int urgency,
+        int? categoryId,
+        int requesterUserId,
+        int? requesterEntityId,
+        CancellationToken cancellationToken) =>
+        CreateTicketAsync(title, description, urgency, categoryId, requesterUserId, cancellationToken);
 
     /// <summary>
     /// Sets a ticket into Pending (Waiting = 4) status with a private followup (H-34).

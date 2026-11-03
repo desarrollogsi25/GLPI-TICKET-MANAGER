@@ -77,7 +77,7 @@ public class FollowupPrivacyTests : IClassFixture<CustomWebApplicationFactory>
             CreatedAt = DateTime.UtcNow.AddMinutes(-5)
         });
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -111,7 +111,7 @@ public class FollowupPrivacyTests : IClassFixture<CustomWebApplicationFactory>
             CreatedAt = DateTime.UtcNow.AddMinutes(-5)
         });
 
-        var token = await AuthenticateAsAsync("tech2", "Tech2Pass!");
+        var token = await AuthenticateAsAsync("tech2", TestCredentials.Tech2);
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/tickets/{CustomWebApplicationFactory.Ticket11Id}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -137,7 +137,7 @@ public class FollowupPrivacyTests : IClassFixture<CustomWebApplicationFactory>
         });
 
         // Admin views Ticket 12 which has private followups
-        var token = await AuthenticateAsAsync("admin_test", "AdminPass123!");
+        var token = await AuthenticateAsAsync("admin_test", TestCredentials.Admin);
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -159,7 +159,7 @@ public class FollowupPrivacyTests : IClassFixture<CustomWebApplicationFactory>
             ticket11.RequesterIds = new[] { CustomWebApplicationFactory.Tech2Id };
         }
 
-        var token = await AuthenticateAsAsync("tech2", "Tech2Pass!");
+        var token = await AuthenticateAsAsync("tech2", TestCredentials.Tech2);
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/tickets/{CustomWebApplicationFactory.Ticket11Id}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

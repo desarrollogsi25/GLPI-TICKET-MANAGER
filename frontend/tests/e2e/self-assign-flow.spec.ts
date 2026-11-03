@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { confirmPlanning } from './support/planning'
 
 test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -22,10 +23,10 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
   await page.waitForLoadState('networkidle')
 
   // H-62: Un ticket en Asignado (2) debe iniciarse (En Progreso) antes de resolverse
-  const startButton = page.getByRole('button', { name: /Iniciar ticket|Planificado/i }).first()
+  const startButton = page.getByRole('button', { name: /Planificar tarea/i }).first()
   if (await startButton.isVisible()) {
     await startButton.click()
-    await expect(page.getByText('Estado actualizado')).toBeVisible({ timeout: 10000 })
+    await confirmPlanning(page)
   }
 
   const resolveButton = page.getByRole('button', { name: /^Resolver$/ }).first()

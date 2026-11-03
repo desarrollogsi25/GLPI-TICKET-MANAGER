@@ -1,131 +1,21 @@
-# Configuración del Webhook de Creación de Tickets en GLPI 11
+# Borrador de webhook TicketCreated en GLPI 11
 
-Este documento detalla la configuración del Webhook en GLPI 11 para emitir notificaciones automáticas (persistentes y en tiempo real) a los técnicos del grupo de soporte asignado cuando entra un nuevo ticket.
+La migración opcional `db/glpi/007_glpi_webhook_config.sql` se ejecuta con el cliente MariaDB en modo batch, en una conexión nueva sin `--force`. Seleccione la base GLPI de destino con `--database`. En esa misma sesión configure dos variables antes de cargar el script. Sustituya los ejemplos por el nombre esperado de la base y la URL aprobada para el entorno. Use HTTPS fuera de una red de laboratorio aislada.
 
----
-
-## 1. Arquitectura del Flujo
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Usuario as Solicitante / Sistema
-    participant GLPI as GLPI 11
-    participant Backend as Backend .NET (TicketManager)
-    participant MariaDB as MariaDB (GLPI DB)
-    participant AppDb as PostgreSQL (App DB)
-    participant SignalR as Hub SignalR
-    actor Tecnico as Técnicos del Grupo
-
-    Usuario->>GLPI: Crea Ticket
-    GLPI->>Backend: POST /api/integrations/glpi/ticket-created (Header: X-Webhook-Secret)
-    Backend->>Backend: Valida firma / secreto (Constant-Time)
-    Backend->>MariaDB: Consulta grupo asignado y técnicos (Dapper)
-    Backend->>AppDb: Inserta notificación persistente (NotificationRepository)
-    Backend->>SignalR: Emite evento TicketCreated al grupo
-    SignalR-->>Tecnico: Notificación toast en vivo
+```sql
+SET @glpi_expected_database = 'example_glpi';
+SET @glpi_webhook_url = 'https://tickets.example.invalid/api/integrations/glpi/ticket-created';
+SOURCE db/glpi/007_glpi_webhook_config.sql;
 ```
 
----
+El SQL verifica el nombre seleccionado y la versión de GLPI. La categoría raíz se identifica por padre y nombre. En GLPI 11.0.11 solo el ID del webhook es único: un upsert por nombre creaba otro borrador. Un ID fijo de categoría y un INSERT IGNORE podían ocultar una colisión. El nuevo script usa el ID asignado por MariaDB y reconoce sus filas por una marca de propiedad. Una coincidencia ambigua o una configuración distinta hace fallar la operación. No reasigna filas ajenas. Un segundo pase sobre el borrador intacto conserva incluso las fechas.
 
-## 2. Endpoint del Backend
+Las inserciones se agrupan en una transacción con rollback ante errores o advertencias. El bloqueo nominal por base solo coordina a escritores que respetan ese mismo bloqueo. Evite ediciones concurrentes desde la interfaz durante la migración. Revise manualmente cualquier borrador creado por versiones anteriores o configurado después de ejecutar 007.
 
-- **URL**: `POST /api/integrations/glpi/ticket-created`
-- **Autenticación**: Cabecera secreta compartida (`X-Webhook-Secret`, `X-Glpi-Secret`, `X-Glpi-Signature` o `Authorization: Bearer <secret>`).
-- **Content-Type**: `application/json`
+## Verificación previa a la activación
 
-### Variables de Entorno del Backend
-En el archivo de configuración (`appsettings.json`, `.env` o variables de contenedor Docker):
+Confirme en GLPI el evento `Ticket / new`, la URL, el método POST y el estado inactivo. En **Preview**, seleccione un ticket sintético y compare el ID de los datos de la API con el entero de `{"ticketId": {{ item.id }}}` ya renderizado. El editor nativo usa Twig. La prueba de regresión compara el texto almacenado; la entrega HTTP y el comportamiento de reintentos requieren pruebas de integración independientes.
 
-```json
-{
-  "GlpiWebhook": {
-    "Secret": "glpi-webhook-secret-token-32-chars-minimum!!"
-  }
-}
-```
+Configure el secreto mediante el campo de seguridad de GLPI para que GLPI lo cifre con su propia clave. El borrador deja el secreto nulo y la colección de cabeceras personalizadas vacía. Configure por separado el mismo secreto en el backend mediante su gestor de secretos. La autenticación requiere las cabeceras de firma y tiempo que genera GLPI. La activación y el envío de prueba son operaciones posteriores.
 
-O en Docker Compose:
-```yaml
-environment:
-  - GlpiWebhook__Secret=glpi-webhook-secret-token-32-chars-minimum!!
-```
-
----
-
-## 3. Configuración en la Interfaz de GLPI 11
-
-### Opción A: A través de Webhooks Nativos / Plugin Webhook en GLPI 11
-
-1. Iniciar sesión en GLPI con perfil **Super-Admin**.
-2. Ir a **Configuración** (Setup) > **Notificaciones** (Notifications).
-3. Asegurarse de que el modo de notificaciones esté activado.
-4. Navegar a **Webhooks** (o la sección de Webhooks proporcionada por la integración de GLPI):
-   - **Nombre**: `Ticket Manager - Nuevo Ticket Creado`
-   - **Activo**: `Sí`
-   - **Tipo de elemento**: `Ticket`
-   - **Evento**: `Nuevo elemento` (New item / Ticket creation)
-   - **URL de destino**: `http://glpi-backend:8080/api/integrations/glpi/ticket-created` (usar `https://...` en entornos de producción).
-   - **Método HTTP**: `POST`
-   - **Encabezados personalizados**:
-     ```http
-     X-Webhook-Secret: glpi-webhook-secret-token-32-chars-minimum!!
-     Content-Type: application/json
-     ```
-   - **Cuerpo del Webhook (Payload JSON)**:
-     ```json
-     {
-       "ticketId": "[TICKET.ID]"
-     }
-     ```
-     *(Nota: si el plugin de GLPI utiliza tags estilo `##ticket.id##`, usar `{"ticketId": ##ticket.id##}` o el estándar `{"items_id": ##ticket.id##}`).*
-
-### Opción B: A través de Reglas de Negocio con Acción Webhook
-
-1. Ir a **Administración** > **Reglas** > **Reglas de negocio para los tickets**.
-2. Añadir una nueva regla:
-   - **Criterio**: Estado es `Nuevo` o Grupo asignado no está vacío.
-   - **Acción**: Ejecutar Webhook / Enviar HTTP POST a `/api/integrations/glpi/ticket-created`.
-3. Guardar la regla y verificar su prioridad para ejecutarse después de que el grupo haya sido asignado (por reglas automáticas de asignación).
-
----
-
-## 4. Pruebas y Verificación
-
-### Prueba manual con `curl`
-
-Para simular el envío del webhook desde la terminal:
-
-```bash
-curl -X POST http://localhost:8080/api/integrations/glpi/ticket-created \
-  -H "Content-Type: application/json" \
-  -H "X-Webhook-Secret: glpi-webhook-secret-token-32-chars-minimum!!" \
-  -d '{"ticketId": 11}'
-```
-
-**Respuesta esperada (200 OK):**
-```json
-{
-  "success": true,
-  "ticketId": 11,
-  "groupId": 1,
-  "notifiedCount": 2
-}
-```
-
-### Verificación en la Interfaz de la Aplicación
-1. Iniciar sesión en el frontend web con un técnico perteneciente al grupo asignado (ej. `tech1`).
-2. Comprobar que:
-   - La campana de notificaciones incrementa el contador de pendientes.
-   - Aparece la nueva notificación: *"Nuevo ticket #11 - Se ha asignado el ticket '...' a tu grupo."*
-   - Si el técnico está en la pantalla activa, recibe el aviso en tiempo real vía SignalR.
-
----
-
-## 5. Resolución de Problemas (Troubleshooting)
-
-| Síntoma | Causa Probable | Solución |
-|---|---|---|
-| **401 Unauthorized** | El header `X-Webhook-Secret` no coincide con `GlpiWebhook:Secret`. | Verificar que el valor del header y la variable de entorno sean idénticos. |
-| **400 Bad Request** | El cuerpo del payload no contiene `ticketId` o `items_id`. | Revisar la plantilla JSON en GLPI para asegurarse de que el tag de ID sea sustituido. |
-| **200 OK con notified: 0** | El ticket aún no tiene grupo asignado en `glpi_groups_tickets`. | Configurar la regla de GLPI para que se dispare después de la asignación del grupo técnico. |
+La prueba `scripts/test-glpi-007.sh` crea una base nueva en MariaDB de pruebas a partir de un dump confiable de GLPI 11 sin instrucciones USE o CREATE DATABASE. Comprueba conflictos, rollback, ausencia de cambios ajenos y equivalencia tras dos ejecuciones. Ejecútela únicamente en una instancia descartable.

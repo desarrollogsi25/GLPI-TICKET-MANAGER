@@ -69,7 +69,7 @@ public sealed class TicketRepository : ITicketRepository
             cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+    public Task<IReadOnlyList<Ticket>> GetFilteredAsync(
         int? assigneeId,
         int? serviceId,
         int? requesterId,
@@ -77,6 +77,48 @@ public sealed class TicketRepository : ITicketRepository
         DateTime? endDate,
         int limit,
         int offset,
+        CancellationToken cancellationToken) =>
+        GetFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate,
+            endDate, limit, offset, supervisorId: null, allowedGroupIds: null, cancellationToken);
+
+    public async Task<bool> HasOverlappingScheduledTaskAsync(int technicianId,
+        DateTime startUtc, DateTime endUtc, int? excludingTaskId, CancellationToken cancellationToken)
+    {
+        // Read the native GLPI task table; no shadow schedule is maintained.
+        // This read is serialized with API-originating GLPI task writes by the
+        // shared PostgreSQL advisory lock held in TicketService.
+        using var connection = _connectionFactory.CreateConnection();
+        var count = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            """
+            SELECT COUNT(*)
+            FROM glpi_tickettasks tt
+            JOIN glpi_tickets t ON t.id = tt.tickets_id
+            WHERE tt.users_id_tech = @TechnicianId
+              AND tt.state = 1
+              AND tt.`begin` IS NOT NULL AND tt.`end` IS NOT NULL
+              AND tt.`begin` < @EndUtc AND tt.`end` > @StartUtc
+              AND (@ExcludedTaskId IS NULL OR tt.id <> @ExcludedTaskId)
+              AND t.is_deleted = 0 AND t.status NOT IN (5, 6)
+            """, new
+            {
+                TechnicianId = technicianId, StartUtc = startUtc, EndUtc = endUtc,
+                ExcludedTaskId = excludingTaskId
+            }, commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+        return count > 0;
+    }
+
+    public Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int limit, int offset, CancellationToken cancellationToken) =>
+        GetFilteredCoreAsync(assigneeId, serviceId, null, startDate, endDate,
+            limit, offset, supervisorId, allowedGroupIds, cancellationToken);
+
+    private async Task<IReadOnlyList<Ticket>> GetFilteredCoreAsync(
+        int? assigneeId, int? serviceId, int? requesterId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        int? supervisorId, IReadOnlyList<int>? allowedGroupIds,
         CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -89,7 +131,9 @@ public sealed class TicketRepository : ITicketRepository
             startDate,
             endDate,
             limit,
-            offset);
+            offset,
+            supervisorId,
+            allowedGroupIds);
 
         var command = new CommandDefinition(
             sql,
@@ -122,12 +166,27 @@ public sealed class TicketRepository : ITicketRepository
             cancellationToken);
     }
 
-    public async Task<long> CountFilteredAsync(
+    public Task<long> CountFilteredAsync(
         int? assigneeId,
         int? serviceId,
         int? requesterId,
         DateTime? startDate,
         DateTime? endDate,
+        CancellationToken cancellationToken) =>
+        CountFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate,
+            endDate, supervisorId: null, allowedGroupIds: null, cancellationToken);
+
+    public Task<long> CountSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        CancellationToken cancellationToken) =>
+        CountFilteredCoreAsync(assigneeId, serviceId, null, startDate, endDate,
+            supervisorId, allowedGroupIds, cancellationToken);
+
+    private async Task<long> CountFilteredCoreAsync(
+        int? assigneeId, int? serviceId, int? requesterId,
+        DateTime? startDate, DateTime? endDate,
+        int? supervisorId, IReadOnlyList<int>? allowedGroupIds,
         CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -140,7 +199,9 @@ public sealed class TicketRepository : ITicketRepository
             startDate,
             endDate,
             limit: null,
-            offset: null);
+            offset: null,
+            supervisorId,
+            allowedGroupIds);
 
         var command = new CommandDefinition(
             sql,
@@ -159,7 +220,9 @@ public sealed class TicketRepository : ITicketRepository
         DateTime? startDate,
         DateTime? endDate,
         int? limit,
-        int? offset)
+        int? offset,
+        int? supervisorId,
+        IReadOnlyList<int>? allowedGroupIds)
     {
         var parameters = new DynamicParameters();
         var sql = new StringBuilder(baseSql);
@@ -188,11 +251,29 @@ public sealed class TicketRepository : ITicketRepository
             conditions.Add("tu_req.users_id = @RequesterId");
         }
 
+        if (supervisorId.HasValue)
+        {
+            // H-01: match TicketAccessPolicy's supervisor rule. EXISTS prevents
+            // repeated group links multiplying rows or leaking counts.
+            // The allowed groups are fetched server-side from current GLPI membership.
+            var assignedToSupervisor = "EXISTS (SELECT 1 FROM glpi_tickets_users su WHERE su.tickets_id = t.id AND su.type = 2 AND su.users_id = @SupervisorId)";
+            if (allowedGroupIds is { Count: > 0 })
+            {
+                conditions.Add($"({assignedToSupervisor} OR EXISTS (SELECT 1 FROM glpi_groups_tickets sg WHERE sg.tickets_id = t.id AND sg.groups_id IN @SupervisorGroups))");
+                parameters.Add("SupervisorGroups", allowedGroupIds.Distinct().ToArray());
+            }
+            else
+            {
+                conditions.Add(assignedToSupervisor);
+            }
+            parameters.Add("SupervisorId", supervisorId.Value);
+        }
+
         if (serviceId.HasValue)
         {
             conditions.Add("""
                 (
-                    t.itilcategories_id = @ServiceId 
+                    t.itilcategories_id = @ServiceId
                     OR t.itilcategories_id IN (
                         SELECT id FROM glpi_itilcategories WHERE itilcategories_id = @ServiceId
                     )
@@ -490,26 +571,98 @@ public sealed class TicketRepository : ITicketRepository
         return result.AsList();
     }
 
-    public async Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<int>> GetAuthorizedGroupIdsForUserAsync(int userId, int? entityId, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
         const string sql = """
-            SELECT CAST(ra.value AS SIGNED)
-            FROM glpi_rules r
-            INNER JOIN glpi_rulecriterias rc ON rc.rules_id = r.id
-            INNER JOIN glpi_ruleactions ra ON ra.rules_id = r.id
-            WHERE r.sub_type = 'RuleTicket'
-              AND r.is_active = 1
-              AND rc.criteria = 'itilcategories_id'
-              AND rc.pattern = @CategoryId
-              AND ra.action_type = 'assign'
-              AND ra.field = '_groups_id_assign'
-            ORDER BY r.ranking ASC
+            SELECT DISTINCT g.id
+            FROM glpi_groups_users gu
+            INNER JOIN glpi_groups g ON g.id = gu.groups_id
+            WHERE gu.users_id = @UserId
+              AND g.is_assign = 1
+              AND (@EntityId IS NULL OR g.entities_id = @EntityId OR g.is_recursive = 1)
+            ORDER BY g.id ASC;
+            """;
+        var command = new CommandDefinition(
+            sql,
+            new { UserId = userId, EntityId = entityId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+        var result = await connection.QueryAsync<int>(command);
+        return result.AsList();
+    }
+
+    public Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken)
+        => GetAssignmentGroupForCategoryAsync(categoryId, null, cancellationToken);
+
+    public async Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, int? entityId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            WITH RECURSIVE category_chain AS (
+                SELECT
+                    c.id,
+                    c.itilcategories_id,
+                    c.groups_id,
+                    c.entities_id,
+                    c.is_recursive,
+                    0 AS depth
+                FROM glpi_itilcategories c
+                WHERE c.id = @CategoryId
+                  AND (@EntityId IS NULL OR c.entities_id = @EntityId OR c.is_recursive = 1)
+                UNION ALL
+                SELECT
+                    parent.id,
+                    parent.itilcategories_id,
+                    parent.groups_id,
+                    parent.entities_id,
+                    parent.is_recursive,
+                    cc.depth + 1 AS depth
+                FROM glpi_itilcategories parent
+                INNER JOIN category_chain cc ON parent.id = cc.itilcategories_id
+                WHERE cc.depth < 10
+                  AND (@EntityId IS NULL OR parent.entities_id = @EntityId OR parent.is_recursive = 1)
+            ),
+            candidates AS (
+                SELECT
+                    cc.depth AS depth,
+                    0 AS source_priority,
+                    r.ranking AS rule_ranking,
+                    CAST(ra.value AS SIGNED) AS group_id
+                FROM category_chain cc
+                INNER JOIN glpi_rulecriterias rc
+                    ON rc.criteria = 'itilcategories_id'
+                   AND CAST(rc.pattern AS SIGNED) = cc.id
+                INNER JOIN glpi_rules r
+                    ON r.id = rc.rules_id
+                   AND r.sub_type = 'RuleTicket'
+                   AND r.is_active = 1
+                   AND (@EntityId IS NULL OR r.entities_id = @EntityId OR r.is_recursive = 1)
+                INNER JOIN glpi_ruleactions ra
+                    ON ra.rules_id = r.id
+                   AND ra.action_type = 'assign'
+                   AND ra.field = '_groups_id_assign'
+                UNION ALL
+                SELECT
+                    cc.depth AS depth,
+                    1 AS source_priority,
+                    0 AS rule_ranking,
+                    cc.groups_id AS group_id
+                FROM category_chain cc
+                WHERE cc.groups_id > 0
+            )
+            SELECT cand.group_id
+            FROM candidates cand
+            INNER JOIN glpi_groups g
+                ON g.id = cand.group_id
+               AND g.is_assign = 1
+               AND (@EntityId IS NULL OR g.entities_id = @EntityId OR g.is_recursive = 1)
+            ORDER BY cand.depth ASC, cand.source_priority ASC, cand.rule_ranking ASC
             LIMIT 1;
             """;
         return await connection.ExecuteScalarAsync<int?>(new CommandDefinition(
             sql,
-            new { CategoryId = categoryId.ToString() },
+            new { CategoryId = categoryId, EntityId = entityId },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken));
     }
