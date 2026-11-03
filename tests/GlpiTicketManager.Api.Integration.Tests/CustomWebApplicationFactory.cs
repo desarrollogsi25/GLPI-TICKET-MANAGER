@@ -1,7 +1,9 @@
 using GlpiTicketManager.Application.Abstractions;
+using System.Collections.Concurrent;
 using GlpiTicketManager.Application.Authorization;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Application.Dtos.Groups;
+using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Dtos.Channels;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
@@ -39,6 +41,26 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly List<GroupDto> _groups = new();
     private readonly List<ChannelDto> _channels = new();
     private readonly Dictionary<int, string> _ticketSolutions = new();
+    private readonly Dictionary<int, List<TicketTaskDto>> _nativeTasks = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _technicianScheduleGates = new();
+
+    private sealed class ScheduleGateLease(SemaphoreSlim gate) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() { gate.Release(); return ValueTask.CompletedTask; }
+    }
+
+    public void AddScheduledTask(TicketTaskDto task)
+    {
+        lock (_stateLock)
+        {
+            if (!_nativeTasks.TryGetValue(task.TicketId, out var list))
+                _nativeTasks[task.TicketId] = list = [];
+            list.Add(task);
+        }
+    }
+    internal HashSet<(int UserId, int TicketId)> TicketCreatedKeys { get; } = new();
+    public int? WatcherCheckpoint { get; set; }
+    public ConcurrentDictionary<int, GlpiWatcherPendingTicket> WatcherPendingTickets { get; } = new();
     private readonly List<Notification> _notificationsList = new();
 
     /// <summary>
@@ -86,6 +108,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     public void ResetNotifications()
     {
         NotificationMock.Invocations.Clear();
+        lock (_stateLock)
+        {
+            TicketCreatedKeys.Clear();
+            _notificationsList.Clear();
+        }
     }
 
     public void SetTicketSolution(int ticketId, string content)
@@ -184,7 +211,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             SimulateInsertFailure = false;
             _notificationsList.Clear();
+            TicketCreatedKeys.Clear();
+            WatcherCheckpoint = null;
+            WatcherPendingTickets.Clear();
             _ticketSolutions.Clear();
+            _nativeTasks.Clear();
+            _nativeTasks[Ticket12Id] =
+            [
+                new TicketTaskDto(8012, Ticket12Id, Tech1Id, "Visita programada", 1, false,
+                    new DateTimeOffset(2026, 11, 3, 9, 0, 0, TimeSpan.Zero),
+                    new DateTimeOffset(2026, 11, 3, 10, 0, 0, TimeSpan.Zero), 3600),
+                new TicketTaskDto(8013, Ticket12Id, Tech1Id, "Tarea interna privada", 0, true,
+                    null, null, 0)
+            ];
             _glpiTicketStates.Clear();
             _glpiStatusOverrides.Clear();
             _allTickets.Clear();
@@ -201,6 +240,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 Id = Ticket12Id,
                 Name = "Ticket 12 (Tech1 assigned)",
+                CategoryId = 17,
                 Status = (int)TicketStatus.Assigned,
                 CreatedAt = OldTicketCreatedAt,
                 RequesterIds = new[] { 9 },
@@ -210,6 +250,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 Id = Ticket13Id,
                 Name = "Ticket 13 (Tech2 assigned same group)",
+                CategoryId = 17,
                 Status = (int)TicketStatus.Assigned,
                 CreatedAt = RecentTicketCreatedAt,
                 RequesterIds = new[] { 9 },
@@ -346,13 +387,42 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public int? LastCreatedTicketAssignedGroupId { get; private set; }
+
+    /// <summary>
+    /// Simulates multi-level category hierarchy and multi-entity isolation for
+    /// <see cref="ITicketRepository.GetAssignmentGroupForCategoryAsync(int, int?, CancellationToken)"/>:
+    /// - Category 1..5, 10 (root/parent in Entity 0, recursive) -> Group 1
+    /// - Category 11 (child of Category 10 in Entity 0, inherits rule from parent 10) -> Group 1
+    /// - Category 12 (grandchild of Category 10 in Entity 0, inherits rule from ancestor 10) -> Group 1
+    /// - Category 20 (mapped to Group 2 in Entity 0) -> Group 2
+    /// - Category 50 (belongs strictly to Entity 5, non-recursive -> Group 2 only when entityId is null or 5)
+    /// - Category 60 (points to non-assignable group is_assign=0 -> null)
+    /// - Any other CategoryId -> null (unmapped)
+    /// </summary>
+    private static int? ResolveCategoryAssignmentGroup(int categoryId, int? entityId)
+    {
+        return categoryId switch
+        {
+            >= 1 and <= 5 => Group1Id,
+            10 or 11 or 12 => Group1Id,
+            20 => Group2Id,
+            50 when entityId is null or 5 => Group2Id,
+            _ => null
+        };
+    }
+
     static CustomWebApplicationFactory()
     {
-        Environment.SetEnvironmentVariable("Database__ConnectionString", "Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password=SecretNonDefaultPass123!;");
-        Environment.SetEnvironmentVariable("AppDb__ConnectionString", "Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password=SecretAppDbPass123!;");
-        Environment.SetEnvironmentVariable("GlpiApi__AppToken", "integration-test-app-token-32-chars-minimum!!");
-        Environment.SetEnvironmentVariable("GlpiApi__UserToken", "integration-test-user-token-32-chars-minimum!!");
-        Environment.SetEnvironmentVariable("Jwt__Key", "integration-test-secret-signing-key-32-chars-minimum!!");
+        Environment.SetEnvironmentVariable("Database__ConnectionString", $"Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password={TestCredentials.DbPassword};");
+        Environment.SetEnvironmentVariable("AppDb__ConnectionString", $"Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password={TestCredentials.DbPassword};");
+        Environment.SetEnvironmentVariable("GlpiApi__AppToken", TestCredentials.AppToken);
+        Environment.SetEnvironmentVariable("GlpiApi__UserToken", TestCredentials.UserToken);
+        Environment.SetEnvironmentVariable("Jwt__Key", TestCredentials.JwtKey);
+        Environment.SetEnvironmentVariable("GlpiWebhook__Secret", TestCredentials.WebhookSecret);
+        // Program.cs registers CORS while building services, before the test
+        // host's late ConfigureAppConfiguration callback is applied.
+        Environment.SetEnvironmentVariable("CORS_ALLOWED_ORIGIN", "https://front.example.test");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -361,18 +431,21 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Database:ConnectionString"] = "Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password=secretpass123;",
-                ["AppDb:ConnectionString"] = "Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password=secretpass123",
-                ["GlpiApi:AppToken"] = "integration-test-app-token-32-chars-minimum!!",
-                ["GlpiApi:UserToken"] = "integration-test-user-token-32-chars-minimum!!",
-                ["Jwt:Key"] = "integration-test-secret-signing-key-32-chars-minimum!!",
+                ["Database:ConnectionString"] = $"Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password={TestCredentials.DbPassword};",
+                ["AppDb:ConnectionString"] = $"Host=127.0.0.1;Port=5432;Database=glpi_ticket_manager;Username=app;Password={TestCredentials.DbPassword}",
+                ["GlpiApi:AppToken"] = TestCredentials.AppToken,
+                ["GlpiApi:UserToken"] = TestCredentials.UserToken,
+                ["Jwt:Key"] = TestCredentials.JwtKey,
+                ["GlpiWebhook:Secret"] = TestCredentials.WebhookSecret,
+                ["CORS_ALLOWED_ORIGIN"] = "https://front.example.test",
                 ["Jwt:Issuer"] = "GlpiTicketManager.Api",
                 ["Jwt:Audience"] = "GlpiTicketManager.Frontend",
                 ["RateLimiting:ExpensiveTokenLimit"] = "20",
                 ["RateLimiting:ExpensiveTokensPerPeriod"] = "1",
                 ["RateLimiting:ExpensiveReplenishmentSeconds"] = "3",
                 ["RateLimiting:PerUserRequestLimit"] = "100",
-                ["RateLimiting:LoginAttemptLimit"] = "100"
+                ["RateLimiting:LoginAttemptLimit"] = "100",
+                ["GlpiWatcher:ExcludedIdRange"] = "11-950"
             });
         });
 
@@ -380,11 +453,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             // Remove existing repo registrations if present
             var descriptors = services.Where(d =>
+                d.ImplementationType == typeof(GlpiTicketManager.Api.Notifications.GlpiNativeTicketWatcher) ||
                 d.ServiceType == typeof(ITicketRepository) ||
                 d.ServiceType == typeof(IUserRepository) ||
                 d.ServiceType == typeof(IPasswordHasher) ||
                 d.ServiceType == typeof(IRevokedTokenRepository) ||
                 d.ServiceType == typeof(IGlpiApiClient) ||
+                d.ServiceType == typeof(ITicketPlanningRequestStore) ||
+                d.ServiceType == typeof(IGlpiWebhookIdempotencyRepository) ||
                 d.ServiceType == typeof(IAuditRepository) ||
                 d.ServiceType == typeof(IGroupRepository) ||
                 d.ServiceType == typeof(IChannelRepository) ||
@@ -505,6 +581,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             hasherMock.Setup(h => h.Verify("SupervisorPass123!", "sup_hash")).Returns(true);
             hasherMock.Setup(h => h.Verify("Solicitante123!", "solicitante_hash")).Returns(true);
             hasherMock.Setup(h => h.Verify("User1Pass!", "user1_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Tech1, "hash1")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Tech2, "hash2")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Admin, "admin_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Supervisor, "sup_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.Solicitante, "solicitante_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify(TestCredentials.User1, "user1_hash")).Returns(true);
 
             // Mock IRevokedTokenRepository
             var revokedMock = new Mock<IRevokedTokenRepository>();
@@ -517,8 +599,134 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 .ReturnsAsync(1L);
 
             // Mock IGlpiApiClient
+            // Shared in-memory stand-in for the PostgreSQL unique request-id constraint.
+            var planningRequests = new Dictionary<Guid, (int TicketId, int UserId, string Hash, int? TaskId)>();
+            var planningStoreMock = new Mock<ITicketPlanningRequestStore>();
+            planningStoreMock.Setup(s => s.AcquireTechnicianScheduleLockAsync(
+                    It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns(async (int technicianId, CancellationToken ct) =>
+                {
+                    var gate = _technicianScheduleGates.GetOrAdd(technicianId, _ => new SemaphoreSlim(1, 1));
+                    await gate.WaitAsync(ct);
+                    return (IAsyncDisposable)new ScheduleGateLease(gate);
+                });
+            planningStoreMock.Setup(s => s.ClaimAsync(It.IsAny<Guid>(), It.IsAny<int>(),
+                    It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid id, int ticketId, int userId, string hash, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (!planningRequests.TryGetValue(id, out var existing))
+                        {
+                            planningRequests[id] = (ticketId, userId, hash, null);
+                            return new PlanningRequestClaim(PlanningRequestState.Started);
+                        }
+
+                        if (existing.TicketId != ticketId || existing.UserId != userId || existing.Hash != hash)
+                            return new PlanningRequestClaim(PlanningRequestState.Mismatched);
+                        return existing.TaskId is > 0
+                            ? new PlanningRequestClaim(PlanningRequestState.Completed, existing.TaskId)
+                            : new PlanningRequestClaim(PlanningRequestState.InProgress);
+                    }
+                });
+            planningStoreMock.Setup(s => s.CompleteAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((Guid id, int taskId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var existing = planningRequests[id];
+                        planningRequests[id] = (existing.TicketId, existing.UserId, existing.Hash, taskId);
+                    }
+                    return Task.CompletedTask;
+                });
+            planningStoreMock.Setup(s => s.CancelAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .Returns((Guid id, CancellationToken _) =>
+                {
+                    lock (_stateLock) planningRequests.Remove(id);
+                    return Task.CompletedTask;
+                });
+
             var glpiMock = new Mock<IGlpiApiClient>();
             _glpiMock = glpiMock;
+            glpiMock.Setup(g => g.GetTicketTasksAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return _nativeTasks.TryGetValue(ticketId, out var items)
+                            ? items.ToArray() : Array.Empty<TicketTaskDto>();
+                });
+            glpiMock.Setup(g => g.UpdateTicketTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int taskId, int state, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        foreach (var items in _nativeTasks.Values)
+                        {
+                            var index = items.FindIndex(item => item.Id == taskId);
+                            if (index >= 0) { items[index] = items[index] with { State = state }; break; }
+                        }
+                    return Task.CompletedTask;
+                });
+            glpiMock.Setup(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+                    It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+                .Returns((int taskId, string content, DateTimeOffset start, DateTimeOffset end, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        foreach (var items in _nativeTasks.Values)
+                        {
+                            var index = items.FindIndex(item => item.Id == taskId);
+                            if (index >= 0)
+                            {
+                                items[index] = items[index] with { Content = content, State = 1,
+                                    StartAt = start, EndAt = end,
+                                    DurationSeconds = (int)(end - start).TotalSeconds };
+                                break;
+                            }
+                        }
+                    return Task.CompletedTask;
+                });
+            glpiMock.Setup(g => g.DeleteTicketTaskAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int taskId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        foreach (var items in _nativeTasks.Values)
+                            items.RemoveAll(item => item.Id == taskId);
+                    return Task.CompletedTask;
+                });
+            glpiMock.Setup(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(),
+                    It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, int technicianId, string content, DateTimeOffset start,
+                    DateTimeOffset end, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var taskId = 9000 + ticketId;
+                        if (!_nativeTasks.TryGetValue(ticketId, out var nativeTasks))
+                        {
+                            nativeTasks = [];
+                            _nativeTasks[ticketId] = nativeTasks;
+                        }
+                        if (!nativeTasks.Any(item => item.Id == taskId))
+                            nativeTasks.Add(new TicketTaskDto(taskId, ticketId, technicianId, content, 1,
+                                false, start, end, (int)(end - start).TotalSeconds));
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, (int)TicketStatus.Planned);
+                        if (_allTickets.TryGetValue(ticketId, out var current))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = current.Id, Name = current.Name, Content = current.Content,
+                                Status = (int)TicketStatus.Planned, Type = current.Type,
+                                Priority = current.Priority, Urgency = current.Urgency, Impact = current.Impact,
+                                CategoryId = current.CategoryId, CreatedAt = current.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow, SolvedAt = current.SolvedAt,
+                                ClosedAt = current.ClosedAt, IsDeleted = current.IsDeleted,
+                                HasSolution = current.HasSolution, AssigneeIds = current.AssigneeIds,
+                                RequesterIds = current.RequesterIds, Followups = current.Followups,
+                                Solutions = current.Solutions
+                            };
+                        }
+                        return taskId;
+                    }
+                });
             glpiMock.Setup(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .Returns((int ticketId, int status, CancellationToken _) =>
                 {
@@ -738,6 +946,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
+                        LastCreatedTicketAssignedGroupId = assignmentGroupId;
                         var newId = _allTickets.Keys.DefaultIfEmpty(100).Max() + 1;
                         var newTicket = new Ticket
                         {
@@ -824,6 +1033,17 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             // Mock ITicketRepository
             var ticketRepoMock = new Mock<ITicketRepository>();
+            ticketRepoMock.Setup(t => t.HasOverlappingScheduledTaskAsync(It.IsAny<int>(),
+                    It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int technicianId, DateTime start, DateTime end, int? excluded, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return _nativeTasks.Values.SelectMany(items => items).Any(task =>
+                            task.TechnicianId == technicianId && task.State == 1 && task.Id != excluded &&
+                            task.StartAt.HasValue && task.EndAt.HasValue &&
+                            task.StartAt.Value.UtcDateTime < end && task.EndAt.Value.UtcDateTime > start &&
+                            _allTickets.TryGetValue(task.TicketId, out var owner) && owner.Status is not (5 or 6));
+                });
 
             ticketRepoMock.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int id, CancellationToken _) =>
@@ -876,6 +1096,29 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(AdminId, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(Tech1Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int _, int? entityId, CancellationToken _) =>
+                    entityId is null or 0 ? new[] { Group1Id } : Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int _, int? entityId, CancellationToken _) =>
+                    entityId is null or 0 ? new[] { Group1Id, Group2Id } : Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(SupervisorId, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int _, int? entityId, CancellationToken _) =>
+                    entityId is null or 0 ? new[] { Group1Id } : Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(It.Is<int>(u => u != Tech1Id && u != Tech2Id && u != SupervisorId), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAssignmentGroupForCategoryAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int categoryId, CancellationToken ct) =>
+                    ResolveCategoryAssignmentGroup(categoryId, null));
+
+            ticketRepoMock.Setup(t => t.GetAssignmentGroupForCategoryAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int categoryId, int? entityId, CancellationToken ct) =>
+                    ResolveCategoryAssignmentGroup(categoryId, entityId));
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket11Id || id == Ticket12Id || id == Ticket13Id || id == Ticket31Id), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { Group1Id });
@@ -1084,6 +1327,55 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     }
                 });
 
+            // H-01 supervisor BOLA: apply visibility before pagination AND count,
+            // modeling the same assigned-to-self OR current-group predicate as SQL.
+            IEnumerable<Ticket> SupervisorVisible(
+                int supervisorId, IReadOnlyList<int> groups, int? assigneeId, int? serviceId,
+                DateTime? startDate, DateTime? endDate)
+            {
+                var assignedToSupervisor = _ticketUsers
+                    .Where(u => u.UserId == supervisorId && u.Type == (int)TicketUserType.Assigned)
+                    .Select(u => u.TicketId).ToHashSet();
+                var visible = _allTickets.Values.Where(t => !t.IsDeleted &&
+                    (assignedToSupervisor.Contains(t.Id) ||
+                     (groups.Contains(Group1Id) && (t.Id is Ticket11Id or Ticket12Id or Ticket13Id or Ticket31Id)) ||
+                     (groups.Contains(Group2Id) && (t.Id is Ticket21Id or Ticket22Id))));
+                if (assigneeId.HasValue)
+                {
+                    var assigned = _ticketUsers
+                        .Where(u => u.UserId == assigneeId && u.Type == (int)TicketUserType.Assigned)
+                        .Select(u => u.TicketId).ToHashSet();
+                    visible = visible.Where(t => assigned.Contains(t.Id));
+                }
+                if (serviceId.HasValue) visible = visible.Where(t => t.CategoryId == serviceId);
+                if (startDate.HasValue) visible = visible.Where(t => t.CreatedAt >= startDate);
+                if (endDate.HasValue) visible = visible.Where(t => t.CreatedAt <= endDate);
+                return visible;
+            }
+
+            ticketRepoMock.Setup(t => t.GetSupervisorFilteredAsync(It.IsAny<int>(),
+                    It.IsAny<IReadOnlyList<int>>(), It.IsAny<int?>(), It.IsAny<int?>(),
+                    It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<int>(),
+                    It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int supervisorId, IReadOnlyList<int> groups, int? assigneeId,
+                    int? serviceId, DateTime? start, DateTime? end, int limit, int offset,
+                    CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return SupervisorVisible(supervisorId, groups, assigneeId, serviceId,
+                            start, end).Skip(offset).Take(limit).ToList();
+                });
+            ticketRepoMock.Setup(t => t.CountSupervisorFilteredAsync(It.IsAny<int>(),
+                    It.IsAny<IReadOnlyList<int>>(), It.IsAny<int?>(), It.IsAny<int?>(),
+                    It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int supervisorId, IReadOnlyList<int> groups, int? assigneeId,
+                    int? serviceId, DateTime? start, DateTime? end, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return (long)SupervisorVisible(supervisorId, groups, assigneeId,
+                            serviceId, start, end).Count();
+                });
+
             ticketRepoMock.Setup(t => t.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyCollection<int> ids, CancellationToken _) =>
                 {
@@ -1238,12 +1530,25 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                         return n.Id;
                     }
                 });
+            notificationRepoMock.Setup(n => n.TryCreateTicketCreatedAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Notification n, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (!TicketCreatedKeys.Add((n.UserId, n.TicketId!.Value)))
+                            return (long?)null;
+
+                        n.Id = _notificationsList.Count + 1;
+                        _notificationsList.Add(n);
+                        return (long?)n.Id;
+                    }
+                });
             notificationRepoMock.Setup(n => n.GetByUserAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int userId, int limit, int offset, CancellationToken _) =>
                 {
                     lock (_stateLock)
                     {
-                        return _notificationsList.Where(n => n.UserId == userId).Skip(offset).Take(limit).ToList();
+                        return _notificationsList.Where(n => n.UserId == userId).OrderByDescending(n => n.CreatedAt).Skip(offset).Take(limit).ToList();
                     }
                 });
             notificationRepoMock.Setup(n => n.GetUnreadCountAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -1273,9 +1578,99 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(revokedMock.Object);
             services.AddSingleton(auditMock.Object);
             services.AddSingleton(glpiMock.Object);
+            services.AddSingleton(planningStoreMock.Object);
             services.AddSingleton(ticketRepoMock.Object);
             services.AddSingleton(groupRepoMock.Object);
             services.AddSingleton(channelRepoMock.Object);
+
+            var watcherStateRepoMock = new Mock<IGlpiWatcherStateRepository>();
+            watcherStateRepoMock.Setup(w => w.GetLastSeenTicketIdAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() => WatcherCheckpoint);
+            watcherStateRepoMock.Setup(w => w.SetLastSeenTicketIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int id, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        WatcherCheckpoint = Math.Max(WatcherCheckpoint ?? 0, id);
+                        return Task.CompletedTask;
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.RecordPendingTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, int categoryId, string name, string status, string? error, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var attempts = 1;
+                        if (WatcherPendingTickets.TryGetValue(ticketId, out var existing))
+                        {
+                            attempts = existing.Attempts + 1;
+                        }
+                        WatcherPendingTickets[ticketId] = new GlpiWatcherPendingTicket(
+                            ticketId, categoryId, name, status, attempts, DateTime.UtcNow, error);
+                        return Task.CompletedTask;
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.GetPendingTicketsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int limit, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return WatcherPendingTickets.Values.Where(p => p.Status != "PermanentlyFailed").Take(limit).ToList();
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.GetPermanentlyFailedTicketsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int limit, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        return WatcherPendingTickets.Values.Where(p => p.Status == "PermanentlyFailed").Take(limit).ToList();
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.GetQueueCountsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync((CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var pendingCount = WatcherPendingTickets.Values.Count(p => p.Status != "PermanentlyFailed");
+                        var failedCount = WatcherPendingTickets.Values.Count(p => p.Status == "PermanentlyFailed");
+                        return new GlpiWatcherQueueCounts(pendingCount, failedCount);
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.MarkPermanentlyFailedAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, string reason, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (WatcherPendingTickets.TryGetValue(ticketId, out var existing))
+                        {
+                            WatcherPendingTickets[ticketId] = existing with { Status = "PermanentlyFailed", LastError = reason };
+                        }
+                        return Task.CompletedTask;
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.RecoverPendingTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (WatcherPendingTickets.TryGetValue(ticketId, out var existing))
+                        {
+                            WatcherPendingTickets[ticketId] = existing with { Status = "AwaitingGroup", Attempts = 0, LastError = "Explicitly recovered" };
+                            return Task.FromResult(true);
+                        }
+                        return Task.FromResult(false);
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.RemovePendingTicketAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        WatcherPendingTickets.TryRemove(ticketId, out var _);
+                        return Task.CompletedTask;
+                    }
+                });
+            services.AddSingleton(watcherStateRepoMock.Object);
 
             var dashboardRepoMock = new Mock<IDashboardRepository>();
             dashboardRepoMock.Setup(d => d.GetGroupDashboardAsync(Group1Id, It.IsAny<CancellationToken>()))
@@ -1335,6 +1730,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 });
 
             services.AddSingleton(dashboardRepoMock.Object);
+
+            var webhookIdempotencyMock = new Mock<IGlpiWebhookIdempotencyRepository>();
+            var seenEvents = new ConcurrentDictionary<string, string>();
+            webhookIdempotencyMock.Setup(w => w.AcquireAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string key, string hash, CancellationToken _) =>
+                {
+                    if (seenEvents.TryAdd(key, hash))
+                        return new GlpiWebhookReservation(GlpiWebhookReservationDisposition.Acquired);
+                    return seenEvents[key] == hash
+                        ? new GlpiWebhookReservation(GlpiWebhookReservationDisposition.Completed)
+                        : new GlpiWebhookReservation(GlpiWebhookReservationDisposition.PayloadConflict);
+                });
+            services.AddSingleton(webhookIdempotencyMock.Object);
         });
     }
 }

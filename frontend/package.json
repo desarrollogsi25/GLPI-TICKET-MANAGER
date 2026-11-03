@@ -6,9 +6,9 @@
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --project tsconfig.build.json --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --project tsconfig.build.json --noEmit",
     "test": "node ../scripts/e2e/run.mjs",
     "test:e2e": "node ../scripts/e2e/run.mjs",
     "test:e2e:guard": "node --test ../scripts/e2e/guard.test.mjs",

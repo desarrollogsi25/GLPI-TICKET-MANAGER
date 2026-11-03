@@ -147,40 +147,33 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
     /// server never applied.
     /// </summary>
     [Fact]
-    public async Task UpdateStatus_PublishesTheStatusGlpiConfirms()
+    public async Task UpdateStatusToPlanned_IsRejectedBeforeAnyGlpiOrNotificationEffect()
     {
         var token = await AuthenticateAsTech1Async();
         _factory.ResetNotifications();
-        _factory.SetGlpiReportedStatus(
-            CustomWebApplicationFactory.Ticket12Id,
-            (int)TicketStatus.Waiting);
 
         using var response = await PatchStatusAsync(
             CustomWebApplicationFactory.Ticket12Id,
             (int)TicketStatus.Planned,
             token);
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-
-        _factory.NotificationMock.Verify(
-            n => n.NotifyTicketStatusChangedAsync(
-                CustomWebApplicationFactory.Ticket12Id,
-                (int)TicketStatus.Waiting,
-                It.IsAny<int?>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
     /// <summary>
     /// The status change path also has to read the result back from GLPI.
     /// </summary>
     [Fact]
-    public async Task UpdateStatus_ReadsTheResultingStateBackFromGlpi()
+    public async Task UpdateStatus_PublishesTheResultingStateReadBackFromGlpi()
     {
         var token = await AuthenticateAsTech1Async();
+        _factory.ResetNotifications();
+        _factory.SetGlpiReportedStatus(
+            CustomWebApplicationFactory.Ticket12Id,
+            (int)TicketStatus.Assigned);
 
         using var response = await PatchStatusAsync(
             CustomWebApplicationFactory.Ticket12Id,
-            (int)TicketStatus.Planned,
+            (int)TicketStatus.Waiting,
             token);
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -190,5 +183,13 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
                 It.IsAny<CancellationToken>()),
             Times.AtLeastOnce,
             "the status that is published has to be the one GLPI confirms");
+
+        _factory.NotificationMock.Verify(
+            n => n.NotifyTicketStatusChangedAsync(
+                CustomWebApplicationFactory.Ticket12Id,
+                (int)TicketStatus.Assigned,
+                It.IsAny<int?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

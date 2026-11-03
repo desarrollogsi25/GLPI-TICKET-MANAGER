@@ -11,6 +11,9 @@ public static class RateLimitPolicies
 
     /// <summary>Token bucket rate limit for expensive endpoints (20 tokens/min).</summary>
     public const string Expensive = "expensive";
+
+    /// <summary>Per-source limit for the anonymous GLPI webhook endpoint.</summary>
+    public const string GlpiWebhook = "glpi-webhook";
 }
 
 public sealed class RateLimitOptions
@@ -22,4 +25,5 @@ public sealed class RateLimitOptions
     public int ExpensiveReplenishmentSeconds { get; set; } = 3;
     public int PerUserRequestLimit { get; set; } = 100;
     public int LoginAttemptLimit { get; set; } = 5;
+    public int GlpiWebhookRequestLimit { get; set; } = 120;
 }

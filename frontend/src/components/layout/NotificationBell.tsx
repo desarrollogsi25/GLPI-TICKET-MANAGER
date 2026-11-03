@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bell, CheckCheck, Clock, RefreshCw, TicketCheck, UserCheck } from 'lucide-react'
 
@@ -38,6 +39,7 @@ export function NotificationBell({
   'data-testid': testId = 'notification-bell',
   className,
 }: NotificationBellProps = {}) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [pulseBadge, setPulseBadge] = useState(false)
   const prevCountRef = useRef<number>(0)
@@ -46,7 +48,7 @@ export function NotificationBell({
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
 
-  // Cerrar al hacer clic fuera del contenedor (H-61)
+  // Cerrar al hacer clic fuera del contenedor
   useEffect(() => {
     if (!open) return
 
@@ -101,6 +103,19 @@ export function NotificationBell({
     refetchOnWindowFocus: true,
   })
 
+  // Deduplicación de notificaciones por ID
+  const uniqueNotifications = useMemo(() => {
+    const seen = new Set<number>()
+    const result: Notification[] = []
+    for (const item of notifications) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id)
+        result.push(item)
+      }
+    }
+    return result
+  }, [notifications])
+
   const markAsReadMutation = useMutation({
     mutationFn: async (id: number) => {
       await apiClient.put(`/notifications/${id}/read`)
@@ -117,6 +132,7 @@ export function NotificationBell({
   useRealtimeTicketHub({
     onNotificationReceived: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      void refetchNotifications()
     },
   })
 
@@ -133,22 +149,8 @@ export function NotificationBell({
       markAsReadMutation.mutate(notification.id)
     }
     setOpen(false)
-  }
-
-  const getNotificationTypeClass = (type: string) => {
-    switch (type) {
-      case 'TicketAssigned':
-      case 'TicketClaimed':
-        return 'border-l-2 border-blue-500 bg-blue-50/40 dark:bg-blue-950/30'
-      case 'TicketPending':
-        return 'border-l-2 border-amber-500 bg-amber-50/40 dark:bg-amber-950/30'
-      case 'TicketResolved':
-      case 'TicketSolved':
-        return 'border-l-2 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30'
-      case 'TicketReopened':
-        return 'border-l-2 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30'
-      default:
-        return 'border-l-2 border-slate-400 bg-muted/20'
+    if (notification.ticketId) {
+      navigate(`/tickets/${notification.ticketId}`)
     }
   }
 
@@ -226,7 +228,7 @@ export function NotificationBell({
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-80 overflow-y-auto no-scrollbar origin-top-right rounded-2xl border border-border bg-card/95 backdrop-blur-md text-card-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-96 overflow-y-auto scrollbar-thin origin-top-right rounded-2xl border border-border bg-card/95 backdrop-blur-md text-card-foreground shadow-xl z-50"
           >
             <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
               <div className="flex items-center gap-2">
@@ -234,7 +236,7 @@ export function NotificationBell({
                   Notificaciones
                 </h3>
                 {unreadCount > 0 && (
-                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary tabular-nums">
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary tabular-nums">
                     {unreadCount}
                   </span>
                 )}
@@ -260,51 +262,61 @@ export function NotificationBell({
                 )}
               </div>
             </div>
-            {notifications.length === 0 ? (
+            {uniqueNotifications.length === 0 ? (
               <div className="p-6 text-center">
                 <Bell className="mx-auto size-6 text-muted-foreground/40 mb-1.5" />
                 <p className="text-xs text-muted-foreground">Sin notificaciones recientes.</p>
               </div>
             ) : (
-              <ul className="divide-y divide-border/60">
-                {notifications.map((n) => (
-                  <li
-                    key={n.id}
-                    className={cn(
-                      'text-sm transition-colors duration-150 hover:bg-muted/40',
-                      !n.read && !n.isRead ? 'bg-primary/5 font-medium' : 'opacity-75',
-                      getNotificationTypeClass(n.type),
-                    )}
-                  >
-                    <button type="button" onClick={() => handleNotificationClick(n)} className="flex w-full items-start gap-2.5 p-3 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                      <span className="mt-0.5 flex-shrink-0" aria-hidden="true">
-                        {getNotificationIcon(n.type)}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold truncate text-foreground">{n.title}</p>
-                          <p className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                            {formatRelative(n.createdAt)}
-                          </p>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                          {n.body || n.message}
-                        </p>
-                        {n.ticketId && (
-                          <p className="text-[10px] text-primary mt-1 font-semibold font-mono">
-                            Ticket #{n.ticketId}
-                          </p>
-                        )}
-                      </div>
-                      {!n.read && !n.isRead && (
-                        <span
-                          className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5"
-                          aria-label="No leída"
-                        />
+              <ul className="p-1.5 space-y-1">
+                {uniqueNotifications.map((n) => {
+                  const isUnread = !n.read && !n.isRead
+                  return (
+                    <li
+                      key={n.id}
+                      className={cn(
+                        'text-sm transition-all duration-150 rounded-xl',
+                        isUnread
+                          ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 shadow-xs'
+                          : 'opacity-85 hover:bg-muted/50 hover:opacity-100',
                       )}
-                    </button>
-                  </li>
-                ))}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleNotificationClick(n)}
+                        className="flex w-full items-start gap-2.5 p-3 text-left cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      >
+                        <span className="mt-0.5 flex-shrink-0" aria-hidden="true">
+                          {getNotificationIcon(n.type)}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={cn("text-xs truncate", isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80")}>
+                              {n.title}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+                              {formatRelative(n.createdAt)}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                            {n.body || n.message}
+                          </p>
+                          {n.ticketId && (
+                            <p className="text-[10px] text-primary mt-1 font-semibold font-mono">
+                              Ticket #{n.ticketId}
+                            </p>
+                          )}
+                        </div>
+                        {isUnread && (
+                          <span
+                            className="flex-shrink-0 size-2 rounded-full bg-primary mt-1.5 ring-2 ring-primary/20"
+                            aria-label="No leída"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </motion.div>

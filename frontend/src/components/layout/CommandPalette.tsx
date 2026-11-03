@@ -40,6 +40,9 @@ export function CommandPalette({
   const { isAdmin, isSupervisor } = useRole()
   const [search, setSearch] = useState('')
 
+  const ticketIdMatch = search.trim().match(/^#?(\d+)$/)
+  const searchedTicketId = ticketIdMatch ? parseInt(ticketIdMatch[1], 10) : null
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -91,10 +94,22 @@ export function CommandPalette({
             </kbd>
           </div>
 
-          <Command.List className="max-h-80 overflow-y-auto p-2 text-sm">
+          <Command.List className="max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 p-2 text-sm">
             <Command.Empty className="py-6 text-center text-xs text-muted-foreground">
-              No se encontraron resultados.
+              No se encontraron resultados para &quot;{search}&quot;.
             </Command.Empty>
+
+            {searchedTicketId && (
+              <Command.Group heading="Búsqueda Directa" className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                <Command.Item
+                  onSelect={() => runCommand(() => navigate(`/tickets/${searchedTicketId}`))}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm font-medium text-primary bg-primary/5 hover:bg-primary/10 aria-selected:bg-primary/15"
+                >
+                  <Search className="size-4 text-primary" />
+                  <span>Abrir Ticket #{searchedTicketId}</span>
+                </Command.Item>
+              </Command.Group>
+            )}
 
             <Command.Group
               heading="Navegación"

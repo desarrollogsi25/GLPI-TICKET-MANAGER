@@ -10,12 +10,19 @@ public static class TicketLabels
     public static string Status(int status) => (TicketStatus)status switch
     {
         TicketStatus.New => "Nuevo",
-        TicketStatus.Assigned => "Asignado",
-        TicketStatus.Planned => "Planificado",
+        TicketStatus.Assigned => "En proceso (asignado)",
+        TicketStatus.Planned => "En proceso (planificado)",
         TicketStatus.Waiting => "Pendiente",
         TicketStatus.Solved => "Resuelto",
         TicketStatus.Closed => "Cerrado",
         _ => $"Desconocido ({status})"
+    };
+
+    public static string TaskState(int state) => (TicketTaskState)state switch
+    {
+        TicketTaskState.ToDo => "Pendiente",
+        TicketTaskState.Done => "Realizada",
+        _ => $"Desconocido ({state})"
     };
 
     public static string Type(int type) => (TicketType)type switch

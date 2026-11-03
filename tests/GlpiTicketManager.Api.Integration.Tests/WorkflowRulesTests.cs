@@ -214,15 +214,27 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Technician_CanResumeWaitingToInProgress()
+    public async Task Technician_CanResumeWaitingToAssigned()
+    {
+        ArrangeTicket((int)TicketStatus.Waiting);
+
+        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Assigned);
+    }
+
+    [Fact]
+    public async Task Technician_CannotResumeWaitingDirectlyToPlanned()
     {
         ArrangeTicket((int)TicketStatus.Waiting);
 
         var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
         var response = await PatchStatusAsync(token, (int)TicketStatus.Planned);
 
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Planned);
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Waiting);
     }
 
     [Fact]

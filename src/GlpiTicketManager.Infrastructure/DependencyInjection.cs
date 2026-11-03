@@ -31,6 +31,11 @@ public static class DependencyInjection
         });
 
         services.AddScoped<ITicketRepository, TicketRepository>();
+        services.AddScoped<ITicketTaskRepository, TicketTaskRepository>();
+        services.AddScoped<IPlanningIdempotencyRepository, PlanningIdempotencyRepository>();
+        services.AddScoped<IGlpiWebhookIdempotencyRepository, GlpiWebhookIdempotencyRepository>();
+        services.AddScoped<IGlpiWatcherStateRepository, GlpiWatcherStateRepository>();
+        services.AddScoped<ITicketPlanningRequestStore, TicketPlanningRequestStore>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IAppSettingsRepository, AppSettingsRepository>();

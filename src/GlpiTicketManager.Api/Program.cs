@@ -104,16 +104,39 @@ builder.Services
         };
     });
 
-builder.Services.AddCors(options =>
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 {
-    options.AddDefaultPolicy(policy =>
+    var envCors = builder.Configuration["CORS_ALLOWED_ORIGIN"];
+    var corsAllowedOrigins = !string.IsNullOrWhiteSpace(envCors)
+        ? envCors.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        : (builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim())
+            .ToArray();
+    var normalizedCorsOrigins = corsAllowedOrigins.Select(origin =>
     {
-        policy.SetIsOriginAllowed(_ => true)
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || uri.AbsolutePath != "/"
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || origin.Contains('*'))
+        {
+            throw new InvalidOperationException("Cors:AllowedOrigins must contain only explicit HTTP(S) origins without paths or wildcards.");
+        }
+
+        return uri.GetLeftPart(UriPartial.Authority);
+    }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    if (normalizedCorsOrigins.Length > 0)
+    {
+        policy.WithOrigins(normalizedCorsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
-    });
-});
+    }
+}));
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
@@ -137,6 +160,16 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = rateLimitOptions.LoginAttemptLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy(RateLimitPolicies.GlpiWebhook, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitOptions.GlpiWebhookRequestLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -217,6 +250,7 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
+app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
 app.UseRateLimiter();
@@ -228,6 +262,7 @@ app.MapScalarApiReference();
 
 app.MapAuthEndpoints();
 app.MapTicketEndpoints();
+app.MapTicketPlanningEndpoints();
 app.MapDashboardEndpoints();
 app.MapGroupEndpoints();
 app.MapChannelEndpoints();

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Types mirroring the .NET API contracts (System.Text.Json camelCase).
  * Source of truth: src/GlpiTicketManager.Application/Dtos
  */
@@ -51,6 +51,7 @@ export interface TicketSummary {
   hasSolution: boolean
   assigneeIds: number[]
   requesterIds: number[]
+  timeToResolve?: string | null
 }
 
 export interface TicketFollowup {
@@ -203,4 +204,24 @@ export interface GroupSummary {
   totalTickets: number
   pendingTickets: number
   activeTechnicians: number
+}
+
+
+export interface WatcherPendingTicket {
+  ticketId: number
+  categoryId: number
+  ticketName: string
+  status: string
+  attempts: number
+  nextRetryAt: string
+  lastError: string | null
+}
+
+export interface AdminWatcherStatus {
+  lastSeenTicketId: number | null
+  pendingCount: number
+  permanentlyFailedCount: number
+  hasOperationalAlert: boolean
+  permanentlyFailedTicketsTruncated?: boolean
+  permanentlyFailedTickets: WatcherPendingTicket[]
 }

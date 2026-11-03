@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="GlpiTicketManager.Api.Integration.Tests" />
     <ProjectReference Include="..\GlpiTicketManager.Application\GlpiTicketManager.Application.csproj" />
     <ProjectReference Include="..\GlpiTicketManager.Infrastructure\GlpiTicketManager.Infrastructure.csproj" />
   </ItemGroup>

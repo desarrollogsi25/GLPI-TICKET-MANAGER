@@ -30,6 +30,23 @@ public static class AdminEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
+        // GET /api/admin/watcher-status -> estado operativo y alertas del watcher GLPI
+        group.MapGet("/watcher-status", GetAdminWatcherStatus)
+            .WithName("GetAdminWatcherStatus")
+            .WithSummary("Estado operativo del watcher GLPI y tickets en fallo permanente")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        // POST /api/admin/watcher/recover/{ticketId:int} -> recuperación explícita de ticket en fallo permanente
+        group.MapPost("/watcher/recover/{ticketId:int}", RecoverAdminWatcherTicket)
+            .WithName("RecoverAdminWatcherTicket")
+            .WithSummary("Recupera explícitamente un ticket del watcher en estado PermanentlyFailed")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         return group;
     }
 
@@ -37,6 +54,72 @@ public static class AdminEndpoints
         IDashboardRepository dashboardRepository,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken)
+    {
+        var authError = ValidateAdminPrincipal(principal);
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        var summaries = await dashboardRepository.GetAdminGroupSummariesAsync(cancellationToken);
+        return Results.Ok(summaries);
+    }
+
+    private static async Task<IResult> GetAdminWatcherStatus(
+        IGlpiWatcherStateRepository watcherStateRepository,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var authError = ValidateAdminPrincipal(principal);
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        var checkpoint = await watcherStateRepository.GetLastSeenTicketIdAsync(cancellationToken);
+        var counts = await watcherStateRepository.GetQueueCountsAsync(cancellationToken);
+        var permanentlyFailed = await watcherStateRepository.GetPermanentlyFailedTicketsAsync(100, cancellationToken);
+
+        return Results.Ok(new
+        {
+            lastSeenTicketId = checkpoint,
+            pendingCount = counts.PendingCount,
+            permanentlyFailedCount = counts.PermanentlyFailedCount,
+            hasOperationalAlert = counts.PermanentlyFailedCount > 0,
+            permanentlyFailedTicketsTruncated = counts.PermanentlyFailedCount > permanentlyFailed.Count,
+            permanentlyFailedTickets = permanentlyFailed
+        });
+    }
+
+    private static async Task<IResult> RecoverAdminWatcherTicket(
+        int ticketId,
+        IGlpiWatcherStateRepository watcherStateRepository,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var authError = ValidateAdminPrincipal(principal);
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        var recovered = await watcherStateRepository.RecoverPendingTicketAsync(ticketId, cancellationToken);
+        if (!recovered)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket no encontrado en cola del watcher",
+                detail: $"No existe registro pendiente o en fallo permanente para el ticket #{ticketId}.");
+        }
+
+        return Results.Ok(new
+        {
+            recovered = true,
+            ticketId
+        });
+    }
+
+    private static IResult? ValidateAdminPrincipal(ClaimsPrincipal principal)
     {
         var userId = principal.GetUserId();
         if (userId is null)
@@ -56,7 +139,6 @@ public static class AdminEndpoints
                 detail: "Solo administradores pueden acceder a este dashboard.");
         }
 
-        var summaries = await dashboardRepository.GetAdminGroupSummariesAsync(cancellationToken);
-        return Results.Ok(summaries);
+        return null;
     }
 }

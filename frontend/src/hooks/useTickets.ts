@@ -3,8 +3,14 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { queryKeys } from '@/lib/api/queryKeys'
 import {
   getTicket,
+  listTicketTasks,
+  replanTicketTask,
+  completeTicketTask,
+  cancelTicketTask,
   listTickets,
   updateTicketStatus,
+  planTicket,
+  type PlanTicketRequest,
   listGroups,
   listChannels,
   listGroupQueue,
@@ -16,6 +22,8 @@ import {
   createTicket,
   getTeamDashboard,
   getAdminDashboard,
+  getAdminWatcherStatus,
+  recoverAdminWatcherTicket,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
@@ -73,7 +81,14 @@ export function useTicketQuery(ticketId: number) {
     enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
-
+export function useTicketTasksQuery(ticketId: number) {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: queryKeys.tickets.tasks(ticketId),
+    queryFn: () => listTicketTasks(ticketId),
+    enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
+  })
+}
 /**
  * H-36: `queryKeys.tickets.all` is a prefix of the detail, list, assignee AND
  * group-queue keys, so a single invalidation refreshes all of them. Invalidating
@@ -98,7 +113,39 @@ export function useUpdateTicketStatusMutation() {
     },
   })
 }
-
+export function usePlanTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, payload }: { ticketId: number; payload: PlanTicketRequest }) =>
+      planTicket(ticketId, payload),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
+export function useReplanTicketTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, taskId, payload }: {
+      ticketId: number; taskId: number; payload: import('@/lib/api/tickets').ReplanTicketTaskRequest
+    }) => replanTicketTask(ticketId, taskId, payload),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
+export function useCompleteTicketTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
+      completeTicketTask(ticketId, taskId),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
+export function useCancelTicketTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
+      cancelTicketTask(ticketId, taskId),
+    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+  })
+}
 export function useGroupsQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -108,7 +155,6 @@ export function useGroupsQuery() {
     staleTime: 5 * 60_000,
   })
 }
-
 export function useChannelsQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -118,7 +164,6 @@ export function useChannelsQuery() {
     staleTime: 5 * 60_000,
   })
 }
-
 /**
  * Fallback polling cadence for the group queue, used ONLY while the realtime
  * connection is down.
@@ -173,7 +218,6 @@ export function useGroupQueueQuery(
     refetchIntervalInBackground: false,
   })
 }
-
 export function useClaimTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -183,7 +227,6 @@ export function useClaimTicketMutation() {
     },
   })
 }
-
 export function useCreateSolutionMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -197,7 +240,6 @@ export function useCreateSolutionMutation() {
     },
   })
 }
-
 /**
  * Resolves a ticket atomically (BUG-031 / H-31): one request writes the solution and
  * moves the ticket to its resolved state, so the UI never has to chain two calls.
@@ -212,7 +254,6 @@ export function useResolveTicketMutation() {
     },
   })
 }
-
 export function useReopenTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -223,7 +264,6 @@ export function useReopenTicketMutation() {
     },
   })
 }
-
 export function usePutPendingMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -234,7 +274,6 @@ export function usePutPendingMutation() {
     },
   })
 }
-
 export function useCreateTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -249,7 +288,6 @@ export function useCreateTicketMutation() {
     },
   })
 }
-
 export function useTeamDashboardQuery(groupId: number | null) {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -258,12 +296,28 @@ export function useTeamDashboardQuery(groupId: number | null) {
     enabled: groupId != null && groupId > 0 && sessionValid,
   })
 }
-
 export function useAdminDashboardQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: ['admin', 'dashboard'],
     queryFn: getAdminDashboard,
     enabled: sessionValid,
+  })
+}
+export function useAdminWatcherStatusQuery() {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: ['admin', 'watcher-status'],
+    queryFn: getAdminWatcherStatus,
+    enabled: sessionValid,
+  })
+}
+export function useRecoverWatcherTicketMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketId: number) => recoverAdminWatcherTicket(ticketId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'watcher-status'] })
+    },
   })
 }

@@ -49,6 +49,11 @@ public interface ITicketRepository
         int offset,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int limit, int offset, CancellationToken cancellationToken);
+
     Task<long> CountFilteredAsync(
         int? assigneeId,
         int? serviceId,
@@ -72,8 +77,17 @@ public interface ITicketRepository
         DateTime? endDate,
         CancellationToken cancellationToken);
 
+    Task<long> CountSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        CancellationToken cancellationToken);
+
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
     Task<Ticket?> GetByIdAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken);
+
+    /// <summary>Read-only GLPI calendar conflict check; called under the shared technician lock.</summary>
+    Task<bool> HasOverlappingScheduledTaskAsync(int technicianId, DateTime startUtc,
+        DateTime endUtc, int? excludingTaskId, CancellationToken cancellationToken);
 
     /// <summary>Loads the user links (requesters / assignees) for a set of tickets.</summary>
     Task<IReadOnlyList<TicketUser>> GetUsersForTicketsAsync(
@@ -97,9 +111,15 @@ public interface ITicketRepository
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<int>> GetAuthorizedGroupIdsForUserAsync(int userId, int? entityId, CancellationToken cancellationToken) =>
+        GetGroupIdsForUserAsync(userId, cancellationToken);
+
     Task<IReadOnlyList<int>> GetGroupIdsForTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken);
+
+    Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, int? entityId, CancellationToken cancellationToken) =>
+        GetAssignmentGroupForCategoryAsync(categoryId, cancellationToken);
 
     Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);

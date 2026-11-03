@@ -25,7 +25,9 @@ public static class TicketMapper
         ticket.SolvedAt,
         ticket.HasSolution,
         ticket.AssigneeIds,
-        ticket.RequesterIds);
+        ticket.RequesterIds,
+        ticket.NextPlannedAt,
+        ticket.NextPlannedTechnicianId);
 
     public static TicketDetailDto ToDetail(this Ticket ticket) => new(
         ticket.Id,
@@ -47,7 +49,9 @@ public static class TicketMapper
         ticket.AssigneeIds,
         ticket.RequesterIds,
         ticket.Followups.Select(ToDto).ToArray(),
-        ticket.Solutions.Select(ToDto).ToArray());
+        ticket.Solutions.Select(ToDto).ToArray(),
+        ticket.NextPlannedAt,
+        ticket.NextPlannedTechnicianId);
 
     public static TicketFollowupDto ToDto(this TicketFollowup followup) => new(
         followup.Id,

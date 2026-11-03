@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using Dapper;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Domain.Entities;
@@ -32,6 +32,44 @@ public sealed class NotificationRepository : INotificationRepository
                 cancellationToken: ct));
     }
 
+    public async Task<long?> CreateIdempotentAsync(Notification notification, string idempotencyKey, CancellationToken ct = default)
+    {
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        return await conn.ExecuteScalarAsync<long?>(
+            new CommandDefinition(
+                NotificationQueries.InsertIdempotent,
+                new
+                {
+                    notification.UserId,
+                    notification.Type,
+                    notification.TicketId,
+                    notification.Title,
+                    notification.Message,
+                    notification.IsRead,
+                    notification.CreatedAt,
+                    IdempotencyKey = idempotencyKey
+                },
+                cancellationToken: ct));
+    }
+
+    public async Task<long?> TryCreateTicketCreatedAsync(Notification notification, CancellationToken ct = default)
+    {
+        if (notification.Type != "TicketCreated" || notification.TicketId is null or <= 0)
+            throw new ArgumentException("Requires a TicketCreated notification with a valid ticket ID.", nameof(notification));
+
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        return await conn.ExecuteScalarAsync<long?>(new CommandDefinition(
+            NotificationQueries.InsertTicketCreatedOnce,
+            new
+            {
+                notification.UserId,
+                notification.TicketId,
+                notification.Title,
+                notification.Message,
+                notification.CreatedAt
+            }, cancellationToken: ct));
+    }
+
     public async Task<IReadOnlyList<Notification>> GetByUserAsync(int userId, int limit = 50, int offset = 0, CancellationToken ct = default)
     {
         await using var conn = (DbConnection)await _factory.CreateAsync(ct);
@@ -40,6 +78,7 @@ public sealed class NotificationRepository : INotificationRepository
                 NotificationQueries.GetByUser,
                 new { UserId = userId, Limit = limit, Offset = offset },
                 cancellationToken: ct));
+
         return entries.AsList();
     }
 
@@ -56,12 +95,13 @@ public sealed class NotificationRepository : INotificationRepository
     public async Task<bool> MarkAsReadAsync(long id, int userId, CancellationToken ct = default)
     {
         await using var conn = (DbConnection)await _factory.CreateAsync(ct);
-        var rows = await conn.ExecuteAsync(
+        var affected = await conn.ExecuteAsync(
             new CommandDefinition(
                 NotificationQueries.MarkAsRead,
                 new { Id = id, UserId = userId },
                 cancellationToken: ct));
-        return rows > 0;
+
+        return affected > 0;
     }
 
     public async Task<int> MarkAllAsReadAsync(int userId, CancellationToken ct = default)

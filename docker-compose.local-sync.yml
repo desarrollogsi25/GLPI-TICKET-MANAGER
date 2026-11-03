@@ -10,6 +10,7 @@ services:
       - "127.0.0.1:5173:80"
     volumes: !override
       - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
 
   lan-frontend:
     image: glpi-ticket-manager-frontend:local
@@ -18,7 +19,9 @@ services:
     restart: unless-stopped
     ports:
       - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - frontend
