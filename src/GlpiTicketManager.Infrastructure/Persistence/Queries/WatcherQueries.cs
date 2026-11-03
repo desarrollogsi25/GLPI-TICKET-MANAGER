@@ -84,4 +84,11 @@ public static class WatcherQueries
         ORDER BY ticket_id ASC
         LIMIT @Limit;
         """;
+
+    public const string GetQueueCounts = """
+        SELECT
+            CAST(COUNT(*) FILTER (WHERE status IN ('AwaitingGroup', 'Retry', 'AwaitingTechnician')) AS INTEGER) AS PendingCount,
+            CAST(COUNT(*) FILTER (WHERE status = 'PermanentlyFailed') AS INTEGER) AS PermanentlyFailedCount
+        FROM glpi_watcher_pending_tickets;
+        """;
 }

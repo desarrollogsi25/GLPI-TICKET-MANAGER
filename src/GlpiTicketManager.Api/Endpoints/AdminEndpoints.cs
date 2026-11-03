@@ -77,15 +77,16 @@ public static class AdminEndpoints
         }
 
         var checkpoint = await watcherStateRepository.GetLastSeenTicketIdAsync(cancellationToken);
-        var pending = await watcherStateRepository.GetPendingTicketsAsync(100, cancellationToken);
+        var counts = await watcherStateRepository.GetQueueCountsAsync(cancellationToken);
         var permanentlyFailed = await watcherStateRepository.GetPermanentlyFailedTicketsAsync(100, cancellationToken);
 
         return Results.Ok(new
         {
             lastSeenTicketId = checkpoint,
-            pendingCount = pending.Count,
-            permanentlyFailedCount = permanentlyFailed.Count,
-            hasOperationalAlert = permanentlyFailed.Count > 0,
+            pendingCount = counts.PendingCount,
+            permanentlyFailedCount = counts.PermanentlyFailedCount,
+            hasOperationalAlert = counts.PermanentlyFailedCount > 0,
+            permanentlyFailedTicketsTruncated = counts.PermanentlyFailedCount > permanentlyFailed.Count,
             permanentlyFailedTickets = permanentlyFailed
         });
     }

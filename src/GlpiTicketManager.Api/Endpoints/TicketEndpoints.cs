@@ -704,6 +704,7 @@ public static class TicketEndpoints
                 request.Urgency,
                 request.CategoryId,
                 userId.Value,
+                principal.GetEntityId(),
                 cancellationToken);
 
             return Results.Created($"/api/tickets/{ticketId}", new CreateTicketResponse(ticketId));

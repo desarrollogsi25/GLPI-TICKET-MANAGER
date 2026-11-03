@@ -273,7 +273,7 @@ public sealed class TicketRepository : ITicketRepository
         {
             conditions.Add("""
                 (
-                    t.itilcategories_id = @ServiceId 
+                    t.itilcategories_id = @ServiceId
                     OR t.itilcategories_id IN (
                         SELECT id FROM glpi_itilcategories WHERE itilcategories_id = @ServiceId
                     )
@@ -571,26 +571,98 @@ public sealed class TicketRepository : ITicketRepository
         return result.AsList();
     }
 
-    public async Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<int>> GetAuthorizedGroupIdsForUserAsync(int userId, int? entityId, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
         const string sql = """
-            SELECT CAST(ra.value AS SIGNED)
-            FROM glpi_rules r
-            INNER JOIN glpi_rulecriterias rc ON rc.rules_id = r.id
-            INNER JOIN glpi_ruleactions ra ON ra.rules_id = r.id
-            WHERE r.sub_type = 'RuleTicket'
-              AND r.is_active = 1
-              AND rc.criteria = 'itilcategories_id'
-              AND rc.pattern = @CategoryId
-              AND ra.action_type = 'assign'
-              AND ra.field = '_groups_id_assign'
-            ORDER BY r.ranking ASC
+            SELECT DISTINCT g.id
+            FROM glpi_groups_users gu
+            INNER JOIN glpi_groups g ON g.id = gu.groups_id
+            WHERE gu.users_id = @UserId
+              AND g.is_assign = 1
+              AND (@EntityId IS NULL OR g.entities_id = @EntityId OR g.is_recursive = 1)
+            ORDER BY g.id ASC;
+            """;
+        var command = new CommandDefinition(
+            sql,
+            new { UserId = userId, EntityId = entityId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+        var result = await connection.QueryAsync<int>(command);
+        return result.AsList();
+    }
+
+    public Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken)
+        => GetAssignmentGroupForCategoryAsync(categoryId, null, cancellationToken);
+
+    public async Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, int? entityId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            WITH RECURSIVE category_chain AS (
+                SELECT
+                    c.id,
+                    c.itilcategories_id,
+                    c.groups_id,
+                    c.entities_id,
+                    c.is_recursive,
+                    0 AS depth
+                FROM glpi_itilcategories c
+                WHERE c.id = @CategoryId
+                  AND (@EntityId IS NULL OR c.entities_id = @EntityId OR c.is_recursive = 1)
+                UNION ALL
+                SELECT
+                    parent.id,
+                    parent.itilcategories_id,
+                    parent.groups_id,
+                    parent.entities_id,
+                    parent.is_recursive,
+                    cc.depth + 1 AS depth
+                FROM glpi_itilcategories parent
+                INNER JOIN category_chain cc ON parent.id = cc.itilcategories_id
+                WHERE cc.depth < 10
+                  AND (@EntityId IS NULL OR parent.entities_id = @EntityId OR parent.is_recursive = 1)
+            ),
+            candidates AS (
+                SELECT
+                    cc.depth AS depth,
+                    0 AS source_priority,
+                    r.ranking AS rule_ranking,
+                    CAST(ra.value AS SIGNED) AS group_id
+                FROM category_chain cc
+                INNER JOIN glpi_rulecriterias rc
+                    ON rc.criteria = 'itilcategories_id'
+                   AND CAST(rc.pattern AS SIGNED) = cc.id
+                INNER JOIN glpi_rules r
+                    ON r.id = rc.rules_id
+                   AND r.sub_type = 'RuleTicket'
+                   AND r.is_active = 1
+                   AND (@EntityId IS NULL OR r.entities_id = @EntityId OR r.is_recursive = 1)
+                INNER JOIN glpi_ruleactions ra
+                    ON ra.rules_id = r.id
+                   AND ra.action_type = 'assign'
+                   AND ra.field = '_groups_id_assign'
+                UNION ALL
+                SELECT
+                    cc.depth AS depth,
+                    1 AS source_priority,
+                    0 AS rule_ranking,
+                    cc.groups_id AS group_id
+                FROM category_chain cc
+                WHERE cc.groups_id > 0
+            )
+            SELECT cand.group_id
+            FROM candidates cand
+            INNER JOIN glpi_groups g
+                ON g.id = cand.group_id
+               AND g.is_assign = 1
+               AND (@EntityId IS NULL OR g.entities_id = @EntityId OR g.is_recursive = 1)
+            ORDER BY cand.depth ASC, cand.source_priority ASC, cand.rule_ranking ASC
             LIMIT 1;
             """;
         return await connection.ExecuteScalarAsync<int?>(new CommandDefinition(
             sql,
-            new { CategoryId = categoryId.ToString() },
+            new { CategoryId = categoryId, EntityId = entityId },
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken));
     }

@@ -252,7 +252,10 @@ export function AdminDashboard() {
             {watcherStatus.permanentlyFailedTickets.length > 0 && (
               <div className="space-y-2" data-testid="watcher-permanently-failed-list">
                 <p className="text-xs font-semibold text-destructive">
-                  Alerta operativa: Los siguientes tickets agotaron el límite de reintentos y requieren revisión o recuperación explícita:
+                  Alerta operativa: Los siguientes tickets agotaron el límite de reintentos y requieren revisión o recuperación explícita
+                  {watcherStatus.permanentlyFailedTicketsTruncated
+                    ? ` (mostrando primeros ${watcherStatus.permanentlyFailedTickets.length} de ${watcherStatus.permanentlyFailedCount})`
+                    : ':'}
                 </p>
                 <div className="space-y-2">
                   {watcherStatus.permanentlyFailedTickets.map((item) => (

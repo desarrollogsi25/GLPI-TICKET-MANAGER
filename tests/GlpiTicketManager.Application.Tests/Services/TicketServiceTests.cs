@@ -29,6 +29,8 @@ public class TicketServiceTests
     private readonly Mock<ITicketNotificationService> _notifications = new();
     private readonly Mock<ILogger<TicketService>> _logger = new();
     private readonly Mock<ITicketPlanningRequestStore> _planningRequests = new();
+    private readonly Mock<INotificationService> _inAppNotifications = new();
+    private readonly Mock<IDashboardRepository> _dashboard = new();
     private readonly TicketService _svc;
 
     public TicketServiceTests()
@@ -36,7 +38,16 @@ public class TicketServiceTests
         _planningRequests.Setup(s => s.AcquireTechnicianScheduleLockAsync(
                 It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EmptyScheduleLease());
-        _svc = new TicketService(_repo.Object, _glpi.Object, _audit.Object, _accessPolicy.Object, _notifications.Object, _logger.Object, _planningRequests.Object);
+        _svc = new TicketService(
+            _repo.Object,
+            _glpi.Object,
+            _audit.Object,
+            _accessPolicy.Object,
+            _notifications.Object,
+            _logger.Object,
+            _planningRequests.Object,
+            _inAppNotifications.Object,
+            _dashboard.Object);
     }
 
     [Fact]
@@ -548,5 +559,107 @@ public class TicketServiceTests
 
         await act.Should().ThrowAsync<ForbiddenException>()
             .WithMessage("User 7 cannot view queue for group 2");
+    }
+
+    [Fact]
+    public async Task CreateTicketAsync_WhenCategoryHasNoValidDestinationGroup_ThrowsValidationExceptionAndDoesNotFallbackToGroup1()
+    {
+        _repo.Setup(r => r.GetAssignmentGroupForCategoryAsync(999, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int?)null);
+
+        var act = async () => await _svc.CreateTicketAsync(
+            "Incidencia sin grupo",
+            "No debe caer en el grupo 1 por defecto",
+            3,
+            999,
+            9,
+            0,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*no tiene un grupo de soporte válido configurado*");
+        _glpi.Verify(g => g.CreateTicketAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateTicketAsync_WhenNoCategoryAndRequesterHasNoAuthorizedGroup_ThrowsValidationExceptionWithoutFallback()
+    {
+        _repo.Setup(r => r.GetAuthorizedGroupIdsForUserAsync(9, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<int>());
+
+        var act = async () => await _svc.CreateTicketAsync(
+            "Incidencia sin categoría",
+            "Solicitante externo sin grupo asignable",
+            3,
+            null,
+            9,
+            0,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*No existe un grupo de destino válido y autorizado*");
+        _glpi.Verify(g => g.CreateTicketAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateTicketAsync_WhenCategoryBelongsToAnotherEntity_ThrowsValidationException()
+    {
+        // Category 50 is configured in Entity 5, but requester is in Entity 0
+        _repo.Setup(r => r.GetAssignmentGroupForCategoryAsync(50, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int?)null);
+
+        var act = async () => await _svc.CreateTicketAsync(
+            "Intento cross-entity",
+            "Categoría de otra entidad",
+            3,
+            50,
+            9,
+            0,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        _glpi.Verify(g => g.CreateTicketAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateTicketAsync_WhenMultiLevelCategoryResolvesAuthorizedGroup_AssignsExactGroupAndNotifiesDeduplicated()
+    {
+        // Child category 12 inherits group 2 from parent hierarchy within entity 0
+        _repo.Setup(r => r.GetAssignmentGroupForCategoryAsync(12, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+        _glpi.Setup(g => g.CreateTicketAsync(
+                "Incidencia subcategoría",
+                "Detalle",
+                4,
+                12,
+                9,
+                2,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(501);
+        _dashboard.Setup(d => d.GetTechnicianUserIdsInGroupAsync(2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { 8 });
+        _inAppNotifications.Setup(n => n.CreateTicketCreatedOnceAsync(
+                8, 501, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var ticketId = await _svc.CreateTicketAsync(
+            "Incidencia subcategoría",
+            "Detalle",
+            4,
+            12,
+            9,
+            0,
+            CancellationToken.None);
+
+        ticketId.Should().Be(501);
+        _glpi.Verify(g => g.CreateTicketAsync("Incidencia subcategoría", "Detalle", 4, 12, 9, 2, It.IsAny<CancellationToken>()), Times.Once);
+        _inAppNotifications.Verify(n => n.CreateTicketCreatedOnceAsync(8, 501, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        _notifications.Verify(n => n.NotifyTicketCreatedAsync(501, 2, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

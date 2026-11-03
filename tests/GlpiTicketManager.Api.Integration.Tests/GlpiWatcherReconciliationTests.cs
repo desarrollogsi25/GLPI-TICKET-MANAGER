@@ -615,6 +615,99 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         statusAfterJson.GetProperty("hasOperationalAlert").GetBoolean().Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Scenario18_WatcherCountsExceeding100_ReturnsExactTotalCounts_AndAnonymousHealthReadyDoesNotLeakWatcherCounts()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+            await stateRepo.SetLastSeenTicketIdAsync(6000, default);
+
+            // Seed 105 permanently failed tickets and 112 pending tickets (exceeding the LIMIT 100 list cap)
+            for (var i = 1; i <= 105; i++)
+            {
+                var tid = 5000 + i;
+                await stateRepo.RecordPendingTicketAsync(tid, 0, $"Failed #{tid}", "AwaitingGroup", "No group", default);
+                await stateRepo.MarkPermanentlyFailedAsync(tid, "Exceeded 50 retry attempts", default);
+            }
+
+            for (var i = 1; i <= 112; i++)
+            {
+                var tid = 5200 + i;
+                await stateRepo.RecordPendingTicketAsync(tid, 0, $"Pending #{tid}", "AwaitingGroup", "Retry scheduled", default);
+            }
+        }
+
+        using var client = _factory.CreateClient();
+
+        var adminLogin = await client.PostAsJsonAsync("/api/auth/login", new GlpiTicketManager.Application.Dtos.Auth.LoginRequest
+        {
+            Username = "admin_test",
+            Password = TestCredentials.Admin
+        });
+        adminLogin.EnsureSuccessStatusCode();
+        var adminToken = (await adminLogin.Content.ReadFromJsonAsync<GlpiTicketManager.Application.Dtos.Auth.LoginResponse>())!.AccessToken;
+
+        using var statusReq = new HttpRequestMessage(HttpMethod.Get, "/api/admin/watcher-status");
+        statusReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+        var statusResp = await client.SendAsync(statusReq);
+        statusResp.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+
+        var statusJson = await statusResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        statusJson.GetProperty("pendingCount").GetInt32().Should().Be(112);
+        statusJson.GetProperty("permanentlyFailedCount").GetInt32().Should().Be(105);
+        statusJson.GetProperty("permanentlyFailedTicketsTruncated").GetBoolean().Should().BeTrue();
+        statusJson.GetProperty("permanentlyFailedTickets").GetArrayLength().Should().Be(100);
+
+        // Verify anonymous /health/ready does NOT expose watcherPermanentlyFailedCount or watcherAlert
+        var healthResp = await client.GetAsync("/health/ready");
+        var healthJson = await healthResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        healthJson.TryGetProperty("watcherPermanentlyFailedCount", out _).Should().BeFalse();
+        healthJson.TryGetProperty("watcherAlert", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Scenario19_CreateTicketGroupAssignment_EnforcesMultiLevelAndMultiEntityRules_AndRejectsUnauthorizedFallback()
+    {
+        using var client = _factory.CreateClient();
+
+        var loginResp = await client.PostAsJsonAsync("/api/auth/login", new GlpiTicketManager.Application.Dtos.Auth.LoginRequest
+        {
+            Username = "solicitante_test",
+            Password = TestCredentials.Solicitante
+        });
+        loginResp.EnsureSuccessStatusCode();
+        var token = (await loginResp.Content.ReadFromJsonAsync<GlpiTicketManager.Application.Dtos.Auth.LoginResponse>())!.AccessToken;
+
+        // 1. Omitting categoryId for external requester with no authorized group -> 400 Bad Request (no fallback to Group 1!)
+        using var noCatReq = new HttpRequestMessage(HttpMethod.Post, "/api/tickets")
+        {
+            Content = JsonContent.Create(new { title = "Sin categoría", description = "No debe asignarse a grupo 1", urgency = 3 })
+        };
+        noCatReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var noCatResp = await client.SendAsync(noCatReq);
+        noCatResp.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+
+        // 2. Category from another entity (Category 50 in Entity 5 vs requester in Entity 0) -> 400 Bad Request
+        using var crossEntityReq = new HttpRequestMessage(HttpMethod.Post, "/api/tickets")
+        {
+            Content = JsonContent.Create(new { title = "Otra entidad", description = "Categoría entidad 5", urgency = 3, categoryId = 50 })
+        };
+        crossEntityReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var crossEntityResp = await client.SendAsync(crossEntityReq);
+        crossEntityResp.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+
+        // 3. Multi-level child category (Category 12 inherits from Parent 10 -> Group 1) -> 201 Created with Group 1
+        using var multiLevelReq = new HttpRequestMessage(HttpMethod.Post, "/api/tickets")
+        {
+            Content = JsonContent.Create(new { title = "Subcategoría multinivel", description = "Hereda grupo 1", urgency = 3, categoryId = 12 })
+        };
+        multiLevelReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var multiLevelResp = await client.SendAsync(multiLevelReq);
+        multiLevelResp.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
+        _factory.LastCreatedTicketAssignedGroupId.Should().Be(CustomWebApplicationFactory.Group1Id);
+    }
+
     private static HttpRequestMessage CreateSignedRequest(string uri, string rawBody)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, uri);

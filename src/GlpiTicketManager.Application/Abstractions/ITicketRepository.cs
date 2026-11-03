@@ -111,9 +111,15 @@ public interface ITicketRepository
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<int>> GetAuthorizedGroupIdsForUserAsync(int userId, int? entityId, CancellationToken cancellationToken) =>
+        GetGroupIdsForUserAsync(userId, cancellationToken);
+
     Task<IReadOnlyList<int>> GetGroupIdsForTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, CancellationToken cancellationToken);
+
+    Task<int?> GetAssignmentGroupForCategoryAsync(int categoryId, int? entityId, CancellationToken cancellationToken) =>
+        GetAssignmentGroupForCategoryAsync(categoryId, cancellationToken);
 
     Task<bool> IsUserAssignedToTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);

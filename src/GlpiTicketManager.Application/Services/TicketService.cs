@@ -1337,12 +1337,22 @@ public sealed class TicketService : ITicketService
         return bound;
     }
 
+    public Task<int> CreateTicketAsync(
+        string title,
+        string description,
+        int urgency,
+        int? categoryId,
+        int requesterUserId,
+        CancellationToken cancellationToken) =>
+        CreateTicketAsync(title, description, urgency, categoryId, requesterUserId, null, cancellationToken);
+
     public async Task<int> CreateTicketAsync(
         string title,
         string description,
         int urgency,
         int? categoryId,
         int requesterUserId,
+        int? requesterEntityId,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(title))
@@ -1350,19 +1360,46 @@ public sealed class TicketService : ITicketService
             throw Invalid("title", "title is required.");
         }
 
-        var assignmentGroupId = categoryId is > 0
-            ? await _tickets.GetAssignmentGroupForCategoryAsync(categoryId.Value, cancellationToken)
-            : null;
-
-        if (assignmentGroupId is null or <= 0)
+        if (requesterUserId <= 0)
         {
-            var userGroups = await _tickets.GetGroupIdsForUserAsync(requesterUserId, cancellationToken);
-            assignmentGroupId = userGroups.FirstOrDefault();
-            if (assignmentGroupId <= 0)
+            throw Invalid("requesterUserId", "requesterUserId must be a positive integer.");
+        }
+
+        int? assignmentGroupId;
+        if (categoryId.HasValue)
+        {
+            if (categoryId.Value <= 0)
             {
-                assignmentGroupId = 1; // Default fallback group (Desarrollo)
+                throw Invalid("categoryId", "categoryId must be a positive integer.");
+            }
+
+            assignmentGroupId = requesterEntityId.HasValue
+                ? await _tickets.GetAssignmentGroupForCategoryAsync(categoryId.Value, requesterEntityId.Value, cancellationToken)
+                : await _tickets.GetAssignmentGroupForCategoryAsync(categoryId.Value, cancellationToken);
+
+            if (assignmentGroupId is null or <= 0)
+            {
+                throw Invalid(
+                    "categoryId",
+                    "La categoría seleccionada no existe, no está autorizada para tu entidad o no tiene un grupo de soporte válido configurado.");
             }
         }
+        else
+        {
+            var userGroups = requesterEntityId.HasValue
+                ? await _tickets.GetAuthorizedGroupIdsForUserAsync(requesterUserId, requesterEntityId.Value, cancellationToken)
+                : await _tickets.GetAuthorizedGroupIdsForUserAsync(requesterUserId, null, cancellationToken);
+
+            assignmentGroupId = userGroups.FirstOrDefault();
+            if (assignmentGroupId is null or <= 0)
+            {
+                throw Invalid(
+                    "categoryId",
+                    "No existe un grupo de destino válido y autorizado para asignar el ticket. Seleccione una categoría configurada.");
+            }
+        }
+
+        var validGroupId = assignmentGroupId.Value;
 
         var ticketId = await _glpi.CreateTicketAsync(
             title,
@@ -1370,14 +1407,14 @@ public sealed class TicketService : ITicketService
             urgency,
             categoryId,
             requesterUserId,
-            assignmentGroupId,
+            validGroupId,
             cancellationToken);
 
         // Notify SignalR clients and create persistent notifications for the group's technicians
         try
         {
-            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
-            var effectiveGroupId = ticketGroups.FirstOrDefault() > 0 ? ticketGroups.First() : (assignmentGroupId ?? 1);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken) ?? Array.Empty<int>();
+            var effectiveGroupId = ticketGroups.FirstOrDefault() > 0 ? ticketGroups.First() : validGroupId;
 
             if (effectiveGroupId > 0 && ticketGroups.Count == 0)
             {

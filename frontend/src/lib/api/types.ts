@@ -221,5 +221,6 @@ export interface AdminWatcherStatus {
   pendingCount: number
   permanentlyFailedCount: number
   hasOperationalAlert: boolean
+  permanentlyFailedTicketsTruncated?: boolean
   permanentlyFailedTickets: WatcherPendingTicket[]
 }

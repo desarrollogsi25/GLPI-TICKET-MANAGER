@@ -145,6 +145,16 @@ public interface ITicketService
         int requesterUserId,
         CancellationToken cancellationToken);
 
+    Task<int> CreateTicketAsync(
+        string title,
+        string description,
+        int urgency,
+        int? categoryId,
+        int requesterUserId,
+        int? requesterEntityId,
+        CancellationToken cancellationToken) =>
+        CreateTicketAsync(title, description, urgency, categoryId, requesterUserId, cancellationToken);
+
     /// <summary>
     /// Sets a ticket into Pending (Waiting = 4) status with a private followup (H-34).
     /// </summary>

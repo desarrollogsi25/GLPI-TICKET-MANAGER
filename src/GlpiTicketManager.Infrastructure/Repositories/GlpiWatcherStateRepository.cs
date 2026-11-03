@@ -82,6 +82,16 @@ public sealed class GlpiWatcherStateRepository : IGlpiWatcherStateRepository
         return entries.AsList();
     }
 
+    public async Task<GlpiWatcherQueueCounts> GetQueueCountsAsync(CancellationToken ct = default)
+    {
+        await using var conn = (DbConnection)await _factory.CreateAsync(ct);
+        var counts = await conn.QuerySingleOrDefaultAsync<GlpiWatcherQueueCounts>(
+            new CommandDefinition(
+                WatcherQueries.GetQueueCounts,
+                cancellationToken: ct));
+        return counts ?? new GlpiWatcherQueueCounts(0, 0);
+    }
+
     public async Task MarkPermanentlyFailedAsync(int ticketId, string reason, CancellationToken ct = default)
     {
         await using var conn = (DbConnection)await _factory.CreateAsync(ct);

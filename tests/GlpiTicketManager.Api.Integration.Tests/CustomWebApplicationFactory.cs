@@ -382,6 +382,31 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public int? LastCreatedTicketAssignedGroupId { get; private set; }
+
+    /// <summary>
+    /// Simulates multi-level category hierarchy and multi-entity isolation for
+    /// <see cref="ITicketRepository.GetAssignmentGroupForCategoryAsync(int, int?, CancellationToken)"/>:
+    /// - Category 1..5, 10 (root/parent in Entity 0, recursive) -> Group 1
+    /// - Category 11 (child of Category 10 in Entity 0, inherits rule from parent 10) -> Group 1
+    /// - Category 12 (grandchild of Category 10 in Entity 0, inherits rule from ancestor 10) -> Group 1
+    /// - Category 20 (mapped to Group 2 in Entity 0) -> Group 2
+    /// - Category 50 (belongs strictly to Entity 5, non-recursive -> Group 2 only when entityId is null or 5)
+    /// - Category 60 (points to non-assignable group is_assign=0 -> null)
+    /// - Any other CategoryId -> null (unmapped)
+    /// </summary>
+    private static int? ResolveCategoryAssignmentGroup(int categoryId, int? entityId)
+    {
+        return categoryId switch
+        {
+            >= 1 and <= 5 => Group1Id,
+            10 or 11 or 12 => Group1Id,
+            20 => Group2Id,
+            50 when entityId is null or 5 => Group2Id,
+            _ => null
+        };
+    }
+
     static CustomWebApplicationFactory()
     {
         Environment.SetEnvironmentVariable("Database__ConnectionString", $"Server=127.0.0.1;Port=3306;Database=glpi;User=glpi;Password={TestCredentials.DbPassword};");
@@ -909,6 +934,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 {
                     lock (_stateLock)
                     {
+                        LastCreatedTicketAssignedGroupId = assignmentGroupId;
                         var newId = _allTickets.Keys.DefaultIfEmpty(100).Max() + 1;
                         var newTicket = new Ticket
                         {
@@ -1058,6 +1084,29 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForUserAsync(AdminId, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(Tech1Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int _, int? entityId, CancellationToken _) =>
+                    entityId is null or 0 ? new[] { Group1Id } : Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(Tech2Id, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int _, int? entityId, CancellationToken _) =>
+                    entityId is null or 0 ? new[] { Group1Id, Group2Id } : Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(SupervisorId, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int _, int? entityId, CancellationToken _) =>
+                    entityId is null or 0 ? new[] { Group1Id } : Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAuthorizedGroupIdsForUserAsync(It.Is<int>(u => u != Tech1Id && u != Tech2Id && u != SupervisorId), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<int>());
+
+            ticketRepoMock.Setup(t => t.GetAssignmentGroupForCategoryAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int categoryId, CancellationToken ct) =>
+                    ResolveCategoryAssignmentGroup(categoryId, null));
+
+            ticketRepoMock.Setup(t => t.GetAssignmentGroupForCategoryAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int categoryId, int? entityId, CancellationToken ct) =>
+                    ResolveCategoryAssignmentGroup(categoryId, entityId));
 
             ticketRepoMock.Setup(t => t.GetGroupIdsForTicketAsync(It.Is<int>(id => id == Ticket11Id || id == Ticket12Id || id == Ticket13Id || id == Ticket31Id), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { Group1Id });
@@ -1563,6 +1612,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     lock (_stateLock)
                     {
                         return WatcherPendingTickets.Values.Where(p => p.Status == "PermanentlyFailed").Take(limit).ToList();
+                    }
+                });
+            watcherStateRepoMock.Setup(w => w.GetQueueCountsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync((CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        var pendingCount = WatcherPendingTickets.Values.Count(p => p.Status != "PermanentlyFailed");
+                        var failedCount = WatcherPendingTickets.Values.Count(p => p.Status == "PermanentlyFailed");
+                        return new GlpiWatcherQueueCounts(pendingCount, failedCount);
                     }
                 });
             watcherStateRepoMock.Setup(w => w.MarkPermanentlyFailedAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
