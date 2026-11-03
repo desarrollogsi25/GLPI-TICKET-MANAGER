@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -15,15 +15,23 @@ import { useToastStore } from '@/store/toastStore'
 export function CreateTicketDialog({
   open,
   onOpenChange,
+  initialCategoryId,
 }: {
   open: boolean
   onOpenChange: (value: boolean) => void
+  initialCategoryId?: number | null
 }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [urgency, setUrgency] = useState<number>(3)
-  const [categoryId, setCategoryId] = useState<number | ''>('')
+  const [categoryId, setCategoryId] = useState<number | ''>(initialCategoryId ?? '')
   const [touched, setTouched] = useState(false)
+
+  useEffect(() => {
+    if (open && initialCategoryId !== undefined) {
+      setCategoryId(initialCategoryId ?? '')
+    }
+  }, [open, initialCategoryId])
 
   const servicesQuery = useServicesQuery()
   const createTicket = useCreateTicketMutation()

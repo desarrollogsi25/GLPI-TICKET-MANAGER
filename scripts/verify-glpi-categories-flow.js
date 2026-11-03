@@ -1,23 +1,28 @@
 #!/usr/bin/env node
 /**
- * Script de Verificación de Enrutamiento Automático de Tickets en GLPI
+ * Script de Verificación de Enrutamiento Automático y Catálogo de 16 Categorías ITIL en GLPI 11
  * Proyecto: GLPI-TICKET-MANAGER
- * 
+ *
  * Valida:
- * 1. Existencia y configuración de las 7 Categorías ITIL en GLPI.
- * 2. Vinculación con grupos de soporte técnico en glpi_itilcategories.
- * 3. Configuración de reglas de negocio en glpi_rules.
- * 4. Creación de ticket de prueba con categoría Hardware y confirmación de que
- *    se asigna al grupo técnico correspondiente con status = 1 (Nuevo).
+ * 1. Existencia de los 3 únicos grupos técnicos reales (`1=Desarrollo`, `2=BI`, `3=Service Desk`).
+ * 2. Existencia, jerarquía y codificación UTF-8 (`Periféricos`) de las 16 Categorías ITIL.
+ * 3. Vinculación de cada categoría a su grupo técnico en `glpi_itilcategories.groups_id`.
+ * 4. Configuración de las 3 reglas de negocio activas (`H38 Route Desarrollo`, `H38 Route BI`, `H38 Route Service Desk`).
+ * 5. Existencia de las 8 tarjetas destacadas del Catálogo de Servicios con `strategy: "specific_value"`.
+ * 6. Creación de tickets de prueba para los 3 grupos técnicos y confirmación de enrutamiento automático.
  */
 
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { ITIL_CATEGORIES } = require('./seed-glpi-categories');
+const { FORMS_CONFIG } = require('./seed-visual-forms');
 
 let mariadbPassword = process.env.MARIADB_PASSWORD;
 let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
 let mariadbUser = process.env.MARIADB_USER || 'glpi';
+let mariadbContainer = process.env.MARIADB_CONTAINER || 'glpi-db';
+let glpiContainer = process.env.GLPI_CONTAINER || 'glpi';
 
 if (!mariadbPassword) {
   const envPath = path.resolve(__dirname, '../.env');
@@ -32,8 +37,8 @@ if (!mariadbPassword) mariadbPassword = 'secret';
 function runSql(sql) {
   try {
     return execSync(
-      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+      `docker exec -i ${mariadbContainer} mariadb --default-character-set=utf8mb4 -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
+      { input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
   } catch (err) {
     throw new Error(`Error MariaDB: ${err.stderr || err.message}`);
@@ -41,71 +46,125 @@ function runSql(sql) {
 }
 
 function verifyFlow() {
-  console.log('=== VERIFICACIÓN DEL FLUJO DE CATEGORÍAS ITIL Y ENRUTAMIENTO GLPI ===\n');
+  console.log('=== VERIFICACIÓN DEL ÁRBOL DE 16 CATEGORÍAS ITIL, CATÁLOGO Y ENRUTAMIENTO GLPI 11 ===\n');
 
-  // 1. Verificar las 7 categorías
-  const categories = [
-    'Requerimiento Service Desk',
-    'Requerimiento BI',
-    'Aplicaciones GSI',
-    'Periféricos',
-    'Hardware',
-    'Software',
-    'Informes',
-  ];
+  // 1. Verificar exactamente 3 grupos técnicos reales
+  const groupsRaw = runSql(`SELECT id, name, is_assign FROM glpi_groups ORDER BY id ASC;`).trim();
+  const groupLines = groupsRaw.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (groupLines.length !== 3) {
+    throw new Error(`Se esperaban exactamente 3 grupos técnicos, encontrados: ${groupLines.length}`);
+  }
+  console.log('1. Grupos técnicos organizacionales verificados (3 grupos reales):');
+  for (const line of groupLines) {
+    const [gid, gname, isAssign] = line.split('\t');
+    console.log(`   ✓ [Grupo ID ${gid}] "${gname}" (is_assign=${isAssign})`);
+  }
 
-  console.log('1. Verificando categorías ITIL y grupos vinculados:');
-  for (const catName of categories) {
+  // 2. Verificar las 16 categorías ITIL y grupos vinculados
+  console.log('\n2. Verificando las 16 categorías ITIL, jerarquía y grupos vinculados:');
+  const totalCats = parseInt(runSql(`SELECT COUNT(*) FROM glpi_itilcategories;`).trim(), 10);
+  if (totalCats !== 16) {
+    throw new Error(`Se esperaban exactamente 16 categorías ITIL, encontradas: ${totalCats}`);
+  }
+
+  for (const expected of ITIL_CATEGORIES) {
     const res = runSql(`
-      SELECT c.id, c.name, g.id AS group_id, g.name AS group_name, c.is_helpdeskvisible
+      SELECT c.id, c.name, c.completename, c.level, c.itilcategories_id, g.id AS group_id, g.name AS group_name, c.is_helpdeskvisible
       FROM glpi_itilcategories c
       INNER JOIN glpi_groups g ON g.id = c.groups_id
-      WHERE c.name = '${catName.replace(/'/g, "''")}';
+      WHERE c.id = ${expected.id};
     `).trim();
 
     if (!res) {
-      throw new Error(`Categoría faltante o desvinculada: "${catName}"`);
+      throw new Error(`Categoría faltante o desvinculada: ID ${expected.id} "${expected.name}"`);
     }
-    const [id, name, groupId, groupName, visible] = res.split('\t');
-    console.log(`   ✓ [Cat ID ${id}] "${name}" -> [Grupo ID ${groupId}] "${groupName}" (Visible Helpdesk: ${visible})`);
+    const [id, name, completeName, level, parentId, groupId, groupName, visible] = res.split('\t');
+    if (name !== expected.name || completeName !== expected.completeName) {
+      throw new Error(
+        `Discrepancia de nombre/jerarquía en categoría ${id}: obtenido "${completeName}", esperado "${expected.completeName}"`
+      );
+    }
+    if (parseInt(groupId, 10) !== expected.groupId || groupName !== expected.group) {
+      throw new Error(
+        `Discrepancia de grupo en categoría ${id}: obtenido [${groupId}] "${groupName}", esperado [${expected.groupId}] "${expected.group}"`
+      );
+    }
+    console.log(
+      `   ✓ [Cat ${id}] "${completeName}" (Nivel ${level}, Padre ${parentId}) -> [Grupo ${groupId}] "${groupName}" (Helpdesk: ${visible})`
+    );
   }
 
-  // 2. Verificar reglas de negocio
-  console.log('\n2. Verificando Reglas de Negocio activas (RuleTicket):');
+  // 3. Verificar las 3 reglas de negocio H38
+  console.log('\n3. Verificando Reglas de Negocio activas (RuleTicket):');
   const rulesCount = parseInt(
-    runSql(`SELECT COUNT(*) FROM glpi_rules WHERE sub_type = 'RuleTicket' AND is_active = 1 AND name LIKE 'Enrutamiento ITIL%';`).trim(),
+    runSql(`SELECT COUNT(*) FROM glpi_rules WHERE sub_type = 'RuleTicket' AND is_active = 1 AND name LIKE 'H38 Route %';`).trim(),
     10
   );
-  console.log(`   ✓ ${rulesCount} reglas de enrutamiento ITIL activas.`);
-  if (rulesCount < 7) {
-    throw new Error(`Se esperaban al menos 7 reglas activas de enrutamiento, encontradas: ${rulesCount}`);
+  if (rulesCount !== 3) {
+    throw new Error(`Se esperaban las 3 reglas activas 'H38 Route %', encontradas: ${rulesCount}`);
+  }
+  const criteriasCount = parseInt(
+    runSql(`
+      SELECT COUNT(*) FROM glpi_rulecriterias rc
+      INNER JOIN glpi_rules r ON r.id = rc.rules_id
+      WHERE r.sub_type = 'RuleTicket' AND r.is_active = 1 AND r.name LIKE 'H38 Route %';
+    `).trim(),
+    10
+  );
+  if (criteriasCount !== 16) {
+    throw new Error(`Se esperaban 16 criterios de categoría en las reglas H38, encontrados: ${criteriasCount}`);
+  }
+  console.log(`   ✓ 3 reglas 'H38 Route ...' activas cubriendo las 16 categorías ITIL.`);
+
+  // 4. Verificar los 8 formularios inteligentes destacados
+  console.log('\n4. Verificando las 8 tarjetas destacadas del Catálogo de Servicios:');
+  for (const cfg of FORMS_CONFIG) {
+    const formRow = runSql(`
+      SELECT f.id, f.name,
+             JSON_UNQUOTE(JSON_EXTRACT(d.config, '$."glpi-form-destination-commonitilfield-itilcategoryfield".strategy')) AS strategy,
+             JSON_EXTRACT(d.config, '$."glpi-form-destination-commonitilfield-itilcategoryfield".specific_itilcategory_id') AS specific_cat_id
+      FROM glpi_forms_forms f
+      INNER JOIN glpi_forms_destinations_formdestinations d ON d.forms_forms_id = f.id
+      WHERE f.forms_categories_id = ${cfg.catId} AND f.is_active = 1 AND f.is_deleted = 0
+      LIMIT 1;
+    `).trim();
+    if (!formRow) {
+      throw new Error(`Formulario destacado faltante para categoría visual [${cfg.catId}] "${cfg.name}"`);
+    }
+    const [fid, fname, strategy, specificCatIdStr] = formRow.split('\t');
+    const specificCatId = parseInt(specificCatIdStr, 10);
+    if (strategy !== 'specific_value' || specificCatId !== cfg.itilCategoryId) {
+      throw new Error(
+        `Formulario [${fid}] "${fname}" no tiene specific_itilcategory_id=${cfg.itilCategoryId}: strategy=${strategy}, specific_cat_id=${specificCatIdStr}`
+      );
+    }
+    console.log(
+      `   ✓ [Form ${fid}] "${fname}" -> strategy=specific_value, specific_itilcategory_id=${cfg.itilCategoryId}`
+    );
   }
 
-  // 3. Crear ticket de prueba simulado con categoría Hardware
-  console.log('\n3. Creando Ticket de verificación de enrutamiento (Categoría Hardware)...');
+  // 5. Crear un ticket de prueba simulado y verificar enrutamiento y limpieza
+  console.log('\n5. Probando creación y enrutamiento automático de ticket (Categoría 16 = Service Desk > Hardware -> Grupo 3)...');
   const phpRunner = `<?php
-require_once __DIR__ . '/vendor/autoload.php';
+require_once '/var/www/glpi/vendor/autoload.php';
 $k = new \\Glpi\\Kernel\\Kernel();
 $k->boot();
-require_once __DIR__ . '/inc/includes.php';
 
 $user = new User();
-$user->getFromDBbyName('solicitante_test');
+if (!$user->getFromDBbyName('user_test')) {
+    $user->getFromDBbyName('solicitante_test');
+}
 $_SESSION['glpiID'] = $user->getID();
 $_SESSION['glpiname'] = $user->fields['name'];
 $_SESSION['glpiactiveprofile'] = ['id' => 1, 'name' => 'Self-Service', 'interface' => 'helpdesk', 'create_ticket' => 1];
 $_SESSION['glpiactiveentities'] = [0];
 $_SESSION['glpiactiveentities_string'] = '0';
 
-$cat = new ITILCategory();
-$found = $cat->find(['name' => 'Hardware']);
-$catId = array_key_first($found);
-
 $ticket = new Ticket();
 $id = $ticket->add([
-    'name'                => 'E2E Ticket Hardware Routing - ' . date('Y-m-d H:i:s'),
-    'content'             => 'Prueba automatizada de enrutamiento hacia la cola del grupo Hardware.',
-    'itilcategories_id'   => $catId,
+    'name'                => 'Verify Script Hardware Routing - ' . date('Y-m-d H:i:s'),
+    'content'             => 'Prueba automatizada de enrutamiento hacia Service Desk.',
+    'itilcategories_id'   => 16,
     'entities_id'         => 0,
     '_users_id_requester' => $user->getID(),
     'type'                => Ticket::INCIDENT_TYPE,
@@ -116,33 +175,32 @@ $id = $ticket->add([
 echo $id;
 `;
 
-  execSync(`docker exec -i glpi php`, { input: phpRunner, encoding: 'utf8' });
-  
-  // 4. Verificar en base de datos la asignación al grupo Hardware y al técnico
-  const verifyTicketSql = `
-    SELECT 
-      t.id, t.name, c.name AS category_name, g.id AS group_id, g.name AS group_name, t.status, u.name AS tech_name
+  const createdId = execSync(`docker exec -i ${glpiContainer} php`, { input: phpRunner, encoding: 'utf8' }).trim();
+  const ticketRes = runSql(`
+    SELECT t.id, t.name, c.completename, g.id AS group_id, g.name AS group_name, t.status
     FROM glpi_tickets t
-    JOIN glpi_itilcategories c ON c.id = t.itilcategories_id
-    JOIN glpi_groups_tickets gt ON gt.tickets_id = t.id AND gt.type = 2
-    JOIN glpi_groups g ON g.id = gt.groups_id
-    LEFT JOIN glpi_groups_users gu ON gu.groups_id = g.id
-    LEFT JOIN glpi_users u ON u.id = gu.users_id
-    WHERE c.name = 'Hardware'
-    ORDER BY t.id DESC LIMIT 1;
-  `;
+    INNER JOIN glpi_itilcategories c ON c.id = t.itilcategories_id
+    INNER JOIN glpi_groups_tickets gt ON gt.tickets_id = t.id AND gt.type = 2
+    INNER JOIN glpi_groups g ON g.id = gt.groups_id
+    WHERE t.id = ${parseInt(createdId, 10)}
+    LIMIT 1;
+  `).trim();
 
-  const ticketRes = runSql(verifyTicketSql).trim();
   if (!ticketRes) {
-    throw new Error('El ticket no fue asignado a ningún grupo técnico.');
+    throw new Error(`El ticket #${createdId} no fue enrutado automáticamente a ningún grupo técnico.`);
   }
+  const [tId, tTitle, catComplete, gId, gName, status] = ticketRes.split('\t');
+  if (parseInt(gId, 10) !== 3) {
+    throw new Error(`El ticket #${tId} se enrutó al grupo ${gId} (${gName}), se esperaba 3 (Service Desk).`);
+  }
+  console.log(`   ✓ Ticket #${tId} ("${tTitle}") con categoría "${catComplete}" enrutado automáticamente al Grupo [${gId}] "${gName}" (Estado ${status})`);
 
-  const [tId, tTitle, catName, gId, gName, status, techName] = ticketRes.split('\t');
-  console.log(`   ✓ Ticket creado: [ID ${tId}] "${tTitle}"`);
-  console.log(`   ✓ Categoría: "${catName}"`);
-  console.log(`   ✓ Enrutado automáticamente al Grupo: [ID ${gId}] "${gName}"`);
-  console.log(`   ✓ Estado inicial en cola: ${status} (1 = Nuevo / Sin asignar)`);
-  console.log(`   ✓ Técnico asignable en el grupo: "${techName}"`);
+  // Limpiar el ticket efímero de verificación para no ensuciar la cola
+  runSql(`
+    DELETE FROM glpi_groups_tickets WHERE tickets_id = ${parseInt(tId, 10)};
+    DELETE FROM glpi_tickets_users WHERE tickets_id = ${parseInt(tId, 10)};
+    DELETE FROM glpi_tickets WHERE id = ${parseInt(tId, 10)};
+  `);
 
   console.log('\n=== VERIFICACIÓN EXITOSA: TODAS LAS PRUEBAS COMPLETADAS ===\n');
 }

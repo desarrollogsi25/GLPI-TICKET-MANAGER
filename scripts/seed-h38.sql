@@ -38,43 +38,45 @@ ON DUPLICATE KEY UPDATE
 -- Eliminar duplicados actuales (conservando el ID más bajo de cada par duplicado).
 DELETE FROM glpi_itilcategories WHERE id IN (8, 9, 10, 12, 13, 14) OR id > 19;
 
--- Estructura jerárquica limpia sin nombres repetidos:
+-- Estructura jerárquica limpia sin nombres repetidos (16 categorías = 6 raíces + 10 subcategorías):
 -- Raíces por grupo/servicio:
---   1 = Desarrollo (raíz grupo Desarrollo)
---   2 = Requerimiento (raíz histórica E2E)
---   5 = Aplicaciones (raíz de aplicaciones)
---   6 = Sistema (raíz de infraestructura/sistema)
---   7 = Service Desk (raíz grupo Service Desk)
---  10 = BI (raíz grupo BI)
+--   1 = Desarrollo (raíz grupo Desarrollo - ID 1)
+--   2 = Requerimiento (raíz grupo Service Desk - ID 3)
+--   5 = Aplicaciones (raíz grupo Desarrollo - ID 1)
+--   6 = Sistema (raíz grupo Service Desk - ID 3)
+--   7 = Service Desk (raíz grupo Service Desk - ID 3)
+--  10 = BI (raíz grupo BI - ID 2)
 INSERT INTO glpi_itilcategories
-  (id, entities_id, is_recursive, itilcategories_id, name, completename, level, is_helpdeskvisible, is_incident, is_request, is_problem, is_change)
+  (id, entities_id, is_recursive, itilcategories_id, name, completename, comment, level, groups_id, is_helpdeskvisible, is_incident, is_request, is_problem, is_change)
 VALUES
   -- Raíces (Nivel 1)
-  (1,  0, 1, 0,  'Desarrollo',       'Desarrollo',                         1, 1, 1, 1, 1, 1),
-  (2,  0, 1, 0,  'Requerimiento',    'Requerimiento',                      1, 1, 1, 1, 1, 1),
-  (5,  0, 1, 0,  'Aplicaciones',     'Aplicaciones',                       1, 1, 1, 1, 1, 1),
-  (6,  0, 1, 0,  'Sistema',          'Sistema',                            1, 1, 1, 1, 1, 1),
-  (7,  0, 1, 0,  'Service Desk',     'Service Desk',                       1, 1, 1, 1, 1, 1),
-  (10, 0, 1, 0,  'BI',               'BI',                                 1, 1, 1, 1, 1, 1),
-  -- Subcategorías de Requerimiento (2)
-  (3,  0, 1, 2,  'Acceso a sistema', 'Requerimiento > Acceso a sistema',   2, 1, 1, 1, 1, 1),
-  -- Subcategorías de Desarrollo (1)
-  (4,  0, 1, 1,  'Software',         'Desarrollo > Software',              2, 1, 1, 1, 1, 1),
-  (9,  0, 1, 1,  'Aplicaciones GSI', 'Desarrollo > Aplicaciones GSI',      2, 1, 1, 1, 1, 1),
-  (11, 0, 1, 1,  'Dev',              'Desarrollo > Dev',                   2, 1, 1, 1, 1, 1),
-  -- Subcategorías de BI (10)
-  (14, 0, 1, 10, 'Requerimiento BI', 'BI > Requerimiento BI',              2, 1, 1, 1, 1, 1),
-  (18, 0, 1, 10, 'Informes',         'BI > Informes',                      2, 1, 1, 1, 1, 1),
-  -- Subcategorías de Service Desk (7)
-  (15, 0, 1, 7,  'Call Center',      'Service Desk > Call Center',         2, 1, 1, 1, 1, 1),
-  (16, 0, 1, 7,  'Hardware',         'Service Desk > Hardware',            2, 1, 1, 1, 1, 1),
-  (17, 0, 1, 7,  'Soporte Nivel 1',  'Service Desk > Soporte Nivel 1',     2, 1, 1, 1, 1, 1),
-  (19, 0, 1, 7,  'Periféricos',      'Service Desk > Periféricos',         2, 1, 1, 1, 1, 1)
+  (1,  0, 1, 0,  'Desarrollo',       'Desarrollo',                         'Área de ingeniería de software, desarrollo y mantenimiento de aplicaciones.', 1, 1, 1, 1, 1, 1, 1),
+  (2,  0, 1, 0,  'Requerimiento',    'Requerimiento',                      'Solicitudes generales de acceso, permisos y servicios corporativos.', 1, 3, 1, 1, 1, 1, 1),
+  (5,  0, 1, 0,  'Aplicaciones',     'Aplicaciones',                       'Soporte e incidencias generales sobre el catálogo de aplicaciones.', 1, 1, 1, 1, 1, 1, 1),
+  (6,  0, 1, 0,  'Sistema',          'Sistema',                            'Infraestructura tecnológica, sistemas operativos, redes y conectividad.', 1, 3, 1, 1, 1, 1, 1),
+  (7,  0, 1, 0,  'Service Desk',     'Service Desk',                       'Solicitud de requerimientos como fichas del CRM, Accesos de Capacitación, etc.', 1, 3, 1, 1, 1, 1, 1),
+  (10, 0, 1, 0,  'BI',               'BI',                                 'Inteligencia de negocios, analítica de datos, tableros y reportería.', 1, 2, 1, 1, 1, 1, 1),
+  -- Subcategorías de Requerimiento (2) -> Grupo 3 (Service Desk)
+  (3,  0, 1, 2,  'Acceso a sistema', 'Requerimiento > Acceso a sistema',   'Solicitud de altas de usuario, permisos, credenciales y accesos a sistemas corporativos.', 2, 3, 1, 1, 1, 1, 1),
+  -- Subcategorías de Desarrollo (1) -> Grupo 1 (Desarrollo)
+  (4,  0, 1, 1,  'Software',         'Desarrollo > Software',              'Ticket relacionado con las incidencias que se presentan en software base, ofimática y sistemas operativos.', 2, 1, 1, 1, 1, 1, 1),
+  (9,  0, 1, 1,  'Aplicaciones GSI', 'Desarrollo > Aplicaciones GSI',      'Ticket relacionado con las incidencias presentadas por los aplicativos internos y corporativos.', 2, 1, 1, 1, 1, 1, 1),
+  (11, 0, 1, 1,  'Dev',              'Desarrollo > Dev',                   'Solicitudes de desarrollo evolutivo, integraciones técnicas y ajustes de código.', 2, 1, 1, 1, 1, 1, 1),
+  -- Subcategorías de BI (10) -> Grupo 2 (BI)
+  (14, 0, 1, 10, 'Requerimiento BI', 'BI > Requerimiento BI',              'Solicitud de requerimientos dirigidos al área de BI, reportes y tableros analíticos.', 2, 2, 1, 1, 1, 1, 1),
+  (18, 0, 1, 10, 'Informes',         'BI > Informes',                      'Ticket relacionado con las incidencias que se presentan en los informes, extracciones de datos o planillas.', 2, 2, 1, 1, 1, 1, 1),
+  -- Subcategorías de Service Desk (7) -> Grupo 3 (Service Desk)
+  (15, 0, 1, 7,  'Call Center',      'Service Desk > Call Center',         'Incidencias y requerimientos operativos de puestos y telefonía de Call Center.', 2, 3, 1, 1, 1, 1, 1),
+  (16, 0, 1, 7,  'Hardware',         'Service Desk > Hardware',            'Ticket relacionado a los problemas que se presentan con el Monitor, PC, fuentes o componentes físicos.', 2, 3, 1, 1, 1, 1, 1),
+  (17, 0, 1, 7,  'Soporte Nivel 1',  'Service Desk > Soporte Nivel 1',     'Asistencia técnica de primer nivel y atención inicial al usuario.', 2, 3, 1, 1, 1, 1, 1),
+  (19, 0, 1, 7,  'Periféricos',      'Service Desk > Periféricos',         'Ticket relacionado a los problemas que se presentan con los periféricos (teclado, mouse, lector, etc.).', 2, 3, 1, 1, 1, 1, 1)
 ON DUPLICATE KEY UPDATE
   itilcategories_id = VALUES(itilcategories_id),
   name = VALUES(name),
   completename = VALUES(completename),
+  comment = VALUES(comment),
   level = VALUES(level),
+  groups_id = VALUES(groups_id),
   is_helpdeskvisible = 1;
 
 -- 3. ENRUTAMIENTO CATEGORÍA -> GRUPO (reglas de negocio de GLPI) -------------
