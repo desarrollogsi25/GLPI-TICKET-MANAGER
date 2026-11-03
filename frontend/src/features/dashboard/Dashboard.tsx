@@ -1,4 +1,4 @@
-﻿import { motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -148,11 +148,19 @@ export function Dashboard() {
       {/* Métricas Principales del Técnico */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard
+          title="Tickets en mi cola"
+          value={queueCount}
+          subtitle={queueCount === 0 ? 'Cola al día' : `${queueCount} por asignar`}
+          icon={Inbox}
+          variant="primary"
+          onClick={() => navigate('/queue')}
+        />
+        <StatCard
           title="Total Asignados"
           value={totalAssigned}
           subtitle={`${assignedOpen.length} activos / abiertos`}
           icon={ListTodo}
-          variant="primary"
+          variant="default"
           onClick={() => navigate('/tickets')}
         />
         <StatCard

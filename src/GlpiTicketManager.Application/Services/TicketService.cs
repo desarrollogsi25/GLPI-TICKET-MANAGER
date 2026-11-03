@@ -625,6 +625,11 @@ public sealed class TicketService : ITicketService
             ?? throw new NotFoundException($"Ticket {ticketId} not found.");
         var decision = await _accessPolicy.EvaluateStatusTransitionAsync(
             userId, role, ticketId, (int)TicketStatus.Planned, cancellationToken);
+        if (!decision.Allowed && ticket.Status == (int)TicketStatus.Waiting)
+        {
+            decision = await _accessPolicy.EvaluateStatusTransitionAsync(
+                userId, role, ticketId, (int)TicketStatus.Assigned, cancellationToken);
+        }
         if (!decision.Allowed) throw new ForbiddenException(decision.Reason ?? "No tienes permisos para planificar el ticket.");
 
         // Read from GLPI, not the eventually-consistent MariaDB projection.

@@ -210,6 +210,19 @@ export function PreferencesPage() {
 
           {!isLoading && !isError && (
             <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+              {/* Selector semántico accesible / compatibilidad de formulario */}
+              <select
+                name="theme"
+                id="theme"
+                value={theme}
+                onChange={(e) => autoSaveTheme(e.target.value as 'light' | 'dark')}
+                className="sr-only"
+                aria-label="Tema de la interfaz"
+              >
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+              </select>
+
               {/* Selector de Tema con Tarjetas Interactivas */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
