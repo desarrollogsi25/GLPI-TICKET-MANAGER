@@ -56,6 +56,48 @@ async function captureBell() {
   await page.screenshot({ path: p14 });
   console.log('Saved 14_notifications_bell.png');
 
+  // Close bell
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
+  // 15. Command Palette
+  console.log('Opening command palette...');
+  await page.keyboard.press('Control+k');
+  await page.waitForTimeout(600);
+  const p15 = path.join(ARTIFACT_DIR, '15_command_palette.png');
+  await page.screenshot({ path: p15 });
+  console.log('Saved 15_command_palette.png');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
+  // 16. Preferences Theme
+  console.log('Opening preferences / theme...');
+  const userMenu = page.locator('button[aria-label*="perfil"], button[aria-label*="usuario"], button:has(svg.lucide-user)').first();
+  if (await userMenu.isVisible()) {
+    await userMenu.click();
+    await page.waitForTimeout(300);
+  }
+  const prefBtn = page.locator('button:has-text("Preferencias"), [role="menuitem"]:has-text("Preferencias")').first();
+  if (await prefBtn.isVisible()) {
+    await prefBtn.click();
+    await page.waitForTimeout(500);
+  }
+  const p16 = path.join(ARTIFACT_DIR, '16_preferences_theme.png');
+  await page.screenshot({ path: p16 });
+  console.log('Saved 16_preferences_theme.png');
+
+  // 13. Ticket Closed
+  console.log('Viewing closed ticket in kanban...');
+  await page.goto(`${TM_LAN_HTTP}/kanban`, { waitUntil: 'networkidle' });
+  const closedCard = page.locator('div[data-status="6"], div:has-text("Cerrado")').first();
+  if (await closedCard.isVisible()) {
+    await closedCard.click();
+    await page.waitForTimeout(600);
+  }
+  const p13 = path.join(ARTIFACT_DIR, '13_ticket_closed.png');
+  await page.screenshot({ path: p13 });
+  console.log('Saved 13_ticket_closed.png');
+
   await browser.close();
 }
 
