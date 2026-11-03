@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Types mirroring the .NET API contracts (System.Text.Json camelCase).
  * Source of truth: src/GlpiTicketManager.Application/Dtos
  */

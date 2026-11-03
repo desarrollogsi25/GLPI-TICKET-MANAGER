@@ -9,6 +9,21 @@ const TM_LAN_HTTPS = 'https://10.10.40.31';
 
 fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
 
+function getCred(user) {
+  const key = `CRED_${user.toUpperCase()}`;
+  if (process.env[key]) return process.env[key];
+  for (const candidate of ['.env.local', '../.env.local', '../../.env.local']) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const text = fs.readFileSync(candidate, 'utf8');
+        const match = text.match(new RegExp(`^${key}=(.*)$`, 'm'));
+        if (match) return match[1].trim();
+      }
+    } catch {}
+  }
+  return '';
+}
+
 async function saveScreenshot(page, filename) {
   const filePath = path.join(ARTIFACT_DIR, filename);
   await page.screenshot({ path: filePath, fullPage: false });
@@ -16,6 +31,7 @@ async function saveScreenshot(page, filename) {
 }
 
 async function clearAndLogin(page, username, password) {
+  const pwd = password || getCred(username);
   await page.goto(`${TM_LAN_HTTP}/login`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => {
     try {
@@ -26,7 +42,7 @@ async function clearAndLogin(page, username, password) {
   await page.goto(`${TM_LAN_HTTP}/login`, { waitUntil: 'networkidle' });
   await page.waitForSelector('input[name="username"], input[autocomplete="username"]', { timeout: 10000 });
   await page.fill('input[name="username"], input[autocomplete="username"]', username);
-  await page.fill('input[name="password"], input[type="password"]', password);
+  await page.fill('input[name="password"], input[type="password"]', pwd);
   await page.click('button[type="submit"]');
   await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
   await page.waitForLoadState('networkidle');
@@ -34,7 +50,7 @@ async function clearAndLogin(page, username, password) {
 }
 
 async function runAllTests() {
-  console.log('=== STARTING ROBUST PLAYWRIGHT E2E EXECUTION ===');
+  console.log('=== STARTING ROBUST PLAYWRIGHT E2E EXECUTION (CREDENTIAL-SAFE) ===');
   const browser = await chromium.launch({
     headless: true,
     args: ['--ignore-certificate-errors', '--disable-web-security']
@@ -55,7 +71,7 @@ async function runAllTests() {
   try {
     await page.goto(`${GLPI_URL}/index.php`, { waitUntil: 'networkidle', timeout: 15000 });
     await page.fill('#login_name', 'glpi');
-    await page.fill('#login_password', 'glpi');
+    await page.fill('#login_password', getCred('glpi'));
     await page.click('button[type="submit"], input[type="submit"]');
     await page.waitForLoadState('networkidle');
     console.log('GLPI Logged in. URL:', page.url());
@@ -96,7 +112,7 @@ async function runAllTests() {
   // -------------------------------------------------------------
   console.log('\n--- 2. Testing Ticket Manager Ingestion on LAN (http://10.10.40.31) ---');
   try {
-    await clearAndLogin(page, 'admin_test', 'Password123!');
+    await clearAndLogin(page, 'admin_test');
     await page.goto(`${TM_LAN_HTTP}/kanban`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     await saveScreenshot(page, '02_tm_ticket_ingested.png');
@@ -133,7 +149,7 @@ async function runAllTests() {
 
   // C) Supervisor View (lider_dev)
   try {
-    await clearAndLogin(page, 'lider_dev', 'Password123!');
+    await clearAndLogin(page, 'lider_dev');
     await page.goto(`${TM_LAN_HTTP}/equipo`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
     await saveScreenshot(page, '05_tm_role_supervisor.png');
@@ -143,7 +159,7 @@ async function runAllTests() {
 
   // D) Technician View (tech_dev)
   try {
-    await clearAndLogin(page, 'tech_dev', 'Password123!');
+    await clearAndLogin(page, 'tech_dev');
     await page.goto(`${TM_LAN_HTTP}/dashboard`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
     await saveScreenshot(page, '06_tm_role_technician.png');
@@ -153,7 +169,7 @@ async function runAllTests() {
 
   // E) Solicitante View (user_test)
   try {
-    await clearAndLogin(page, 'user_test', 'Password123!');
+    await clearAndLogin(page, 'user_test');
     await page.goto(`${TM_LAN_HTTP}/tickets`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
     await saveScreenshot(page, '07_tm_role_solicitante.png');
@@ -162,7 +178,7 @@ async function runAllTests() {
   }
 
   // Log back in as admin_test for remaining operations
-  await clearAndLogin(page, 'admin_test', 'Password123!');
+  await clearAndLogin(page, 'admin_test');
 
   // -------------------------------------------------------------
   // 4. CATÁLOGO DE SERVICIOS (8 FORMS / NODES)
@@ -172,7 +188,6 @@ async function runAllTests() {
     await page.goto(`${TM_LAN_HTTP}/services`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     
-    // Expand tree items
     const expandButtons = page.locator('button[aria-label="Expandir"]');
     const count = await expandButtons.count();
     for (let i = 0; i < count; i++) {
@@ -208,7 +223,6 @@ async function runAllTests() {
     await page.goto(`${TM_LAN_HTTP}/tickets/${targetId}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1200);
 
-    // Check if "Planificar tarea" button is visible
     const planTrigger = page.locator('[data-testid="start-ticket-btn"], button:has-text("Planificar tarea")');
     if (await planTrigger.isVisible()) {
       await planTrigger.click();
@@ -220,7 +234,6 @@ async function runAllTests() {
     }
     await saveScreenshot(page, '10_ticket_detail_planned.png');
 
-    // Replan task if available
     const replanTrigger = page.locator('button:has-text("Reprogramar")').first();
     if (await replanTrigger.isVisible()) {
       await replanTrigger.click();
@@ -238,7 +251,6 @@ async function runAllTests() {
     }
     await saveScreenshot(page, '11_ticket_detail_replanned.png');
 
-    // Complete task or transition
     const completeTaskBtn = page.locator('button:has-text("Completar")').first();
     if (await completeTaskBtn.isVisible()) {
       await completeTaskBtn.click();
@@ -250,7 +262,6 @@ async function runAllTests() {
       }
     }
 
-    // Atomic Resolution
     const resolveTrigger = page.locator('button:has-text("Resolver")').first();
     if (await resolveTrigger.isVisible() && await resolveTrigger.isEnabled()) {
       await resolveTrigger.click();
@@ -262,7 +273,8 @@ async function runAllTests() {
     }
     await saveScreenshot(page, '12_ticket_resolved.png');
 
-    // Close Ticket
+    // Wait for resolve modal to vanish before clicking close
+    await page.waitForTimeout(1000);
     const closeBtn = page.locator('button:has-text("Cerrado")').first();
     if (await closeBtn.isVisible() && await closeBtn.isEnabled()) {
       await closeBtn.click();
@@ -279,22 +291,19 @@ async function runAllTests() {
   // -------------------------------------------------------------
   console.log('\n--- 7. Testing Notifications, Command Palette & Preferences ---');
   try {
-    // Notifications Bell
-    const bell = page.locator('button[aria-label*="notificaci" i], button:has(svg.lucide-bell), [data-testid="notification-bell"]');
-    if (await bell.first().isVisible()) {
-      await bell.first().click();
+    const bell = page.locator('button[aria-label="Notificaciones"]:visible').first();
+    if (await bell.isVisible()) {
+      await bell.click();
       await page.waitForTimeout(600);
       await saveScreenshot(page, '14_notifications_bell.png');
-      await bell.first().click(); // close popover
+      await bell.click();
     }
 
-    // Command Palette / Search
     await page.keyboard.press('Control+k');
     await page.waitForTimeout(600);
     await saveScreenshot(page, '15_command_palette.png');
     await page.keyboard.press('Escape');
 
-    // Preferences: Dark / Light Mode
     await page.goto(`${TM_LAN_HTTP}/preferences`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
     const themeToggle = page.locator('button:has-text("Oscuro"), button:has-text("Dark"), button:has-text("Claro"), button:has-text("Light")');
@@ -336,7 +345,7 @@ async function runAllTests() {
     });
     const mobilePage = await mobileContext.newPage();
     
-    await clearAndLogin(mobilePage, 'admin_test', 'Password123!');
+    await clearAndLogin(mobilePage, 'admin_test');
     await mobilePage.goto(`${TM_LAN_HTTP}/kanban`, { waitUntil: 'networkidle' });
     await mobilePage.waitForTimeout(1000);
     await saveScreenshot(mobilePage, '19_mobile_kanban.png');
@@ -371,7 +380,7 @@ async function runAllTests() {
     await httpsPage.goto(`${TM_LAN_HTTPS}/login`, { waitUntil: 'networkidle' });
     await httpsPage.waitForSelector('input[name="username"], input[autocomplete="username"]', { timeout: 10000 });
     await httpsPage.fill('input[name="username"], input[autocomplete="username"]', 'admin_test');
-    await httpsPage.fill('input[name="password"], input[type="password"]', 'Password123!');
+    await httpsPage.fill('input[name="password"], input[type="password"]', getCred('admin_test'));
     await httpsPage.click('button[type="submit"]');
     await httpsPage.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
     

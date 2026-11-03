@@ -34,7 +34,7 @@ public class NotificationTests : IClassFixture<CustomWebApplicationFactory>
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
             Username = "tech1",
-            Password = "Tech1Pass!"
+            Password = TestCredentials.Tech1
         });
 
         loginResponse.EnsureSuccessStatusCode();

@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { fixtureUrl } from './support/fixture-url'
+import { confirmPlanning } from './support/planning'
+
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
 
 test.setTimeout(120000)
 
@@ -7,13 +9,14 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   page,
   browser,
 }) => {
+  if (!ADMIN_PASSWORD) throw new Error('Configura E2E_ADMIN_PASSWORD en el entorno de pruebas.')
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
   // 1. Claim ticket #70 desde la cola
-  await page.goto('/queue')
+  await page.goto('http://localhost:5173/queue')
   await page.waitForLoadState('networkidle')
 
   await expect(page.locator('text=#70').first()).toBeVisible({ timeout: 15000 })
@@ -24,16 +27,16 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await expect(page.locator('text=#70').first()).not.toBeVisible({ timeout: 15000 })
 
   // Navegar al ticket asignado a tech1 (#70)
-  await page.goto('/tickets/70')
+  await page.goto('http://localhost:5173/tickets/70')
   await page.waitForLoadState('networkidle')
 
   await expect(page.locator('text=#70').first()).toBeVisible({ timeout: 15000 })
 
   // 2. Iniciar el ticket y resolverlo por primera vez
-  const startBtn = page.getByRole('button', { name: /Iniciar ticket|Planificado/i }).first()
+  const startBtn = page.getByRole('button', { name: /Planificar tarea/i }).first()
   if (await startBtn.isVisible()) {
     await startBtn.click()
-    await expect(page.getByText('Estado actualizado')).toBeVisible({ timeout: 10000 })
+    await confirmPlanning(page)
   }
 
   const resolveButton = page.getByRole('button', { name: /^Resolver$/ }).first()
@@ -59,19 +62,19 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
 
   // 4. Reabrir como administrador. Se usa un contexto aparte para no cerrar la
   //    sesión compartida de tech1 (el resto de la suite depende de storageState).
-  const adminContext = await browser.newContext({ baseURL: fixtureUrl('desk'), storageState: { cookies: [], origins: [] } })
+  const adminContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const adminPage = await adminContext.newPage()
   adminPage.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(`[admin] ${msg.text()}`)
   })
 
-  await adminPage.goto('/login')
+  await adminPage.goto('http://localhost:5173/login')
   await adminPage.fill('input[name="username"]', 'admin_test')
-  await adminPage.fill('input[name="password"]', 'Password123!')
+  await adminPage.fill('input[name="password"]', ADMIN_PASSWORD)
   await adminPage.click('button[type="submit"]')
   await adminPage.waitForURL(/\/(kanban|dashboard|tickets|queue|services)/, { timeout: 15000 })
 
-  await adminPage.goto('/tickets/70')
+  await adminPage.goto('http://localhost:5173/tickets/70')
   await adminPage.waitForLoadState('networkidle')
 
   const reopenButton = adminPage.getByRole('button', { name: /^Reabrir$/ }).first()
@@ -102,10 +105,10 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await page.reload()
   await page.waitForLoadState('networkidle')
 
-  const startBtn2 = page.getByRole('button', { name: /Iniciar ticket|Planificado/i }).first()
+  const startBtn2 = page.getByRole('button', { name: /Planificar tarea/i }).first()
   if (await startBtn2.isVisible()) {
     await startBtn2.click()
-    await expect(page.getByText('Estado actualizado')).toBeVisible({ timeout: 10000 })
+    await confirmPlanning(page)
   }
 
   const resolveButton2 = page.getByRole('button', { name: /^Resolver$/ }).first()

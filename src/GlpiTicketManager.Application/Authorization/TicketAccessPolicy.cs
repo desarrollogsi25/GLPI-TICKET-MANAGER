@@ -247,8 +247,9 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // A group relationship permits viewing/claiming eligible tickets, but it does
-        // not authorize resolving another technician's assigned work (H-03).
+        // H-03: Belonging to the same group grants queue visibility, but never
+        // permission to insert a solution on another technician's ticket.
+        // Requesters/observers cannot author technician solutions either.
         return role == AppRole.Technician
             && await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
     }

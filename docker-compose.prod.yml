@@ -43,6 +43,8 @@ services:
       GlpiApi__AppToken: ${GLPI_APP_TOKEN}
       GlpiApi__UserToken: ${GLPI_USER_TOKEN}
       Jwt__Key: ${JWT_SECRET}
+      GlpiWebhook__Secret: ${GLPI_WEBHOOK_SECRET:?Provide a strong GLPI_WEBHOOK_SECRET}
+      CORS_ALLOWED_ORIGIN: "${CORS_ALLOWED_ORIGIN:-}"
       Jwt__Issuer: ${JWT_ISSUER:-GlpiTicketManager}
       Jwt__Audience: ${JWT_AUDIENCE:-GlpiTicketManager}
       Jwt__ExpiryMinutes: ${JWT_EXPIRY_MINUTES:-480}

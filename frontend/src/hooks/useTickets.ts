@@ -81,6 +81,7 @@ export function useTicketQuery(ticketId: number) {
     enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
+
 export function useTicketTasksQuery(ticketId: number) {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -89,6 +90,7 @@ export function useTicketTasksQuery(ticketId: number) {
     enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
+
 /**
  * H-36: `queryKeys.tickets.all` is a prefix of the detail, list, assignee AND
  * group-queue keys, so a single invalidation refreshes all of them. Invalidating
@@ -113,6 +115,7 @@ export function useUpdateTicketStatusMutation() {
     },
   })
 }
+
 export function usePlanTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -121,6 +124,7 @@ export function usePlanTicketMutation() {
     onSuccess: async () => { await invalidateTicketCaches(queryClient) },
   })
 }
+
 export function useReplanTicketTaskMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -130,6 +134,7 @@ export function useReplanTicketTaskMutation() {
     onSuccess: async () => { await invalidateTicketCaches(queryClient) },
   })
 }
+
 export function useCompleteTicketTaskMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -138,6 +143,7 @@ export function useCompleteTicketTaskMutation() {
     onSuccess: async () => { await invalidateTicketCaches(queryClient) },
   })
 }
+
 export function useCancelTicketTaskMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -146,6 +152,7 @@ export function useCancelTicketTaskMutation() {
     onSuccess: async () => { await invalidateTicketCaches(queryClient) },
   })
 }
+
 export function useGroupsQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -304,6 +311,7 @@ export function useAdminDashboardQuery() {
     enabled: sessionValid,
   })
 }
+
 export function useAdminWatcherStatusQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -312,6 +320,7 @@ export function useAdminWatcherStatusQuery() {
     enabled: sessionValid,
   })
 }
+
 export function useRecoverWatcherTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -321,3 +330,4 @@ export function useRecoverWatcherTicketMutation() {
     },
   })
 }
+

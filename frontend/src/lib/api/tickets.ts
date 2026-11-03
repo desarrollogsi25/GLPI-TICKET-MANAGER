@@ -45,6 +45,7 @@ export async function planTicket(id: number, payload: PlanTicketRequest): Promis
   const { data } = await apiClient.post<PlanTicketResponse>(`/tickets/${id}/plan`, payload)
   return data
 }
+
 /** Actual GLPI TicketTask (not a synthetic ticket-status event). */
 export interface TicketTask {
   id: number
@@ -62,6 +63,7 @@ export async function listTicketTasks(ticketId: number): Promise<TicketTask[]> {
   const { data } = await apiClient.get<TicketTask[]>(`/tickets/${ticketId}/tasks`)
   return data
 }
+
 export interface ReplanTicketTaskRequest extends PlanTicketRequest {}
 
 export interface TicketTaskMutationResponse { ticketId: number; taskId: number; ticketStatus: number }
@@ -71,14 +73,17 @@ export async function replanTicketTask(ticketId: number, taskId: number,
   const { data } = await apiClient.put<TicketTaskMutationResponse>(`/tickets/${ticketId}/tasks/${taskId}`, payload)
   return data
 }
+
 export async function completeTicketTask(ticketId: number, taskId: number): Promise<TicketTaskMutationResponse> {
   const { data } = await apiClient.post<TicketTaskMutationResponse>(`/tickets/${ticketId}/tasks/${taskId}/complete`)
   return data
 }
+
 export async function cancelTicketTask(ticketId: number, taskId: number): Promise<TicketTaskMutationResponse> {
   const { data } = await apiClient.delete<TicketTaskMutationResponse>(`/tickets/${ticketId}/tasks/${taskId}`)
   return data
 }
+
 export async function listGroups(): Promise<import('@/lib/api/types').Group[]> {
   const { data } = await apiClient.get('/groups')
   return data
@@ -149,11 +154,14 @@ export async function getAdminDashboard(): Promise<GroupSummary[]> {
   const { data } = await apiClient.get<GroupSummary[]>('/admin/groups-summary')
   return data
 }
+
 export async function getAdminWatcherStatus(): Promise<import('@/lib/api/types').AdminWatcherStatus> {
   const { data } = await apiClient.get<import('@/lib/api/types').AdminWatcherStatus>('/admin/watcher-status')
   return data
 }
+
 export async function recoverAdminWatcherTicket(ticketId: number): Promise<{ recovered: boolean; ticketId: number }> {
   const { data } = await apiClient.post<{ recovered: boolean; ticketId: number }>(`/admin/watcher/recover/${ticketId}`)
   return data
 }
+

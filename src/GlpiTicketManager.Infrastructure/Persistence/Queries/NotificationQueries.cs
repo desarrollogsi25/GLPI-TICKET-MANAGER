@@ -1,4 +1,4 @@
-﻿namespace GlpiTicketManager.Infrastructure.Persistence.Queries;
+namespace GlpiTicketManager.Infrastructure.Persistence.Queries;
 
 public static class NotificationQueries
 {
@@ -14,7 +14,6 @@ public static class NotificationQueries
         ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
         RETURNING id;
         """;
-
     // A concurrent loser observes no row; on an insertion failure the key is
     // rolled back with the notification. Works across all API replicas sharing PG.
     public const string InsertTicketCreatedOnce = """

@@ -40,7 +40,6 @@ public interface IGlpiApiClient
         int taskId,
         UpdateTicketTaskRequest request,
         CancellationToken cancellationToken);
-
     /// <summary>
     /// Reads the ticket state back from GLPI.
     ///

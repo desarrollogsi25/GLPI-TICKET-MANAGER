@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace GlpiTicketManager.Application.Dtos.Tickets;
 
 /// <summary>
-/// A scheduled GLPI task is the only valid way to enter native status 3.
-/// Explicit offsets prevent the API from guessing a timezone during DST changes.
+/// Transition a ticket from state 2 (En proceso / asignado) or 4 (En espera) to
+/// state 3 (En proceso / planificado) by scheduling an explicit GLPI TicketTask.
 /// </summary>
 public sealed record PlanTicketRequest
 {

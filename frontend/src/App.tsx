@@ -74,10 +74,31 @@ function RootRedirect() {
   return <Navigate to="/kanban" replace />
 }
 
+function DemoEnvironmentBanner() {
+  const isDemo =
+    import.meta.env.VITE_DEMO_BANNER === 'true' ||
+    (typeof document !== 'undefined' &&
+      document.documentElement.getAttribute('data-demo-banner') === 'true')
+
+  if (!isDemo) return null
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="demo-environment-banner"
+      className="fixed top-0 left-1/2 -translate-x-1/2 z-50 rounded-b-lg bg-amber-500 text-slate-950 px-3 py-0.5 text-center text-[10px] font-bold uppercase tracking-wider shadow-sm pointer-events-none select-none whitespace-nowrap"
+    >
+      ENTORNO DE DEMOSTRACIÓN — NO PRODUCCIÓN
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <>
       <GlobalThemeSync />
+      <DemoEnvironmentBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
 

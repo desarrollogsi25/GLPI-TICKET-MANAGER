@@ -45,7 +45,7 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
             Username = "tech1",
-            Password = "Tech1Pass!"
+            Password = TestCredentials.Tech1
         });
 
         loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -201,7 +201,7 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
         var otherLogin = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
             Username = "tech2",
-            Password = "Tech2Pass!"
+            Password = TestCredentials.Tech2
         });
         otherLogin.StatusCode.Should().Be(HttpStatusCode.OK);
         var otherBody = await otherLogin.Content.ReadFromJsonAsync<LoginResponse>();

@@ -100,6 +100,12 @@ public static class StartupConfigurationValidator
             invalid.Add($"{JwtOptions.SectionName}:Key (baja entropía: requiere al menos 16 caracteres distintos)");
         }
 
+        var webhookSecret = configuration["GlpiWebhook:Secret"] ?? string.Empty;
+        if (webhookSecret.Length < MinimumSecretLength || webhookSecret.Distinct().Count() < 16)
+        {
+            invalid.Add("GlpiWebhook:Secret (obligatorio, aleatorio y de al menos 32 caracteres)");
+        }
+
         if (invalid.Count > 0)
         {
             throw new InvalidOperationException(

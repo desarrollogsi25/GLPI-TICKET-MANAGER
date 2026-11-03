@@ -30,7 +30,8 @@ The API refuses to boot when the configuration is weak. On startup
 | `Database:ConnectionString` | non-empty and **not** containing `Password=glpi` / `Password=changeme` |
 | `GlpiApi:AppToken` | length ≥ 32 |
 | `GlpiApi:UserToken` | length ≥ 32 |
-| `Jwt:Key` | length ≥ 32 |
+| `Jwt:Key` | length ≥ 32, at least 16 distinct characters (use a random Base64 key) |
+| `GlpiWebhook:Secret` | required random secret of ≥32 characters and ≥16 distinct characters |
 
 If any check fails the process throws and does **not** start, with:
 
@@ -52,6 +53,8 @@ Set the required values (replace `<...>` with the real values, never commit them
 ```powershell
 dotnet user-secrets set "GlpiApi:AppToken"  "<GLPI_APP_TOKEN>"  --project src/GlpiTicketManager.Api
 dotnet user-secrets set "GlpiApi:UserToken" "<GLPI_USER_TOKEN>" --project src/GlpiTicketManager.Api
+dotnet user-secrets set "GlpiWebhook:Secret" "<RANDOM_WEBHOOK_SECRET>" --project src/GlpiTicketManager.Api
+dotnet user-secrets set "Jwt:Key" "<RANDOM_JWT_SECRET_MINIMUM_32_CHARS>" --project src/GlpiTicketManager.Api
 dotnet user-secrets set "Database:ConnectionString" `
   "Server=127.0.0.1;Port=3306;Database=glpi;User ID=glpi;Password=<MARIADB_PASSWORD>;Allow User Variables=true;UseAffectedRows=false" `
   --project src/GlpiTicketManager.Api
@@ -103,6 +106,27 @@ and `are_users_tokens_encrypted` are `1`). This means:
 - To set them without the web UI, GLPI's own `GLPIKey::encrypt()` must be applied before
   writing to `glpi_apiclients.app_token` / `glpi_users.api_token`.
 
+### GLPI 11 native webhook (`GlpiWebhook:Secret`)
+
+1. Generate one unique cryptographically random secret (at least 32 characters).
+2. Set the same value in the API's `GlpiWebhook__Secret` environment variable
+   (`GLPI_WEBHOOK_SECRET` in Docker Compose) and in GLPI's **webhook Security / Secret**
+   field using the GLPI web UI. Never enter it in a SQL migration.
+3. If the optional **MariaDB-only** setup `db/glpi/007_glpi_webhook_config.sql`
+   is used, it creates an **inactive**
+   webhook draft. Configure the secret in GLPI's UI, confirm the event, destination,
+   custom JSON payload and 600-second expiration, then explicitly activate it.
+4. GLPI 11 sends `X-GLPI-timestamp` (Unix seconds) and `X-GLPI-signature`
+   (HMAC-SHA256 of the **exact request bytes concatenated with the timestamp**).
+   The receiver rejects missing HMAC headers, signatures older than ten minutes,
+   bodies over 64 KiB and unsigned bearer/direct-secret headers.
+5. Rotate any older, committed webhook secret at both ends, and verify that the
+   old secret no longer authenticates. Configure the `GLPI_WEBHOOK_SECRET`
+   repository Actions secret separately for CI; it is never committed.
+
+This protects authenticity and freshness, but **does not replace persistent
+delivery deduplication** or a real GLPI 11 integration test with queued retries.
+
 ## Rotation
 
 Rotate any secret by generating a new value in its source, storing it with
@@ -114,6 +138,7 @@ API. Then **verify the old value no longer works**.
 | `GlpiApi:AppToken` | GLPI → *Setup → General → API clients* → open the client → regenerate the token, or create a new client and disable the old one | `initSession` with the **old** token returns `401`/`ERROR_APP_TOKEN`; the new one returns `session_token` |
 | `GlpiApi:UserToken` | GLPI → open the write account → *API token* → **Regenerate**, save, copy | `initSession` with the **old** user token returns `401`/`ERROR_USER_TOKEN` |
 | `Jwt:Key` | generate a new random ≥32-char string and set `Jwt:Key` | previously issued API JWTs are rejected (`401`) because the signature no longer validates |
+| `GlpiWebhook:Secret` | replace the value in the GLPI webhook UI and the API's environment/secret manager; restart the API | an HMAC signed using the previous secret returns `401` |
 | `MARIADB_PASSWORD` | change it in MariaDB, then update `.env` **and** `Database:ConnectionString` in user-secrets | the API fails to start / Dapper queries fail with an authentication error |
 
 Verification of a GLPI token pair (no state change, nothing created):
@@ -147,15 +172,11 @@ grep -RInE '"(AppToken|UserToken)"[[:space:]]*:[[:space:]]*"[^"]+' --include='ap
 # no output = clean
 ```
 
-> The development `Jwt:Key` is a **known, non-secret placeholder** that only exists so
-> a fresh checkout can boot locally; it is ≥32 chars to pass the validator. It MUST be
-> overridden by `JWT_SECRET` (env var)/(user-secrets) in any shared or deployed
-> environment — never rely on the placeholder outside local dev.
-
-The DB placeholder is different: `appsettings.Development.json` intentionally keeps
-`Password=glpi` as a **tripwire** — the startup validator rejects it, forcing every dev
-to supply the real string from user-secrets. Non-development config must never contain
-it:
+`appsettings.Development.json` contains only empty placeholders for the JWT key
+and database connection strings. The API fails fast until real values are
+provided by user-secrets or environment variables. **Rotate any historically
+published JWT signing key and invalidate tokens signed with it.** Verify that
+no tracked application config has weak database password placeholders:
 
 ```bash
 grep -RIn 'Password=glpi\|Password=changeme' --include='appsettings.json' --include='appsettings.Production.json' .

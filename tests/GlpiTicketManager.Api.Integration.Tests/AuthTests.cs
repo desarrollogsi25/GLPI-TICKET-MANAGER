@@ -31,7 +31,7 @@ public class AuthTests : IClassFixture<CustomWebApplicationFactory>
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
             Content = new StringContent(
-                "{\"username\": \"tech1\", \"password\": \"Tech1Pass!\"}",
+                System.Text.Json.JsonSerializer.Serialize(new { username = "tech1", password = TestCredentials.Tech1 }),
                 Encoding.UTF8,
                 "application/json")
         };
@@ -54,7 +54,7 @@ public class AuthTests : IClassFixture<CustomWebApplicationFactory>
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
             Content = new StringContent(
-                "{\"Username\": \"tech1\", \"Password\": \"Tech1Pass!\"}",
+                System.Text.Json.JsonSerializer.Serialize(new { Username = "tech1", Password = TestCredentials.Tech1 }),
                 Encoding.UTF8,
                 "application/json")
         };
@@ -73,7 +73,7 @@ public class AuthTests : IClassFixture<CustomWebApplicationFactory>
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
             Content = new StringContent(
-                "{\"username\": \"tech1\", \"password\": \"WrongPassword!\"}",
+                System.Text.Json.JsonSerializer.Serialize(new { username = "tech1", password = Guid.NewGuid().ToString("N") }),
                 Encoding.UTF8,
                 "application/json")
         };
@@ -105,7 +105,7 @@ public class AuthTests : IClassFixture<CustomWebApplicationFactory>
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
             Content = new StringContent(
-                "{\"password\": \"Tech1Pass!\"}",
+                System.Text.Json.JsonSerializer.Serialize(new { password = TestCredentials.Tech1 }),
                 Encoding.UTF8,
                 "application/json")
         };
@@ -137,7 +137,7 @@ public class AuthTests : IClassFixture<CustomWebApplicationFactory>
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
             Username = "tech1",
-            Password = "Tech1Pass!"
+            Password = TestCredentials.Tech1
         });
         loginResponse.EnsureSuccessStatusCode();
         var loginBody = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();

@@ -10,13 +10,13 @@ test('services: shows hierarchical catalog', async ({ page }) => {
   await page.waitForLoadState('networkidle')
 
   // Verificar categorías raíz
-  await expect(page.getByText('Requerimiento', { exact: true })).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('Aplicaciones', { exact: true })).toBeVisible()
-  await expect(page.getByText('Sistema', { exact: true })).toBeVisible()
+  await expect(page.getByText('Requerimiento', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('Aplicaciones', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Sistema', { exact: true }).first()).toBeVisible()
 
   // Verificar subcategorías (hijos de Requerimiento)
-  await expect(page.getByText('Acceso a sistema', { exact: true })).toBeVisible()
-  await expect(page.getByText('Software', { exact: true })).toBeVisible()
+  await expect(page.getByText('Acceso a sistema', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Software', { exact: true }).first()).toBeVisible()
 
   expect(consoleErrors).toEqual([])
 })

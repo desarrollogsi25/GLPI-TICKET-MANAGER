@@ -1,18 +1,25 @@
-import { Building2, Clock, Layers, Users } from 'lucide-react'
+import { AlertTriangle, Building2, Clock, Layers, RefreshCw, Users } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NumberTicker } from '@/components/ui/number-ticker'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useAdminDashboardQuery } from '@/hooks/useTickets'
+import {
+  useAdminDashboardQuery,
+  useAdminWatcherStatusQuery,
+  useRecoverWatcherTicketMutation,
+} from '@/hooks/useTickets'
 
 /**
  * Admin view: "Administración" — global overview of all groups (H-42).
- * Consumes GET /api/admin/groups-summary.
+ * Consumes GET /api/admin/groups-summary and GET /api/admin/watcher-status.
  */
 export function AdminDashboard() {
   const { data, isLoading, isError } = useAdminDashboardQuery()
+  const { data: watcherStatus } = useAdminWatcherStatusQuery()
+  const recoverMutation = useRecoverWatcherTicketMutation()
   const groups = data ?? []
 
   const totalTickets = groups.reduce((acc, g) => acc + (g.totalTickets ?? 0), 0)
@@ -180,6 +187,111 @@ export function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Estado operativo del Watcher GLPI y alertas de fallos permanentes */}
+      {watcherStatus && (
+        <Card
+          className={`shadow-xs ${
+            watcherStatus.hasOperationalAlert
+              ? 'border-destructive/60 bg-destructive/5'
+              : 'border-border/70'
+          }`}
+          data-testid="admin-watcher-status-card"
+        >
+          <CardHeader className="pb-3 border-b border-border/50 flex flex-row items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {watcherStatus.hasOperationalAlert && (
+                <AlertTriangle className="size-4 text-destructive shrink-0" aria-hidden="true" />
+              )}
+              <CardTitle className="text-base font-semibold">
+                Estado operativo del Watcher GLPI
+              </CardTitle>
+            </div>
+            <Badge
+              variant={watcherStatus.hasOperationalAlert ? 'destructive' : 'secondary'}
+              data-testid="watcher-alert-badge"
+            >
+              {watcherStatus.hasOperationalAlert
+                ? `${watcherStatus.permanentlyFailedCount} fallo(s) permanente(s)`
+                : 'Operativo'}
+            </Badge>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="rounded-lg bg-background p-3 border border-border/60">
+                <span className="text-muted-foreground block">Cursor actual (Ticket ID)</span>
+                <span
+                  className="mt-1 text-base font-bold tabular-nums block"
+                  data-testid="watcher-checkpoint-value"
+                >
+                  {watcherStatus.lastSeenTicketId ?? 'No inicializado'}
+                </span>
+              </div>
+              <div className="rounded-lg bg-background p-3 border border-border/60">
+                <span className="text-muted-foreground block">Pendientes de reconciliación</span>
+                <span
+                  className="mt-1 text-base font-bold tabular-nums block"
+                  data-testid="watcher-pending-count"
+                >
+                  {watcherStatus.pendingCount}
+                </span>
+              </div>
+              <div className="rounded-lg bg-background p-3 border border-border/60">
+                <span className="text-muted-foreground block">Fallos permanentes (50+ intentos)</span>
+                <span
+                  className={`mt-1 text-base font-bold tabular-nums block ${
+                    watcherStatus.permanentlyFailedCount > 0 ? 'text-destructive' : ''
+                  }`}
+                  data-testid="watcher-failed-count"
+                >
+                  {watcherStatus.permanentlyFailedCount}
+                </span>
+              </div>
+            </div>
+
+            {watcherStatus.permanentlyFailedTickets.length > 0 && (
+              <div className="space-y-2" data-testid="watcher-permanently-failed-list">
+                <p className="text-xs font-semibold text-destructive">
+                  Alerta operativa: Los siguientes tickets agotaron el límite de reintentos y requieren revisión o recuperación explícita
+                  {watcherStatus.permanentlyFailedTicketsTruncated
+                    ? ` (mostrando primeros ${watcherStatus.permanentlyFailedTickets.length} de ${watcherStatus.permanentlyFailedCount})`
+                    : ':'}
+                </p>
+                <div className="space-y-2">
+                  {watcherStatus.permanentlyFailedTickets.map((item) => (
+                    <div
+                      key={item.ticketId}
+                      data-testid={`watcher-failed-ticket-${item.ticketId}`}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-background p-3 text-xs"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="font-semibold text-foreground truncate">
+                          Ticket #{item.ticketId} — {item.ticketName}
+                        </div>
+                        <div className="text-muted-foreground">
+                          Intentos: {item.attempts} · Estado: {item.status}
+                          {item.lastError ? ` · Detalle: ${item.lastError}` : ''}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid={`watcher-recover-btn-${item.ticketId}`}
+                        disabled={recoverMutation.isPending}
+                        onClick={() => recoverMutation.mutate(item.ticketId)}
+                        className="shrink-0 gap-1.5"
+                      >
+                        <RefreshCw className="size-3.5" />
+                        Recuperar ticket
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

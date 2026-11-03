@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using Dapper;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Domain.Entities;
@@ -51,7 +51,6 @@ public sealed class NotificationRepository : INotificationRepository
                 },
                 cancellationToken: ct));
     }
-
     public async Task<long?> TryCreateTicketCreatedAsync(Notification notification, CancellationToken ct = default)
     {
         if (notification.Type != "TicketCreated" || notification.TicketId is null or <= 0)

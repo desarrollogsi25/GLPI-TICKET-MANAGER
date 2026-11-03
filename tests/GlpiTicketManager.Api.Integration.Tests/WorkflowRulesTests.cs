@@ -91,7 +91,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     {
         ArrangeTicket((int)TicketStatus.Closed, closedAt: DateTime.UtcNow.AddDays(-1));
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/reopen");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = JsonContent.Create(new ReopenTicketRequest { Reason = "Intento de reapertura por técnico" });
@@ -106,7 +106,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     {
         ArrangeTicket((int)TicketStatus.Closed, closedAt: DateTime.UtcNow.AddDays(-1));
 
-        var token = await AuthenticateAsAsync("admin_test", "AdminPass123!");
+        var token = await AuthenticateAsAsync("admin_test", TestCredentials.Admin);
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/reopen");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = JsonContent.Create(new ReopenTicketRequest { Reason = "Reapertura por administrador" });
@@ -123,7 +123,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Technician_CannotMoveAssignedBackToNew_Returns403()
     {
         ArrangeTicket((int)TicketStatus.Assigned);
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         var response = await PatchStatusAsync(token, (int)TicketStatus.New);
 
@@ -136,7 +136,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Technician_CannotChangeStatusOfClosedTicket_Returns403WithClearMessage()
     {
         ArrangeTicket((int)TicketStatus.Closed, closedAt: DateTime.UtcNow.AddDays(-1));
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
 
@@ -149,7 +149,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Technician_CanMoveSolvedTicketBackToAssigned()
     {
         ArrangeTicket((int)TicketStatus.Solved);
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
 
@@ -160,7 +160,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Technician_CannotManuallyCloseTicket_Returns403()
     {
         ArrangeTicket((int)TicketStatus.Planned);
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
 
         var response = await PatchStatusAsync(token, (int)TicketStatus.Closed);
 
@@ -173,7 +173,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
         ArrangeTicket((int)TicketStatus.Planned);
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "OK");
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         var response = await PatchStatusAsync(token, (int)TicketStatus.Solved);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -188,7 +188,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
         ArrangeTicket((int)TicketStatus.Waiting);
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "Listo");
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         var response = await PatchStatusAsync(token, (int)TicketStatus.Solved);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -203,7 +203,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     {
         ArrangeTicket((int)TicketStatus.Waiting);
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         var response = await PatchStatusAsync(token, (int)TicketStatus.Closed);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -218,7 +218,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     {
         ArrangeTicket((int)TicketStatus.Waiting);
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -230,11 +230,23 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     {
         ArrangeTicket((int)TicketStatus.Waiting);
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         var response = await PatchStatusAsync(token, (int)TicketStatus.Planned);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Waiting);
+    }
+
+    [Fact]
+    public async Task Technician_CannotForcePlannedViaPatch()
+    {
+        ArrangeTicket((int)TicketStatus.Assigned);
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+
+        using var response = await PatchStatusAsync(token, (int)TicketStatus.Planned);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Assigned);
     }
 
     [Fact]
@@ -245,7 +257,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
         ArrangeTicket((int)TicketStatus.Solved);
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "OK");
 
-        var token = await AuthenticateAsAsync("tech1", "Tech1Pass!");
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
         var response = await PatchStatusAsync(token, (int)TicketStatus.Solved);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);

@@ -37,9 +37,14 @@ echo "=== 0. Cleanup any previous smoke ticket ==="
 cleanup
 
 echo "=== 1. Login as tech1 ==="
+if [ -z "${E2E_TECH_PASSWORD:-}" ]; then
+  echo "ERROR: E2E_TECH_PASSWORD is required for the synthetic audit smoke account" >&2
+  exit 1
+fi
+LOGIN_PAYLOAD=$(jq -n --arg pwd "$E2E_TECH_PASSWORD" '{username: "tech1", password: $pwd}')
 LOGIN=$(curl -sf -X POST "$API/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"tech1","password":"Tech1Pass!"}')
+  -d "$LOGIN_PAYLOAD")
 TOKEN=$(echo "$LOGIN" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
 if [ -z "$TOKEN" ]; then
   echo "ERROR: could not login"

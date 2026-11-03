@@ -130,7 +130,7 @@ export function KanbanMobileSheet({
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="5 3 19 12 5 21 5 3" />
                   </svg>
-                  Mover a En progreso
+                  Planificar tarea en GLPI
                 </Button>
               )}
 
@@ -177,10 +177,10 @@ export function KanbanMobileSheet({
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    Mover a En progreso (Retomar)
+                    Replanificar tarea en GLPI
                   </Button>
                   <p className="text-xs text-muted-foreground py-2 text-center">
-                    Un ticket Pendiente debe reanudarse a En Progreso antes de resolverse.
+                    Un ticket Pendiente debe replanificarse antes de resolverse.
                   </p>
                 </>
               )}

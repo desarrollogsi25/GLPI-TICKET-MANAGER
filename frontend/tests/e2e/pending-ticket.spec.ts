@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 import { resetFixtureTicket } from './support/ticket-fixtures'
+import { confirmPlanning } from './support/planning'
 
 /**
  * QA audit spec for the pending-ticket flow (H-34 / H-36).
@@ -57,10 +58,11 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
       .getByText(`#${TICKET_ID}`)
       .first()
       .locator('xpath=ancestor::div[.//button][1]')
-    const startButton = mineCard.getByRole('button', { name: /Iniciar|En progreso|Empezar/i }).first()
+    const startButton = mineCard.getByRole('button', { name: /Planificar/i }).first()
     await expect(startButton).toBeVisible({ timeout: 10000 })
     await mineCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
     await startButton.click()
+    await confirmPlanning(page)
 
     await expect(inProgressColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({
       timeout: 15000,
@@ -142,10 +144,11 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
     .getByText(`#${TICKET_ID}`)
     .first()
     .locator('xpath=ancestor::div[.//button][1]')
-  const resumeButton = pendingCard.getByRole('button', { name: /Retomar|En progreso|Iniciar/i }).first()
+  const resumeButton = pendingCard.getByRole('button', { name: /Replanificar/i }).first()
   await expect(resumeButton).toBeVisible({ timeout: 10000 })
   await pendingCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await resumeButton.click()
+  await confirmPlanning(page)
 
   // 11. El ticket vuelve a "En progreso"
   await expect(inProgressColumn.locator(`text=#${TICKET_ID}`).first()).toBeVisible({

@@ -10,7 +10,7 @@ public static class TicketLabels
     public static string Status(int status) => (TicketStatus)status switch
     {
         TicketStatus.New => "Nuevo",
-        TicketStatus.Assigned => "En proceso (asignado)",
+        TicketStatus.Assigned => "Asignado",
         TicketStatus.Planned => "En proceso (planificado)",
         TicketStatus.Waiting => "Pendiente",
         TicketStatus.Solved => "Resuelto",

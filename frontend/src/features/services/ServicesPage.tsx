@@ -1,13 +1,111 @@
 import { motion } from 'motion/react'
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  AppWindow,
+  BarChart3,
+  Cpu,
+  FileSpreadsheet,
+  Headset,
+  KeyRound,
+  Monitor,
+  Mouse,
+  Plus,
+} from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CreateTicketDialog } from '@/features/tickets/CreateTicketDialog'
 import { useServicesQuery } from '@/hooks/useServices'
 import type { Service } from '@/lib/api/types'
+
+interface FeaturedServiceCardDef {
+  id: string
+  title: string
+  description: string
+  categoryId: number
+  categoryPath: string
+  areaLabel: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+const FEATURED_SERVICES: FeaturedServiceCardDef[] = [
+  {
+    id: 'req-sd',
+    title: 'Requerimiento Service Desk',
+    description: 'Solicitud de requerimientos como fichas del CRM, Accesos de Capacitación, etc.',
+    categoryId: 7,
+    categoryPath: 'Service Desk',
+    areaLabel: 'Service Desk',
+    icon: Headset,
+  },
+  {
+    id: 'req-bi',
+    title: 'Requerimiento BI',
+    description: 'Solicitud de requerimientos dirigidos al área de BI, reportes y tableros analíticos.',
+    categoryId: 14,
+    categoryPath: 'BI > Requerimiento BI',
+    areaLabel: 'BI',
+    icon: BarChart3,
+  },
+  {
+    id: 'app-gsi',
+    title: 'Aplicaciones GSI',
+    description: 'Ticket relacionado con las incidencias presentadas por los aplicativos internos y corporativos.',
+    categoryId: 9,
+    categoryPath: 'Desarrollo > Aplicaciones GSI',
+    areaLabel: 'Desarrollo',
+    icon: AppWindow,
+  },
+  {
+    id: 'perifericos',
+    title: 'Periféricos',
+    description: 'Ticket relacionado a los problemas que se presentan con los periféricos (teclado, mouse, lector, etc.).',
+    categoryId: 19,
+    categoryPath: 'Service Desk > Periféricos',
+    areaLabel: 'Service Desk',
+    icon: Mouse,
+  },
+  {
+    id: 'hardware',
+    title: 'Hardware',
+    description: 'Ticket relacionado a los problemas que se presentan con el Monitor, PC, fuentes o componentes físicos.',
+    categoryId: 16,
+    categoryPath: 'Service Desk > Hardware',
+    areaLabel: 'Service Desk',
+    icon: Monitor,
+  },
+  {
+    id: 'software',
+    title: 'Software',
+    description: 'Ticket relacionado con las incidencias que se presentan en software base, ofimática y sistemas operativos.',
+    categoryId: 4,
+    categoryPath: 'Desarrollo > Software',
+    areaLabel: 'Desarrollo',
+    icon: Cpu,
+  },
+  {
+    id: 'informes',
+    title: 'Informes',
+    description: 'Ticket relacionado con las incidencias que se presentan en los informes, extracciones de datos o planillas.',
+    categoryId: 18,
+    categoryPath: 'BI > Informes',
+    areaLabel: 'BI',
+    icon: FileSpreadsheet,
+  },
+  {
+    id: 'acceso-sistema',
+    title: 'Acceso a sistema',
+    description: 'Solicitud de altas de usuario, permisos, credenciales y accesos a sistemas corporativos.',
+    categoryId: 3,
+    categoryPath: 'Requerimiento > Acceso a sistema',
+    areaLabel: 'Service Desk',
+    icon: KeyRound,
+  },
+]
 
 interface ServiceNode extends Service {
   children: ServiceNode[]
@@ -40,9 +138,10 @@ interface ServiceTreeNodeProps {
   level?: number
   expandedIds: Set<number>
   toggleExpand: (id: number) => void
+  onCreateTicket: (categoryId: number) => void
 }
 
-function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: ServiceTreeNodeProps) {
+function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand, onCreateTicket }: ServiceTreeNodeProps) {
   const navigate = useNavigate()
   const hasChildren = node.children.length > 0
   const isExpanded = expandedIds.has(node.id)
@@ -77,7 +176,7 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: Service
           </span>
         )}
 
-        <div className="flex flex-1 items-center justify-between gap-2">
+        <div className="flex flex-1 items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <span className={`text-sm ${level === 0 ? 'font-semibold text-foreground' : 'font-medium text-foreground/90'}`}>
               {node.name}
@@ -92,6 +191,17 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: Service
             <span className="text-xs text-muted-foreground hidden sm:inline">
               Nivel {node.level}
             </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onCreateTicket(node.id)}
+              className="h-7 px-2 text-xs gap-1 text-primary hover:text-primary"
+              title={`Crear ticket en ${node.completeName || node.name}`}
+              data-testid={`create-ticket-service-${node.id}`}
+            >
+              <Plus className="size-3" />
+              Crear ticket
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -114,6 +224,7 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: Service
               level={level + 1}
               expandedIds={expandedIds}
               toggleExpand={toggleExpand}
+              onCreateTicket={onCreateTicket}
             />
           ))}
         </div>
@@ -125,6 +236,13 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: Service
 export function ServicesPage() {
   const { data: services, isLoading, isError, error, refetch } = useServicesQuery()
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const [createOpen, setCreateOpen] = useState(false)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+
+  const handleOpenCreate = (catId: number | null = null) => {
+    setSelectedCategoryId(catId)
+    setCreateOpen(true)
+  }
 
   // Default: all categories expanded once data is loaded
   useEffect(() => {
@@ -161,24 +279,99 @@ export function ServicesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-y-auto pr-1 pb-6">
       <PageHeader
         title="Catálogo de Servicios"
-        description="Estructura jerárquica de categorías ITIL sincronizadas desde GLPI."
+        description="Servicios destacados con enrutamiento técnico automático y estructura jerárquica ITIL."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Servicios' }]}
         actions={
-          services && services.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={expandAll}>
-                Expandir todo
-              </Button>
-              <Button variant="outline" size="sm" onClick={collapseAll}>
-                Colapsar todo
-              </Button>
-            </div>
-          ) : undefined
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => handleOpenCreate(null)}
+              data-testid="services-new-ticket-btn"
+              className="gap-1.5"
+            >
+              <Plus className="size-3.5" />
+              Nuevo ticket
+            </Button>
+            {services && services.length > 0 ? (
+              <>
+                <Button variant="outline" size="sm" onClick={expandAll}>
+                  Expandir todo
+                </Button>
+                <Button variant="outline" size="sm" onClick={collapseAll}>
+                  Colapsar todo
+                </Button>
+              </>
+            ) : null}
+          </div>
         }
       />
+
+      {/* Tarjetas de Servicios Destacados */}
+      <section aria-labelledby="featured-services-heading" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 id="featured-services-heading" className="text-base font-semibold tracking-tight">
+              Servicios Destacados
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Selecciona un servicio para crear un ticket con asignación automática al equipo especialista.
+            </p>
+          </div>
+          <Badge variant="secondary" className="text-xs">
+            8 tarjetas activas
+          </Badge>
+        </div>
+
+        <div
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          data-testid="featured-services-grid"
+        >
+          {FEATURED_SERVICES.map((item) => {
+            const Icon = item.icon
+            return (
+              <Card
+                key={item.id}
+                data-testid={`featured-service-card-${item.id}`}
+                className="flex flex-col justify-between border-border/70 transition-all hover:border-primary/50 hover:shadow-md"
+              >
+                <CardHeader className="p-4 pb-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Icon className="size-4" />
+                    </span>
+                    <Badge variant="outline" className="text-[11px]">
+                      {item.areaLabel}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-sm font-semibold leading-snug">
+                    {item.title}
+                  </CardTitle>
+                  <CardDescription className="text-xs line-clamp-2">
+                    {item.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground truncate" title={item.categoryPath}>
+                    {item.categoryPath}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 px-2.5 text-xs shrink-0"
+                    onClick={() => handleOpenCreate(item.categoryId)}
+                    data-testid={`featured-service-open-${item.id}`}
+                  >
+                    Solicitar
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
 
       <Card>
         <CardHeader>
@@ -233,12 +426,19 @@ export function ServicesPage() {
                   level={0}
                   expandedIds={expandedIds}
                   toggleExpand={toggleExpand}
+                  onCreateTicket={(catId) => handleOpenCreate(catId)}
                 />
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <CreateTicketDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        initialCategoryId={selectedCategoryId}
+      />
     </div>
   )
 }

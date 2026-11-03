@@ -47,8 +47,8 @@ public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
         int ticketId = CustomWebApplicationFactory.Ticket31Id;
 
         // Login tech1 y tech2 (ambos en Grupo 1)
-        var token1 = await LoginAsync("tech1", "Tech1Pass!");
-        var token2 = await LoginAsync("tech2", "Tech2Pass!");
+        var token1 = await LoginAsync("tech1", TestCredentials.Tech1);
+        var token2 = await LoginAsync("tech2", TestCredentials.Tech2);
 
         var client1 = _factory.CreateClient();
         client1.DefaultRequestHeaders.Authorization =
@@ -81,7 +81,7 @@ public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
 
         try
         {
-            var token = await LoginAsync("tech1", "Tech1Pass!");
+            var token = await LoginAsync("tech1", TestCredentials.Tech1);
             var client = _factory.CreateClient();
             client.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", token);
@@ -112,7 +112,7 @@ public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
         _factory.ResetState();
         int ticketId = CustomWebApplicationFactory.Ticket31Id;
 
-        var token = await LoginAsync("tech1", "Tech1Pass!");
+        var token = await LoginAsync("tech1", TestCredentials.Tech1);
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);

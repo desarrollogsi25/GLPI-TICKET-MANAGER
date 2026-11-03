@@ -1,4 +1,4 @@
-﻿using GlpiTicketManager.Api.Hubs;
+using GlpiTicketManager.Api.Hubs;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Notifications;
 using GlpiTicketManager.Domain.Entities;
@@ -109,11 +109,10 @@ public sealed class NotificationService : INotificationService
         };
 
         var id = await _repository.TryCreateTicketCreatedAsync(entity, ct);
-        if (id is null) return false;
+        if (id is null) return false; // duplicate replay; no SignalR either
 
         var dto = new NotificationDto(id.Value, userId, entity.Type, ticketId,
             title, message, false, entity.CreatedAt);
-
         await EmitReceivedAsync(dto, ct);
         return true;
     }
