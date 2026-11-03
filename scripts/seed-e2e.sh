@@ -28,6 +28,7 @@ fi
 
 # 2. Estructura H-38 (Desarrollo / BI / Service Desk) + fixtures de Playwright.
 #    Todo el estado vive en scripts/seed-e2e.sql para que local y CI coincidan.
+mariadb_exec -e "CREATE TABLE IF NOT EXISTS e2e_fixture_identity (run_id VARCHAR(32) PRIMARY KEY); INSERT IGNORE INTO e2e_fixture_identity(run_id) VALUES ('ci-disposable-fixture');"
 echo "Aplicando estructura H-38 + fixtures E2E desde scripts/seed-e2e.sql..."
 mariadb_exec < scripts/seed-e2e.sql
 
