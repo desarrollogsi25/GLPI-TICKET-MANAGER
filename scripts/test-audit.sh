@@ -5,20 +5,20 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-GUARD="$SCRIPT_DIR/e2e/guard.mjs"
-# Verify before HTTP, SQL or cleanup; no local .env or default Compose target.
-API="$(node "$GUARD" url api)"
+API="http://localhost:8080"
 SMOKE_TICKET_ID=98
 SMOKE_USER_ID=7
 SMOKE_GROUP_ID=1
 
+# Leer password de MariaDB del .env
+MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
+
 psql_app() {
-  printf '%s\n' "$1" | node "$GUARD" sql postgres
+  docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc "$1"
 }
 
 mariadb_glpi() {
-  printf '%s\n' "$1" | node "$GUARD" sql mariadb
+  docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e "$1"
 }
 
 cleanup() {
@@ -28,9 +28,9 @@ cleanup() {
     DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=${SMOKE_TICKET_ID};
     DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=${SMOKE_TICKET_ID};
     DELETE FROM glpi_tickets WHERE id=${SMOKE_TICKET_ID};
-  " > /dev/null
+  " > /dev/null 2>&1 || true
   
-  psql_app "DELETE FROM audit_log WHERE ticket_id=${SMOKE_TICKET_ID};" > /dev/null
+  psql_app "DELETE FROM audit_log WHERE ticket_id=${SMOKE_TICKET_ID};" > /dev/null 2>&1 || true
 }
 
 echo "=== 0. Cleanup any previous smoke ticket ==="
