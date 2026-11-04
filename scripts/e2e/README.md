@@ -6,8 +6,9 @@ dependencies and a Playwright Chromium installation are prerequisites.
 `node scripts/e2e/run.mjs --check` validates Compose without starting containers.
 Arguments after `--` select Playwright specs, for example
 `node scripts/e2e/run.mjs -- date-filter.spec.ts`.
-The default retains CI's API-based requester journey. Add `--native-glpi` before
-`--` to provision the visual forms and exercise native GLPI submission instead.
+The runner always provisions visual forms and uses native GLPI submission.
+The --native-glpi flag remains accepted for compatibility. Ticket Manager is
+never a ticket-creation fallback.
 
 The runner creates a random Compose project using **only**
 `docker-compose.e2e.yml` and a temporary environment file. It generates database,

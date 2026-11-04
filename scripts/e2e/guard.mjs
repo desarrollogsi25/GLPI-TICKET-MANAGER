@@ -236,7 +236,8 @@ ON DUPLICATE KEY UPDATE status=1, solvedate=NULL, closedate=NULL, date_mod=NOW()
 INSERT INTO glpi_groups_tickets (tickets_id, groups_id, type) VALUES (${ticketId}, 1, 2) ON DUPLICATE KEY UPDATE groups_id=1, type=2;
 DELETE FROM glpi_tickets_users WHERE tickets_id=${ticketId} AND type=2;
 DELETE FROM glpi_itilsolutions WHERE itemtype='Ticket' AND items_id=${ticketId};
-DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=${ticketId};`
+DELETE FROM glpi_itilfollowups WHERE itemtype='Ticket' AND items_id=${ticketId};
+DELETE FROM glpi_tickettasks WHERE tickets_id=${ticketId};`
   return runFixtureSql('mariadb', sql, env, suppliedDeps)
 }
 

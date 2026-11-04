@@ -23,40 +23,21 @@
  * =============================================================================
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
 
 const ANSWER_TAG_PROVIDER = 'Glpi\\Form\\Tag\\AnswerTagProvider';
 
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
-let mariadbContainer = process.env.MARIADB_CONTAINER || 'glpi-db';
-
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
-  }
-}
-if (!mariadbPassword) {
-  console.error('ERROR: MARIADB_PASSWORD is required in environment or .env file');
-  process.exit(1);
-}
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
 
 function runSql(sql) {
   try {
-    return execSync(
-      `docker exec -i ${mariadbContainer} mariadb --default-character-set=utf8mb4 -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-  } catch (err) {
-    const msg = err.stderr || err.message;
-    throw new Error(`Error MariaDB: ${msg}`);
+    return execFileSync(process.execPath, [GUARD, 'sql', 'mariadb'], {
+      input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
   }
 }
 

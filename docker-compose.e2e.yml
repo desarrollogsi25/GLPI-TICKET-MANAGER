@@ -64,6 +64,9 @@ services:
         condition: service_healthy
 
   api:
+    # Keep the fixture container alive while the runner installs clean schemas
+    # and verifies both database sentinels. Production startup is unchanged.
+    entrypoint: ["/bin/sh", "-c", "until test -f /tmp/glpi-e2e-ready; do sleep 1; done; exec dotnet GlpiTicketManager.Api.dll"]
     build:
       context: .
       dockerfile: src/GlpiTicketManager.Api/Dockerfile

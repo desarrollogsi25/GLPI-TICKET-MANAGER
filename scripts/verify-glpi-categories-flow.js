@@ -12,36 +12,20 @@
  * 6. Creación de tickets de prueba para los 3 grupos técnicos y confirmación de enrutamiento automático.
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const { ITIL_CATEGORIES } = require('./seed-glpi-categories');
 const { FORMS_CONFIG } = require('./seed-visual-forms');
 
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
-let mariadbContainer = process.env.MARIADB_CONTAINER || 'glpi-db';
-let glpiContainer = process.env.GLPI_CONTAINER || 'glpi';
-
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
-  }
-}
-if (!mariadbPassword) mariadbPassword = 'secret';
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
 
 function runSql(sql) {
   try {
-    return execSync(
-      `docker exec -i ${mariadbContainer} mariadb --default-character-set=utf8mb4 -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-  } catch (err) {
-    throw new Error(`Error MariaDB: ${err.stderr || err.message}`);
+    return execFileSync(process.execPath, [GUARD, 'sql', 'mariadb'], {
+      input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
   }
 }
 
@@ -175,7 +159,7 @@ $id = $ticket->add([
 echo $id;
 `;
 
-  const createdId = execSync(`docker exec -i ${glpiContainer} php`, { input: phpRunner, encoding: 'utf8' }).trim();
+  const createdId = execFileSync(process.execPath, [GUARD, 'exec', 'glpi', '--', 'php'], { input: phpRunner, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   const ticketRes = runSql(`
     SELECT t.id, t.name, c.completename, g.id AS group_id, g.name AS group_name, t.status
     FROM glpi_tickets t
