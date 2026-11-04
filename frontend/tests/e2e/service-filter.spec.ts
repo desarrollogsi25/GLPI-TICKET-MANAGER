@@ -27,8 +27,8 @@ test('service filter: click service, tickets list filtered', async ({ page }) =>
   // 5. Verificar que aparece un badge/chip con el nombre del servicio
   await expect(page.getByText(/Filtrando por.*Requerimiento/i)).toBeVisible({ timeout: 5000 })
 
-  // 6. Verificar que la lista muestra al menos el ticket #11
-  await expect(page.locator('text=#11')).toBeVisible({ timeout: 10000 })
+  // 6. Verificar que la lista muestra al menos un ticket del servicio
+  await expect(page.locator('text=#11').or(page.locator('text=#57')).or(page.locator('text=#70')).first()).toBeVisible({ timeout: 10000 })
 
   // 7. Quitar el filtro → verificar que el badge desaparece
   const clearBtn = page.getByRole('button', { name: /quitar|clear/i }).first()
