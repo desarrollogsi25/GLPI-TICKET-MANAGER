@@ -22,4 +22,6 @@ public sealed record TicketSummaryDto(
     IReadOnlyList<int> AssigneeIds,
     IReadOnlyList<int> RequesterIds,
     DateTime? NextPlannedAt = null,
-    int? NextPlannedTechnicianId = null);
+    int? NextPlannedTechnicianId = null,
+    int? NextPlannedDuration = null,
+    string? NextPlannedComment = null);

@@ -1,12 +1,12 @@
 import { useDraggable } from '@dnd-kit/core'
 import { motion, useReducedMotion } from 'motion/react'
-import { Clock, User } from 'lucide-react'
+import { Calendar, Clock, MessageSquare, Timer, User } from 'lucide-react'
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import type { TicketSummary } from '@/lib/api/types'
-import { formatRelative } from '@/lib/format'
+import { formatDateTime, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 
@@ -45,6 +45,15 @@ function getAssigneeInitials(ticket: TicketSummary, currentUsername?: string): {
     label: `Técnico #${firstId}`,
     assigned: true,
   }
+}
+
+function formatEstimatedDuration(seconds?: number | null): string | null {
+  if (!seconds || seconds <= 0) return null
+  const mins = Math.round(seconds / 60)
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  const remainingMins = mins % 60
+  return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`
 }
 
 function TicketCardComponent({
@@ -135,9 +144,32 @@ function TicketCardComponent({
         </Link>
 
         {ticket.status === 3 && (
-          <div className="flex items-center justify-between text-[10px] text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2 py-1 rounded">
-            <span>📅 {ticket.nextPlannedAt ? formatRelative(ticket.nextPlannedAt) : 'Tarea programada'}</span>
-            <span>GLPI 3</span>
+          <div className="flex flex-col gap-1 text-[11px] text-blue-700 dark:text-blue-300 bg-blue-500/10 p-2 rounded-lg border border-blue-500/20">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold inline-flex items-center gap-1">
+                <Calendar className="size-3" />
+                {ticket.nextPlannedAt ? formatRelative(ticket.nextPlannedAt) : 'Planificado'}
+              </span>
+              <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-bold">GLPI 3</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground flex-wrap gap-1">
+              {ticket.nextPlannedTechnicianId && (
+                <span className="inline-flex items-center gap-0.5">
+                  <User className="size-2.5" /> Técnico #{ticket.nextPlannedTechnicianId}
+                </span>
+              )}
+              {ticket.nextPlannedDuration && formatEstimatedDuration(ticket.nextPlannedDuration) && (
+                <span className="inline-flex items-center gap-0.5">
+                  <Timer className="size-2.5" /> {formatEstimatedDuration(ticket.nextPlannedDuration)}
+                </span>
+              )}
+            </div>
+            {ticket.nextPlannedComment && (
+              <p className="text-[10px] text-foreground/80 line-clamp-1 italic inline-flex items-center gap-1 pt-0.5 border-t border-blue-500/15">
+                <MessageSquare className="size-2.5 shrink-0" />
+                {ticket.nextPlannedComment}
+              </p>
+            )}
           </div>
         )}
 
@@ -245,18 +277,41 @@ function TicketCardComponent({
       </Link>
 
       {ticket.status === 3 && (
-        <div className="mt-2 flex flex-col gap-0.5 rounded-md bg-blue-500/10 p-2 text-[11px] text-blue-700 dark:text-blue-300">
+        <div className="mt-2.5 flex flex-col gap-1 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-[11px] text-blue-700 dark:text-blue-300">
           <div className="flex items-center justify-between">
-            <span className="font-medium inline-flex items-center gap-1">
-              <Clock className="size-3" />
-              {ticket.nextPlannedAt ? `Programado: ${formatRelative(ticket.nextPlannedAt)}` : 'Tarea programada'}
+            <span className="font-semibold inline-flex items-center gap-1.5">
+              <Calendar className="size-3.5" />
+              {ticket.nextPlannedAt ? formatDateTime(ticket.nextPlannedAt) : 'Tarea programada'}
             </span>
-            <span className="text-[10px] bg-blue-500/20 px-1 rounded font-semibold">GLPI 3</span>
+            <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-bold">GLPI 3</span>
           </div>
-          {ticket.nextPlannedTechnicianId && (
-            <span className="text-[10px] text-muted-foreground">
-              Resp: Técnico #{ticket.nextPlannedTechnicianId}
+
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground flex-wrap gap-1.5 pt-0.5">
+            {ticket.nextPlannedTechnicianId && (
+              <span className="inline-flex items-center gap-1">
+                <User className="size-3" />
+                Técnico #{ticket.nextPlannedTechnicianId}
+              </span>
+            )}
+            {ticket.nextPlannedDuration && formatEstimatedDuration(ticket.nextPlannedDuration) && (
+              <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                <Timer className="size-3" />
+                {formatEstimatedDuration(ticket.nextPlannedDuration)}
+              </span>
+            )}
+          </div>
+
+          {ticket.nextPlannedAt && (
+            <span className="text-[10px] text-blue-600/90 dark:text-blue-400">
+              {formatRelative(ticket.nextPlannedAt)}
             </span>
+          )}
+
+          {ticket.nextPlannedComment && (
+            <div className="mt-1 pt-1 border-t border-blue-500/15 flex items-start gap-1 text-[11px] text-foreground/90 italic">
+              <MessageSquare className="size-3 shrink-0 mt-0.5 text-blue-500/70" />
+              <span className="line-clamp-2">{ticket.nextPlannedComment}</span>
+            </div>
           )}
         </div>
       )}

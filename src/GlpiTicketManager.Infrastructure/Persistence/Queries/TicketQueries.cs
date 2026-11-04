@@ -43,7 +43,23 @@ public static class TicketQueries
                AND tt.is_private = 0
                AND tt.`begin` IS NOT NULL
              ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedTechnicianId
+             LIMIT 1) AS NextPlannedTechnicianId,
+            (SELECT tt.actiontime
+             FROM glpi_tickettasks tt
+             WHERE tt.tickets_id = t.id
+               AND tt.state = 1
+               AND tt.is_private = 0
+               AND tt.`begin` IS NOT NULL
+             ORDER BY tt.`begin` ASC, tt.id ASC
+             LIMIT 1) AS NextPlannedDuration,
+            (SELECT tt.content
+             FROM glpi_tickettasks tt
+             WHERE tt.tickets_id = t.id
+               AND tt.state = 1
+               AND tt.is_private = 0
+               AND tt.`begin` IS NOT NULL
+             ORDER BY tt.`begin` ASC, tt.id ASC
+             LIMIT 1) AS NextPlannedComment
         FROM glpi_tickets t
         """ + "\n";
 
@@ -93,7 +109,21 @@ public static class TicketQueries
                AND tt.state = 1
                AND tt.`begin` IS NOT NULL
              ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedTechnicianId
+             LIMIT 1) AS NextPlannedTechnicianId,
+            (SELECT tt.actiontime
+             FROM glpi_tickettasks tt
+             WHERE tt.tickets_id = t.id
+               AND tt.state = 1
+               AND tt.`begin` IS NOT NULL
+             ORDER BY tt.`begin` ASC, tt.id ASC
+             LIMIT 1) AS NextPlannedDuration,
+            (SELECT tt.content
+             FROM glpi_tickettasks tt
+             WHERE tt.tickets_id = t.id
+               AND tt.state = 1
+               AND tt.`begin` IS NOT NULL
+             ORDER BY tt.`begin` ASC, tt.id ASC
+             LIMIT 1) AS NextPlannedComment
         FROM glpi_tickets t
         INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id
         WHERE gt.groups_id = @GroupId

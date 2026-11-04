@@ -63,8 +63,8 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     id: 'mine',
-    title: 'En ejecución',
-    description: 'Mis tickets · En curso',
+    title: 'Asignado',
+    description: 'Mis tickets · Asignados sin planificar',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 font-semibold',
   },
@@ -469,6 +469,315 @@ function KanbanColumn({
             ) : null}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function KanbanInProcessColumn({
+  assignedTickets,
+  plannedTickets,
+  isLoading,
+  isError = false,
+  errorMessage,
+  onRetry,
+  onStart,
+  onResume,
+  onResolve,
+  onPause,
+  recentlyUpdatedIds,
+  invalidDropTicketId,
+}: {
+  assignedTickets: TicketSummary[]
+  plannedTickets: TicketSummary[]
+  isLoading?: boolean
+  isError?: boolean
+  errorMessage?: string
+  onRetry?: () => void
+  onStart?: (ticketId: number) => void
+  onResume?: (ticketId: number) => void
+  onResolve?: (ticketId: number) => void
+  onPause?: (ticketId: number) => void
+  recentlyUpdatedIds?: Set<number>
+  invalidDropTicketId?: number | null
+}) {
+  const { setNodeRef: setMineRef, isOver: isMineOver } = useDroppable({ id: 'mine' })
+  const { setNodeRef: setInProgressRef, isOver: isInProgressOver } = useDroppable({ id: 'in_progress' })
+  const shouldReduceMotion = useReducedMotion()
+  const springTransition: Transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
+
+  const totalCount = assignedTickets.length + plannedTickets.length
+
+  return (
+    <div
+      data-testid="kanban-column-in-process"
+      data-column-id="in_process"
+      className="flex flex-col h-full max-h-full min-w-[220px] w-full overflow-hidden"
+    >
+      {/* Encabezado principal de la columna unificada EN PROCESO */}
+      <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-primary shrink-0" />
+            <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
+              En proceso
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground truncate">Asignados y planificados</p>
+        </div>
+        <span
+          className={cn(
+            'text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums shrink-0',
+            isError ? 'bg-destructive/15 text-destructive font-bold' : 'bg-primary/15 text-primary',
+          )}
+        >
+          {isError ? '!' : totalCount}
+        </span>
+      </div>
+
+      {/* Contenedor visual único que agrupa ambas secciones */}
+      <div className="flex-1 flex flex-col min-h-0 p-2 gap-2.5 rounded-2xl border-0 bg-muted/30 shadow-xs overflow-hidden">
+        {/* =========================================================================
+            SECCIÓN A: ASIGNADO (Estado GLPI 2)
+           ========================================================================= */}
+        <div
+          data-column-id="mine"
+          className="flex-1 min-h-[140px] flex flex-col rounded-xl border border-border/40 bg-card/60 p-2 overflow-hidden shadow-2xs"
+        >
+          <div className="mb-1.5 flex items-center justify-between px-1 shrink-0">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-xs font-bold tracking-tight text-foreground truncate">
+                  A. Asignado
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate">Mis tickets · Asignados sin planificar</p>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums shrink-0 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
+              {isError ? '!' : assignedTickets.length}
+            </span>
+          </div>
+
+          <div
+            ref={setMineRef}
+            className={cn(
+              'flex-1 overflow-y-auto min-h-0 no-scrollbar p-1 space-y-2 rounded-lg transition-all duration-150',
+              isMineOver ? 'border-dashed border-2 border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30' : '',
+            )}
+          >
+            {isLoading ? (
+              <div className="space-y-2 p-1">
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : isError ? (
+              <div className="flex flex-col items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-3 text-center my-auto">
+                <p className="text-xs font-semibold text-destructive">Error al cargar</p>
+                {errorMessage && (
+                  <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{errorMessage}</p>
+                )}
+                {onRetry && (
+                  <Button size="sm" variant="ghost" className="mt-1.5 h-6 px-2 text-xs" onClick={onRetry}>
+                    Reintentar
+                  </Button>
+                )}
+              </div>
+            ) : assignedTickets.length > 0 ? (
+              <AnimatePresence mode="popLayout">
+                {assignedTickets.map((ticket) => (
+                  <motion.div
+                    key={ticket.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    <TicketCard
+                      ticket={ticket}
+                      draggable={true}
+                      highlight={recentlyUpdatedIds?.has(ticket.id)}
+                      shake={invalidDropTicketId === ticket.id}
+                      actionButton={
+                        <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 px-2.5 text-xs font-medium"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onStart?.(ticket.id)
+                            }}
+                          >
+                            Planificar
+                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs border-amber-300 text-amber-800 dark:border-amber-700/70 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onPause?.(ticket.id)
+                              }}
+                            >
+                              Pausar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onResolve?.(ticket.id)
+                              }}
+                            >
+                              Resolver
+                            </Button>
+                          </div>
+                        </div>
+                      }
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            ) : (
+              <div className="flex flex-col h-20 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/30 p-2 text-center my-auto">
+                <span className="text-sm mb-0.5">📋</span>
+                <p className="text-[11px] text-foreground font-semibold">Sin tickets asignados</p>
+                <p className="text-[9px] text-muted-foreground">Revisa la cola para tomar nuevos tickets.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* =========================================================================
+            SECCIÓN B: EN PROCESO (PLANIFICADO) (Estado GLPI 3)
+           ========================================================================= */}
+        <div
+          data-column-id="in_progress"
+          className="flex-1 min-h-[140px] flex flex-col rounded-xl border border-border/40 bg-card/60 p-2 overflow-hidden shadow-2xs"
+        >
+          <div className="mb-1.5 flex items-center justify-between px-1 shrink-0">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-blue-500 shrink-0" />
+                <span className="text-xs font-bold tracking-tight text-foreground truncate">
+                  B. En proceso (planificado)
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate">Tarea programada en GLPI</p>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums shrink-0 bg-blue-500/15 text-blue-800 dark:text-blue-300">
+              {isError ? '!' : plannedTickets.length}
+            </span>
+          </div>
+
+          <div
+            ref={setInProgressRef}
+            className={cn(
+              'flex-1 overflow-y-auto min-h-0 no-scrollbar p-1 space-y-2 rounded-lg transition-all duration-150',
+              isInProgressOver ? 'border-dashed border-2 border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30' : '',
+            )}
+          >
+            {isLoading ? (
+              <div className="space-y-2 p-1">
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : isError ? (
+              <div className="flex flex-col items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-3 text-center my-auto">
+                <p className="text-xs font-semibold text-destructive">Error al cargar</p>
+                {errorMessage && (
+                  <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{errorMessage}</p>
+                )}
+                {onRetry && (
+                  <Button size="sm" variant="ghost" className="mt-1.5 h-6 px-2 text-xs" onClick={onRetry}>
+                    Reintentar
+                  </Button>
+                )}
+              </div>
+            ) : plannedTickets.length > 0 ? (
+              <AnimatePresence mode="popLayout">
+                {plannedTickets.map((ticket) => (
+                  <motion.div
+                    key={ticket.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    <TicketCard
+                      ticket={ticket}
+                      draggable={true}
+                      highlight={recentlyUpdatedIds?.has(ticket.id)}
+                      shake={invalidDropTicketId === ticket.id}
+                      actionButton={
+                        <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs border-blue-300 text-blue-800 dark:border-blue-700/70 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onResume?.(ticket.id)
+                            }}
+                          >
+                            Reprogramar
+                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs border-amber-300 text-amber-800 dark:border-amber-700/70 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onPause?.(ticket.id)
+                              }}
+                            >
+                              Pausar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onResolve?.(ticket.id)
+                              }}
+                            >
+                              Resolver
+                            </Button>
+                          </div>
+                        </div>
+                      }
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            ) : (
+              <div className="flex flex-col h-20 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/30 p-2 text-center my-auto">
+                <span className="text-sm mb-0.5">⚡</span>
+                <p className="text-[11px] text-foreground font-semibold">Sin tickets planificados</p>
+                <p className="text-[9px] text-muted-foreground">Elige un ticket asignado y programa una tarea.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1142,48 +1451,74 @@ export function Kanban() {
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-5 gap-3.5 w-full h-full min-h-0 min-w-[1100px]"
+            className="grid grid-cols-4 gap-3.5 w-full h-full min-h-0"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}
           >
-            {COLUMNS.map((column) => {
-              const isLoading =
-                column.id === 'queue'
-                  ? queueQuery.isLoading || groupsQuery.isLoading
-                  : myTicketsQuery.isLoading
-
-              const isError = column.id === 'queue' && queueQuery.isError
-              const errorMessage = isError ? getApiErrorMessage(queueQuery.error) : undefined
-
-              const emptyMessage =
-                column.id === 'queue' && hasNoGroups
+            {/* Columna 1: Cola del grupo */}
+            <KanbanColumn
+              column={COLUMNS[0]}
+              tickets={ticketsByColumn.queue}
+              isLoading={queueQuery.isLoading || groupsQuery.isLoading}
+              isError={queueQuery.isError}
+              errorMessage={queueQuery.isError ? getApiErrorMessage(queueQuery.error) : undefined}
+              onRetry={() => void queueQuery.refetch()}
+              emptyMessage={
+                hasNoGroups
                   ? 'No perteneces a ningún grupo de soporte.'
-                  : column.id === 'queue' && currentGroupId == null
+                  : currentGroupId == null
                     ? 'Sin grupo asignado'
                     : 'No hay tickets aquí'
+              }
+              onClaim={handleClaim}
+              isClaiming={claimMutation.isPending}
+              recentlyUpdatedIds={recentlyUpdatedIds}
+              invalidDropTicketId={invalidDropTicketId}
+            />
 
-              return (
-                <KanbanColumn
-                  key={column.id}
-                  column={column}
-                  tickets={ticketsByColumn[column.id]}
-                  isLoading={isLoading}
-                  isError={isError}
-                  errorMessage={errorMessage}
-                  onRetry={isError ? () => void queueQuery.refetch() : undefined}
-                  emptyMessage={emptyMessage}
-                  onClaim={handleClaim}
-                  onStart={handleStart}
-                  onResume={handleResume}
-                  onResolve={(ticketId) => setResolveTicketId(ticketId)}
-                  onPause={handlePauseWithModal}
-                  isClaiming={claimMutation.isPending}
-                  recentlyUpdatedIds={recentlyUpdatedIds}
-                  invalidDropTicketId={invalidDropTicketId}
-                />
-              )
-            })}
+            {/* Columna 2: Única columna principal EN PROCESO con Sección A y Sección B */}
+            <KanbanInProcessColumn
+              assignedTickets={ticketsByColumn.mine}
+              plannedTickets={ticketsByColumn.in_progress}
+              isLoading={myTicketsQuery.isLoading}
+              isError={myTicketsQuery.isError}
+              errorMessage={myTicketsQuery.isError ? getApiErrorMessage(myTicketsQuery.error) : undefined}
+              onRetry={() => void myTicketsQuery.refetch()}
+              onStart={handleStart}
+              onResume={handleResume}
+              onResolve={(ticketId) => setResolveTicketId(ticketId)}
+              onPause={handlePauseWithModal}
+              recentlyUpdatedIds={recentlyUpdatedIds}
+              invalidDropTicketId={invalidDropTicketId}
+            />
+
+            {/* Columna 3: Pendiente */}
+            <KanbanColumn
+              column={COLUMNS[3]}
+              tickets={ticketsByColumn.pending}
+              isLoading={myTicketsQuery.isLoading}
+              isError={myTicketsQuery.isError}
+              errorMessage={myTicketsQuery.isError ? getApiErrorMessage(myTicketsQuery.error) : undefined}
+              onRetry={() => void myTicketsQuery.refetch()}
+              onResume={handleResume}
+              onResolve={(ticketId) => setResolveTicketId(ticketId)}
+              onPause={handlePauseWithModal}
+              recentlyUpdatedIds={recentlyUpdatedIds}
+              invalidDropTicketId={invalidDropTicketId}
+            />
+
+            {/* Columna 4: Resuelto */}
+            <KanbanColumn
+              column={COLUMNS[4]}
+              tickets={ticketsByColumn.resolved}
+              isLoading={myTicketsQuery.isLoading}
+              isError={myTicketsQuery.isError}
+              errorMessage={myTicketsQuery.isError ? getApiErrorMessage(myTicketsQuery.error) : undefined}
+              onRetry={() => void myTicketsQuery.refetch()}
+              recentlyUpdatedIds={recentlyUpdatedIds}
+              invalidDropTicketId={invalidDropTicketId}
+            />
           </div>
 
           {typeof document !== 'undefined' &&

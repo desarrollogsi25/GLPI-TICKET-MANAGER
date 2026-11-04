@@ -54,6 +54,8 @@ export interface TicketSummary {
   timeToResolve?: string | null
   nextPlannedAt?: string | null
   nextPlannedTechnicianId?: number | null
+  nextPlannedDuration?: number | null
+  nextPlannedComment?: string | null
 }
 
 export interface TicketFollowup {
