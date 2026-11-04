@@ -26,11 +26,14 @@ export function PlanTicketDialog({ ticketId, open, onOpenChange }: {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setContent('')
+      setError('')
+      return
+    }
     const initial = new Date(Math.ceil((Date.now() + 15 * 60_000) / 300_000) * 300_000)
     setStart(localDateTime(initial))
     setEnd(localDateTime(new Date(initial.getTime() + 60 * 60_000)))
-    setContent('')
     setError('')
     requestId.current = uuidv4()
   }, [open, ticketId])
