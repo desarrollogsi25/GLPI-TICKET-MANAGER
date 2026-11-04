@@ -52,6 +52,12 @@ public sealed class Ticket
     /// <summary>Technician responsible for <see cref="NextPlannedAt"/>, when set.</summary>
     public int? NextPlannedTechnicianId { get; set; }
 
+    /// <summary>Estimated duration in seconds of the upcoming planned task.</summary>
+    public int? NextPlannedDuration { get; set; }
+
+    /// <summary>Content/comment of the upcoming planned task, if any.</summary>
+    public string? NextPlannedComment { get; set; }
+
     public IReadOnlyList<TicketFollowup> Followups { get; set; } = [];
     public IReadOnlyList<TicketSolution> Solutions { get; set; } = [];
 }

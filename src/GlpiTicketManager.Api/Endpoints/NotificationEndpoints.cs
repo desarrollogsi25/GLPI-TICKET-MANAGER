@@ -50,6 +50,87 @@ public static class NotificationEndpoints
             .Produces<MarkAllReadResponse>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // GET /api/notifications/push/vapid-public-key
+        group.MapGet("/push/vapid-public-key", (IPushNotificationSender pushSender) =>
+        {
+            var key = pushSender.GetVapidPublicKey();
+            return Results.Ok(new VapidPublicKeyDto(key));
+        })
+        .WithName("GetVapidPublicKey")
+        .WithSummary("Get the VAPID public key for WebPush subscriptions")
+        .Produces<VapidPublicKeyDto>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/notifications/push/subscribe
+        group.MapPost("/push/subscribe", async (
+            PushSubscriptionDto subscription,
+            HttpContext httpContext,
+            IPushSubscriptionRepository repo,
+            ClaimsPrincipal principal,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+            if (string.IsNullOrWhiteSpace(subscription.Endpoint) ||
+                string.IsNullOrWhiteSpace(subscription.Keys?.P256dh) ||
+                string.IsNullOrWhiteSpace(subscription.Keys?.Auth))
+            {
+                return Results.BadRequest(new { message = "Suscripción push inválida." });
+            }
+
+            var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+            await repo.UpsertSubscriptionAsync(userId.Value, subscription, userAgent, ct);
+            return Results.Ok(new { success = true, message = "Suscripción registrada correctamente." });
+        })
+        .WithName("SubscribeToWebPush")
+        .WithSummary("Register a browser push subscription for OS notifications")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/notifications/push/unsubscribe
+        group.MapPost("/push/unsubscribe", async (
+            UnsubscribePushRequest request,
+            IPushSubscriptionRepository repo,
+            ClaimsPrincipal principal,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+            if (!string.IsNullOrWhiteSpace(request.Endpoint))
+            {
+                await repo.RemoveSubscriptionAsync(userId.Value, request.Endpoint, ct);
+            }
+            return Results.Ok(new { success = true });
+        })
+        .WithName("UnsubscribeFromWebPush")
+        .WithSummary("Unregister a browser push subscription")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status401Unauthorized);
+
+        // POST /api/notifications/push/test
+        group.MapPost("/push/test", async (
+            IPushNotificationSender pushSender,
+            ClaimsPrincipal principal,
+            CancellationToken ct) =>
+        {
+            var userId = principal.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var count = await pushSender.SendPushAsync(
+                userId.Value,
+                "GLPI Ticket Manager",
+                "¡Notificación del sistema operativo verificada correctamente!",
+                "/kanban",
+                ct);
+
+            return Results.Ok(new { success = true, sentToDevices = count });
+        })
+        .WithName("TestWebPushNotification")
+        .WithSummary("Send a test WebPush notification to all active devices of the caller")
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status401Unauthorized);
+
         return app;
     }
 
@@ -131,3 +212,4 @@ public static class NotificationEndpoints
 }
 
 internal sealed record MarkAllReadResponse(int Count);
+public sealed record UnsubscribePushRequest(string Endpoint);

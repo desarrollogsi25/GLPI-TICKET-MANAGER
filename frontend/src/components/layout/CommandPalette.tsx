@@ -94,7 +94,7 @@ export function CommandPalette({
             </kbd>
           </div>
 
-          <Command.List className="max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 p-2 text-sm">
+          <Command.List className="max-h-80 overflow-y-auto custom-scrollbar p-2 text-sm focus:outline-none">
             <Command.Empty className="py-6 text-center text-xs text-muted-foreground">
               No se encontraron resultados para &quot;{search}&quot;.
             </Command.Empty>

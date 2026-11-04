@@ -47,6 +47,8 @@ public static class DependencyInjection
         services.AddScoped<IGroupRepository, GroupRepository>();
         services.AddScoped<IChannelRepository, ChannelRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
+        services.AddScoped<IPushNotificationSender, Services.WebPushNotificationSender>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<IGlpiWatcherStateRepository, GlpiWatcherStateRepository>();
         services.AddHostedService<RevokedTokenCleanupService>();

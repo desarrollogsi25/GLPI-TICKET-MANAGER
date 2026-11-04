@@ -13,6 +13,12 @@ public sealed class DashboardStats
 
     public long AssignedTickets { get; set; }
 
+    public long ExecutionTickets { get; set; }
+
+    public long PlannedTickets { get; set; }
+
+    public long PausedTickets { get; set; }
+
     public long PendingTickets { get; set; }
 
     public long SolvedTickets { get; set; }
@@ -20,6 +26,10 @@ public sealed class DashboardStats
     public long ClosedTickets { get; set; }
 
     public long OverdueTickets { get; set; }
+
+    public long DueSoonTickets { get; set; }
+
+    public long ScheduledTasksCount { get; set; }
 
     public decimal? AverageResolutionHours { get; set; }
 

@@ -1,7 +1,6 @@
 import { motion } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle,
   Calendar,
   CheckCircle2,
   Clock,
@@ -19,7 +18,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useGroupsQuery, useGroupQueueQuery, useTicketsQuery } from '@/hooks/useTickets'
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
 import { useAuthStore } from '@/store/authStore'
-import { useRole } from '@/hooks/useRole'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -70,7 +68,6 @@ function StatCard({
 
 export function Dashboard() {
   const navigate = useNavigate()
-  const { isAdmin, isSupervisor } = useRole()
   const userId = useAuthStore((state) => state.user?.userId ?? null)
   const groups = useGroupsQuery()
   const effectiveGroupId =
@@ -79,21 +76,25 @@ export function Dashboard() {
   const assigned = useTicketsQuery(userId ?? null)
   const stats = useDashboardStatsQuery()
 
+  const dbStats = stats.data
   const assignedItems = assigned.data?.items ?? []
-  const totalAssigned = assignedItems.length
-  const assignedOpen = assignedItems.filter((t) => [1, 2, 3, 4].includes(t.status))
-  const ticketsNuevos = assignedItems.filter((t) => t.status === 1).length
-  const ticketsEnProgreso = assignedItems.filter((t) => t.status === 2).length
-  const ticketsPlanificados = assignedItems.filter((t) => t.status === 3).length
-  const ticketsEnPausa = assignedItems.filter((t) => t.status === 4).length
-  const ticketsResueltos = assignedItems.filter((t) => t.status === 5).length
-  const ticketsCerrados = assignedItems.filter((t) => t.status === 6).length
-  const ticketsUrgentes = assignedItems.filter((t) => t.priority >= 4 && t.status < 5).length
-  const ticketsVencidos = assignedItems.filter((t) => {
+
+  // Totales agregados directos desde backend SQL (soporta > 100 tickets sin truncar)
+  const totalAssigned = dbStats?.assignedTickets ?? (dbStats ? (dbStats.newTickets + (dbStats.executionTickets ?? 0) + (dbStats.plannedTickets ?? 0) + (dbStats.pausedTickets ?? 0)) : assignedItems.length)
+  const assignedOpenCount = dbStats?.openTickets ?? assignedItems.filter((t) => [1, 2, 3, 4].includes(t.status)).length
+  const ticketsNuevos = dbStats?.newTickets ?? assignedItems.filter((t) => t.status === 1).length
+  const ticketsEnProgreso = dbStats?.executionTickets ?? dbStats?.assignedTickets ?? assignedItems.filter((t) => t.status === 2).length
+  const ticketsPlanificados = dbStats?.plannedTickets ?? assignedItems.filter((t) => t.status === 3).length
+  const ticketsEnPausa = dbStats?.pausedTickets ?? dbStats?.pendingTickets ?? assignedItems.filter((t) => t.status === 4).length
+  const ticketsResueltos = dbStats?.solvedTickets ?? assignedItems.filter((t) => t.status === 5).length
+  const ticketsCerrados = dbStats?.closedTickets ?? assignedItems.filter((t) => t.status === 6).length
+  const ticketsVencidos = dbStats?.overdueTickets ?? assignedItems.filter((t) => {
     if (t.status >= 5 || !t.timeToResolve) return false
     const time = new Date(t.timeToResolve).getTime()
     return !isNaN(time) && time < Date.now()
   }).length
+  const ticketsProximos = dbStats?.dueSoonTickets ?? 0
+  const tareasProgramadas = dbStats?.scheduledTasksCount ?? 0
 
   const today = new Date().toISOString().slice(0, 10)
   const solvedToday = assignedItems.filter(
@@ -107,7 +108,7 @@ export function Dashboard() {
     groups.isLoading ||
     (effectiveGroupId && groupQueue.isLoading) ||
     assigned.isLoading ||
-    ((isAdmin || isSupervisor) && stats.isLoading)
+    stats.isLoading
   ) {
     return (
       <div className="space-y-6">
@@ -158,15 +159,15 @@ export function Dashboard() {
         <StatCard
           title="Total Asignados"
           value={totalAssigned}
-          subtitle={`${assignedOpen.length} activos / abiertos`}
+          subtitle={`${assignedOpenCount} activos / abiertos`}
           icon={ListTodo}
           variant="default"
           onClick={() => navigate('/tickets')}
         />
         <StatCard
-          title="En Progreso"
+          title="En Ejecución"
           value={ticketsEnProgreso}
-          subtitle="Trabajando activamente"
+          subtitle="Trabajando activamente (GLPI 2)"
           icon={PlayCircle}
           variant="primary"
           onClick={() => navigate('/tickets?status=2')}
@@ -174,7 +175,7 @@ export function Dashboard() {
         <StatCard
           title="Planificados"
           value={ticketsPlanificados}
-          subtitle="Tareas programadas"
+          subtitle={`${tareasProgramadas} tareas programadas (GLPI 3)`}
           icon={Calendar}
           variant="default"
           onClick={() => navigate('/tickets?status=3')}
@@ -182,7 +183,7 @@ export function Dashboard() {
         <StatCard
           title="En Espera / Pausa"
           value={ticketsEnPausa}
-          subtitle="Pendiente usuario o repuesto"
+          subtitle="Pendiente usuario o repuesto (GLPI 4)"
           icon={PauseCircle}
           variant="warning"
           onClick={() => navigate('/tickets?status=4')}
@@ -190,7 +191,7 @@ export function Dashboard() {
         <StatCard
           title="Abiertos / Nuevos"
           value={ticketsNuevos}
-          subtitle="Por iniciar gestión"
+          subtitle="Por iniciar gestión (GLPI 1)"
           icon={Clock}
           variant="default"
           onClick={() => navigate('/tickets?status=1')}
@@ -198,18 +199,26 @@ export function Dashboard() {
         <StatCard
           title="Resueltos"
           value={ticketsResueltos}
-          subtitle={`${solvedToday.length} resueltos hoy`}
+          subtitle={`${solvedToday.length} resueltos hoy (GLPI 5)`}
           icon={CheckCircle2}
           variant="success"
           onClick={() => navigate('/tickets?status=5')}
         />
         <StatCard
-          title="Prioridad Alta / Urgente"
-          value={ticketsUrgentes}
-          subtitle={ticketsUrgentes === 0 ? 'Sin urgencias' : 'Requiere atención inmediata'}
-          icon={AlertTriangle}
-          variant={ticketsUrgentes > 0 ? 'warning' : 'default'}
-          onClick={() => navigate('/tickets?priority=4')}
+          title="Cerrados"
+          value={ticketsCerrados}
+          subtitle="Histórico finalizado (GLPI 6)"
+          icon={CheckCircle2}
+          variant="default"
+          onClick={() => navigate('/tickets?status=6')}
+        />
+        <StatCard
+          title="Próximos a Vencer (<24h)"
+          value={ticketsProximos}
+          subtitle={ticketsProximos === 0 ? 'Sin riesgos próximos' : 'Atención preventiva recomendada'}
+          icon={Clock}
+          variant={ticketsProximos > 0 ? 'warning' : 'default'}
+          onClick={() => navigate('/tickets')}
         />
         <StatCard
           title="Vencimientos Críticos"

@@ -228,9 +228,9 @@ export function NotificationBell({
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-96 overflow-y-auto scrollbar-thin origin-top-right rounded-2xl border border-border bg-card/95 backdrop-blur-md text-card-foreground shadow-xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-96 overflow-y-auto custom-scrollbar origin-top-right rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md text-card-foreground shadow-2xl z-50"
           >
-            <div className="p-3 border-b border-border flex items-center justify-between bg-muted/20 sticky top-0 z-10 backdrop-blur-sm">
+            <div className="p-3 border-b border-border/50 flex items-center justify-between bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
                   Notificaciones
@@ -246,7 +246,7 @@ export function NotificationBell({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-[11px] h-6 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                    className="text-[11px] h-6 px-2 gap-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg"
                     onClick={async () => {
                       try {
                         await apiClient.put('/notifications/read-all')
@@ -268,30 +268,30 @@ export function NotificationBell({
                 <p className="text-xs text-muted-foreground">Sin notificaciones recientes.</p>
               </div>
             ) : (
-              <ul className="p-1.5 space-y-1">
+              <ul className="p-2 space-y-1.5 list-none border-0 divide-none">
                 {uniqueNotifications.map((n) => {
                   const isUnread = !n.read && !n.isRead
                   return (
                     <li
                       key={n.id}
                       className={cn(
-                        'text-sm transition-all duration-150 rounded-xl',
+                        'text-sm transition-all duration-150 rounded-xl border-0 overflow-hidden',
                         isUnread
-                          ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 shadow-xs'
-                          : 'opacity-85 hover:bg-muted/50 hover:opacity-100',
+                          ? 'bg-muted/70 dark:bg-muted/40 hover:bg-muted/90 shadow-xs'
+                          : 'bg-transparent hover:bg-muted/30 opacity-80 hover:opacity-100',
                       )}
                     >
                       <button
                         type="button"
                         onClick={() => handleNotificationClick(n)}
-                        className="flex w-full items-start gap-2.5 p-3 text-left cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        className="flex w-full items-start gap-2.5 p-2.5 text-left cursor-pointer rounded-xl border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                       >
                         <span className="mt-0.5 flex-shrink-0" aria-hidden="true">
                           {getNotificationIcon(n.type)}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className={cn("text-xs truncate", isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80")}>
+                            <p className={cn("text-xs truncate", isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/85")}>
                               {n.title}
                             </p>
                             <p className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
@@ -302,7 +302,7 @@ export function NotificationBell({
                             {n.body || n.message}
                           </p>
                           {n.ticketId && (
-                            <p className="text-[10px] text-primary mt-1 font-semibold font-mono">
+                            <p className="text-[10px] text-primary/90 mt-1 font-semibold font-mono">
                               Ticket #{n.ticketId}
                             </p>
                           )}

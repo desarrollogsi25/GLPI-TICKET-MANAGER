@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { useLoginMutation } from '@/hooks/useAuth'
-import { getApiErrorMessage } from '@/lib/api/errors'
 import { useAuthStore } from '@/store/authStore'
 
 const loginSchema = z.object({
@@ -35,7 +34,7 @@ export function Login() {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitted },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     mode: 'onSubmit',
@@ -46,8 +45,6 @@ export function Login() {
   if (token) {
     return <Navigate to="/kanban" replace />
   }
-
-  const hasErrors = Object.keys(errors).length > 0
 
   const onSubmit = handleSubmit((values) => {
     login.mutate(values, {
@@ -163,16 +160,16 @@ export function Login() {
                   id="username"
                   autoComplete="username"
                   placeholder="ej. tech1"
-                  aria-invalid={Boolean(errors.username)}
-                  aria-describedby={errors.username ? 'username-error' : undefined}
+                  aria-invalid={Boolean(isSubmitted && errors.username)}
+                  aria-describedby={isSubmitted && errors.username ? 'username-error' : undefined}
                   className={cn(
                     'h-10 rounded-xl border-border/80 bg-background pl-9 transition-colors focus-visible:ring-1 focus-visible:ring-primary',
-                    errors.username && 'border-destructive focus-visible:ring-destructive',
+                    isSubmitted && errors.username && 'border-destructive focus-visible:ring-destructive',
                   )}
                   {...register('username')}
                 />
               </div>
-              {errors.username ? (
+              {isSubmitted && errors.username ? (
                 <p id="username-error" role="alert" className="text-xs text-destructive">
                   {errors.username.message}
                 </p>
@@ -192,16 +189,16 @@ export function Login() {
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  aria-invalid={Boolean(errors.password)}
-                  aria-describedby={errors.password ? 'password-error' : undefined}
+                  aria-invalid={Boolean(isSubmitted && errors.password)}
+                  aria-describedby={isSubmitted && errors.password ? 'password-error' : undefined}
                   className={cn(
                     'h-10 rounded-xl border-border/80 bg-background pl-9 transition-colors focus-visible:ring-1 focus-visible:ring-primary',
-                    errors.password && 'border-destructive focus-visible:ring-destructive',
+                    isSubmitted && errors.password && 'border-destructive focus-visible:ring-destructive',
                   )}
                   {...register('password')}
                 />
               </div>
-              {errors.password ? (
+              {isSubmitted && errors.password ? (
                 <p id="password-error" role="alert" className="text-xs text-destructive">
                   {errors.password.message}
                 </p>
@@ -213,14 +210,14 @@ export function Login() {
                 role="alert"
                 className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs leading-relaxed text-destructive"
               >
-                {getApiErrorMessage(login.error)}
+                Credenciales incorrectas o usuario no autorizado. Verifica tus datos en GLPI.
               </div>
             ) : null}
 
             <Button
               type="submit"
               className="mt-2 h-10 w-full cursor-pointer rounded-xl bg-primary text-xs font-semibold text-primary-foreground shadow-md transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
-              disabled={hasErrors || login.isPending}
+              disabled={login.isPending}
             >
               {login.isPending ? 'Iniciando sesión…' : 'Iniciar Sesión'}
             </Button>

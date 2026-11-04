@@ -5,7 +5,7 @@ import { randomInt } from 'node:crypto'
 export async function confirmPlanning(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog', { name: /Planificar ticket/i })
   await expect(dialog).toBeVisible()
-  await dialog.getByTestId('plan-content').fill('Intervención técnica planificada por prueba E2E')
+  await expect(dialog.getByTestId('plan-start')).not.toHaveValue('')
   // E2E exercises a *shared* GLPI technician calendar. After enforcing real
   // overlap rejection, unrelated sequential tests must not all schedule the
   // default "now + 15 min" slot. Choose a high-entropy 2-hour block within
@@ -21,6 +21,7 @@ export async function confirmPlanning(page: Page): Promise<void> {
   }, startMillis)
   await dialog.getByTestId('plan-start').fill(localTimes.start)
   await dialog.getByTestId('plan-end').fill(localTimes.end)
+  await dialog.getByTestId('plan-content').fill('Intervención técnica planificada por prueba E2E')
   await dialog.getByTestId('plan-confirm-btn').click()
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
   await expect(page.getByText(/Ticket planificado/i).first()).toBeVisible()

@@ -27,7 +27,7 @@ function canRequestPermission(): boolean {
   return (!isIos || installed) && Notification.permission === 'default'
 }
 
-/** Request once, on the first trusted click after the authenticated layout mounts. */
+/** Request once, on the first trusted click after the authenticated layout mounts (H-65). */
 export function useAutomaticNotificationPermission() {
   const sessionValid = useIsSessionValid()
 

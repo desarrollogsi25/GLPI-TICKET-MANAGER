@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Moon, Sun } from 'lucide-react'
+import { AlertCircle, Bell, Check, CheckCircle2, Laptop, Moon, Send, Smartphone, Sun } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import type { DarkPreset } from '@/components/layout/AppLayout'
@@ -9,8 +9,20 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePreferencesQuery, useUpdatePreferencesMutation } from '@/hooks/usePreferences'
 import { getApiErrorMessage } from '@/lib/api/errors'
+import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
 
 const DARK_PRESET_OPTIONS: Array<{
   id: DarkPreset
@@ -58,7 +70,116 @@ export function PreferencesPage() {
       return 'midnight'
     }
   })
+  const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default')
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false)
+  const [isPushLoading, setIsPushLoading] = useState(false)
+  const [isTestingPush, setIsTestingPush] = useState(false)
   const [savedMessage, setSavedMessage] = useState(false)
+
+  // Comprobar estado de soporte y permisos de Web Push
+  useEffect(() => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPushStatus('unsupported')
+      return
+    }
+    setPushStatus(Notification.permission)
+
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.pushManager.getSubscription().then((sub) => {
+        setIsPushSubscribed(Boolean(sub))
+      }).catch(() => {})
+    }).catch(() => {})
+  }, [])
+
+  const handleActivatePush = async () => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      pushToast({
+        title: 'Función no disponible',
+        description: 'Tu navegador actual no admite notificaciones Web Push.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsPushLoading(true)
+    try {
+      const permission = await Notification.requestPermission()
+      setPushStatus(permission)
+
+      if (permission !== 'granted') {
+        pushToast({
+          title: 'Permiso denegado',
+          description: 'No se activaron las notificaciones. Puedes habilitarlas desde la configuración de tu navegador.',
+          variant: 'warning',
+        })
+        setIsPushLoading(false)
+        return
+      }
+
+      // Obtener clave pública VAPID desde el backend
+      const { data: vapidData } = await apiClient.get<{ publicKey: string }>('/notifications/push/vapid-public-key')
+      const reg = await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidData.publicKey),
+        })
+      }
+
+      const p256dh = sub.getKey('p256dh')
+      const auth = sub.getKey('auth')
+
+      if (!p256dh || !auth) {
+        throw new Error('No se pudieron obtener las claves de cifrado de la suscripción.')
+      }
+
+      const subscriptionDto = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: btoa(String.fromCharCode(...new Uint8Array(p256dh))),
+          auth: btoa(String.fromCharCode(...new Uint8Array(auth))),
+        },
+      }
+
+      await apiClient.post('/notifications/push/subscribe', subscriptionDto)
+      setIsPushSubscribed(true)
+      pushToast({
+        title: 'Notificaciones del dispositivo activadas',
+        description: 'Recibirás alertas nativas en Windows o tu celular cuando haya cambios relevantes.',
+        variant: 'success',
+      })
+    } catch (err) {
+      pushToast({
+        title: 'Error al activar notificaciones',
+        description: getApiErrorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsPushLoading(false)
+    }
+  }
+
+  const handleTestPush = async () => {
+    setIsTestingPush(true)
+    try {
+      const { data } = await apiClient.post<{ success: boolean; sentToDevices: number }>('/notifications/push/test')
+      pushToast({
+        title: 'Prueba enviada',
+        description: `Notificación enviada a ${data.sentToDevices} dispositivo(s). Comprueba tu barra de tareas o centro de notificaciones.`,
+        variant: 'success',
+      })
+    } catch (err) {
+      pushToast({
+        title: 'Error al probar notificación',
+        description: getApiErrorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsTestingPush(false)
+    }
+  }
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Limpiar timer de debounce al desmontar
@@ -373,6 +494,109 @@ export function PreferencesPage() {
               </div>
             </form>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Tarjeta de Notificaciones del Dispositivo (Web Push / Windows / Android) */}
+      <Card className="max-w-2xl border-border/70 shadow-sm backdrop-blur-xl bg-card/80 rounded-2xl">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Bell className="size-4" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Notificaciones del dispositivo</CardTitle>
+              <CardDescription>
+                Alertas nativas del sistema operativo en Windows, Android o PWA instalada.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl border border-border/60 bg-muted/20">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-foreground">Estado de alertas en este equipo:</span>
+                {pushStatus === 'granted' && isPushSubscribed && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <CheckCircle2 className="size-3" /> Activas
+                  </span>
+                )}
+                {pushStatus === 'denied' && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-900 dark:text-rose-300 bg-rose-500/15 px-2 py-0.5 rounded-full">
+                    <AlertCircle className="size-3" /> Bloqueadas
+                  </span>
+                )}
+                {(pushStatus === 'default' || (pushStatus === 'granted' && !isPushSubscribed)) && (
+                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                    No activadas
+                  </span>
+                )}
+                {pushStatus === 'unsupported' && (
+                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                    No compatible
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {pushStatus === 'granted' && isPushSubscribed
+                  ? 'Recibirás notificaciones en el Centro de Actividades de Windows y en la barra de tu celular.'
+                  : pushStatus === 'denied'
+                    ? 'El navegador tiene bloqueado el permiso. Para activarlo, pulsa en el candado de la URL y permite Notificaciones.'
+                    : pushStatus === 'unsupported'
+                      ? 'Este navegador no soporta la API de notificaciones Web Push.'
+                      : 'Activa las notificaciones para enterarte inmediatamente de asignaciones y tickets creados en GLPI.'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {pushStatus !== 'granted' || !isPushSubscribed ? (
+                <Button
+                  type="button"
+                  onClick={handleActivatePush}
+                  disabled={isPushLoading || pushStatus === 'unsupported'}
+                  className="rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
+                  data-testid="activate-device-notifications-btn"
+                >
+                  <Bell className="size-3.5 mr-1.5" />
+                  {isPushLoading ? 'Activando...' : 'Activar notificaciones del dispositivo'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestPush}
+                  disabled={isTestingPush}
+                  className="rounded-xl text-xs font-semibold cursor-pointer border-primary/40 hover:bg-primary/10"
+                  data-testid="test-device-notification-btn"
+                >
+                  <Send className="size-3.5 mr-1.5" />
+                  {isTestingPush ? 'Enviando...' : 'Probar notificación OS'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted-foreground pt-1">
+            <div className="flex items-start gap-2 p-3 rounded-xl border border-border/40 bg-card/40">
+              <Laptop className="size-4 shrink-0 mt-0.5 text-primary" />
+              <div>
+                <p className="font-semibold text-foreground">Windows 10/11</p>
+                <p>Aparece como banner emergente y se almacena en el Centro de Notificaciones del sistema.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-3 rounded-xl border border-border/40 bg-card/40">
+              <Smartphone className="size-4 shrink-0 mt-0.5 text-primary" />
+              <div>
+                <p className="font-semibold text-foreground">Android / PWA</p>
+                <p>Se integra con el gestor nativo de notificaciones del celular incluso con la app cerrada.</p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground/80 border-t border-border/30 pt-3">
+            🔒 <strong>Privacidad:</strong> Las alertas en pantalla bloqueada solo muestran el número de ticket y tipo de acción para resguardar la confidencialidad de los datos.
+          </p>
         </CardContent>
       </Card>
     </div>

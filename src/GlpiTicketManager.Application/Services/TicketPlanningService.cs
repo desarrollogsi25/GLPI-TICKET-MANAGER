@@ -685,7 +685,7 @@ public sealed class TicketPlanningService : ITicketPlanningService
         var value = content?.Trim();
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new ValidationException("content", "La descripción de la tarea es obligatoria.");
+            return "Intervención planificada";
         }
 
         if (value.Length > MaximumContentLength)

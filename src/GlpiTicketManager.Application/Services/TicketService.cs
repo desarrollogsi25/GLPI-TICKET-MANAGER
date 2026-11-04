@@ -414,10 +414,15 @@ public sealed class TicketService : ITicketService
             stats.OpenTickets,
             stats.NewTickets,
             stats.AssignedTickets,
+            stats.ExecutionTickets,
+            stats.PlannedTickets,
+            stats.PausedTickets,
             stats.PendingTickets,
             stats.SolvedTickets,
             stats.ClosedTickets,
             stats.OverdueTickets,
+            stats.DueSoonTickets,
+            stats.ScheduledTasksCount,
             stats.AverageResolutionHours,
             stats.ByStatus
                 .Select(item => new StatusCountDto(item.Status, TicketLabels.Status(item.Status), item.Count))
@@ -609,9 +614,9 @@ public sealed class TicketService : ITicketService
         if (request is null || request.RequestId == Guid.Empty)
             throw Invalid("requestId", "Se requiere un identificador único de solicitud.");
 
-        var content = request.Content?.Trim() ?? string.Empty;
-        if (content.Length is < 1 or > 4000)
-            throw Invalid("content", "La descripción debe contener entre 1 y 4000 caracteres.");
+        var content = string.IsNullOrWhiteSpace(request.Content) ? "Intervención planificada" : request.Content.Trim();
+        if (content.Length > 4000)
+            throw Invalid("content", "La descripción no puede superar los 4000 caracteres.");
         if (request.StartAt == default || request.EndAt == default || request.EndAt <= request.StartAt)
             throw Invalid("startAt", "El inicio debe ser anterior al fin y ambos deben incluir zona horaria.");
         if (request.EndAt - request.StartAt > TimeSpan.FromDays(30) ||
