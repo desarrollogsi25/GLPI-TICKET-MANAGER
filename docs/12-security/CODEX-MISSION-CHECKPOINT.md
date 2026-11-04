@@ -1,5 +1,149 @@
 # Checkpoint de finalización — GLPI Ticket Manager
 
+## Reanudación de misión — 2026-11-04 (estado actual)
+
+**EN CURSO / NO APROBADO PARA PUBLICACIÓN.** Este bloque sustituye el estado de
+las entregas históricas que siguen debajo; sus pruebas no se presentan como QA actual.
+Rama de trabajo: `codex/mission-audit-20261104`, base
+`db54bdc27ccabc9724c91d7cf6b13ef26e93ea66` (main y GitHub coincidían al inicio).
+PR #38, #39, #40, #41 y #42 están fusionadas. PR #36 y #37 seguían abiertas;
+no deben fusionarse sin revisar solapamientos con main y estas correcciones.
+Se preservan los archivos sin seguimiento previos y ambos worktrees ajenos.
+
+### Inventario observado antes de corregir
+
+- Proyecto original Docker Compose: `sistemaopensourceglpi`, directorio original.
+  API `glpi-api`, GLPI `glpi`, MariaDB `glpi-db`, PostgreSQL `glpi-app-db`,
+  frontend `glpi-frontend`, LAN `glpi-lan-frontend`, proxy `glpi-nginx`.
+- API apunta a MariaDB `glpi-db/glpi`, PostgreSQL `app-db/glpi_ticket_manager`
+  y GLPI `http://glpi/apirest.php/` dentro de la misma red original.
+  Los proyectos `glpi-pr38-staging-20261102` y `glpi-pr38-lab-20261102`
+  usan otros volúmenes/redes; no se reutilizan como fixture H-20.
+- Volúmenes originales observados: `sistemaopensourceglpi_glpi-db-data`,
+  `sistemaopensourceglpi_app-db-data`, `sistemaopensourceglpi_glpi-data`,
+  `sistemaopensourceglpi_glpi-plugins`. No se eliminaron ni reemplazaron.
+- Inicio: Docker estaba detenido. Se inició Docker Desktop; sus contenedores
+  existentes arrancaron según sus políticas. No se reconstruyó el entorno persistente.
+- Salud original: `http://localhost:8080/health/ready` HTTP 200; frontend
+  `http://localhost:5173` y `http://10.10.40.31` HTTP 200 con los mismos
+  assets de main (`index-dEqxTVV0.js`, `index-CubZHqcY.css`).
+  GLPI original: `http://localhost:8081`. HTTPS no queda validado como confiable.
+- MariaDB 10.11.19: 43 tickets, ninguno eliminado; 16 categorías originales y
+  sus grupos presentes. Se observaron 9 formularios activos: 2 generales y 7
+  destacados. Falta la tarjeta/formulario destacado «Acceso a sistema».
+  Hay 3 grupos técnicos, 48 acciones automáticas, 2 webhooks y 0 SLA definidos.
+  La existencia de reglas no demuestra que todos sus recorridos funcionen.
+
+### Hallazgos y cambios de esta revisión
+
+1. **H-20 / crítico: guardas desconectadas.** El guard aislado pasaba 68 casos,
+   pero configuración/global setup de Playwright y varios helpers conservaban
+   destinos fijos del entorno persistente. Se reconectaron al guard común, con
+   manifest, identidades, redes, tmpfs, sentinels y consentimiento por ejecución.
+   Se conservaron las definiciones actuales de categorías/formularios.
+   Las pruebas negativas ahora revisan estáticamente el helper ANTES de invocarlo,
+   para impedir que una regresión convierta la propia prueba en una mutación real.
+   La primera ejecución de esas pruebas llegó a invocar helpers inseguros;
+   después se comprobaron los conteos 43/16/9 sin cambios. No se dispone de una
+   instantánea fila por fila previa: estos conteos no prueban ausencia de toda mutación.
+2. **M-01: listas truncadas.** Cola limitada a 20 y asignados a 100, pese a filtrar
+   y contar en cliente. Se cargan todas las páginas autorizadas de 100, con
+   cancelación; páginas vacías, duplicados o totales cambiantes fallan sin
+   publicar una lista parcial. El orden SQL incorpora desempate por ID.
+   Consumidores: Kanban, listado, cola y dashboard del técnico. No hay snapshot
+   transaccional entre páginas: una lista que cambia requiere reintento.
+   El coste crece con el número de páginas y siguen vigentes los rate limits.
+3. **M-02: privacidad de planificación.** La cola duplicaba la proyección SQL y
+   omitía el filtro privado en cuatro subconsultas. Comparte ahora BaseProjection,
+   que excluye esas tareas de los metadatos resumidos para todos los consumidores.
+   Se añadió una regresión contra MariaDB real dentro de H-20.
+4. **M-03: resolución/cierre.** Resolver forzaba una segunda escritura a estado 6.
+   Se conserva el resultado confirmado en GLPI sin forzar cierre. Kanban muestra
+   solamente estado 5 en Resuelto; estado 6 sigue accesible por listado/historial.
+   Se mantienen permisos, API nativa y lectura de confirmación. Las pruebas que
+   exigían autocierre se actualizaron por este cambio explícito de requisito.
+5. **M-04: contadores realtime.** Un TicketClaimed repetido decrementaba total
+   aunque la tarjeta ya no estuviera en la cola. Se evita ese segundo decremento.
+   El dashboard muestra error si fallan los agregados, evitando indicadores falsos.
+6. **M-05: secretos/documentación.** Se retiraron contraseñas obsoletas publicadas
+   en README y la recomendación de borrar volúmenes. Las credenciales vigentes
+   siguen exclusivamente en el archivo local ignorado. También se sustituyó una
+   URL remota local de rama con credencial incrustada por la referencia origin;
+   no se rotaron contraseñas/tokens ni se publicó su contenido.
+7. **M-06: TLS.** Cadena X.509 y correspondencia de las claves verificadas
+   localmente, SANs localhost/127.0.0.1/10.10.40.31 y vigencia comprobadas.
+   La CA no figura en los almacenes Root de usuario/equipo consultados; Node
+   rechaza la cadena con UNABLE_TO_VERIFY_LEAF_SIGNATURE. La configuración local
+   ahora monta sólo server.crt/server.key: deja fuera ca.key del frontend.
+   El cambio de mounts aún NO está desplegado. Instalar la CA en Windows exige
+   confirmación específica; no se ignoró TLS ni se alteró la confianza.
+8. **M-07: dependencias.** Auditoría pnpm inicial: 2 altas, 3 moderadas, 1 baja.
+   Zod 4.6.6 + resolvers 5.9.2 y actualización transitiva de follow-redirects
+   eliminan las dos altas. Quedan 3 moderadas y 1 baja en herramientas de build
+   (Vite, glob, minimatch, deepmerge); no se declara auditoría limpia.
+9. **M-08: fixture desactualizado.** Se añaden migraciones PostgreSQL 008–011
+   (ambos scripts 009 son distintos); SQL007 permanece fuera por ser MariaDB.
+   El arranque de la API espera exclusivamente en el fixture hasta el bootstrap.
+   El generador hexadecimal asegura los 16 caracteres distintos exigidos también
+   al secreto webhook; no se debilita el validador de producción.
+   CI usa el fixture descartable y formularios nativos; elimina el arranque con
+   secretos persistentes. Los antiguos smoke tests multinodo/007 deben adaptarse
+   al fixture antes de dar por recuperada su cobertura: NO_VERIFICADOS aquí.
+
+### Pruebas actuales y límites
+
+- Backend Release Windows: PASS, 0 advertencias/errores, 50 unitarias y 177
+  pruebas API con dobles. Resultados TRX en TestResults locales (no versionados).
+- TypeScript y build frontend/PWA: PASS tras actualización de dependencias;
+  persiste advertencia de bundle >500 kB.
+- Regresiones de paginación: 8/8 PASS; guardas y limpieza H-20: 103/103 PASS.
+- Gitleaks 8.30.1 (binario oficial y checksum verificado): PASS sobre cambios
+  preparados, sin hallazgos; no se escanearon/publicaron credenciales locales.
+- NuGet, incluidos transitivos: sin avisos conocidos en el feed consultado.
+  Esto no equivale a ausencia de vulnerabilidades de la aplicación.
+- Autenticación por API real: admin_test (admin), lider_dev/lider_bi/lider_sd
+  (supervisor), tech_dev/tech_bi/tech_sd (technician), user_test (solicitante):
+  8/8 HTTP 200 en Ticket Manager y GLPI initSession; sesiones GLPI cerradas.
+  Se usaron las credenciales vigentes sin copiarlas a evidencia.
+- Negativas reales para los 3 técnicos y 3 líderes: cola propia 200, cola de otro
+  grupo 403 y endpoint administrativo 403. No sustituye auditoría multi-entidad,
+  perfiles/derechos GLPI, acceso por ID, privacidad completa o concurrencia.
+- E2E real: EN CURSO. Dos intentos fallaron antes de las pruebas (identidad de
+  servicio al arrancar / API no lista). Se retiraron sólo sus recursos exclusivos.
+  No se clasificó automáticamente exit 139 como defecto nativo: ambos binarios
+  (original y nuevo) también devuelven ese código ante configuración inválida;
+  una sonda mínima CLR funciona en ambas imágenes. Falta resultado concluyente.
+- QA manual: NO_VERIFICADO. El navegador embebido no llegó a adjuntarse y el
+  control de Chrome terminó por no poder identificar su URL con suficiente certeza.
+  No se presentan scripts Playwright como clics manuales.
+- Push Windows real, Android físico, ciclo completo por rol, reconexión/latencia,
+  aprobación de solución y cierre nativo: NO_VERIFICADOS actualmente.
+- Lint: NOT_CONFIGURED (no script específico); TypeScript no se etiqueta como lint.
+- GitNexus local 1.6.12 reindexado con --skip-agents-md --skip-skills;
+  AGENTS.md preservado. Hay flujos truncados y símbolos ResolveAsync/UpdateStatusAsync
+  ambiguos: alcance PARCIAL, completado con rg de interfaces, endpoints, React,
+  consultas y pruebas. detect-changes: 70 símbolos y 28 procesos afectados; riesgo
+  CRÍTICO de impacto, que requiere revisión reforzada (no es vulnerabilidad demostrada).
+
+### Siguiente y rollback
+
+Completar fixture/E2E y QA manual; reparar los avisos restantes sin actualizaciones
+mayores a ciegas, validar la tarjeta faltante mediante API/UI GLPI y respaldo;
+revisar PR obsoletos. Publicar sólo PR en borrador mientras falten gates.
+No se fusionó, migró ni desplegó esta rama en el entorno persistente.
+Rollback del código: revertir exclusivamente los commits de esta revisión;
+no restaurar/borrar bases ni volúmenes. No hay migración de datos propia aplicada
+al entorno original. La versión original continúa sirviéndose hasta autorización
+y verificación de una entrega completa.
+
+Fuentes de contraste: [ciclo GLPI](https://help.glpi-project.org/documentation/modules/assistance/tickets/ticketlifecycle),
+[aprobación de soluciones](https://help.glpi-project.org/documentation/modules/assistance/tabs/solution),
+[autorización OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html).
+
+---
+
+## Registro histórico (no representa la verificación de 2026-11-04)
+
 > **Control documental ISO 9001 / ISO 27001**  
 > **Código:** DOC-12-SEC-MISSION | **Fecha:** 2026-11-02 | **Estado:** implementación en PR **borrador**, no autorizada para producción.
 

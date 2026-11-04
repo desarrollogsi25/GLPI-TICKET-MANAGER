@@ -247,7 +247,7 @@ El tablero Kanban (`/kanban`) implementa el flujo operativo del técnico en 5 co
 2. **Mis tickets**: Tickets asignados al resolutor en estado Nuevo o Asignado (`status = 1, 2`) listos para comenzar.
 3. **En proceso (planificado)**: Tickets con al menos una tarea `TicketTask` pendiente y programada por GLPI (`status = 3`).
 4. **Pendiente**: Tickets con atención pausada por espera externa (`status = 4`).
-5. **Resuelto**: Tickets solucionados o cerrados (`status = 5` y `status = 6`, según ADR-006). La resolución exige una solución documentada; al resolver, el ticket se cierra automáticamente (véase [Reglas de estado](#reglas-de-estado-y-cierre-automático)).
+5. **Resuelto**: Tickets solucionados (`status = 5`). Los cerrados (`status = 6`) permanecen en el historial y en el listado filtrado por Cerrado. La resolución exige una solución documentada; el cierre es una etapa separada y autorizada en GLPI.
 
 ### Consultas y partición
 - **Cola del grupo**: Se obtiene mediante `useGroupQueueQuery(currentGroupId)`.
@@ -344,21 +344,21 @@ Para proteger la política de rate limiting `expensive` (`GET /api/tickets/by-gr
 - **Contenido obligatorio en tickets para soluciones**: Un ticket debe tener `content` (descripción) no vacío en `glpi_tickets` para poder recibir soluciones vía GLPI REST (`/apirest.php/ITILSolution`). Un ticket sin descripción no es resoluble por API (GLPI rechaza la operación con `Mandatory fields are not filled`).
 - **Validación de contenido de soluciones (H-24)**: Toda solución registrada mediante `POST /api/tickets/{id}/solutions` o `POST /api/tickets/{id}/resolve` es validada en el backend antes de su envío a GLPI. Debe ser **no vacía** (`TRIM(content) <> ''`) y **no exceder los 2000 caracteres**. Se permiten soluciones breves (p. ej. "OK", "Listo"); contenidos vacíos o compuestos sólo por espacios devuelven `400 Bad Request`.
 - **Guard estricto de resolución (`status = 5`) — BUG-031 (H-31)**: La transición a resuelto (`PATCH /api/tickets/{id}/status { "status": 5 }`) exige la existencia de al menos una solución con contenido **no vacío** en `glpi_itilsolutions` (`TRIM(content) <> ''`). El antiguo requisito de **longitud mínima (10 caracteres)** se eliminó: la consulta `SolutionQueries.Exists` ya no impone ese mínimo. Las soluciones obsoletas (`glpi_itilsolutions.status = 4`) **no** cuentan. Soluciones vacías o con espacios en blanco son rechazadas con `422 Unprocessable Entity`. Ver [ADR-020](../../01-architecture/decisions/ADR-020-resolucion-atomic-de-ticket.md).
-- **GLPI 11 auto-resuelve al crear la solución:** Crear una `ITILSolution` mueve el ticket a `Resuelto (5)`. El flujo preferido es `POST /api/tickets/{id}/resolve` (atómico): relee el estado, cierra automáticamente a `6` y emite **un único** evento SignalR. Los errores «el elemento ya está resuelto» de GLPI se traducen a `409 Conflict` en español.
+- **GLPI 11 auto-resuelve al crear la solución:** Crear una `ITILSolution` mueve el ticket a `Resuelto (5)`. El flujo preferido es `POST /api/tickets/{id}/resolve` (atómico): relee el estado confirmado en GLPI y emite **un único** evento SignalR. Los errores «el elemento ya está resuelto» de GLPI se traducen a `409 Conflict` en español.
 - **Filtrado de grupos por entidad y asignación**: Los grupos que aparecen en el selector son exclusivamente los que pertenecen a la entidad del usuario autenticado (`glpi_groups.entities_id = @EntityId`) y que están habilitados para recibir tickets (`glpi_groups.is_assign = 1`).
 - **Canales activos**: Los canales de entrada mostrados en la interfaz corresponden a los tipos de solicitud activos en `glpi_requesttypes` (`is_active = 1`).
 - **Exclusión de tickets eliminados lógicamente (H-25)**: Las consultas de la cola de grupo (`TicketQueries.UnassignedByGroup` y su conteo en `TicketRepository.GetUnassignedByGroupAsync`), así como la condición de asignación (`ClaimConditionalUpdate`), filtran explícitamente `is_deleted = 0` para garantizar que tickets eliminados en GLPI no aparezcan en la bandeja de entrada ni puedan ser reclamados.
 
-## Reglas de estado y cierre automático
+## Reglas de estado y cierre
 
 La máquina de estados se aplica en `TicketAccessPolicy.EvaluateStatusTransitionAsync` y `TicketService.UpdateStatusAsync`:
 
 - **Sin retroceso a Nuevo**: un técnico no puede mover un ticket `Asignado` (2) o `En progreso` (3) al estado `Nuevo` (1). El intento recibe `403` con `No puedes devolver un ticket asignado o en progreso al estado Nuevo.`
-- **Cierre automático al resolver**: al registrar una resolución (por técnico o administrador), el ticket pasa inmediatamente a `Cerrado` (6) en la misma operación. Si el cierre automático falla en GLPI, se registra una advertencia y no se revierte la resolución.
-- **Flujo atómico recomendado (ADR-020):** usar `POST /api/tickets/{id}/resolve`. El servicio valida autorización, escribe la solución, relee el estado (GLPI 11 auto-resuelve al crear la `ITILSolution`), cierra a `6`, audita `resolve` y emite **un único** evento SignalR `TicketStatusChanged`. Los mensajes de GLPI («El elemento ya está resuelto/cerrado») se traducen a `409 Conflict` en español.
+- **Resolución y cierre separados (misión 2026-11-04)**: resolver conserva `Resuelto` (5). Ticket Manager no fuerza un segundo cambio a `Cerrado` (6). GLPI aplica la aprobación de soluciones y el cierre automático que tenga configurado; el cierre manual conserva sus permisos del servidor. Esta regla sustituye el autocierre descrito históricamente en ADR-006/ADR-020.
+- **Flujo atómico recomendado (ADR-020):** usar `POST /api/tickets/{id}/resolve`. El servicio valida autorización, escribe la solución, relee el estado (GLPI 11 auto-resuelve al crear la `ITILSolution`), conserva el estado confirmado, audita `resolve` y emite **un único** evento SignalR `TicketStatusChanged`. Los mensajes de GLPI («El elemento ya está resuelto/cerrado») se traducen a `409 Conflict` en español.
 - **Solo el técnico asignado** puede cambiar el estado de un ticket: en caso contrario, `403` con `Solo el técnico asignado puede cambiar el estado de este ticket.`
 - **Cierre manual restringido**: enviar `status = 6` sin resolver queda reservado a administradores (`403` para técnicos).
-- **Transiciones idempotentes**: confirmar el estado ya vigente (p. ej. `5 → 5`) se permite. Es necesario porque GLPI marca el ticket como `Resuelto` al crear la solución, de modo que la confirmación posterior debe ser aceptada para poder aplicar el cierre automático.
+- **Transiciones idempotentes**: confirmar el estado ya vigente (p. ej. `5 → 5`) se permite. Es necesario porque GLPI marca el ticket como `Resuelto` al crear la solución, de modo que la confirmación posterior debe ser aceptada sin forzar el cierre.
 - **Mapeo de errores en la API**: `TicketEndpoints` traduce las reglas a códigos HTTP explícitos — `400` (validación/formato), `403` (prohibido), `404` (no encontrado), `409` (conflicto de estado: ya resuelto/cerrado o doble envío), `422` (regla de dominio / sin solución válida) y `502` (fallo de GLPI). El frontend muestra el `detail` recibido en un *toast* rojo de error.
 
 ## Notificaciones en tiempo real (SignalR)
