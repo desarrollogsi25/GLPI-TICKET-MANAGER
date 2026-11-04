@@ -66,14 +66,14 @@ const COLUMNS: ColumnDef[] = [
     title: 'En ejecución',
     description: 'Mis tickets · En curso',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
-    badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold',
+    badgeClass: 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 font-semibold',
   },
   {
     id: 'in_progress',
-    title: 'Planificado',
-    description: 'Tarea programada en GLPI (En proceso)',
+    title: 'En proceso (planificado)',
+    description: 'Tarea programada en GLPI',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
-    badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 font-semibold',
+    badgeClass: 'bg-blue-500/15 text-blue-900 dark:text-blue-300 font-semibold',
   },
   {
     id: 'pending',

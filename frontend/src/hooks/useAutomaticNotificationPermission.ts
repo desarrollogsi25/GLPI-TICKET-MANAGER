@@ -1,10 +1,62 @@
-/**
- * Notification helper hook.
- * Per UX/UI guidelines: Do NOT automatically request notification permissions upon login or first click.
- * Permissions are solely requested through explicit user action (e.g. "Activar notificaciones del dispositivo" in Preferences).
- */
+import { useEffect } from 'react'
+
+import { useIsSessionValid } from '@/hooks/useSessionValidity'
+
+const PERMISSION_ATTEMPT_KEY = 'glpi.notification-permission-requested'
+let attemptedInThisPage = false
+
+function wasPermissionRequested(): boolean {
+  if (attemptedInThisPage) return true
+  try {
+    return localStorage.getItem(PERMISSION_ATTEMPT_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function canRequestPermission(): boolean {
+  if (!window.isSecureContext || window.top !== window || !('Notification' in window) ||
+      !('serviceWorker' in navigator) || typeof Notification.requestPermission !== 'function') return false
+
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const installed = (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches
+
+  return (!isIos || installed) && Notification.permission === 'default'
+}
+
+/** Request once, on the first trusted click after the authenticated layout mounts (H-65). */
 export function useAutomaticNotificationPermission() {
-  // Explicitly no-op: user must activate via explicit action button in Preferences.
+  const sessionValid = useIsSessionValid()
+
+  useEffect(() => {
+    if (!sessionValid || wasPermissionRequested() || !canRequestPermission()) return
+
+    const onFirstClick = (event: MouseEvent) => {
+      if (!event.isTrusted || event.button !== 0) return
+      window.removeEventListener('click', onFirstClick, true)
+      if (wasPermissionRequested() || !canRequestPermission()) return
+
+      attemptedInThisPage = true
+      try {
+        localStorage.setItem(PERMISSION_ATTEMPT_KEY, 'true')
+      } catch {
+        // The in-memory guard still prevents repeated prompts when storage is unavailable.
+      }
+      try {
+        // Call synchronously inside the click handler to preserve browser user activation.
+        void Notification.requestPermission().catch(() => {})
+      } catch {
+        // Unsupported or browser-blocked requests remain silent and are not retried.
+      }
+    }
+
+    // Capture runs before React handlers; the login click has already passed this phase.
+    window.addEventListener('click', onFirstClick, true)
+    return () => window.removeEventListener('click', onFirstClick, true)
+  }, [sessionValid])
 }
 
 /** Existing realtime events can display persistent notifications while the app is connected. */

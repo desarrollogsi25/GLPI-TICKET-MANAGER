@@ -331,6 +331,19 @@ export function PreferencesPage() {
 
           {!isLoading && !isError && (
             <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+              {/* Selector semántico accesible / compatibilidad de formulario */}
+              <select
+                name="theme"
+                id="theme"
+                value={theme}
+                onChange={(e) => autoSaveTheme(e.target.value as 'light' | 'dark')}
+                className="sr-only"
+                aria-label="Tema de la interfaz"
+              >
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+              </select>
+
               {/* Selector de Tema con Tarjetas Interactivas */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -510,7 +523,7 @@ export function PreferencesPage() {
                   </span>
                 )}
                 {pushStatus === 'denied' && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-900 dark:text-rose-300 bg-rose-500/15 px-2 py-0.5 rounded-full">
                     <AlertCircle className="size-3" /> Bloqueadas
                   </span>
                 )}

@@ -93,12 +93,12 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         {/* Nuevo Horario */}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor="task-replan-start">Nuevo inicio</Label>
+            <Label htmlFor="task-replan-start">Inicio</Label>
             <Input id="task-replan-start" type="datetime-local" required value={start}
               onChange={(event) => setStart(event.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="task-replan-end">Nuevo fin</Label>
+            <Label htmlFor="task-replan-end">Fin</Label>
             <Input id="task-replan-end" type="datetime-local" required value={end}
               onChange={(event) => setEnd(event.target.value)} />
           </div>
@@ -130,14 +130,14 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         {/* Comentario o motivo de replanificación */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <Label htmlFor="task-replan-content">Motivo o notas de reprogramación</Label>
+            <Label htmlFor="task-replan-content">Trabajo por realizar</Label>
             <span className="text-[11px] text-muted-foreground">Opcional</span>
           </div>
           <Textarea
             id="task-replan-content"
             value={content}
             maxLength={4000}
-            placeholder="Opcional: motivo del cambio de horario o nuevos requerimientos..."
+            placeholder="Opcional: detalles del trabajo a realizar o motivo de reprogramación..."
             onChange={(event) => setContent(event.target.value)}
             className="min-h-[70px]"
           />
@@ -147,7 +147,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>Cancelar</Button>
           <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Reprogramando...' : 'Confirmar reprogramación'}
+            {mutation.isPending ? 'Reprogramando...' : 'Guardar nueva programación'}
           </Button>
         </div>
       </form>
