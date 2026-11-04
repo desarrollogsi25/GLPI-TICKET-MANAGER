@@ -66,6 +66,16 @@ async function run() {
   await page.screenshot({ path: mobileShotPath })
   console.log(`Saved screenshot: ${mobileShotPath}`)
 
+  console.log('[6] Selecting "En proceso" mobile tab...')
+  const inProcessTab = page.getByTestId('kanban-tab-in_process')
+  if (await inProcessTab.isVisible()) {
+    await inProcessTab.click()
+    await page.waitForTimeout(1000)
+    const mobileInProcessPath = path.join(ARTIFACT_DIR, '04_kanban_mobile_unified_in_process.png')
+    await page.screenshot({ path: mobileInProcessPath })
+    console.log(`Saved screenshot: ${mobileInProcessPath}`)
+  }
+
   await browser.close()
   console.log('[SUCCESS] All Kanban screenshots captured successfully.')
 }

@@ -91,7 +91,6 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-const COLUMN_IDS: ColumnId[] = ['queue', 'mine', 'in_progress', 'pending', 'resolved']
 
 /**
  * Kanban ordering policy (see docs/02-modules/tickets/overview.md):
@@ -156,6 +155,9 @@ const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: 
     icon: '✅',
   },
 }
+
+type MobileTabId = 'queue' | 'in_process' | 'pending' | 'resolved'
+const MOBILE_TAB_IDS: MobileTabId[] = ['queue', 'in_process', 'pending', 'resolved']
 
 function KanbanColumn({
   column,
@@ -919,10 +921,10 @@ export function Kanban() {
   )
 
   // Default tab para móvil: cola del grupo (queue)
-  const defaultTab: ColumnId = 'queue'
+  const defaultTab: MobileTabId = 'queue'
 
-  const [userSelectedTab, setUserSelectedTab] = useState<ColumnId | null>(null)
-  const activeTab: ColumnId = userSelectedTab ?? defaultTab
+  const [userSelectedTab, setUserSelectedTab] = useState<MobileTabId | null>(null)
+  const activeTab: MobileTabId = userSelectedTab ?? defaultTab
 
   // Badge pulsante: detectar nuevos tickets en la cola
   const [lastSeenQueueCount, setLastSeenQueueCount] = useState<number>(() => {
@@ -949,11 +951,11 @@ export function Kanban() {
 
   // Swipe entre tabs
   const handleSwipe = (direction: 'left' | 'right') => {
-    const currentIndex = COLUMN_IDS.indexOf(activeTab)
-    if (direction === 'left' && currentIndex < COLUMN_IDS.length - 1) {
-      setUserSelectedTab(COLUMN_IDS[currentIndex + 1])
+    const currentIndex = MOBILE_TAB_IDS.indexOf(activeTab)
+    if (direction === 'left' && currentIndex < MOBILE_TAB_IDS.length - 1) {
+      setUserSelectedTab(MOBILE_TAB_IDS[currentIndex + 1])
     } else if (direction === 'right' && currentIndex > 0) {
-      setUserSelectedTab(COLUMN_IDS[currentIndex - 1])
+      setUserSelectedTab(MOBILE_TAB_IDS[currentIndex - 1])
     }
   }
 
@@ -1092,18 +1094,40 @@ export function Kanban() {
   const hasGeneralError = myTicketsQuery.isError || queueQuery.isError
   const generalErrorMessage = getApiErrorMessage(myTicketsQuery.error ?? queueQuery.error)
 
-  const segmentedTabColumns: KanbanColumnTab[] = COLUMNS.map((col) => ({
-    id: col.id,
-    title: col.title,
-    count:
-      col.id === 'queue' && queueQuery.isError
+  const segmentedTabColumns: KanbanColumnTab[] = [
+    {
+      id: 'queue',
+      title: 'Cola',
+      count: queueQuery.isError ? '!' : queueTickets.length,
+      hasNew: hasNewQueueTickets,
+      isError: queueQuery.isError,
+    },
+    {
+      id: 'in_process',
+      title: 'En proceso',
+      count: myTicketsQuery.isError
         ? '!'
-        : ticketsByColumn[col.id].length,
-    hasNew: col.id === 'queue' && hasNewQueueTickets,
-    isError: col.id === 'queue' && queueQuery.isError,
-  }))
+        : ticketsByColumn.mine.length + ticketsByColumn.in_progress.length,
+      isError: myTicketsQuery.isError,
+    },
+    {
+      id: 'pending',
+      title: 'Pendiente',
+      count: myTicketsQuery.isError ? '!' : ticketsByColumn.pending.length,
+      isError: myTicketsQuery.isError,
+    },
+    {
+      id: 'resolved',
+      title: 'Resuelto',
+      count: myTicketsQuery.isError ? '!' : ticketsByColumn.resolved.length,
+      isError: myTicketsQuery.isError,
+    },
+  ]
 
-  const activeMobileTickets = ticketsByColumn[activeTab]
+  const activeMobileTickets =
+    activeTab === 'in_process'
+      ? [...ticketsByColumn.mine, ...ticketsByColumn.in_progress]
+      : ticketsByColumn[activeTab]
   const isMobileLoading =
     activeTab === 'queue'
       ? queueQuery.isLoading || groupsQuery.isLoading
@@ -1303,17 +1327,29 @@ export function Kanban() {
         <KanbanSegmentedTabs
           columns={segmentedTabColumns}
           activeId={activeTab}
-          onSelect={(id) => setUserSelectedTab(id as ColumnId)}
+          onSelect={(id) => setUserSelectedTab(id as MobileTabId)}
         />
 
         {/* Encabezado contextual de la columna activa + botón refrescar */}
         <div className="flex items-center justify-between px-1 pt-0.5">
           <div>
             <h2 className="text-sm font-bold text-foreground">
-              {COLUMNS.find((c) => c.id === activeTab)?.title}
+              {activeTab === 'queue'
+                ? 'Cola del grupo'
+                : activeTab === 'in_process'
+                  ? 'En proceso'
+                  : activeTab === 'pending'
+                    ? 'Pendiente'
+                    : 'Resuelto'}
             </h2>
             <p className="text-[11px] text-muted-foreground">
-              {activeMobileTickets.length} {activeMobileTickets.length === 1 ? 'ticket' : 'tickets'}
+              {activeTab === 'in_process'
+                ? `${ticketsByColumn.mine.length + ticketsByColumn.in_progress.length} tickets (${ticketsByColumn.mine.length} asignados, ${ticketsByColumn.in_progress.length} planificados)`
+                : activeTab === 'queue'
+                  ? `${ticketsByColumn.queue.length} ${ticketsByColumn.queue.length === 1 ? 'ticket' : 'tickets'}`
+                  : activeTab === 'pending'
+                    ? `${ticketsByColumn.pending.length} ${ticketsByColumn.pending.length === 1 ? 'ticket' : 'tickets'}`
+                    : `${ticketsByColumn.resolved.length} ${ticketsByColumn.resolved.length === 1 ? 'ticket' : 'tickets'}`}
             </p>
           </div>
           <Button
@@ -1376,6 +1412,92 @@ export function Kanban() {
                 <Skeleton className="h-24 w-full rounded-xl" />
                 <Skeleton className="h-24 w-full rounded-xl" />
               </div>
+            ) : activeTab === 'in_process' ? (
+              <div className="flex flex-col gap-3">
+                {/* SECCIÓN A: ASIGNADO (GLPI 2) */}
+                <div data-column-id="mine" className="flex flex-col gap-2 rounded-xl border border-border/40 bg-card/60 p-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <span className="text-xs font-bold tracking-tight text-foreground">A. Asignado</span>
+                      <span className="text-[10px] text-muted-foreground">(GLPI 2)</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
+                      {ticketsByColumn.mine.length}
+                    </span>
+                  </div>
+                  {ticketsByColumn.mine.length > 0 ? (
+                    <div className="space-y-2">
+                      {ticketsByColumn.mine.map((ticket) => (
+                        <motion.div
+                          key={ticket.id}
+                          layout
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={springTransition}
+                        >
+                          <TicketCard
+                            key={ticket.id}
+                            ticket={ticket}
+                            draggable={false}
+                            compact={true}
+                            highlight={recentlyUpdatedIds.has(ticket.id)}
+                            actionButton={getMobileActionButton('mine', ticket)}
+                            onCardClick={() => setSelectedMobileTicket(ticket)}
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/60 p-3 text-center bg-card/30">
+                      <p className="text-xs text-muted-foreground">{EMPTY_MESSAGES.mine.title}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* SECCIÓN B: EN PROCESO (PLANIFICADO) (GLPI 3) */}
+                <div data-column-id="in_progress" className="flex flex-col gap-2 rounded-xl border border-border/40 bg-card/60 p-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full bg-blue-500 shrink-0" />
+                      <span className="text-xs font-bold tracking-tight text-foreground">B. En proceso (planificado)</span>
+                      <span className="text-[10px] text-muted-foreground">(GLPI 3)</span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums bg-blue-500/15 text-blue-800 dark:text-blue-300">
+                      {ticketsByColumn.in_progress.length}
+                    </span>
+                  </div>
+                  {ticketsByColumn.in_progress.length > 0 ? (
+                    <div className="space-y-2">
+                      {ticketsByColumn.in_progress.map((ticket) => (
+                        <motion.div
+                          key={ticket.id}
+                          layout
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={springTransition}
+                        >
+                          <TicketCard
+                            key={ticket.id}
+                            ticket={ticket}
+                            draggable={false}
+                            compact={true}
+                            highlight={recentlyUpdatedIds.has(ticket.id)}
+                            actionButton={getMobileActionButton('in_progress', ticket)}
+                            onCardClick={() => setSelectedMobileTicket(ticket)}
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/60 p-3 text-center bg-card/30">
+                      <p className="text-xs text-muted-foreground">{EMPTY_MESSAGES.in_progress.title}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : activeMobileTickets.length > 0 ? (
               <AnimatePresence mode="popLayout">
                 {activeMobileTickets.map((ticket) => (
@@ -1393,7 +1515,7 @@ export function Kanban() {
                       draggable={false}
                       compact={true}
                       highlight={recentlyUpdatedIds.has(ticket.id)}
-                      actionButton={getMobileActionButton(activeTab, ticket)}
+                      actionButton={getMobileActionButton(activeTab as ColumnId, ticket)}
                       onCardClick={() => setSelectedMobileTicket(ticket)}
                     />
                   </motion.div>
@@ -1574,7 +1696,13 @@ export function Kanban() {
 
       <KanbanMobileSheet
         ticket={selectedMobileTicket}
-        currentColumn={activeTab}
+        currentColumn={
+          activeTab === 'in_process'
+            ? selectedMobileTicket?.status === 3
+              ? 'in_progress'
+              : 'mine'
+            : (activeTab as ColumnId)
+        }
         isOpen={selectedMobileTicket !== null}
         onClose={() => setSelectedMobileTicket(null)}
         onClaim={handleClaim}
