@@ -20,4 +20,6 @@ public sealed record TicketSummaryDto(
     DateTime? SolvedAt,
     bool HasSolution,
     IReadOnlyList<int> AssigneeIds,
-    IReadOnlyList<int> RequesterIds);
+    IReadOnlyList<int> RequesterIds,
+    DateTime? NextPlannedAt = null,
+    int? NextPlannedTechnicianId = null);

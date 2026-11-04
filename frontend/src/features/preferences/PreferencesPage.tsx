@@ -210,21 +210,26 @@ export function PreferencesPage() {
 
           {!isLoading && !isError && (
             <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-              {/* Selector de Tema con Dropdown y Tarjetas Liquid Glass */}
+              {/* Selector semántico accesible / compatibilidad de formulario */}
+              <select
+                name="theme"
+                id="theme"
+                value={theme}
+                onChange={(e) => autoSaveTheme(e.target.value as 'light' | 'dark')}
+                className="sr-only"
+                aria-label="Tema de la interfaz"
+              >
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+              </select>
+
+              {/* Selector de Tema con Tarjetas Interactivas */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="theme" className="text-sm font-semibold">Tema de la interfaz</Label>
-                  <select
-                    id="theme"
-                    name="theme"
-                    aria-label="Seleccionar tema"
-                    value={theme}
-                    onChange={(e) => autoSaveTheme(e.target.value as 'light' | 'dark')}
-                    className="w-36 text-xs h-8 px-2.5 rounded-xl border border-border/80 bg-background/80 text-foreground shadow-xs focus:outline-hidden focus:ring-1 focus:ring-primary/40 transition-colors"
-                  >
-                    <option value="light">Claro</option>
-                    <option value="dark">Oscuro</option>
-                  </select>
+                  <Label className="text-sm font-semibold">Tema de la interfaz</Label>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {theme === 'dark' ? 'Modo Oscuro activo' : 'Modo Claro activo'}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

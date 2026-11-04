@@ -8,7 +8,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   })
 
   // 1. Seed garantiza ticket #11 en cola (el seed lo hace)
-  await page.goto('http://localhost:5173/kanban')
+  await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
   // 2. Verificar las 5 columnas
@@ -37,12 +37,12 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   await expect(queueColumn.locator('span').filter({ hasText: /^#11$/ })).not.toBeVisible({ timeout: 10000 })
 
   // 6. Abrir el detalle del ticket y verificar status=2
-  await page.goto('http://localhost:5173/tickets/11')
+  await page.goto('/tickets/11')
   await page.waitForLoadState('networkidle')
   // El detalle debe mostrar estado "Asignado"
 
   // 7. Volver al Kanban
-  await page.goto('http://localhost:5173/kanban')
+  await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
   // 8. Verificar que #11 está en "Mis tickets"

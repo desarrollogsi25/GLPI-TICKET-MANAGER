@@ -12,6 +12,15 @@ public interface INotificationService
         string message,
         CancellationToken ct = default);
 
+    Task<NotificationDto?> CreateIdempotentAsync(
+        int userId,
+        string type,
+        int? ticketId,
+        string title,
+        string message,
+        string idempotencyKey,
+        CancellationToken ct = default);
+
     /// <summary>Persist and emit TicketCreated exactly once per user/ticket in PostgreSQL.</summary>
     Task<bool> CreateTicketCreatedOnceAsync(
         int userId, int ticketId, string title, string message,

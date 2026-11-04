@@ -34,6 +34,17 @@ public interface ITicketAccessPolicy
     Task<bool> CanSeePrivateFollowupsAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
     Task<bool> CanReopenAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Whether <paramref name="userId"/> may schedule a task for
+    /// <paramref name="technicianId"/> on the ticket. Admins may schedule for anyone;
+    /// supervisors for technicians inside the ticket's groups; a technician only for
+    /// themselves and only when they are the assignee.
+    /// </summary>
+    Task<bool> CanPlanAsync(int userId, AppRole role, int ticketId, int technicianId, CancellationToken ct = default);
+
+    /// <summary>Whether the caller may complete, cancel or reschedule existing tasks.</summary>
+    Task<bool> CanManagePlanningAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+
     Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanModifyStatusAsync(int userId, int ticketId, CancellationToken ct = default);
     Task<bool> CanClaimAsync(int userId, int ticketId, CancellationToken ct = default);
@@ -100,7 +111,8 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
     /// <list type="bullet">
     /// <item>Technicians cannot leave Resolved (5) or Closed (6): only an admin reopens.</item>
     /// <item>Technicians cannot move work backwards: In-Progress (2/3) cannot go to New (1).</item>
-    /// <item>Waiting (4) can only be resumed to In-Progress (3): resolving or closing it
+    /// <item>Waiting (4) can only be resumed to Assigned (2): status 3 is derived from a
+    /// native GLPI TicketTask and cannot be written through the status endpoint; resolving or closing it
     /// directly is rejected (H-39).</item>
     /// </list>
     /// Admins and supervisors bypass the transition graph (supervisors already scoped to
@@ -169,8 +181,16 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
                 "No puedes devolver un ticket a un estado anterior a Asignado (Nuevo).");
         }
 
-        // 3. Waiting (4) is an interrupted state: it can only be resumed to In-Progress
-        // (3). Resolving (5) or closing (6) it directly is forbidden (H-39).
+        // 3. Waiting (4) is an interrupted state: resume it to Assigned (2). Planned (3)
+        // is derived by GLPI from a native TicketTask, never written by this endpoint.
+        // Resolving (5) or closing (6) it directly is forbidden (H-39).
+        if (currentStatus == (int)TicketStatus.Waiting
+            && newStatus == (int)TicketStatus.Planned)
+        {
+            return StatusTransitionDecision.Deny(
+                "Un ticket Pendiente debe reanudarse a Asignado. Para planificarlo, crea una tarea programada en GLPI.");
+        }
+
         if (currentStatus == (int)TicketStatus.Waiting
             && (newStatus == (int)TicketStatus.Solved || newStatus == (int)TicketStatus.Closed))
         {
@@ -191,7 +211,8 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return StatusTransitionDecision.Deny("Solo el técnico asignado puede cambiar el estado de este ticket.");
         }
 
-        // Technicians can move tickets between states 2 (Assigned/In Progress), 3 (Planned/In Progress), 4 (Waiting/Pending), and 5 (Solved).
+        // Technicians can move tickets between states 2 (Assigned/In Progress),
+        // 4 (Waiting/Pending), and 5 (Solved). GLPI derives state 3 from TicketTask.
         return StatusTransitionDecision.Allow();
     }
 
@@ -226,7 +247,7 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return userGroups.Intersect(ticketGroups).Any();
         }
 
-        // H-03: belonging to the same group grants queue visibility, never
+        // H-03: Belonging to the same group grants queue visibility, but never
         // permission to insert a solution on another technician's ticket.
         // Requesters/observers cannot author technician solutions either.
         return role == AppRole.Technician
@@ -293,10 +314,80 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
         return false;
     }
 
+    public async Task<bool> CanPlanAsync(
+        int userId,
+        AppRole role,
+        int ticketId,
+        int technicianId,
+        CancellationToken ct = default)
+    {
+        if (technicianId <= 0)
+        {
+            return false;
+        }
+
+        if (role == AppRole.Admin)
+        {
+            return true;
+        }
+
+        // A requester never schedules work, not even on their own ticket.
+        if (role == AppRole.Solicitante)
+        {
+            return false;
+        }
+
+        if (!await CanViewAsync(userId, role, ticketId, ct))
+        {
+            return false;
+        }
+
+        if (role == AppRole.Technician)
+        {
+            return technicianId == userId
+                && await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+        }
+
+        if (role != AppRole.Supervisor)
+        {
+            return false;
+        }
+
+        // Scheduling for somebody else requires that technician to be inside the
+        // ticket's scope. Without this, a technician in group A could book the calendar
+        // of a technician in group B.
+        var technicianGroups = await _tickets.GetGroupIdsForUserAsync(technicianId, ct);
+        var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+        return technicianGroups.Intersect(ticketGroups).Any();
+    }
+
+    public async Task<bool> CanManagePlanningAsync(
+        int userId,
+        AppRole role,
+        int ticketId,
+        CancellationToken ct = default)
+    {
+        if (role == AppRole.Admin)
+        {
+            return true;
+        }
+
+        if (role == AppRole.Solicitante)
+        {
+            return false;
+        }
+
+        if (role == AppRole.Supervisor)
+        {
+            return await CanViewAsync(userId, role, ticketId, ct);
+        }
+
+        return await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
+    }
+
     // Default overloads for backward compatibility
     public Task<bool> CanViewAsync(int userId, int ticketId, CancellationToken ct = default) =>
         CanViewAsync(userId, AppRole.Technician, ticketId, ct);
-
     public Task<bool> CanModifyStatusAsync(int userId, int ticketId, CancellationToken ct = default) =>
         CanModifyStatusAsync(userId, AppRole.Technician, ticketId, ct);
 

@@ -162,7 +162,6 @@ export function useGroupsQuery() {
     staleTime: 5 * 60_000,
   })
 }
-
 export function useChannelsQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -172,7 +171,6 @@ export function useChannelsQuery() {
     staleTime: 5 * 60_000,
   })
 }
-
 /**
  * Fallback polling cadence for the group queue, used ONLY while the realtime
  * connection is down.
@@ -227,7 +225,6 @@ export function useGroupQueueQuery(
     refetchIntervalInBackground: false,
   })
 }
-
 export function useClaimTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -237,7 +234,6 @@ export function useClaimTicketMutation() {
     },
   })
 }
-
 export function useCreateSolutionMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -251,7 +247,6 @@ export function useCreateSolutionMutation() {
     },
   })
 }
-
 /**
  * Resolves a ticket atomically (BUG-031 / H-31): one request writes the solution and
  * moves the ticket to its resolved state, so the UI never has to chain two calls.
@@ -266,7 +261,6 @@ export function useResolveTicketMutation() {
     },
   })
 }
-
 export function useReopenTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -277,7 +271,6 @@ export function useReopenTicketMutation() {
     },
   })
 }
-
 export function usePutPendingMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -288,7 +281,6 @@ export function usePutPendingMutation() {
     },
   })
 }
-
 export function useCreateTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -303,7 +295,6 @@ export function useCreateTicketMutation() {
     },
   })
 }
-
 export function useTeamDashboardQuery(groupId: number | null) {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -312,7 +303,6 @@ export function useTeamDashboardQuery(groupId: number | null) {
     enabled: groupId != null && groupId > 0 && sessionValid,
   })
 }
-
 export function useAdminDashboardQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({

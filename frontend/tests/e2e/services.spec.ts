@@ -6,7 +6,7 @@ test('services: shows hierarchical catalog', async ({ page }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/services')
+  await page.goto('/services')
   await page.waitForLoadState('networkidle')
 
   // Verificar categorías raíz

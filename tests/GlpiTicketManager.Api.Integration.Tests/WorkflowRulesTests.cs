@@ -214,23 +214,27 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Technician_CanResumeWaitingByPlanningTicketTask()
+    public async Task Technician_CanResumeWaitingToAssigned()
     {
         ArrangeTicket((int)TicketStatus.Waiting);
 
         var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
-        using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/plan");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Content = JsonContent.Create(new PlanTicketRequest
-        {
-            RequestId = Guid.NewGuid(), Content = "Planificar intervención técnica",
-            StartAt = DateTimeOffset.UtcNow.AddHours(1), EndAt = DateTimeOffset.UtcNow.AddHours(2)
-        });
-        var response = await _client.SendAsync(request);
+        var response = await PatchStatusAsync(token, (int)TicketStatus.Assigned);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Planned);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Assigned);
+    }
+
+    [Fact]
+    public async Task Technician_CannotResumeWaitingDirectlyToPlanned()
+    {
+        ArrangeTicket((int)TicketStatus.Waiting);
+
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        var response = await PatchStatusAsync(token, (int)TicketStatus.Planned);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Waiting);
     }
 
     [Fact]

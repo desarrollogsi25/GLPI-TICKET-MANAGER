@@ -6,62 +6,54 @@
  * =============================================================================
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
+const { randomBytes } = require('crypto');
 const path = require('path');
 
-// 1. Obtener credenciales de MariaDB
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
 
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
+function guard(args, input) {
+  try {
+    return execFileSync(process.execPath, [GUARD, ...args], {
+      input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    // Never echo child output: it could contain credentials or fixture data.
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
   }
 }
-if (!mariadbPassword) mariadbPassword = 'secret';
 
-// Definición de usuarios requeridos:
-// - admin_test / Admin123! -> Super-Admin (4)
-// - supervisor_test / Super123! -> Supervisor (7)
-// - tecnico_test1 / Tec123! -> Technician (6) / Grupo: Requerimiento Service Desk
-// - tecnico_test2 / Tec123! -> Technician (6) / Grupo: Hardware
-// - solicitante_test / Soli123! -> Self-Service (1)
+// Synthetic fixture users. Passwords are generated per run and never logged;
+// they exist only inside the disposable database.
 const TEST_USERS = [
-  { username: 'admin_test', password: 'Admin123!', profileId: 4, role: 'Super-Admin' },
-  { username: 'supervisor_test', password: 'Super123!', profileId: 7, role: 'Supervisor' },
-  { username: 'tecnico_test1', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Requerimiento Service Desk' },
-  { username: 'tecnico_test2', password: 'Tec123!', profileId: 6, role: 'Technician', group: 'Hardware' },
-  { username: 'solicitante_test', password: 'Soli123!', profileId: 1, role: 'Self-Service' },
+  { username: 'admin_test', profileId: 4, role: 'Super-Admin' },
+  { username: 'supervisor_test', profileId: 7, role: 'Supervisor' },
+  { username: 'tecnico_test1', profileId: 6, role: 'Technician', group: 'Requerimiento Service Desk' },
+  { username: 'tecnico_test2', profileId: 6, role: 'Technician', group: 'Hardware' },
+  { username: 'solicitante_test', profileId: 1, role: 'Self-Service' },
 ];
 
-function runInGlpi(command) {
+const fixturePassword = () => randomBytes(24).toString('base64url');
+
+function runInGlpi(args, input) {
   try {
-    return execSync(`docker exec glpi ${command}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    return { ok: true, output: guard(['exec', 'glpi', '--', ...args], input) };
   } catch (err) {
-    return err.stdout || err.stderr || err.message;
+    return { ok: false, output: err.message };
   }
 }
 
 function runSql(sql) {
-  try {
-    // -N -B: sin cabeceras y en modo batch, para que la salida sea solo datos y se pueda
-    // parsear de forma fiable en la verificación final (mismos datos, sin formato).
-    return execSync(
-      `docker exec -i glpi-db mariadb -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-  } catch (err) {
-    const msg = err.stderr || err.message;
-    throw new Error(`Error MariaDB: ${msg}`);
-  }
+  // -N -B keeps the output parseable; SQL travels on stdin, never on argv.
+  return guard(['sql', 'mariadb'], sql);
+}
+
+function assertFixture() {
+  guard(['verify', '--destructive']);
 }
 
 function seedGlpiUsers() {
+  assertFixture();
   console.log('--- Iniciando creación idempotente de usuarios GLPI ---');
 
   // Asegurar que los grupos requeridos existan. Deben coincidir exactamente con la
@@ -86,18 +78,19 @@ function seedGlpiUsers() {
   console.log('✓ Grupos de soporte técnico verificados.');
 
   for (const user of TEST_USERS) {
+    const userPassword = fixturePassword();
     // 1. Intentar crear usuario
-    const createRes = runInGlpi(`php bin/console user:create ${user.username} -p "${user.password}" --no-interaction`);
-    if (createRes.includes('Usuario creado')) {
+    const createRes = runInGlpi(['php', 'bin/console', 'user:create', user.username, '-p', userPassword, '--no-interaction']);
+    if (createRes.ok && createRes.output.includes('Usuario creado')) {
       console.log(`✓ Creado usuario: ${user.username}`);
     } else {
       // Si ya existe, asegurar contraseña actualizada
-      runInGlpi(`php bin/console user:reset_password ${user.username} -p "${user.password}" --no-interaction`);
+      runInGlpi(['php', 'bin/console', 'user:reset_password', user.username, '-p', userPassword, '--no-interaction']);
       console.log(`ℹ Usuario ${user.username} ya existía (contraseña sincronizada).`);
     }
 
     // 2. Asignar perfil correspondiente
-    runInGlpi(`php bin/console user:grant ${user.username} -p ${user.profileId} -r --no-interaction`);
+    runInGlpi(['php', 'bin/console', 'user:grant', user.username, '-p', String(user.profileId), '-r', '--no-interaction']);
     console.log(`✓ Perfil asignado a ${user.username}: ${user.role} (ID ${user.profileId})`);
 
     // 3. Vincular técnicos a TODOS los grupos de soporte técnico

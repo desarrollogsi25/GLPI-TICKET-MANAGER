@@ -5,7 +5,7 @@ test('Dashboard arranca y permite ir a la cola del grupo', async ({ page }) => {
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()) })
 
 
-  await page.goto('http://localhost:5173/dashboard')
+  await page.goto('/dashboard')
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByText('Tickets en mi cola')).toBeVisible({ timeout: 10000 })

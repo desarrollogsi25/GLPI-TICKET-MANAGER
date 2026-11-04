@@ -43,6 +43,15 @@ public sealed class Ticket
 
     public IReadOnlyList<int> RequesterIds { get; set; } = [];
 
+    /// <summary>
+    /// Start of the next task still pending (<c>state = 1</c>) and scheduled, or null
+    /// when the ticket has no upcoming planning. Read from <c>glpi_tickettasks</c>.
+    /// </summary>
+    public DateTime? NextPlannedAt { get; set; }
+
+    /// <summary>Technician responsible for <see cref="NextPlannedAt"/>, when set.</summary>
+    public int? NextPlannedTechnicianId { get; set; }
+
     public IReadOnlyList<TicketFollowup> Followups { get; set; } = [];
     public IReadOnlyList<TicketSolution> Solutions { get; set; } = [];
 }

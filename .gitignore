@@ -54,3 +54,6 @@ logs/
 .vscode/*.local
 
 e2e-artifacts/
+
+infra/nginx/certs
+GLPI/

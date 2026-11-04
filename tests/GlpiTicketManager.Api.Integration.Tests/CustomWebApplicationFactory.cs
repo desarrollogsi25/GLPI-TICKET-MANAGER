@@ -108,6 +108,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     public void ResetNotifications()
     {
         NotificationMock.Invocations.Clear();
+        lock (_stateLock)
+        {
+            TicketCreatedKeys.Clear();
+            _notificationsList.Clear();
+        }
     }
 
     public void SetTicketSolution(int ticketId, string content)
@@ -455,6 +460,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 d.ServiceType == typeof(IRevokedTokenRepository) ||
                 d.ServiceType == typeof(IGlpiApiClient) ||
                 d.ServiceType == typeof(ITicketPlanningRequestStore) ||
+                d.ServiceType == typeof(IGlpiWebhookIdempotencyRepository) ||
                 d.ServiceType == typeof(IAuditRepository) ||
                 d.ServiceType == typeof(IGroupRepository) ||
                 d.ServiceType == typeof(IChannelRepository) ||
@@ -569,6 +575,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             // Mock IPasswordHasher
             var hasherMock = new Mock<IPasswordHasher>();
+            hasherMock.Setup(h => h.Verify("Tech1Pass!", "hash1")).Returns(true);
+            hasherMock.Setup(h => h.Verify("Tech2Pass!", "hash2")).Returns(true);
+            hasherMock.Setup(h => h.Verify("AdminPass123!", "admin_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify("SupervisorPass123!", "sup_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify("Solicitante123!", "solicitante_hash")).Returns(true);
+            hasherMock.Setup(h => h.Verify("User1Pass!", "user1_hash")).Returns(true);
             hasherMock.Setup(h => h.Verify(TestCredentials.Tech1, "hash1")).Returns(true);
             hasherMock.Setup(h => h.Verify(TestCredentials.Tech2, "hash2")).Returns(true);
             hasherMock.Setup(h => h.Verify(TestCredentials.Admin, "admin_hash")).Returns(true);
@@ -1718,6 +1730,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 });
 
             services.AddSingleton(dashboardRepoMock.Object);
+
+            var webhookIdempotencyMock = new Mock<IGlpiWebhookIdempotencyRepository>();
+            var seenEvents = new ConcurrentDictionary<string, string>();
+            webhookIdempotencyMock.Setup(w => w.AcquireAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string key, string hash, CancellationToken _) =>
+                {
+                    if (seenEvents.TryAdd(key, hash))
+                        return new GlpiWebhookReservation(GlpiWebhookReservationDisposition.Acquired);
+                    return seenEvents[key] == hash
+                        ? new GlpiWebhookReservation(GlpiWebhookReservationDisposition.Completed)
+                        : new GlpiWebhookReservation(GlpiWebhookReservationDisposition.PayloadConflict);
+                });
+            services.AddSingleton(webhookIdempotencyMock.Object);
         });
     }
 }

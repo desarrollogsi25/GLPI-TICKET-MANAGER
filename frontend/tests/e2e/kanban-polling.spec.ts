@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { fixtureUrl } from './support/fixture-url'
 
-const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const DESK = fixtureUrl('desk')
 
 /**
  * BUG-032 / H-32 — regression guard for the Kanban polling.

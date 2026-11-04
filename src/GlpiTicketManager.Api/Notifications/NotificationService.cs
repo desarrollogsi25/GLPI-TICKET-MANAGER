@@ -59,6 +59,41 @@ public sealed class NotificationService : INotificationService
         return dto;
     }
 
+    public async Task<NotificationDto?> CreateIdempotentAsync(
+        int userId,
+        string type,
+        int? ticketId,
+        string title,
+        string message,
+        string idempotencyKey,
+        CancellationToken ct = default)
+    {
+        var entity = new Notification
+        {
+            UserId = userId,
+            Type = type,
+            TicketId = ticketId,
+            Title = title,
+            Message = message,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow,
+            IdempotencyKey = idempotencyKey
+        };
+
+        var id = await _repository.CreateIdempotentAsync(entity, idempotencyKey, ct);
+        if (id is null)
+        {
+            return null;
+        }
+
+        entity.Id = id.Value;
+        var dto = new NotificationDto(entity.Id, entity.UserId, entity.Type, entity.TicketId,
+            entity.Title, entity.Message, entity.IsRead, entity.CreatedAt);
+
+        await EmitReceivedAsync(dto, ct);
+        return dto;
+    }
+
     public async Task<bool> CreateTicketCreatedOnceAsync(
         int userId, int ticketId, string title, string message, CancellationToken ct = default)
     {
@@ -114,29 +149,31 @@ public sealed class NotificationService : INotificationService
         CancellationToken ct = default)
     {
         var list = await _repository.GetByUserAsync(userId, limit, offset, ct);
-        return list.Select(e => new NotificationDto(
-            e.Id,
-            e.UserId,
-            e.Type,
-            e.TicketId,
-            e.Title,
-            e.Message,
-            e.IsRead,
-            e.CreatedAt)).ToList();
+        return list.Select(n => new NotificationDto(
+            n.Id,
+            n.UserId,
+            n.Type,
+            n.TicketId,
+            n.Title,
+            n.Message,
+            n.IsRead,
+            n.CreatedAt
+        )).ToList();
     }
 
-    public async Task<int> GetUnreadCountAsync(int userId, CancellationToken ct = default)
-    {
-        return await _repository.GetUnreadCountAsync(userId, ct);
-    }
+    public async Task<int> GetUnreadCountAsync(
+        int userId,
+        CancellationToken ct = default) =>
+        await _repository.GetUnreadCountAsync(userId, ct);
 
-    public async Task<bool> MarkAsReadAsync(long id, int userId, CancellationToken ct = default)
-    {
-        return await _repository.MarkAsReadAsync(id, userId, ct);
-    }
+    public async Task<bool> MarkAsReadAsync(
+        long id,
+        int userId,
+        CancellationToken ct = default) =>
+        await _repository.MarkAsReadAsync(id, userId, ct);
 
-    public async Task<int> MarkAllAsReadAsync(int userId, CancellationToken ct = default)
-    {
-        return await _repository.MarkAllAsReadAsync(userId, ct);
-    }
+    public async Task<int> MarkAllAsReadAsync(
+        int userId,
+        CancellationToken ct = default) =>
+        await _repository.MarkAllAsReadAsync(userId, ct);
 }

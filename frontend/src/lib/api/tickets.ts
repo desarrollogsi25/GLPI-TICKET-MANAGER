@@ -24,12 +24,10 @@ export async function listTickets(params: TicketListParams): Promise<PagedResult
   const { data } = await apiClient.get<PagedResult<TicketSummary>>('/tickets', { params })
   return data
 }
-
 export async function getTicket(id: number): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.get(`/tickets/${id}`)
   return data
 }
-
 export async function updateTicketStatus(id: number, status: number): Promise<void> {
   await apiClient.patch(`/tickets/${id}/status`, { status })
 }
@@ -90,29 +88,24 @@ export async function listGroups(): Promise<import('@/lib/api/types').Group[]> {
   const { data } = await apiClient.get('/groups')
   return data
 }
-
 export async function listChannels(): Promise<import('@/lib/api/types').Channel[]> {
   const { data } = await apiClient.get('/channels')
   return data
 }
-
 export async function listGroupQueue(groupId: number, limit = 20, offset = 0): Promise<PagedResult<TicketSummary>> {
   const { data } = await apiClient.get<PagedResult<TicketSummary>>('/tickets/by-group', {
     params: { groupId, unassigned: true, limit, offset },
   })
   return data
 }
-
 export async function claimTicket(id: number): Promise<TicketSummary> {
   const { data } = await apiClient.post(`/tickets/${id}/claim`)
   return data
 }
-
 export async function createSolution(id: number, content: string): Promise<{ id: number }> {
   const { data } = await apiClient.post(`/tickets/${id}/solutions`, { content })
   return data
 }
-
 /**
  * Resolves a ticket in a single call (BUG-031 / H-31).
  *
@@ -124,12 +117,10 @@ export async function resolveTicket(id: number, content: string): Promise<import
   const { data } = await apiClient.post(`/tickets/${id}/resolve`, { content })
   return data
 }
-
 export async function reopenTicket(id: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.post(`/tickets/${id}/reopen`, reason ? { reason } : {})
   return data
 }
-
 export interface PutPendingRequest {
   reasonId: number
   comment: string
@@ -139,12 +130,10 @@ export async function putPendingTicket(id: number, payload: PutPendingRequest): 
   const { data } = await apiClient.post(`/tickets/${id}/pending`, payload)
   return data
 }
-
 export async function createTicket(payload: CreateTicketRequest): Promise<CreateTicketResponse> {
   const { data } = await apiClient.post<CreateTicketResponse>('/tickets', payload)
   return data
 }
-
 export async function getTeamDashboard(groupId: number): Promise<GroupDashboard> {
   const { data } = await apiClient.get<GroupDashboard | TeamMember[]>(`/groups/${groupId}/dashboard`)
   if (Array.isArray(data)) {
@@ -161,7 +150,6 @@ export async function getTeamDashboard(groupId: number): Promise<GroupDashboard>
   }
   return data
 }
-
 export async function getAdminDashboard(): Promise<GroupSummary[]> {
   const { data } = await apiClient.get<GroupSummary[]>('/admin/groups-summary')
   return data

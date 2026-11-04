@@ -8,6 +8,12 @@ public static class NotificationQueries
         RETURNING id;
         """;
 
+    public const string InsertIdempotent = """
+        INSERT INTO notifications (user_id, type, ticket_id, title, message, is_read, created_at, idempotency_key)
+        VALUES (@UserId, @Type, @TicketId, @Title, @Message, @IsRead, @CreatedAt, @IdempotencyKey)
+        ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+        RETURNING id;
+        """;
     // A concurrent loser observes no row; on an insertion failure the key is
     // rolled back with the notification. Works across all API replicas sharing PG.
     public const string InsertTicketCreatedOnce = """

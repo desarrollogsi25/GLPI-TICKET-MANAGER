@@ -51,6 +51,7 @@ export interface TicketSummary {
   hasSolution: boolean
   assigneeIds: number[]
   requesterIds: number[]
+  timeToResolve?: string | null
 }
 
 export interface TicketFollowup {

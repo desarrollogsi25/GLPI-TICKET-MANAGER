@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
+import { fixtureUrl } from './support/fixture-url'
 
-const BASE_URL = 'http://localhost:5173'
+const BASE_URL = fixtureUrl('desk')
 const MONTH_NAMES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',

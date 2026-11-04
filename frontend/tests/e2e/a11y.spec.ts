@@ -19,7 +19,7 @@ for (const path of PAGES) {
       document.documentElement.classList.remove('dark')
       document.documentElement.setAttribute('data-theme', 'light')
     })
-    await page.goto(`http://localhost:5173${path}`)
+    await page.goto(path)
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 

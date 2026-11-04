@@ -7,7 +7,7 @@ test('preferences: GET default, PUT, GET persisted', async ({ page, request }) =
   })
 
   // Usar el token guardado en localStorage por global-setup
-  await page.goto('http://localhost:5173/')
+  await page.goto('/')
   const token = await page.evaluate(() => {
     const raw = localStorage.getItem('glpi-ticket-manager.auth')
     if (!raw) return null
@@ -19,7 +19,7 @@ test('preferences: GET default, PUT, GET persisted', async ({ page, request }) =
   const authHeader = { Authorization: `Bearer ${token}` }
 
   // 1. GET inicial
-  const get1 = await request.get('http://localhost:5173/api/preferences', {
+  const get1 = await request.get('/api/preferences', {
     headers: authHeader
   })
   expect(get1.status()).toBe(200)
@@ -28,14 +28,14 @@ test('preferences: GET default, PUT, GET persisted', async ({ page, request }) =
 
   // 2. PUT
   const newPrefs = JSON.stringify({ theme: 'dark', lang: 'es' })
-  const put = await request.put('http://localhost:5173/api/preferences', {
+  const put = await request.put('/api/preferences', {
     headers: { ...authHeader, 'Content-Type': 'application/json' },
     data: { prefs: newPrefs }
   })
   expect(put.status()).toBe(204)
 
   // 3. GET otra vez
-  const get2 = await request.get('http://localhost:5173/api/preferences', {
+  const get2 = await request.get('/api/preferences', {
     headers: authHeader
   })
   expect(get2.status()).toBe(200)

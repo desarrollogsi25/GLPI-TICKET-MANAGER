@@ -28,6 +28,18 @@ public interface IGlpiApiClient
 
     Task DeleteTicketTaskAsync(int taskId, CancellationToken cancellationToken);
 
+    Task<GlpiTicketTask> CreateTicketTaskAsync(
+        CreateTicketTaskRequest request,
+        CancellationToken cancellationToken);
+
+    Task<GlpiTicketTask?> GetTicketTaskAsync(int taskId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<GlpiTicketTask>> GetGlpiTicketTasksAsync(int ticketId, CancellationToken cancellationToken);
+
+    Task<GlpiTicketTask?> UpdateTicketTaskAsync(
+        int taskId,
+        UpdateTicketTaskRequest request,
+        CancellationToken cancellationToken);
     /// <summary>
     /// Reads the ticket state back from GLPI.
     ///

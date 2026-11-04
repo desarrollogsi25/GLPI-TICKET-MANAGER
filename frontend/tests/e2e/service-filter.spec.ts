@@ -7,7 +7,7 @@ test('service filter: click service, tickets list filtered', async ({ page }) =>
   })
 
   // 1. Ir a /services
-  await page.goto('http://localhost:5173/services')
+  await page.goto('/services')
   await page.waitForLoadState('networkidle')
 
   // 2. Encontrar el nodo "Requerimiento" y su botón "Ver tickets"

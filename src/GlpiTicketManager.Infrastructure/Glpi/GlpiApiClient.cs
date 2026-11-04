@@ -346,6 +346,221 @@ public sealed class GlpiApiClient : IGlpiApiClient
             : null;
     }
 
+    private static string FormatGlpiDate(DateTime utc) =>
+        utc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+    public async Task<GlpiTicketTask> CreateTicketTaskAsync(
+        CreateTicketTaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            var payload = new
+            {
+                input = new
+                {
+                    tickets_id = request.TicketId,
+                    content = request.Content,
+                    users_id_tech = request.TechnicianId,
+                    is_private = request.IsPrivate ? 1 : 0,
+                    state = (int)GlpiTicketManager.Domain.Enums.TicketTaskState.ToDo,
+                    uuid = request.Uuid,
+                    plan = new
+                    {
+                        begin = FormatGlpiDate(request.BeginUtc),
+                        end = FormatGlpiDate(request.EndUtc)
+                    }
+                }
+            };
+
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                "TicketTask",
+                sessionToken,
+                payload,
+                cancellationToken);
+
+            var created = await response.Content
+                .ReadFromJsonAsync<CreateItemResponse>(SerializerOptions, cancellationToken);
+
+            if (created is null || created.Id <= 0)
+            {
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    "GLPI created the task but did not return a valid identifier.");
+            }
+
+            var task = await ReadGlpiTaskAsync(sessionToken, created.Id, cancellationToken);
+            if (task is null)
+            {
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    $"GLPI created task {created.Id} but did not return it on read-back.");
+            }
+
+            return task;
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    public async Task<GlpiTicketTask?> GetTicketTaskAsync(int taskId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            return await ReadGlpiTaskAsync(sessionToken, taskId, cancellationToken);
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<GlpiTicketTask>> GetGlpiTicketTasksAsync(
+        int ticketId,
+        CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"Ticket/{ticketId}/TicketTask");
+            request.Headers.TryAddWithoutValidation("Session-Token", sessionToken);
+            if (!string.IsNullOrWhiteSpace(_options.AppToken))
+            {
+                request.Headers.TryAddWithoutValidation("App-Token", _options.AppToken);
+            }
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return [];
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new GlpiApiException(
+                    (int)response.StatusCode,
+                    $"GLPI API returned {(int)response.StatusCode} for GET Ticket/{ticketId}/TicketTask.",
+                    body);
+            }
+
+            var tasks = await response.Content
+                .ReadFromJsonAsync<List<TicketTaskResponse>>(SerializerOptions, cancellationToken);
+
+            return (tasks ?? []).Select(t => new GlpiTicketTask(
+                t.Id ?? 0,
+                null,
+                t.TicketId ?? ticketId,
+                t.Content ?? string.Empty,
+                t.State ?? (int)GlpiTicketManager.Domain.Enums.TicketTaskState.ToDo,
+                ParseGlpiDate(t.Begin),
+                ParseGlpiDate(t.End),
+                t.ActionTime ?? 0,
+                t.TechnicianId ?? 0,
+                0,
+                t.IsPrivate == 1,
+                null,
+                null)).ToArray();
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    public async Task<GlpiTicketTask?> UpdateTicketTaskAsync(
+        int taskId,
+        UpdateTicketTaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            var input = new Dictionary<string, object>
+            {
+                ["id"] = taskId
+            };
+
+            if (request.Content is not null) input["content"] = request.Content;
+            if (request.TechnicianId is not null) input["users_id_tech"] = request.TechnicianId.Value;
+            if (request.State is not null) input["state"] = request.State.Value;
+            if (request.IsPrivate is not null) input["is_private"] = request.IsPrivate.Value ? 1 : 0;
+            if (request.HasScheduleChange)
+            {
+                if (request.BeginUtc is null || request.EndUtc is null)
+                {
+                    throw new ArgumentException("A schedule change needs both start and end.", nameof(request));
+                }
+                input["plan"] = new
+                {
+                    begin = FormatGlpiDate(request.BeginUtc.Value),
+                    end = FormatGlpiDate(request.EndUtc.Value)
+                };
+            }
+
+            using var response = await SendAsync(
+                HttpMethod.Put,
+                $"TicketTask/{taskId}",
+                sessionToken,
+                new { input },
+                cancellationToken);
+
+            return await ReadGlpiTaskAsync(sessionToken, taskId, cancellationToken);
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    private async Task<GlpiTicketTask?> ReadGlpiTaskAsync(
+        string sessionToken,
+        int taskId,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"TicketTask/{taskId}");
+        request.Headers.TryAddWithoutValidation("Session-Token", sessionToken);
+        if (!string.IsNullOrWhiteSpace(_options.AppToken))
+        {
+            request.Headers.TryAddWithoutValidation("App-Token", _options.AppToken);
+        }
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new GlpiApiException(
+                (int)response.StatusCode,
+                $"GLPI API returned {(int)response.StatusCode} for GET TicketTask/{taskId}.",
+                body);
+        }
+
+        var task = await response.Content
+            .ReadFromJsonAsync<TicketTaskResponse>(SerializerOptions, cancellationToken);
+
+        return task is null ? null : new GlpiTicketTask(
+            task.Id ?? taskId,
+            null,
+            task.TicketId ?? 0,
+            task.Content ?? string.Empty,
+            task.State ?? (int)GlpiTicketManager.Domain.Enums.TicketTaskState.ToDo,
+            ParseGlpiDate(task.Begin),
+            ParseGlpiDate(task.End),
+            task.ActionTime ?? 0,
+            task.TechnicianId ?? 0,
+            0,
+            task.IsPrivate == 1,
+            null,
+            null);
+    }
+
     public async Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken)
     {
         var sessionToken = await InitSessionAsync(cancellationToken);

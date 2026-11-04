@@ -10,10 +10,17 @@
 **/.gitignore
 **/.vs
 **/.idea
+**/.gitnexus
+**/.agents
+**/.claude
+**/.opencode
 
 # Local secrets and local-only config (never bake into an image)
 **/.env
 **/.env.local
+**/.env.prod
+**/.env.*.local
+**/.env.*.prod
 **/*.user
 **/appsettings.*.Local.json
 
@@ -23,3 +30,9 @@
 # Not needed to build images
 docs/
 README.md
+**/test-results
+**/playwright-report
+**/e2e-artifacts
+**/*.log
+scratch/
+qa-report/

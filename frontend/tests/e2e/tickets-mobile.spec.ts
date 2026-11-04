@@ -8,7 +8,7 @@ test('tickets mobile: cards render and are tappable', async ({ page }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  await page.goto('http://localhost:5173/tickets')
+  await page.goto('/tickets')
   await page.waitForLoadState('networkidle')
 
   // 1. La tabla desktop NO debe estar visible

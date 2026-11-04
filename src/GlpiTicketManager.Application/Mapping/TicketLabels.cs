@@ -18,6 +18,13 @@ public static class TicketLabels
         _ => $"Desconocido ({status})"
     };
 
+    public static string TaskState(int state) => (TicketTaskState)state switch
+    {
+        TicketTaskState.ToDo => "Pendiente",
+        TicketTaskState.Done => "Realizada",
+        _ => $"Desconocido ({state})"
+    };
+
     public static string Type(int type) => (TicketType)type switch
     {
         TicketType.Incident => "Incidente",

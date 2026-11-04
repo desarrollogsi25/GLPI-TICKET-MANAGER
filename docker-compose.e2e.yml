@@ -1,0 +1,133 @@
+# Standalone fixture. Never merge with docker-compose.yml or load the local .env.
+# Every writable data directory is memory-backed and every host port is ephemeral.
+#
+# Two dedicated networks, both unique to this run:
+#   e2e_data  internal: true  -- databases only (plus the services that must reach
+#                               them). Docker Desktop does not create host port
+#                               bindings on internal networks (no gateway), so
+#                               nothing on this network is ever published.
+#   e2e_edge  bridge          -- browser/API/GLPI surface, published on loopback
+#                               only with Docker-assigned ports.
+# Databases are never attached to e2e_edge and never publish a port.
+x-fixture-labels: &fixture-labels
+  io.glpi.e2e.run-id: ${E2E_RUN_ID:?runner required}
+
+services:
+  glpi-db:
+    image: mariadb:10.11
+    labels: *fixture-labels
+    networks:
+      - e2e_data
+    environment:
+      MARIADB_ROOT_PASSWORD: ${E2E_MARIA_ROOT_PASSWORD:?runner required}
+      MARIADB_DATABASE: glpi
+      MARIADB_USER: e2e
+      MARIADB_PASSWORD: ${E2E_MARIA_PASSWORD:?runner required}
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  app-db:
+    image: postgres:16-alpine
+    labels: *fixture-labels
+    networks:
+      - e2e_data
+    environment:
+      POSTGRES_DB: glpi_ticket_manager
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: ${E2E_APP_PASSWORD:?runner required}
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "e2e", "-d", "glpi_ticket_manager"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  glpi:
+    image: glpi/glpi:11.0@sha256:45572164994cbd12bedd99bf6dd954b7962076dd3b529f0fdc4a84131f30a32a
+    labels: *fixture-labels
+    networks:
+      - e2e_data
+      - e2e_edge
+    tmpfs:
+      - /var/glpi:uid=33,gid=33,mode=0770
+      - /var/www/glpi/plugins:uid=33,gid=33,mode=0770
+    ports:
+      - "127.0.0.1::80"
+    depends_on:
+      glpi-db:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: src/GlpiTicketManager.Api/Dockerfile
+    labels: *fixture-labels
+    networks:
+      - e2e_data
+      - e2e_edge
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: "Server=glpi-db;Port=3306;Database=glpi;User=e2e;Password=${E2E_MARIA_PASSWORD};"
+      AppDb__ConnectionString: "Host=app-db;Port=5432;Database=glpi_ticket_manager;Username=e2e;Password=${E2E_APP_PASSWORD}"
+      GlpiApi__BaseUrl: "http://glpi/apirest.php/"
+      GlpiApi__AppToken: ${E2E_GLPI_APP_TOKEN:?runner required}
+      GlpiApi__UserToken: ${E2E_GLPI_USER_TOKEN:?runner required}
+      Jwt__Key: ${E2E_JWT_KEY:?runner required}
+      GlpiWebhook__Secret: ${E2E_WEBHOOK_SECRET:?runner required}
+      # The disposable fixture runs the entire Playwright suite as ONE synthetic
+      # user behind ONE proxy IP, so the production budgets (100 req/min and a
+      # 20-token bucket refilled every 3s) are shared by every spec in the same
+      # window. Background refetches of the Expensive by-group/stats endpoints
+      # then answer 429. Keep both limiters ENFORCED, but size this throwaway
+      # stack for a full suite. Production values in appsettings.json are
+      # untouched; never copy these into a real environment.
+      RateLimiting__PerUserRequestLimit: "600"
+      RateLimiting__ExpensiveTokenLimit: "200"
+      RateLimiting__ExpensiveReplenishmentSeconds: "1"
+    ports:
+      - "127.0.0.1::8080"
+    depends_on:
+      glpi-db:
+        condition: service_healthy
+      app-db:
+        condition: service_healthy
+      glpi:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    labels: *fixture-labels
+    networks:
+      - e2e_edge
+    environment:
+      VITE_API_URL: /api
+      VITE_PROXY_TARGET: http://api:8080
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    ports:
+      - "127.0.0.1::5173"
+    depends_on:
+      - api
+
+networks:
+  e2e_data:
+    # Internal: no gateway, so Docker Desktop cannot and does not publish a host
+    # port for any member. Databases stay unreachable from the host.
+    internal: true
+    labels: *fixture-labels
+  e2e_edge:
+    # Conventional bridge so loopback port publishing works. Never internal:
+    # Docker Desktop drops host bindings on internal networks.
+    driver: bridge
+    labels: *fixture-labels

@@ -23,4 +23,6 @@ public sealed record TicketDetailDto(
     IReadOnlyList<int> AssigneeIds,
     IReadOnlyList<int> RequesterIds,
     IReadOnlyList<TicketFollowupDto> Followups,
-    IReadOnlyList<TicketSolutionDto> Solutions);
+    IReadOnlyList<TicketSolutionDto> Solutions,
+    DateTime? NextPlannedAt = null,
+    int? NextPlannedTechnicianId = null);

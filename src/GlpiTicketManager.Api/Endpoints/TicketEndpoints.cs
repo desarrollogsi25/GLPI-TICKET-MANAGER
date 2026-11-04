@@ -678,22 +678,17 @@ public static class TicketEndpoints
 
     private static async Task<IResult> CreateTicket(
         CreateTicketRequest request,
-        ClaimsPrincipal principal,
         ITicketService ticketService,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
         var userId = principal.GetUserId();
         if (userId is null)
         {
-            return Results.Unauthorized();
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
             return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Error de validación",
-                detail: "El título es obligatorio.");
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "Usuario no autenticado",
+                detail: "No se encontro el userId en el token JWT.");
         }
 
         try
