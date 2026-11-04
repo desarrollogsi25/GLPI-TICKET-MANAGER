@@ -15,7 +15,7 @@ namespace GlpiTicketManager.Api.Integration.Tests;
 /// - Technicians cannot reopen a Closed ticket (only an admin can).
 /// - Technicians cannot move work backwards (Assigned/In-Progress → New).
 /// - Technicians cannot leave Resolved.
-/// - Resolving auto-closes the ticket (final status 6).
+/// - Resolving preserves Solved (5); closing is a separate authorized step.
 /// </summary>
 public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
 {
@@ -168,7 +168,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Resolve_AutoClosesTicket_FinalStatusIsClosed()
+    public async Task Resolve_PreservesSolvedStatus_ForSeparateClosure()
     {
         ArrangeTicket((int)TicketStatus.Planned);
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "OK");
@@ -177,8 +177,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
         var response = await PatchStatusAsync(token, (int)TicketStatus.Solved);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        // Auto-close: the stored status must end up as Closed (6), not Solved (5).
-        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Closed);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Solved);
     }
 
     [Fact]
@@ -250,7 +249,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Technician_ConfirmingAlreadySolvedTicket_AutoCloses_NoForbidden()
+    public async Task Technician_ConfirmingAlreadySolvedTicket_PreservesSolved_NoForbidden()
     {
         // GLPI marks a ticket Solved (5) as a side effect of adding a solution, so the
         // resolve flow sends a 5->5 confirmation. That must not be treated as "leaving 5".
@@ -261,7 +260,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
         var response = await PatchStatusAsync(token, (int)TicketStatus.Solved);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Closed);
+        _factory.GetTicket(CustomWebApplicationFactory.Ticket12Id)!.Status.Should().Be((int)TicketStatus.Solved);
     }
 
     private sealed record ProblemDetailsResponse(string? Title, string? Detail, int? Status);

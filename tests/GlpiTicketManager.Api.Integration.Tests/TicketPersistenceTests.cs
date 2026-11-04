@@ -94,10 +94,10 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     /// <summary>
-    /// The happy path: GLPI applied the transition, so the ticket really ends closed.
+    /// The happy path: GLPI applied resolution; closure remains a separate step.
     /// </summary>
     [Fact]
-    public async Task Resolve_WhenGlpiAppliedTheTransition_EndsClosed()
+    public async Task Resolve_WhenGlpiAppliedTheTransition_EndsSolved()
     {
         var token = await AuthenticateAsTech1Async();
 
@@ -106,12 +106,29 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
 
         var ticket = await response.Content.ReadFromJsonAsync<TicketDetailDto>();
         ticket.Should().NotBeNull();
-        ticket!.Status.Should().Be((int)TicketStatus.Closed);
-        ticket.StatusLabel.Should().Be(TicketLabels.Status((int)TicketStatus.Closed));
+        ticket!.Status.Should().Be((int)TicketStatus.Solved);
+        ticket.StatusLabel.Should().Be(TicketLabels.Status((int)TicketStatus.Solved));
 
-        // GLPI itself reports the closed ticket, so the answer is not a coincidence.
+        // GLPI itself confirms resolution; no implicit close request was made.
         _factory.GetGlpiReportedStatus(CustomWebApplicationFactory.Ticket12Id)
-            .Should().Be((int)TicketStatus.Closed);
+            .Should().Be((int)TicketStatus.Solved);
+    }
+
+    [Fact]
+    public async Task Resolve_WhenGlpiReportsClosed_DoesNotReopenOrForceAnotherTransition()
+    {
+        var token = await AuthenticateAsTech1Async();
+        _factory.SetGlpiReportedStatus(CustomWebApplicationFactory.Ticket12Id, (int)TicketStatus.Closed);
+        // The class shares its mock across tests; verify only this request's calls.
+        _factory.GlpiMock.Invocations.Clear();
+
+        using var response = await ResolveAsync(CustomWebApplicationFactory.Ticket12Id, "OK", token);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var ticket = await response.Content.ReadFromJsonAsync<TicketDetailDto>();
+        ticket!.Status.Should().Be((int)TicketStatus.Closed);
+        _factory.GlpiMock.Verify(g => g.UpdateTicketStatusAsync(
+            CustomWebApplicationFactory.Ticket12Id, It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     /// <summary>

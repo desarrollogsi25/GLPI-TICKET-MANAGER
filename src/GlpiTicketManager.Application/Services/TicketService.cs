@@ -527,23 +527,9 @@ public sealed class TicketService : ITicketService
             return false;
         }
 
-        // Auto-close: resolving a ticket immediately closes it (status 6) in GLPI so the
-        // lifecycle does not stall in "Resolved". A failure here is logged but never rolls
-        // back the resolve that already succeeded.
+        // Resolution and closure are separate GLPI lifecycle steps. Never close a
+        // ticket implicitly: approval/closure must follow GLPI's configured policy.
         var effectiveStatus = status;
-        if (status == (int)TicketStatus.Solved)
-        {
-            effectiveStatus = (int)TicketStatus.Closed;
-            try
-            {
-                await _glpi.UpdateTicketStatusAsync(ticketId, effectiveStatus, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
-                effectiveStatus = status;
-            }
-        }
 
         // BUG-032 / H-31: confirm the transition with GLPI.
         //
@@ -921,8 +907,8 @@ public sealed class TicketService : ITicketService
     /// retry hit GLPI's "el elemento ya está resuelto" 400.
     /// </para>
     /// <para>
-    /// This method writes the solution once, verifies the resulting state, applies the
-    /// product auto-close rule and emits a single realtime event.
+    /// This method writes the solution once, verifies the resulting state and emits a
+    /// single realtime event. Closure is a separate authorized action in GLPI.
     /// </para>
     /// </summary>
     public Task<TicketDetailDto> ResolveAsync(
@@ -1020,24 +1006,11 @@ public sealed class TicketService : ITicketService
         var afterSolution = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
         var effectiveStatus = afterSolution?.Status ?? ticket.Status;
 
-        if (effectiveStatus != (int)TicketStatus.Solved)
+        if (effectiveStatus != (int)TicketStatus.Solved && effectiveStatus != (int)TicketStatus.Closed)
         {
             // Defensive against GLPI versions that do not auto-solve on solution.
             await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Solved, cancellationToken);
             effectiveStatus = (int)TicketStatus.Solved;
-        }
-
-        // Auto-close: resolving a ticket closes it (status 6) in GLPI, exactly like the
-        // legacy PATCH /status path. A failure here is logged but never rolls back the
-        // resolve that already succeeded.
-        try
-        {
-            await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Closed, cancellationToken);
-            effectiveStatus = (int)TicketStatus.Closed;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Auto-close after resolve failed for ticket {TicketId}", ticketId);
         }
 
         // Confirm the final state with GLPI: until GLPI reports it back, the writes

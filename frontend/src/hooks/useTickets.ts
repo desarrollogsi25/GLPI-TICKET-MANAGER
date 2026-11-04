@@ -27,9 +27,7 @@ import {
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
-
-/** The API caps `limit` at 100; the board and table filter client-side. */
-export const TICKETS_PAGE_LIMIT = 100
+import { collectPages } from '@/lib/api/pagination'
 
 export interface TicketFilters {
   assigneeId?: number | null
@@ -59,15 +57,15 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
 
   const result = useQuery({
     queryKey,
-    queryFn: () =>
+    queryFn: ({ signal }) => collectPages((limit, offset) =>
       listTickets({
         assigneeId: assigneeId ?? undefined,
         serviceId: serviceId ?? undefined,
         startDate: startDate ?? undefined,
         endDate: endDate ?? undefined,
-        limit: TICKETS_PAGE_LIMIT,
-        offset: 0,
-      }),
+        limit,
+        offset,
+      }, signal), signal),
     enabled: hasFilter && enabled && sessionValid,
   })
   return result
@@ -202,7 +200,8 @@ export function useGroupQueueQuery(
 
   return useQuery({
     queryKey: queryKeys.tickets.byGroupQueue(groupId ?? 0),
-    queryFn: () => listGroupQueue(groupId as number),
+    queryFn: ({ signal }) => collectPages(
+      (limit, offset) => listGroupQueue(groupId as number, limit, offset, signal), signal),
     // Without a usable session every request would come back 401: the query stays
     // disabled instead of burning the quota on doomed calls.
     enabled: groupId != null && groupId > 0 && sessionValid,

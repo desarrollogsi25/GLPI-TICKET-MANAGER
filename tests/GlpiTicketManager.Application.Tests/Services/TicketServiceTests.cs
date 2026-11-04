@@ -309,7 +309,7 @@ public class TicketServiceTests
     }
 
     [Fact]
-    public async Task UpdateStatusAsync_WhenStatusSolvedAndHasSolution_SucceedsAndAutoCloses()
+    public async Task UpdateStatusAsync_WhenStatusSolvedAndHasSolution_DoesNotClose()
     {
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(StatusTransitionDecision.Allow());
@@ -319,9 +319,9 @@ public class TicketServiceTests
         var result = await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, CancellationToken.None);
 
         result.Should().BeTrue();
-        // Resolve (5) then auto-close (6) in the same operation.
+        // Resolution preserves the separate GLPI solution-approval/closure step.
         _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>()), Times.Once);
-        _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Closed, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Closed, It.IsAny<CancellationToken>()), Times.Never);
         _audit.Verify(a => a.LogAsync(7, "resolve", 10, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 

@@ -73,8 +73,12 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = await response.Content.ReadFromJsonAsync<TicketDetailDto>();
         ticket.Should().NotBeNull();
-        // The product rule is that a resolve closes the ticket (5 -> 6).
-        ticket!.Status.Should().Be((int)TicketStatus.Closed);
+        // A solution must remain available for approval before a separate closure.
+        ticket!.Status.Should().Be((int)TicketStatus.Solved);
+        ticket.ClosedAt.Should().BeNull();
+        _factory.GlpiMock.Verify(g => g.UpdateTicketStatusAsync(
+            CustomWebApplicationFactory.Ticket12Id, (int)TicketStatus.Closed,
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -89,7 +93,7 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = await response.Content.ReadFromJsonAsync<TicketDetailDto>();
-        ticket!.Status.Should().Be((int)TicketStatus.Closed);
+        ticket!.Status.Should().Be((int)TicketStatus.Solved);
     }
 
     [Fact]
