@@ -130,6 +130,8 @@ async function runMultiuserRealtimeSuite() {
     const t0 = Date.now();
     const dbOut = execSync(execCmd, { encoding: 'utf8' });
     console.log(`[GLPI DB] Ticket inserted into GLPI MariaDB: ${dbOut.trim()}`);
+    const idMatch = dbOut.match(/\b(\d+)\b/g);
+    const createdTicketId = idMatch && idMatch.length > 0 ? parseInt(idMatch[idMatch.length - 1], 10) : 1017;
 
     console.log(`[WAIT] Waiting for real-time propagation to Tech Dev Kanban (NO F5)...`);
 
@@ -180,7 +182,16 @@ async function runMultiuserRealtimeSuite() {
     await planBtn.evaluate(b => b.click());
     const confirmBtn = pageTechDev.locator('[data-testid="plan-confirm-btn"]');
     await confirmBtn.waitFor({ state: 'visible', timeout: 10000 });
-    console.log(`[ACTION] Confirming planning schedule...`);
+
+    const day = 15 + (Math.floor(createdTicketId / 10) % 10);
+    const hour = (createdTicketId % 8) + 8;
+    const startIsoLocal = `2026-11-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00`;
+    const endIsoLocal = `2026-11-${String(day).padStart(2, '0')}T${String(hour + 1).padStart(2, '0')}:00`;
+
+    await pageTechDev.locator('[data-testid="plan-start"]').fill(startIsoLocal);
+    await pageTechDev.locator('[data-testid="plan-end"]').fill(endIsoLocal);
+
+    console.log(`[ACTION] Confirming planning schedule (${startIsoLocal} -> ${endIsoLocal})...`);
     const planResponsePromise = pageTechDev.waitForResponse(r => r.url().includes('/plan') && r.status() === 200, { timeout: 12000 });
     await confirmBtn.evaluate(b => b.click());
     await planResponsePromise;
