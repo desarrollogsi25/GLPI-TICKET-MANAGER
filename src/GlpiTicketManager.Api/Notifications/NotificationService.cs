@@ -11,15 +11,18 @@ public sealed class NotificationService : INotificationService
 {
     private readonly INotificationRepository _repository;
     private readonly IHubContext<TicketHub> _hubContext;
+    private readonly IPushNotificationSender _pushSender;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
         INotificationRepository repository,
         IHubContext<TicketHub> hubContext,
+        IPushNotificationSender pushSender,
         ILogger<NotificationService> logger)
     {
         _repository = repository;
         _hubContext = hubContext;
+        _pushSender = pushSender;
         _logger = logger;
     }
 
@@ -139,6 +142,16 @@ public sealed class NotificationService : INotificationService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to emit SignalR NotificationReceived for user {UserId}", dto.UserId);
+        }
+
+        try
+        {
+            var targetUrl = dto.TicketId.HasValue ? $"/tickets/{dto.TicketId.Value}" : "/kanban";
+            _ = Task.Run(() => _pushSender.SendPushAsync(dto.UserId, dto.Title, dto.Message, targetUrl, CancellationToken.None));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to trigger WebPush for user {UserId}", dto.UserId);
         }
     }
 

@@ -120,18 +120,41 @@ export function KanbanMobileSheet({
               )}
 
               {currentColumn === 'mine' && (
-                <Button
-                  className="w-full h-12 text-sm font-medium justify-center gap-2"
-                  onClick={() => {
-                    onClose()
-                    onStart(ticket.id)
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                  Planificar tarea en GLPI
-                </Button>
+                <div className="flex flex-col gap-2 w-full">
+                  <Button
+                    className="w-full h-12 text-sm font-medium justify-center gap-2"
+                    onClick={() => {
+                      onClose()
+                      onStart(ticket.id)
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Planificar tarea en GLPI
+                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="h-11 text-xs font-medium justify-center gap-1.5 border-amber-300 text-amber-900 dark:text-amber-200 hover:bg-amber-50"
+                      onClick={() => {
+                        onClose()
+                        onPause(ticket.id)
+                      }}
+                    >
+                      Pausar
+                    </Button>
+                    <Button
+                      className="h-11 text-xs font-medium justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white"
+                      onClick={() => {
+                        onClose()
+                        onResolve(ticket.id)
+                      }}
+                    >
+                      Resolver
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {currentColumn === 'in_progress' && (

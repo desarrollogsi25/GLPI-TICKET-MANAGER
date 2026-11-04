@@ -52,6 +52,8 @@ export interface TicketSummary {
   assigneeIds: number[]
   requesterIds: number[]
   timeToResolve?: string | null
+  nextPlannedAt?: string | null
+  nextPlannedTechnicianId?: number | null
 }
 
 export interface TicketFollowup {
@@ -115,10 +117,15 @@ export interface DashboardStats {
   openTickets: number
   newTickets: number
   assignedTickets: number
+  executionTickets?: number
+  plannedTickets?: number
+  pausedTickets?: number
   pendingTickets: number
   solvedTickets: number
   closedTickets: number
   overdueTickets: number
+  dueSoonTickets?: number
+  scheduledTasksCount?: number
   averageResolutionHours: number | null
   byStatus: StatusCount[]
   byTechnician: TechnicianWorkload[]

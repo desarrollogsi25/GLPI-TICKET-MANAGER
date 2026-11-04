@@ -134,6 +134,13 @@ function TicketCardComponent({
           {ticket.title}
         </Link>
 
+        {ticket.status === 3 && (
+          <div className="flex items-center justify-between text-[10px] text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2 py-1 rounded">
+            <span>📅 {ticket.nextPlannedAt ? formatRelative(ticket.nextPlannedAt) : 'Tarea programada'}</span>
+            <span>GLPI 3</span>
+          </div>
+        )}
+
         {/* Línea 3: Timestamp relativo + Acción inline (touch target >= 44px en móvil) */}
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -236,6 +243,23 @@ function TicketCardComponent({
         </span>
         {ticket.title}
       </Link>
+
+      {ticket.status === 3 && (
+        <div className="mt-2 flex flex-col gap-0.5 rounded-md bg-blue-500/10 p-2 text-[11px] text-blue-700 dark:text-blue-300">
+          <div className="flex items-center justify-between">
+            <span className="font-medium inline-flex items-center gap-1">
+              <Clock className="size-3" />
+              {ticket.nextPlannedAt ? `Programado: ${formatRelative(ticket.nextPlannedAt)}` : 'Tarea programada'}
+            </span>
+            <span className="text-[10px] bg-blue-500/20 px-1 rounded font-semibold">GLPI 3</span>
+          </div>
+          {ticket.nextPlannedTechnicianId && (
+            <span className="text-[10px] text-muted-foreground">
+              Resp: Técnico #{ticket.nextPlannedTechnicianId}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Meta: Relative time */}
       <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">

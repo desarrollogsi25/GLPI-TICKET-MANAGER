@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -75,14 +75,12 @@ export function TeamDashboard() {
     return allTickets.some((t) => t.assigneeId === userId && isTicketStalled(t))
   }
 
-  // 2. Metrics calculation
+  // 2. Metrics calculation: direct aggregate stats from MariaDB backend have precedence
   const totalCount = summary?.total ?? data?.totalTickets ?? allTickets.length
-  const activeCount =
-    allTickets.filter((t) => t.status === 2 || t.status === 3).length ||
-    (summary ? summary.inProgress + summary.assigned : (data?.inProgressTickets ?? 0) + (data?.assignedTickets ?? 0))
-  const pausedCount =
-    allTickets.filter((t) => t.status === 4).length ||
-    (summary?.pending ?? data?.pendingTickets ?? 0)
+  const activeCount = summary
+    ? (summary.inProgress + summary.assigned)
+    : (data?.inProgressTickets ?? 0) + (data?.assignedTickets ?? 0) || allTickets.filter((t) => t.status === 2 || t.status === 3).length
+  const pausedCount = summary?.pending ?? data?.pendingTickets ?? allTickets.filter((t) => t.status === 4).length
   const resolvedTodayCount = technicians.reduce((acc, m) => acc + (m.resolvedToday ?? 0), 0)
   const stalledCount = allTickets.filter(isTicketStalled).length
 

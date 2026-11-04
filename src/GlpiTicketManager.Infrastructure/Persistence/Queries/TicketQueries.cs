@@ -185,15 +185,23 @@ public static class TicketQueries
     private const string AggregateStats = """
         SELECT
             COUNT(*)                                                                                   AS TotalTickets,
-            CAST(SUM(CASE WHEN t.status IN (1,2,3,4) THEN 1 ELSE 0 END) AS SIGNED)                      AS OpenTickets,
-            CAST(SUM(CASE WHEN t.status = 1 THEN 1 ELSE 0 END) AS SIGNED)                              AS NewTickets,
-            CAST(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END) AS SIGNED)                              AS AssignedTickets,
-            CAST(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END) AS SIGNED)                         AS PendingTickets,
-            CAST(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END) AS SIGNED)                              AS SolvedTickets,
-            CAST(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END) AS SIGNED)                              AS ClosedTickets,
-            CAST(SUM(CASE WHEN t.status IN (1,2,3,4)
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4) THEN 1 ELSE 0 END), 0) AS SIGNED)        AS OpenTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 1 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS NewTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS AssignedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ExecutionTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 3 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PlannedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PausedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END), 0) AS SIGNED)           AS PendingTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS SolvedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ClosedTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4)
                            AND t.time_to_resolve IS NOT NULL
-                           AND t.time_to_resolve < NOW() THEN 1 ELSE 0 END) AS SIGNED)                 AS OverdueTickets,
+                           AND t.time_to_resolve < NOW() THEN 1 ELSE 0 END), 0) AS SIGNED)           AS OverdueTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4)
+                           AND t.time_to_resolve IS NOT NULL
+                           AND t.time_to_resolve >= NOW()
+                           AND t.time_to_resolve <= DATE_ADD(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END), 0) AS SIGNED) AS DueSoonTickets,
+            CAST(COALESCE((SELECT COUNT(1) FROM glpi_tickettasks tk INNER JOIN glpi_tickets tt ON tt.id = tk.tickets_id WHERE tt.is_deleted = 0 AND tk.state = 1), 0) AS SIGNED) AS ScheduledTasksCount,
             AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, t.date, t.solvedate) END)   AS AverageResolutionHours
         FROM glpi_tickets t
         WHERE t.is_deleted = 0;
@@ -263,11 +271,13 @@ public static class TicketQueries
     public static string BuildDashboardQuery(DashboardScope? scope)
     {
         string filter = string.Empty;
+        string taskFilter = string.Empty;
         string workloadQuery;
 
         if (scope is null || scope.IsGlobal)
         {
             filter = string.Empty;
+            taskFilter = string.Empty;
             workloadQuery = TechnicianWorkload;
         }
         else if (scope.Role == AppRole.Supervisor)
@@ -275,6 +285,7 @@ public static class TicketQueries
             if (scope.GroupIds is { Count: > 0 })
             {
                 filter = " AND EXISTS (SELECT 1 FROM glpi_groups_tickets gt WHERE gt.tickets_id = t.id AND gt.groups_id IN @ScopeGroupIds AND gt.type = 2)";
+                taskFilter = " AND EXISTS (SELECT 1 FROM glpi_groups_tickets gt2 WHERE gt2.tickets_id = tt.id AND gt2.groups_id IN @ScopeGroupIds AND gt2.type = 2)";
                 workloadQuery = $"""
                     SELECT
                         tu.users_id AS UserId,
@@ -292,27 +303,37 @@ public static class TicketQueries
             else
             {
                 filter = " AND 1 = 0";
+                taskFilter = " AND 1 = 0";
                 workloadQuery = "SELECT 0 AS UserId, 0 AS OpenTickets WHERE 1 = 0;";
             }
         }
         else // Technician
         {
             filter = " AND EXISTS (SELECT 1 FROM glpi_tickets_users tu_scope WHERE tu_scope.tickets_id = t.id AND tu_scope.users_id = @ScopeUserId AND tu_scope.type = 2)";
+            taskFilter = " AND (tk.users_id = @ScopeUserId OR EXISTS (SELECT 1 FROM glpi_tickets_users tu2 WHERE tu2.tickets_id = tt.id AND tu2.users_id = @ScopeUserId AND tu2.type = 2))";
             workloadQuery = "SELECT 0 AS UserId, 0 AS OpenTickets WHERE 1 = 0;";
         }
 
         var aggregate = $"""
             SELECT
                 COUNT(*)                                                                                   AS TotalTickets,
-                CAST(SUM(CASE WHEN t.status IN (1,2,3,4) THEN 1 ELSE 0 END) AS SIGNED)                      AS OpenTickets,
-                CAST(SUM(CASE WHEN t.status = 1 THEN 1 ELSE 0 END) AS SIGNED)                              AS NewTickets,
-                CAST(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END) AS SIGNED)                              AS AssignedTickets,
-                CAST(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END) AS SIGNED)                         AS PendingTickets,
-                CAST(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END) AS SIGNED)                              AS SolvedTickets,
-                CAST(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END) AS SIGNED)                              AS ClosedTickets,
-                CAST(SUM(CASE WHEN t.status IN (1,2,3,4)
+                CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4) THEN 1 ELSE 0 END), 0) AS SIGNED)        AS OpenTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 1 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS NewTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS AssignedTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ExecutionTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 3 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PlannedTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PausedTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END), 0) AS SIGNED)           AS PendingTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS SolvedTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ClosedTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4)
                                AND t.time_to_resolve IS NOT NULL
-                               AND t.time_to_resolve < NOW() THEN 1 ELSE 0 END) AS SIGNED)                 AS OverdueTickets,
+                               AND t.time_to_resolve < NOW() THEN 1 ELSE 0 END), 0) AS SIGNED)           AS OverdueTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4)
+                               AND t.time_to_resolve IS NOT NULL
+                               AND t.time_to_resolve >= NOW()
+                               AND t.time_to_resolve <= DATE_ADD(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END), 0) AS SIGNED) AS DueSoonTickets,
+                CAST(COALESCE((SELECT COUNT(1) FROM glpi_tickettasks tk INNER JOIN glpi_tickets tt ON tt.id = tk.tickets_id WHERE tt.is_deleted = 0 AND tk.state = 1 {taskFilter}), 0) AS SIGNED) AS ScheduledTasksCount,
                 AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, t.date, t.solvedate) END)   AS AverageResolutionHours
             FROM glpi_tickets t
             WHERE t.is_deleted = 0 {filter};

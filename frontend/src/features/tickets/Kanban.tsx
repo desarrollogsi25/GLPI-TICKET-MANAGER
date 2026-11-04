@@ -63,24 +63,24 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     id: 'mine',
-    title: 'Mis tickets',
-    description: 'Asignados a mí',
+    title: 'En ejecución',
+    description: 'Mis tickets · En curso',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
-    badgeClass: 'bg-muted/60 text-muted-foreground',
+    badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold',
   },
   {
     id: 'in_progress',
-    title: 'En proceso (planificado)',
-    description: 'Tarea programada en GLPI',
+    title: 'Planificado',
+    description: 'Tarea programada en GLPI (En proceso)',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
-    badgeClass: 'bg-muted/60 text-muted-foreground',
+    badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 font-semibold',
   },
   {
     id: 'pending',
     title: 'Pendiente',
     description: 'Esperando',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
-    badgeClass: 'bg-muted/60 text-muted-foreground',
+    badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold',
   },
   {
     id: 'resolved',
@@ -120,13 +120,11 @@ function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): Tic
 
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
-  // H-62: un ticket en Asignado (Mis tickets) debe pasar primero a En Progreso antes de ser resuelto
-  mine: ['in_progress'],
-  in_progress: ['pending', 'resolved'],
-  // H-39: un ticket Pendiente solo puede reanudarse (→ En progreso). Resolverlo
-  // directamente está prohibido por el backend (422), así que el tablero tampoco
-  // ofrece esa transición.
-  pending: ['in_progress'],
+  // En ejecución (GLPI 2): puede planificarse (→ in_progress), pausarse (→ pending), o resolverse (→ resolved)
+  mine: ['in_progress', 'pending', 'resolved'],
+  in_progress: ['pending', 'resolved', 'mine'],
+  // H-39: un ticket Pendiente puede reanudarse hacia En ejecución o Planificado
+  pending: ['in_progress', 'mine'],
   // Resolved is terminal in the board: only an admin reopens via the detail view.
   resolved: [],
 }
@@ -202,9 +200,22 @@ function KanbanColumn({
     <div data-column-id={column.id} className="flex flex-col h-full max-h-full min-w-[200px] w-full overflow-hidden">
       <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
-          <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
-            {column.title}
-          </span>
+          {(column.id === 'mine' || column.id === 'in_progress') && (
+            <span className="text-[9px] font-bold tracking-wider uppercase text-primary/75 block">
+              EN PROCESO · {column.id === 'mine' ? 'A (Ejecución)' : 'B (Planificado)'}
+            </span>
+          )}
+          <div className="flex items-center gap-1.5">
+            {column.id === 'mine' && (
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="En ejecución activa" />
+            )}
+            {column.id === 'in_progress' && (
+              <span className="size-2 rounded-full bg-blue-500 shrink-0" title="Planificado con fecha" />
+            )}
+            <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
+              {column.title}
+            </span>
+          </div>
           <p className="text-[10px] text-muted-foreground truncate">{column.description}</p>
         </div>
         <span
@@ -291,28 +302,64 @@ function KanbanColumn({
                           )}
                         </Button>
                       ) : column.id === 'mine' ? (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="h-7 text-xs w-full"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onStart?.(ticket.id)
-                          }}
-                        >
-                          Planificar
-                        </Button>
+                        <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 px-2.5 text-xs font-medium"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onStart?.(ticket.id)
+                            }}
+                          >
+                            Planificar
+                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs border-amber-300 text-amber-800 dark:border-amber-700/70 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onPause?.(ticket.id)
+                              }}
+                            >
+                              Pausar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onResolve?.(ticket.id)
+                              }}
+                            >
+                              Resolver
+                            </Button>
+                          </div>
+                        </div>
                       ) : column.id === 'in_progress' ? (
                         <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
-                          <Link
-                            to={`/tickets/${ticket.id}`}
-                            className="inline-flex items-center text-xs font-medium text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs border-blue-300 text-blue-800 dark:border-blue-700/70 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onResume?.(ticket.id)
+                            }}
                           >
-                            Abrir detalle →
-                          </Link>
+                            Reprogramar
+                          </Button>
                           <div className="flex items-center gap-1.5">
                             <Button
                               size="sm"
@@ -702,18 +749,33 @@ export function Kanban() {
       return
     }
 
+    if (sourceId === 'mine' && targetId === 'pending') {
+      handlePauseWithModal(ticketId)
+      return
+    }
+
+    if (sourceId === 'mine' && targetId === 'resolved') {
+      setResolveTicketId(ticketId)
+      return
+    }
+
     if (sourceId === 'in_progress' && targetId === 'pending') {
       handlePauseWithModal(ticketId)
       return
     }
 
-    if (sourceId === 'pending' && targetId === 'in_progress') {
+    if (sourceId === 'in_progress' && targetId === 'resolved') {
+      setResolveTicketId(ticketId)
+      return
+    }
+
+    if (sourceId === 'in_progress' && targetId === 'mine') {
       handleResume(ticketId)
       return
     }
 
-    if (sourceId === 'in_progress' && targetId === 'resolved') {
-      setResolveTicketId(ticketId)
+    if (sourceId === 'pending' && (targetId === 'in_progress' || targetId === 'mine')) {
+      handleResume(ticketId)
       return
     }
   }
@@ -767,26 +829,62 @@ export function Kanban() {
         )
       case 'mine':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            className="min-h-[44px] px-3.5 text-xs"
-            disabled={planTicketId !== null}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleStart(ticket.id)
-            }}
-          >
-            Planificar
-          </Button>
-        )
-      case 'in_progress':
-        return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              size="sm"
+              variant="default"
+              className="min-h-[44px] px-3.5 text-xs"
+              disabled={planTicketId !== null}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleStart(ticket.id)
+              }}
+            >
+              Planificar
+            </Button>
             <Button
               size="sm"
               variant="outline"
-              className="min-h-[44px] px-3 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+              className="min-h-[44px] px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handlePauseWithModal(ticket.id)
+              }}
+            >
+              Pausar
+            </Button>
+            <Button
+              size="sm"
+              variant="default"
+              className="min-h-[44px] px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+              onClick={(e) => {
+                e.stopPropagation()
+                setResolveTicketId(ticket.id)
+              }}
+            >
+              Resolver
+            </Button>
+          </div>
+        )
+      case 'in_progress':
+        return (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-[44px] px-3 text-xs border-blue-300 text-blue-800 dark:text-blue-300 hover:bg-blue-50"
+              disabled={planTicketId !== null}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleResume(ticket.id)
+              }}
+            >
+              Reprogramar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-[44px] px-2.5 text-xs border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
               disabled={planTicketId !== null}
               onClick={(e) => {
                 e.stopPropagation()
@@ -798,7 +896,7 @@ export function Kanban() {
             <Button
               size="sm"
               variant="default"
-              className="min-h-[44px] px-3 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+              className="min-h-[44px] px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={(e) => {
                 e.stopPropagation()
                 setResolveTicketId(ticket.id)

@@ -48,22 +48,26 @@ export function PlanTicketDialog({ ticketId, open, onOpenChange }: {
       return
     }
     if (endDate.getTime() <= startDate.getTime() || endDate.getTime() - startDate.getTime() > 30 * 86_400_000) {
-      setError('El fin debe ser posterior al inicio (máximo 30 días).')
+      setError('La fecha y hora de fin debe ser posterior al inicio (máximo 30 días).')
       return
     }
-    if (endDate.getTime() - startDate.getTime() < 60_000 || !content.trim() || content.trim().length > 4000) {
-      setError('Describe la tarea (máximo 4000 caracteres) y programa al menos 1 minuto.')
+    if (endDate.getTime() - startDate.getTime() < 60_000) {
+      setError('La intervención debe programarse con al menos 1 minuto de duración.')
+      return
+    }
+    if (content.trim().length > 4000) {
+      setError('El comentario no puede superar los 4000 caracteres.')
       return
     }
     setError('')
     try {
       const result = await planning.mutateAsync({ ticketId, payload: {
         requestId: requestId.current ?? uuidv4(),
-        content: content.trim(),
+        content: content.trim() || 'Intervención planificada',
         startAt: startDate.toISOString(),
         endAt: endDate.toISOString(),
       } })
-      pushToast({ title: 'Ticket planificado', description: `Tarea GLPI #${result.taskId} creada y estado confirmado.`, variant: 'success' })
+      pushToast({ title: 'Ticket planificado', description: `Tarea GLPI #${result.taskId} creada y estado En proceso (planificado) confirmado.`, variant: 'success' })
       onOpenChange(false)
     } catch (err) {
       pushToast({
@@ -77,28 +81,65 @@ export function PlanTicketDialog({ ticketId, open, onOpenChange }: {
   return (
     <Dialog open={open} onClose={close} title={`Planificar ticket #${ticketId}`}
       description="Se creará una tarea pendiente y programada en GLPI. El ticket pasará a En proceso (planificado) cuando GLPI lo confirme.">
-      <form onSubmit={submit} className="space-y-3">
-        <div className="space-y-1">
-          <Label htmlFor="plan-content">Trabajo por realizar</Label>
-          <Textarea id="plan-content" required maxLength={4000} value={content} onChange={(event) => setContent(event.target.value)}
-            placeholder="Explica qué se hará durante la intervención..." data-testid="plan-content" />
-        </div>
-        <p className="text-xs text-muted-foreground">Zona horaria: {zone}. Las fechas se envían con zona horaria explícita.</p>
+      <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor="plan-start">Inicio</Label>
+            <Label htmlFor="plan-start">Fecha y hora de inicio</Label>
             <Input id="plan-start" type="datetime-local" required value={start} onChange={(event) => setStart(event.target.value)} data-testid="plan-start" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="plan-end">Fin</Label>
+            <Label htmlFor="plan-end">Fecha y hora de fin</Label>
             <Input id="plan-end" type="datetime-local" required value={end} onChange={(event) => setEnd(event.target.value)} data-testid="plan-end" />
           </div>
         </div>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+
+        {/* Atajos de duración estimada */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-[11px] font-medium text-muted-foreground mr-1">Duración estimada:</span>
+          {[
+            { label: '30m', minutes: 30 },
+            { label: '1h', minutes: 60 },
+            { label: '2h', minutes: 120 },
+            { label: '4h', minutes: 240 },
+            { label: '1 día', minutes: 1440 },
+          ].map((d) => (
+            <button
+              key={d.label}
+              type="button"
+              onClick={() => {
+                const s = parseUnambiguousLocal(start) ?? new Date()
+                setEnd(localDateTime(new Date(s.getTime() + d.minutes * 60_000)))
+              }}
+              className="text-[11px] px-2 py-0.5 rounded-full border border-border/80 bg-muted/40 hover:bg-muted text-foreground transition-colors cursor-pointer"
+            >
+              +{d.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="plan-content">Comentario o notas de intervención</Label>
+            <span className="text-[11px] text-muted-foreground">Opcional</span>
+          </div>
+          <Textarea
+            id="plan-content"
+            maxLength={4000}
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="Opcional: detalles del trabajo a realizar o instrucciones especiales..."
+            data-testid="plan-content"
+            className="min-h-[80px]"
+          />
+        </div>
+
+        <p className="text-[11px] text-muted-foreground">Zona horaria: {zone}. La programación se sincroniza nativamente con GLPI TicketTask.</p>
+
+        {error && <p role="alert" className="text-xs font-medium text-destructive">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" disabled={planning.isPending} onClick={close}>Cancelar</Button>
           <Button type="submit" disabled={planning.isPending} data-testid="plan-confirm-btn">
-            {planning.isPending ? 'Planificando...' : 'Crear tarea y planificar'}
+            {planning.isPending ? 'Planificando...' : 'Confirmar planificación'}
           </Button>
         </div>
       </form>
