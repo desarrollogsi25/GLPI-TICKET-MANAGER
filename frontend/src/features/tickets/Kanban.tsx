@@ -64,28 +64,28 @@ const COLUMNS: ColumnDef[] = [
   {
     id: 'mine',
     title: 'Asignado',
-    description: 'Mis tickets · Asignados sin planificar',
+    description: 'Mis tickets · GLPI 2',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 font-semibold',
   },
   {
     id: 'in_progress',
-    title: 'En proceso (planificado)',
-    description: 'Tarea programada en GLPI',
+    title: 'En proceso',
+    description: 'En proceso (planificado) · GLPI 3',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-blue-500/15 text-blue-900 dark:text-blue-300 font-semibold',
   },
   {
     id: 'pending',
     title: 'Pendiente',
-    description: 'Esperando',
+    description: 'En espera · GLPI 4',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold',
   },
   {
     id: 'resolved',
     title: 'Resuelto',
-    description: 'Listo',
+    description: 'Solucionado y cerrado · GLPI 5 y 6',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
@@ -135,13 +135,13 @@ const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: 
     icon: '📭',
   },
   mine: {
-    title: 'No tienes tickets asignados',
+    title: 'No hay tickets asignados',
     subtitle: 'Revisa la cola para tomar nuevos tickets y empezar.',
     icon: '📋',
   },
   in_progress: {
-    title: 'No estás trabajando en ningún ticket',
-    subtitle: 'Elige un ticket asignado y programa una tarea.',
+    title: 'No hay tickets en proceso',
+    subtitle: 'Programa una tarea para comenzar el trabajo.',
     icon: '⚡',
   },
   pending: {
@@ -156,8 +156,8 @@ const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: 
   },
 }
 
-type MobileTabId = 'queue' | 'in_process' | 'pending' | 'resolved'
-const MOBILE_TAB_IDS: MobileTabId[] = ['queue', 'in_process', 'pending', 'resolved']
+type MobileTabId = ColumnId
+const MOBILE_TAB_IDS: MobileTabId[] = ['queue', 'mine', 'in_progress', 'pending', 'resolved']
 
 function KanbanColumn({
   column,
@@ -199,20 +199,28 @@ function KanbanColumn({
     : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
 
   return (
-    <div data-column-id={column.id} className="flex flex-col h-full max-h-full min-w-[200px] w-full overflow-hidden">
+    <div
+      data-column-id={column.id}
+      data-testid={`kanban-column-${column.id}`}
+      className="flex flex-col h-full max-h-full min-w-[190px] w-full overflow-hidden"
+    >
       <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
-          {(column.id === 'mine' || column.id === 'in_progress') && (
-            <span className="text-[9px] font-bold tracking-wider uppercase text-primary/75 block">
-              EN PROCESO · {column.id === 'mine' ? 'A (Ejecución)' : 'B (Planificado)'}
-            </span>
-          )}
           <div className="flex items-center gap-1.5">
+            {column.id === 'queue' && (
+              <span className="size-2 rounded-full bg-muted-foreground/40 shrink-0" title="Tickets en cola sin asignar" />
+            )}
             {column.id === 'mine' && (
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="En ejecución activa" />
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Tickets asignados · GLPI 2" />
             )}
             {column.id === 'in_progress' && (
-              <span className="size-2 rounded-full bg-blue-500 shrink-0" title="Planificado con fecha" />
+              <span className="size-2 rounded-full bg-blue-500 shrink-0" title="En proceso (planificado) · GLPI 3" />
+            )}
+            {column.id === 'pending' && (
+              <span className="size-2 rounded-full bg-amber-500 shrink-0" title="En espera · GLPI 4" />
+            )}
+            {column.id === 'resolved' && (
+              <span className="size-2 rounded-full bg-emerald-600/70 shrink-0" title="Solucionados y cerrados · GLPI 5 y 6" />
             )}
             <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
               {column.title}
@@ -471,315 +479,6 @@ function KanbanColumn({
             ) : null}
           </>
         )}
-      </div>
-    </div>
-  )
-}
-
-function KanbanInProcessColumn({
-  assignedTickets,
-  plannedTickets,
-  isLoading,
-  isError = false,
-  errorMessage,
-  onRetry,
-  onStart,
-  onResume,
-  onResolve,
-  onPause,
-  recentlyUpdatedIds,
-  invalidDropTicketId,
-}: {
-  assignedTickets: TicketSummary[]
-  plannedTickets: TicketSummary[]
-  isLoading?: boolean
-  isError?: boolean
-  errorMessage?: string
-  onRetry?: () => void
-  onStart?: (ticketId: number) => void
-  onResume?: (ticketId: number) => void
-  onResolve?: (ticketId: number) => void
-  onPause?: (ticketId: number) => void
-  recentlyUpdatedIds?: Set<number>
-  invalidDropTicketId?: number | null
-}) {
-  const { setNodeRef: setMineRef, isOver: isMineOver } = useDroppable({ id: 'mine' })
-  const { setNodeRef: setInProgressRef, isOver: isInProgressOver } = useDroppable({ id: 'in_progress' })
-  const shouldReduceMotion = useReducedMotion()
-  const springTransition: Transition = shouldReduceMotion
-    ? { duration: 0 }
-    : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
-
-  const totalCount = assignedTickets.length + plannedTickets.length
-
-  return (
-    <div
-      data-testid="kanban-column-in-process"
-      data-column-id="in_process"
-      className="flex flex-col h-full max-h-full min-w-[220px] w-full overflow-hidden"
-    >
-      {/* Encabezado principal de la columna unificada EN PROCESO */}
-      <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-primary shrink-0" />
-            <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
-              En proceso
-            </span>
-          </div>
-          <p className="text-[10px] text-muted-foreground truncate">Asignados y planificados</p>
-        </div>
-        <span
-          className={cn(
-            'text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums shrink-0',
-            isError ? 'bg-destructive/15 text-destructive font-bold' : 'bg-primary/15 text-primary',
-          )}
-        >
-          {isError ? '!' : totalCount}
-        </span>
-      </div>
-
-      {/* Contenedor visual único que agrupa ambas secciones */}
-      <div className="flex-1 flex flex-col min-h-0 p-2 gap-2.5 rounded-2xl border-0 bg-muted/30 shadow-xs overflow-hidden">
-        {/* =========================================================================
-            SECCIÓN A: ASIGNADO (Estado GLPI 2)
-           ========================================================================= */}
-        <div
-          data-column-id="mine"
-          className="flex-1 min-h-[140px] flex flex-col rounded-xl border border-border/40 bg-card/60 p-2 overflow-hidden shadow-2xs"
-        >
-          <div className="mb-1.5 flex items-center justify-between px-1 shrink-0">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span className="text-xs font-bold tracking-tight text-foreground truncate">
-                  A. Asignado
-                </span>
-              </div>
-              <p className="text-[10px] text-muted-foreground truncate">Mis tickets · Asignados sin planificar</p>
-            </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums shrink-0 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
-              {isError ? '!' : assignedTickets.length}
-            </span>
-          </div>
-
-          <div
-            ref={setMineRef}
-            className={cn(
-              'flex-1 overflow-y-auto min-h-0 no-scrollbar p-1 space-y-2 rounded-lg transition-all duration-150',
-              isMineOver ? 'border-dashed border-2 border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30' : '',
-            )}
-          >
-            {isLoading ? (
-              <div className="space-y-2 p-1">
-                <Skeleton className="h-16 w-full" />
-              </div>
-            ) : isError ? (
-              <div className="flex flex-col items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-3 text-center my-auto">
-                <p className="text-xs font-semibold text-destructive">Error al cargar</p>
-                {errorMessage && (
-                  <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{errorMessage}</p>
-                )}
-                {onRetry && (
-                  <Button size="sm" variant="ghost" className="mt-1.5 h-6 px-2 text-xs" onClick={onRetry}>
-                    Reintentar
-                  </Button>
-                )}
-              </div>
-            ) : assignedTickets.length > 0 ? (
-              <AnimatePresence mode="popLayout">
-                {assignedTickets.map((ticket) => (
-                  <motion.div
-                    key={ticket.id}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={springTransition}
-                  >
-                    <TicketCard
-                      ticket={ticket}
-                      draggable={true}
-                      highlight={recentlyUpdatedIds?.has(ticket.id)}
-                      shake={invalidDropTicketId === ticket.id}
-                      actionButton={
-                        <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="h-7 px-2.5 text-xs font-medium"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onStart?.(ticket.id)
-                            }}
-                          >
-                            Planificar
-                          </Button>
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2 text-xs border-amber-300 text-amber-800 dark:border-amber-700/70 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onPause?.(ticket.id)
-                              }}
-                            >
-                              Pausar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onResolve?.(ticket.id)
-                              }}
-                            >
-                              Resolver
-                            </Button>
-                          </div>
-                        </div>
-                      }
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            ) : (
-              <div className="flex flex-col h-20 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/30 p-2 text-center my-auto">
-                <span className="text-sm mb-0.5">📋</span>
-                <p className="text-[11px] text-foreground font-semibold">Sin tickets asignados</p>
-                <p className="text-[9px] text-muted-foreground">Revisa la cola para tomar nuevos tickets.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* =========================================================================
-            SECCIÓN B: EN PROCESO (PLANIFICADO) (Estado GLPI 3)
-           ========================================================================= */}
-        <div
-          data-column-id="in_progress"
-          className="flex-1 min-h-[140px] flex flex-col rounded-xl border border-border/40 bg-card/60 p-2 overflow-hidden shadow-2xs"
-        >
-          <div className="mb-1.5 flex items-center justify-between px-1 shrink-0">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-blue-500 shrink-0" />
-                <span className="text-xs font-bold tracking-tight text-foreground truncate">
-                  B. En proceso (planificado)
-                </span>
-              </div>
-              <p className="text-[10px] text-muted-foreground truncate">Tarea programada en GLPI</p>
-            </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums shrink-0 bg-blue-500/15 text-blue-800 dark:text-blue-300">
-              {isError ? '!' : plannedTickets.length}
-            </span>
-          </div>
-
-          <div
-            ref={setInProgressRef}
-            className={cn(
-              'flex-1 overflow-y-auto min-h-0 no-scrollbar p-1 space-y-2 rounded-lg transition-all duration-150',
-              isInProgressOver ? 'border-dashed border-2 border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30' : '',
-            )}
-          >
-            {isLoading ? (
-              <div className="space-y-2 p-1">
-                <Skeleton className="h-16 w-full" />
-              </div>
-            ) : isError ? (
-              <div className="flex flex-col items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-3 text-center my-auto">
-                <p className="text-xs font-semibold text-destructive">Error al cargar</p>
-                {errorMessage && (
-                  <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{errorMessage}</p>
-                )}
-                {onRetry && (
-                  <Button size="sm" variant="ghost" className="mt-1.5 h-6 px-2 text-xs" onClick={onRetry}>
-                    Reintentar
-                  </Button>
-                )}
-              </div>
-            ) : plannedTickets.length > 0 ? (
-              <AnimatePresence mode="popLayout">
-                {plannedTickets.map((ticket) => (
-                  <motion.div
-                    key={ticket.id}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={springTransition}
-                  >
-                    <TicketCard
-                      ticket={ticket}
-                      draggable={true}
-                      highlight={recentlyUpdatedIds?.has(ticket.id)}
-                      shake={invalidDropTicketId === ticket.id}
-                      actionButton={
-                        <div className="flex items-center justify-between w-full gap-1.5 flex-wrap">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs border-blue-300 text-blue-800 dark:border-blue-700/70 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onResume?.(ticket.id)
-                            }}
-                          >
-                            Reprogramar
-                          </Button>
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2 text-xs border-amber-300 text-amber-800 dark:border-amber-700/70 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onPause?.(ticket.id)
-                              }}
-                            >
-                              Pausar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onResolve?.(ticket.id)
-                              }}
-                            >
-                              Resolver
-                            </Button>
-                          </div>
-                        </div>
-                      }
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            ) : (
-              <div className="flex flex-col h-20 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/30 p-2 text-center my-auto">
-                <span className="text-sm mb-0.5">⚡</span>
-                <p className="text-[11px] text-foreground font-semibold">Sin tickets planificados</p>
-                <p className="text-[9px] text-muted-foreground">Elige un ticket asignado y programa una tarea.</p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -1103,11 +802,15 @@ export function Kanban() {
       isError: queueQuery.isError,
     },
     {
-      id: 'in_process',
+      id: 'mine',
+      title: 'Asignado',
+      count: myTicketsQuery.isError ? '!' : ticketsByColumn.mine.length,
+      isError: myTicketsQuery.isError,
+    },
+    {
+      id: 'in_progress',
       title: 'En proceso',
-      count: myTicketsQuery.isError
-        ? '!'
-        : ticketsByColumn.mine.length + ticketsByColumn.in_progress.length,
+      count: myTicketsQuery.isError ? '!' : ticketsByColumn.in_progress.length,
       isError: myTicketsQuery.isError,
     },
     {
@@ -1124,10 +827,7 @@ export function Kanban() {
     },
   ]
 
-  const activeMobileTickets =
-    activeTab === 'in_process'
-      ? [...ticketsByColumn.mine, ...ticketsByColumn.in_progress]
-      : ticketsByColumn[activeTab]
+  const activeMobileTickets = ticketsByColumn[activeTab]
   const isMobileLoading =
     activeTab === 'queue'
       ? queueQuery.isLoading || groupsQuery.isLoading
@@ -1334,22 +1034,12 @@ export function Kanban() {
         <div className="flex items-center justify-between px-1 pt-0.5">
           <div>
             <h2 className="text-sm font-bold text-foreground">
-              {activeTab === 'queue'
-                ? 'Cola del grupo'
-                : activeTab === 'in_process'
-                  ? 'En proceso'
-                  : activeTab === 'pending'
-                    ? 'Pendiente'
-                    : 'Resuelto'}
+              {COLUMNS.find((col) => col.id === activeTab)?.title ?? activeTab}
             </h2>
             <p className="text-[11px] text-muted-foreground">
-              {activeTab === 'in_process'
-                ? `${ticketsByColumn.mine.length + ticketsByColumn.in_progress.length} tickets (${ticketsByColumn.mine.length} asignados, ${ticketsByColumn.in_progress.length} planificados)`
-                : activeTab === 'queue'
-                  ? `${ticketsByColumn.queue.length} ${ticketsByColumn.queue.length === 1 ? 'ticket' : 'tickets'}`
-                  : activeTab === 'pending'
-                    ? `${ticketsByColumn.pending.length} ${ticketsByColumn.pending.length === 1 ? 'ticket' : 'tickets'}`
-                    : `${ticketsByColumn.resolved.length} ${ticketsByColumn.resolved.length === 1 ? 'ticket' : 'tickets'}`}
+              {COLUMNS.find((col) => col.id === activeTab)?.description} ·{' '}
+              {activeMobileTickets.length}{' '}
+              {activeMobileTickets.length === 1 ? 'ticket' : 'tickets'}
             </p>
           </div>
           <Button
@@ -1412,92 +1102,6 @@ export function Kanban() {
                 <Skeleton className="h-24 w-full rounded-xl" />
                 <Skeleton className="h-24 w-full rounded-xl" />
               </div>
-            ) : activeTab === 'in_process' ? (
-              <div className="flex flex-col gap-3">
-                {/* SECCIÓN A: ASIGNADO (GLPI 2) */}
-                <div data-column-id="mine" className="flex flex-col gap-2 rounded-xl border border-border/40 bg-card/60 p-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                      <span className="text-xs font-bold tracking-tight text-foreground">A. Asignado</span>
-                      <span className="text-[10px] text-muted-foreground">(GLPI 2)</span>
-                    </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
-                      {ticketsByColumn.mine.length}
-                    </span>
-                  </div>
-                  {ticketsByColumn.mine.length > 0 ? (
-                    <div className="space-y-2">
-                      {ticketsByColumn.mine.map((ticket) => (
-                        <motion.div
-                          key={ticket.id}
-                          layout
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={springTransition}
-                        >
-                          <TicketCard
-                            key={ticket.id}
-                            ticket={ticket}
-                            draggable={false}
-                            compact={true}
-                            highlight={recentlyUpdatedIds.has(ticket.id)}
-                            actionButton={getMobileActionButton('mine', ticket)}
-                            onCardClick={() => setSelectedMobileTicket(ticket)}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-border/60 p-3 text-center bg-card/30">
-                      <p className="text-xs text-muted-foreground">{EMPTY_MESSAGES.mine.title}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* SECCIÓN B: EN PROCESO (PLANIFICADO) (GLPI 3) */}
-                <div data-column-id="in_progress" className="flex flex-col gap-2 rounded-xl border border-border/40 bg-card/60 p-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-blue-500 shrink-0" />
-                      <span className="text-xs font-bold tracking-tight text-foreground">B. En proceso (planificado)</span>
-                      <span className="text-[10px] text-muted-foreground">(GLPI 3)</span>
-                    </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums bg-blue-500/15 text-blue-800 dark:text-blue-300">
-                      {ticketsByColumn.in_progress.length}
-                    </span>
-                  </div>
-                  {ticketsByColumn.in_progress.length > 0 ? (
-                    <div className="space-y-2">
-                      {ticketsByColumn.in_progress.map((ticket) => (
-                        <motion.div
-                          key={ticket.id}
-                          layout
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={springTransition}
-                        >
-                          <TicketCard
-                            key={ticket.id}
-                            ticket={ticket}
-                            draggable={false}
-                            compact={true}
-                            highlight={recentlyUpdatedIds.has(ticket.id)}
-                            actionButton={getMobileActionButton('in_progress', ticket)}
-                            onCardClick={() => setSelectedMobileTicket(ticket)}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-border/60 p-3 text-center bg-card/30">
-                      <p className="text-xs text-muted-foreground">{EMPTY_MESSAGES.in_progress.title}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
             ) : activeMobileTickets.length > 0 ? (
               <AnimatePresence mode="popLayout">
                 {activeMobileTickets.map((ticket) => (
@@ -1515,7 +1119,7 @@ export function Kanban() {
                       draggable={false}
                       compact={true}
                       highlight={recentlyUpdatedIds.has(ticket.id)}
-                      actionButton={getMobileActionButton(activeTab as ColumnId, ticket)}
+                      actionButton={getMobileActionButton(activeTab, ticket)}
                       onCardClick={() => setSelectedMobileTicket(ticket)}
                     />
                   </motion.div>
@@ -1566,14 +1170,19 @@ export function Kanban() {
       </div>
 
       {/* =========================================================================
-          VISTA DESKTOP (md:+): 5 Columnas en paralelo (Grid sin scroll horizontal)
+          VISTA DESKTOP (md:+): EXACTAMENTE 5 COLUMNAS PRINCIPALES E INDEPENDIENTES
+          1. Cola del grupo (queue)
+          2. Asignado (mine · GLPI 2)
+          3. En proceso (in_progress · GLPI 3 planificado)
+          4. Pendiente (pending · GLPI 4 en espera)
+          5. Resuelto (resolved · GLPI 5 y 6 listo)
           + Drag & Drop @dnd-kit con DragOverlay renderizado en Portal (document.body)
          ========================================================================= */}
       <div className="hidden md:flex flex-1 h-full min-h-0 overflow-x-auto overflow-y-hidden" ref={boardContainerRef}>
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-4 gap-3.5 w-full h-full min-h-0"
+            className="grid grid-cols-5 gap-3 w-full h-full min-h-0 min-w-[1000px]"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}
@@ -1599,10 +1208,10 @@ export function Kanban() {
               invalidDropTicketId={invalidDropTicketId}
             />
 
-            {/* Columna 2: Única columna principal EN PROCESO con Sección A y Sección B */}
-            <KanbanInProcessColumn
-              assignedTickets={ticketsByColumn.mine}
-              plannedTickets={ticketsByColumn.in_progress}
+            {/* Columna 2: Asignado (GLPI 2) */}
+            <KanbanColumn
+              column={COLUMNS[1]}
+              tickets={ticketsByColumn.mine}
               isLoading={myTicketsQuery.isLoading}
               isError={myTicketsQuery.isError}
               errorMessage={myTicketsQuery.isError ? getApiErrorMessage(myTicketsQuery.error) : undefined}
@@ -1615,7 +1224,23 @@ export function Kanban() {
               invalidDropTicketId={invalidDropTicketId}
             />
 
-            {/* Columna 3: Pendiente */}
+            {/* Columna 3: En proceso (GLPI 3) */}
+            <KanbanColumn
+              column={COLUMNS[2]}
+              tickets={ticketsByColumn.in_progress}
+              isLoading={myTicketsQuery.isLoading}
+              isError={myTicketsQuery.isError}
+              errorMessage={myTicketsQuery.isError ? getApiErrorMessage(myTicketsQuery.error) : undefined}
+              onRetry={() => void myTicketsQuery.refetch()}
+              onStart={handleStart}
+              onResume={handleResume}
+              onResolve={(ticketId) => setResolveTicketId(ticketId)}
+              onPause={handlePauseWithModal}
+              recentlyUpdatedIds={recentlyUpdatedIds}
+              invalidDropTicketId={invalidDropTicketId}
+            />
+
+            {/* Columna 4: Pendiente (GLPI 4) */}
             <KanbanColumn
               column={COLUMNS[3]}
               tickets={ticketsByColumn.pending}
@@ -1630,7 +1255,7 @@ export function Kanban() {
               invalidDropTicketId={invalidDropTicketId}
             />
 
-            {/* Columna 4: Resuelto */}
+            {/* Columna 5: Resuelto (GLPI 5 y 6) */}
             <KanbanColumn
               column={COLUMNS[4]}
               tickets={ticketsByColumn.resolved}
@@ -1696,13 +1321,7 @@ export function Kanban() {
 
       <KanbanMobileSheet
         ticket={selectedMobileTicket}
-        currentColumn={
-          activeTab === 'in_process'
-            ? selectedMobileTicket?.status === 3
-              ? 'in_progress'
-              : 'mine'
-            : (activeTab as ColumnId)
-        }
+        currentColumn={activeTab}
         isOpen={selectedMobileTicket !== null}
         onClose={() => setSelectedMobileTicket(null)}
         onClaim={handleClaim}
