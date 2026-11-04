@@ -144,30 +144,39 @@ function TicketCardComponent({
         </Link>
 
         {ticket.status === 3 && (
-          <div className="flex flex-col gap-1 text-[11px] text-blue-700 dark:text-blue-300 bg-blue-500/10 p-2 rounded-lg border border-blue-500/20">
+          <div className="flex flex-col gap-1.5 text-[11px] text-blue-700 dark:text-blue-300 bg-blue-500/10 p-2.5 rounded-lg border border-blue-500/20">
             <div className="flex items-center justify-between">
-              <span className="font-semibold inline-flex items-center gap-1">
-                <Calendar className="size-3" />
-                {ticket.nextPlannedAt ? formatRelative(ticket.nextPlannedAt) : 'Planificado'}
+              <span className="font-bold inline-flex items-center gap-1 text-[11px] text-blue-800 dark:text-blue-200">
+                <Calendar className="size-3 text-blue-600 dark:text-blue-400" />
+                En proceso (planificado)
               </span>
-              <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-bold">GLPI 3</span>
+              <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-bold text-blue-900 dark:text-blue-300">GLPI 3</span>
             </div>
+            {ticket.nextPlannedAt && (
+              <div className="flex items-center gap-1 text-[11px] font-medium text-foreground">
+                <Clock className="size-3 text-blue-600 dark:text-blue-400" />
+                <span>{formatDateTime(ticket.nextPlannedAt)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[10px] text-muted-foreground flex-wrap gap-1">
-              {ticket.nextPlannedTechnicianId && (
-                <span className="inline-flex items-center gap-0.5">
-                  <User className="size-2.5" /> Técnico #{ticket.nextPlannedTechnicianId}
-                </span>
-              )}
+              <span className="inline-flex items-center gap-0.5">
+                <User className="size-2.5" />
+                {ticket.nextPlannedTechnicianId
+                  ? `Técnico #${ticket.nextPlannedTechnicianId}`
+                  : assignee.assigned
+                    ? assignee.label
+                    : 'Técnico asignado'}
+              </span>
               {ticket.nextPlannedDuration && formatEstimatedDuration(ticket.nextPlannedDuration) && (
-                <span className="inline-flex items-center gap-0.5">
+                <span className="inline-flex items-center gap-0.5 font-medium text-foreground/80">
                   <Timer className="size-2.5" /> {formatEstimatedDuration(ticket.nextPlannedDuration)}
                 </span>
               )}
             </div>
             {ticket.nextPlannedComment && (
-              <p className="text-[10px] text-foreground/80 line-clamp-1 italic inline-flex items-center gap-1 pt-0.5 border-t border-blue-500/15">
-                <MessageSquare className="size-2.5 shrink-0" />
-                {ticket.nextPlannedComment}
+              <p className="text-[10px] text-foreground/90 line-clamp-2 italic inline-flex items-start gap-1 pt-0.5 border-t border-blue-500/15">
+                <MessageSquare className="size-2.5 shrink-0 mt-0.5 text-blue-500/70" />
+                <span>{ticket.nextPlannedComment}</span>
               </p>
             )}
           </div>
@@ -277,22 +286,34 @@ function TicketCardComponent({
       </Link>
 
       {ticket.status === 3 && (
-        <div className="mt-2.5 flex flex-col gap-1 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-[11px] text-blue-700 dark:text-blue-300">
+        <div className="mt-2.5 flex flex-col gap-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-[11px] text-blue-700 dark:text-blue-300">
           <div className="flex items-center justify-between">
-            <span className="font-semibold inline-flex items-center gap-1.5">
-              <Calendar className="size-3.5" />
-              {ticket.nextPlannedAt ? formatDateTime(ticket.nextPlannedAt) : 'Tarea programada'}
+            <span className="font-bold inline-flex items-center gap-1.5 text-xs text-blue-800 dark:text-blue-200">
+              <Calendar className="size-3.5 text-blue-600 dark:text-blue-400" />
+              En proceso (planificado)
             </span>
-            <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-bold">GLPI 3</span>
+            <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.5 rounded font-bold text-blue-900 dark:text-blue-300">GLPI 3</span>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground flex-wrap gap-1.5 pt-0.5">
-            {ticket.nextPlannedTechnicianId && (
-              <span className="inline-flex items-center gap-1">
-                <User className="size-3" />
-                Técnico #{ticket.nextPlannedTechnicianId}
+          {ticket.nextPlannedAt && (
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-foreground">
+              <Clock className="size-3 text-blue-600 dark:text-blue-400" />
+              <span>{formatDateTime(ticket.nextPlannedAt)}</span>
+              <span className="text-[10px] text-muted-foreground font-normal ml-1">
+                ({formatRelative(ticket.nextPlannedAt)})
               </span>
-            )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground flex-wrap gap-1.5 pt-0.5">
+            <span className="inline-flex items-center gap-1">
+              <User className="size-3" />
+              {ticket.nextPlannedTechnicianId
+                ? `Técnico #${ticket.nextPlannedTechnicianId}`
+                : assignee.assigned
+                  ? assignee.label
+                  : 'Técnico asignado'}
+            </span>
             {ticket.nextPlannedDuration && formatEstimatedDuration(ticket.nextPlannedDuration) && (
               <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
                 <Timer className="size-3" />
@@ -300,12 +321,6 @@ function TicketCardComponent({
               </span>
             )}
           </div>
-
-          {ticket.nextPlannedAt && (
-            <span className="text-[10px] text-blue-600/90 dark:text-blue-400">
-              {formatRelative(ticket.nextPlannedAt)}
-            </span>
-          )}
 
           {ticket.nextPlannedComment && (
             <div className="mt-1 pt-1 border-t border-blue-500/15 flex items-start gap-1 text-[11px] text-foreground/90 italic">

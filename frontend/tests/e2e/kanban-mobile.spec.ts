@@ -11,9 +11,10 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
-  // 1. Segmented tabs visibles (4 pestañas: Cola, En proceso, Pendiente, Resuelto)
+  // 1. Segmented tabs visibles (5 pestañas obligatorias: Cola, Asignado, En proceso, Pendiente, Resuelto)
   await expect(page.getByTestId('kanban-tab-queue')).toBeVisible({ timeout: 10000 })
-  await expect(page.getByTestId('kanban-tab-in_process')).toBeVisible()
+  await expect(page.getByTestId('kanban-tab-mine')).toBeVisible()
+  await expect(page.getByTestId('kanban-tab-in_progress')).toBeVisible()
   await expect(page.getByTestId('kanban-tab-pending')).toBeVisible()
   await expect(page.getByTestId('kanban-tab-resolved')).toBeVisible()
 
@@ -36,14 +37,14 @@ test('kanban mobile: segmented tabs + assign flow', async ({ page }) => {
   await expect(claimBtn).toBeVisible()
   await claimBtn.click()
 
-  // 5. Esperar confirmación de asignación (toast) y cambiar a tab "En proceso"
+  // 5. Esperar confirmación de asignación (toast) y cambiar a tab "Asignado" (GLPI 2)
   await expect(page.getByText(/Ticket asignado correctamente/i)).toBeVisible({ timeout: 10000 })
-  const inProcessTab = page.getByTestId('kanban-tab-in_process')
-  await inProcessTab.click()
-  await expect(inProcessTab).toHaveAttribute('aria-selected', 'true')
+  const mineTab = page.getByTestId('kanban-tab-mine')
+  await mineTab.click()
+  await expect(mineTab).toHaveAttribute('aria-selected', 'true')
 
-  // 6. Verificar que el ticket está en "A. Asignado" dentro de la pestaña "En proceso"
-  await expect(mobileList.locator('[data-column-id="mine"]').getByText(ticketToClaim).first()).toBeVisible({ timeout: 10000 })
+  // 6. Verificar que el ticket está en la pestaña "Asignado"
+  await expect(mobileList.getByText(ticketToClaim).first()).toBeVisible({ timeout: 10000 })
 
   // 7. Swipe a "En progreso" (drag en la lista)
   const list = page.locator('[data-testid="kanban-mobile-list"]')

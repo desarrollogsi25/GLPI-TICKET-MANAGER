@@ -14,7 +14,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   // 2. Verificar las 5 columnas
   await expect(page.locator('[data-column-id="queue"]').getByText('Cola del grupo')).toBeVisible({ timeout: 10000 })
   await expect(page.locator('[data-column-id="mine"]').getByText('Mis tickets')).toBeVisible()
-  await expect(page.locator('[data-column-id="in_progress"]').getByText('En proceso (planificado)')).toBeVisible()
+  await expect(page.locator('[data-column-id="in_progress"]').getByText('En proceso (planificado)').first()).toBeVisible()
   await expect(page.locator('[data-column-id="pending"]').getByText('Pendiente', { exact: true })).toBeVisible()
   await expect(page.locator('[data-column-id="resolved"]').getByText('Resuelto')).toBeVisible()
 
