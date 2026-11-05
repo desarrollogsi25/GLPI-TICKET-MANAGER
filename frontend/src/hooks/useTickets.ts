@@ -94,8 +94,11 @@ export function useTicketTasksQuery(ticketId: number) {
  * `['tickets', 'group-queue']` as well made TanStack cancel the in-flight
  * `GET /tickets/by-group` and fire it again, burning rate-limit tokens for nothing.
  */
-function invalidateTicketCaches(queryClient: QueryClient) {
+function invalidateTicketCaches(queryClient: QueryClient, taskTicketId?: number) {
   return Promise.all([
+    // A tasks refetch already in flight may have read GLPI before this write committed; restart it
+    // so the timeline can never settle on pre-mutation data.
+    ...(taskTicketId ? [queryClient.invalidateQueries({ queryKey: queryKeys.tickets.tasks(taskTicketId) }, { cancelRefetch: true })] : []),
     queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }, { cancelRefetch: false }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }, { cancelRefetch: false }),
   ])
@@ -118,7 +121,7 @@ export function usePlanTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, payload }: { ticketId: number; payload: PlanTicketRequest }) =>
       planTicket(ticketId, payload),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -128,7 +131,7 @@ export function useReplanTicketTaskMutation() {
     mutationFn: ({ ticketId, taskId, payload }: {
       ticketId: number; taskId: number; payload: import('@/lib/api/tickets').ReplanTicketTaskRequest
     }) => replanTicketTask(ticketId, taskId, payload),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -137,7 +140,7 @@ export function useCompleteTicketTaskMutation() {
   return useMutation({
     mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
       completeTicketTask(ticketId, taskId),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -146,7 +149,7 @@ export function useCancelTicketTaskMutation() {
   return useMutation({
     mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
       cancelTicketTask(ticketId, taskId),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 

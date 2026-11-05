@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { confirmPlanning } from './support/planning'
 import { fixtureUrl } from './support/fixture-url'
+import { selectNativeCategory } from './support/glpi-form'
 
 const GLPI = fixtureUrl('glpi')
 const DESK = fixtureUrl('desk')
@@ -38,9 +39,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     await expect(glpiPage).toHaveURL(/Form\/Render\/1/)
     await glpiPage.screenshot({ path: testInfo.outputPath('glpi-form.png'), fullPage: true })
     const submitButton = glpiPage.getByRole('button', { name: /Enviar/i })
-    const category = glpiPage.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
-    await category.click()
-    await glpiPage.getByText(/»Hardware/).click()
+    await selectNativeCategory(glpiPage, /»Hardware/)
     await expect(submitButton).toBeEnabled()
     await glpiPage.getByRole('textbox', { name: 'Asunto', exact: true }).fill(ticketTitle)
     await expect(submitButton).toBeEnabled()

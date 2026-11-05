@@ -1,4 +1,5 @@
 import { fixtureUrl } from './support/fixture-url'
+import { selectNativeCategory } from './support/glpi-form'
 import { test, expect } from '@playwright/test'
 
 const DESK = fixtureUrl('desk')
@@ -61,8 +62,7 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await glpi.getByRole('link', { name: /Reportar un problema|Reportar una incidencia general/ }).last().click()
   await expect(glpi).toHaveURL(/Form\/Render\/1/)
   const submitButton = glpi.getByRole('button', { name: /Enviar/i })
-  await glpi.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last().click()
-  await glpi.getByText(/»Dev$/).click()
+  await selectNativeCategory(glpi, /»Dev$/)
   await expect(submitButton).toBeEnabled()
   await glpi.getByRole('textbox', { name: 'Asunto', exact: true }).fill(title)
   await expect(submitButton).toBeEnabled()
