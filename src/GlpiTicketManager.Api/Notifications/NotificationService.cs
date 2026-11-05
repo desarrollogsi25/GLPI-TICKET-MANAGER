@@ -147,11 +147,32 @@ public sealed class NotificationService : INotificationService
         try
         {
             var targetUrl = dto.TicketId.HasValue ? $"/tickets/{dto.TicketId.Value}" : "/kanban";
-            _ = Task.Run(() => _pushSender.SendPushAsync(dto.UserId, dto.Title, dto.Message, targetUrl, CancellationToken.None));
+            var action = dto.Type switch
+            {
+                "TicketCreated" => "Nuevo ticket",
+                "TicketClaimed" => "Ticket asignado",
+                "TicketReopened" => "Ticket reabierto",
+                "TicketResolved" => "Ticket resuelto",
+                "SolutionAdded" => "Solución añadida",
+                _ => "Actualización de ticket"
+            };
+            var pushTitle = dto.TicketId is > 0 ? $"{action} #{dto.TicketId.Value}" : "GLPI Ticket Manager";
+            // Device lock screens must not expose the ticket's title or message.
+            // Await within this DI scope: detached work could use a disposed sender.
+            // Delivery remains best effort, bounded independently of provider stalls.
+            using var pushTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            pushTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+            await _pushSender.SendPushAsync(dto.UserId, pushTitle,
+                "Abre la aplicación para consultar los detalles.", targetUrl, pushTimeout.Token);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to trigger WebPush for user {UserId}", dto.UserId);
+            _logger.LogWarning("WebPush delivery failed for user {UserId} ({ErrorType})",
+                dto.UserId, ex.GetType().Name);
         }
     }
 

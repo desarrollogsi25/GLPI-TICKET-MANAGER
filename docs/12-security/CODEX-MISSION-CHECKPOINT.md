@@ -1,5 +1,42 @@
 # Checkpoint de finalización — GLPI Ticket Manager
 
+## Refuerzo posterior de autorización y push — 2026-11-05
+
+Cambios de código posteriores al montaje TLS, todavía sin desplegar en el entorno
+original: M-12 deniega grupos técnicos del Hub a solicitantes incluso si pertenecen
+a un grupo; conserva su canal personal y deniega también suscripción explícita.
+M-13 elimina fallback a detalle sin filtrar cuando desaparece la lectura privada
+restringida. Pruebas negativas de Hub/política y lectura concurrente PASS.
+Un E2E nuevo añade pertenencia técnica al solicitante sintético sólo dentro de
+H-20, utiliza WebSockets reales con control positivo del técnico y observa ausencia
+de copia prohibida antes de retirar exclusivamente el vínculo temporal creado.
+
+M-14: el envío push antes desprendido podía sobrevivir al scope y utilizar un
+cliente liberado; el cambio previo de IDisposable hacía más visible esa carrera.
+Se espera ahora el envío dentro del scope con presupuesto de 10 segundos y
+cancelación del llamador. El fallo del proveedor conserva la notificación interna
+persistida. El título/body de dispositivo sólo incluyen tipo de aviso/número de
+ticket e invitación genérica a abrir la app, nunca título/descripción privada;
+el detalle autorizado dentro de la app se conserva. Dos regresiones prueban
+espera efectiva y privacidad, y supervivencia de la notificación ante fallo push.
+Tradeoff: el envío puede añadir hasta 10 segundos al flujo notificante. Sigue
+siendo best effort, sin afirmar entrega SO ni reintentos durables push.
+
+Backend Windows Release actual: 51 aplicación + 212 API con dobles = 263 PASS.
+GitNexus: TicketHub 3 consumidores; GetByIdAsync ambiguo/UNKNOWN y NotificationService
+UNKNOWN por DI; detect-changes de autorización 12 símbolos/9 procesos, HIGH.
+Fallback manual: endpoints de detalle, política de cola, hub automático/explícito,
+servicios de notificación, watcher/webhook, repositorios y consumidores React.
+Gates reales ampliados pendientes en CI, no se declara seguridad global aprobada.
+
+Windows suite completa anterior: 41 PASS / 2 FAIL; uno era la creación directa
+residual, otro editor enriquecido vacío. Cambios de prueba: login nativo por
+tipo submit sin depender de idioma, entrada de descripción con eventos teclado
+y blur, envío acotado. Revalidación selectiva con trace EN CURSO. Se conservaron
+los artefactos locales y se retiró sólo el fixture anterior con guardas intactas.
+Chrome original: Preferencias muestra notificaciones del dispositivo «No activadas»;
+no se cambió permiso ni suscripción. Consola del recorrido sin error/warn.
+
 ## Cambio TLS autorizado — 2026-11-05 (último estado)
 
 El usuario autorizó exclusivamente retirar ca.key y recrear ambos frontends
