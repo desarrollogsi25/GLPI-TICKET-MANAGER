@@ -18,6 +18,7 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
     private static string? s_cachedTech1Token;
     private static string? s_cachedAdminToken;
     private static string? s_cachedSupervisorToken;
+    private static string? s_cachedSolicitanteToken;
     private static readonly SemaphoreSlim s_lock = new(1, 1);
 
     public AuthorizationTests(CustomWebApplicationFactory factory)
@@ -106,6 +107,30 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
         }
     }
 
+    private async Task<string> AuthenticateAsSolicitanteAsync()
+    {
+        if (s_cachedSolicitanteToken is not null) return s_cachedSolicitanteToken;
+
+        await s_lock.WaitAsync();
+        try
+        {
+            if (s_cachedSolicitanteToken is not null) return s_cachedSolicitanteToken;
+            var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+            {
+                Username = "solicitante_test",
+                Password = TestCredentials.Solicitante
+            });
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            s_cachedSolicitanteToken = body!.AccessToken;
+            return s_cachedSolicitanteToken;
+        }
+        finally
+        {
+            s_lock.Release();
+        }
+    }
+
     [Fact]
     public async Task Test1_Tech1_CannotViewTicketOfTech2_Returns403()
     {
@@ -137,6 +162,52 @@ public class AuthorizationTests : IClassFixture<CustomWebApplicationFactory>
         var token = await AuthenticateAsTech1Async();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket22Id}/claim");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Test3b_Tech1_CannotClaimTicketAlreadyAssignedInAnotherGroup_Returns403Not409()
+    {
+        // Ticket 21 belongs to Group 2 and is already assigned to Tech2. Being
+        // out of scope must yield 403 instead of a 409 that disclosed the state.
+        var token = await AuthenticateAsTech1Async();
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/tickets/{CustomWebApplicationFactory.Ticket21Id}/claim");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Test3c_Solicitante_CannotClaimTicket_Returns403Not409()
+    {
+        // Ticket 12 is assigned to Tech1, so the state checks would answer 409.
+        // The identity gate must answer 403 first.
+        var token = await AuthenticateAsSolicitanteAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/claim");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Test2b_Solicitante_CannotResolveWithoutSolution_Returns403Not422()
+    {
+        // Without a solution the workflow check answers 422. A requester must be
+        // rejected with 403 before any state-dependent validation runs.
+        var token = await AuthenticateAsSolicitanteAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Patch,
+            $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/status");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { status = 5 });
 
         var response = await _client.SendAsync(request);
 
