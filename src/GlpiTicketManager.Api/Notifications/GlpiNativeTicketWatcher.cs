@@ -221,32 +221,36 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
                     ? change.ModifiedAt
                     : _lastChangeScanUtc;
 
-                var alreadyKnown = _knownStatuses.TryGetValue(change.TicketId, out var knownStatus);
-                _knownStatuses[change.TicketId] = change.Status;
-                if (alreadyKnown && knownStatus == change.Status)
+                var ticketId = (int)change.TicketId;
+                var newStatus = (int)change.Status;
+                int? assigneeId = change.AssigneeId is > 0 ? (int)change.AssigneeId.Value : null;
+
+                var alreadyKnown = _knownStatuses.TryGetValue(ticketId, out var knownStatus);
+                _knownStatuses[ticketId] = newStatus;
+                if (alreadyKnown && knownStatus == newStatus)
                 {
                     continue;
                 }
 
-                if (change.Status is < 1 or > 6)
+                if (newStatus is < 1 or > 6)
                 {
                     continue;
                 }
 
                 try
                 {
-                    var groupInfo = await dashboardRepository.GetTicketGroupAssignmentAsync(change.TicketId, ct);
+                    var groupInfo = await dashboardRepository.GetTicketGroupAssignmentAsync(ticketId, ct);
                     if (groupInfo?.GroupId is not > 0)
                     {
                         continue;
                     }
 
                     await ticketNotificationService.NotifyExternalTicketStatusChangedAsync(
-                        change.TicketId, change.Status, change.AssigneeId, groupInfo.GroupId, ct);
+                        ticketId, newStatus, assigneeId, groupInfo.GroupId, ct);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "External status propagation skipped for ticket {TicketId}", change.TicketId);
+                    _logger.LogDebug(ex, "External status propagation skipped for ticket {TicketId}", ticketId);
                 }
             }
 
