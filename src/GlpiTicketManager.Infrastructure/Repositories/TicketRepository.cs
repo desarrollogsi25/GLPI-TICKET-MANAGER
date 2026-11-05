@@ -742,4 +742,54 @@ public sealed class TicketRepository : ITicketRepository
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken));
     }
+
+    public async Task<IReadOnlyList<TicketChange>> GetChangedTicketsSinceAsync(
+        DateTime sinceUtc, int limit, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            SELECT
+                CAST(t.id AS SIGNED) AS TicketId,
+                CAST(t.status AS SIGNED) AS Status,
+                (
+                    SELECT CAST(tu.users_id AS SIGNED)
+                    FROM glpi_tickets_users tu
+                    WHERE tu.tickets_id = t.id AND tu.type = 2
+                    ORDER BY tu.id ASC
+                    LIMIT 1
+                ) AS AssigneeId,
+                t.date_mod AS ModifiedAt
+            FROM glpi_tickets t
+            WHERE t.is_deleted = 0
+              AND t.date_mod >= @Since
+              AND t.date_mod > '2000-01-01'
+            ORDER BY t.date_mod ASC, t.id ASC
+            LIMIT @Limit;
+            """;
+
+        var command = new CommandDefinition(
+            sql,
+            new { Since = sinceUtc, Limit = limit },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var result = await connection.QueryAsync<TicketChange>(command);
+        return result.AsList();
+    }
+
+    public async Task<IReadOnlyDictionary<int, int>> GetTicketStatusSnapshotAsync(
+        CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var command = new CommandDefinition(
+            "SELECT CAST(id AS SIGNED) AS TicketId, CAST(status AS SIGNED) AS Status FROM glpi_tickets WHERE is_deleted = 0",
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var rows = await connection.QueryAsync<TicketStatusRow>(command);
+        return rows.ToDictionary(row => row.TicketId, row => row.Status);
+    }
+
+    private sealed record TicketStatusRow(int TicketId, int Status);
 }

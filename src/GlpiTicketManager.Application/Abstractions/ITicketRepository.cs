@@ -125,4 +125,14 @@ public interface ITicketRepository
     Task<bool> IsUserRequesterOfTicketAsync(int userId, int ticketId, CancellationToken cancellationToken);
     Task<bool> HasAssigneeAsync(int ticketId, CancellationToken cancellationToken);
     Task EnsureTicketGroupAssignedAsync(int ticketId, int groupId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Read-only scan of tickets modified in GLPI since <paramref name="sinceUtc"/>,
+    /// used to propagate external status changes that never reach our API.
+    /// </summary>
+    Task<IReadOnlyList<TicketChange>> GetChangedTicketsSinceAsync(
+        DateTime sinceUtc, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Ticket id to status baseline used to detect external transitions.</summary>
+    Task<IReadOnlyDictionary<int, int>> GetTicketStatusSnapshotAsync(CancellationToken cancellationToken);
 }

@@ -1149,6 +1149,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     }
                 });
 
+            ticketRepoMock.Setup(t => t.GetTicketStatusSnapshotAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Dictionary<int, int>());
+            ticketRepoMock.Setup(t => t.GetChangedTicketsSinceAsync(It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<TicketChange>());
+
             ticketRepoMock.Setup(t => t.HasAssigneeAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int id, CancellationToken _) =>
                 {
