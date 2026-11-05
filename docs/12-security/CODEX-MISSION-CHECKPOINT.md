@@ -1,5 +1,37 @@
 # Checkpoint de finalización — GLPI Ticket Manager
 
+## Cambio TLS autorizado — 2026-11-05 (último estado)
+
+El usuario autorizó exclusivamente retirar ca.key y recrear ambos frontends
+preservando recursos; **NO autorizó importar la CA**. Operación aplicada y
+verificada: imagen local con los mismos 30 assets por frontend (hashes idénticos),
+mounts readonly de server.crt/server.key, ca.key ausente tanto en contenedores
+como en las 14 capas inspeccionadas de la imagen conservada. Backup duradero,
+carga de imagen base y preflight de reversión verificados antes del cambio.
+GLPI, API, ambas bases, proxy y frontend-prod mantienen ID/arranque/imagen/mounts;
+conteos originales 43/0/16/9 sin cambios. No se desplegó el nuevo código del PR.
+
+Autenticación real, tickets, notificaciones, salud y WebSocket Connected en
+loopback y HTTPS localhost/LAN PASS con CA explícita, sin ignorar validación.
+Chrome: sesión existente, Kanban y campana con 6 no leídas conservados. Avisos
+de desconexión durante el reinicio previsto; cero avisos/error nuevos tras la
+recarga posterior observada. Root usuario/equipo: cero coincidencias de la CA.
+PWA/push SO y confianza normal siguen pendientes. Detalle, IDs, imagen, respaldo
+y procedimiento exacto: [TLS-FORENSICS-20261105.md](TLS-FORENSICS-20261105.md).
+
+QA interactivo adicional GLPI original: login técnico, interfaz estándar,
+catálogo nativo y formulario Hardware sin enviar, consola sin error/warn.
+Confirma 7 destacados + 2 generales, sin «Acceso a sistema». El Hardware antiguo
+todavía exige categoría manual; los formularios especializados actuales del
+fixture fijan categoría en destino. No se ejecuta el seed sobre datos persistentes.
+
+CI Linux `42033186235`, SHA `2d7d1a4`: backend, frontend y secretos PASS;
+E2E 42 PASS / 1 FAIL. Causa confirmada del fallo: realtime.spec aún intenta
+POST /api/tickets, retirado deliberadamente. La corrección debe usar formulario
+nativo y volver a validar antes de declarar el gate aprobado. SQL007 y la prueba
+ampliada de VAPID/deduplicación entre procesos con reinicio PASARON dentro del
+runner actual en Windows; la suite completa local continúa en ejecución.
+
 ## Continuación — 2026-11-05 (prevalece sobre los resultados anteriores)
 
 **EN CURSO; PR #43 en borrador; sin merge ni despliegue persistente.** Rama

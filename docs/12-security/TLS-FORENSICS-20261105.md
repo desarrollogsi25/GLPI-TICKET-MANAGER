@@ -1,6 +1,30 @@
 # TLS: investigación y reversión — 2026-11-05
 
-Estado: investigación de lectura; **NO se importó ninguna CA, cambió ningún montaje ni reinició ningún servicio persistente**. Autorización del usuario denegada para importar en `CurrentUser\Root`; se requiere una nueva autorización específica. Rama `codex/mission-audit-20261104`, HEAD publicado al investigar `bda3c712fa047aeebb9399cf2f69be88b3517550`, PR borrador #43.
+Estado actualizado: **retirada de ca.key aplicada con autorización específica del usuario; ninguna CA importada**. Se recrearon exclusivamente ambos frontends conservando sus assets actuales. La importación en `CurrentUser\Root` sigue pendiente de autorización independiente. Rama `codex/mission-audit-20261104`, HEAD publicado al investigar `bda3c712fa047aeebb9399cf2f69be88b3517550`, posteriormente `2d7d1a4`, PR borrador #43. Las secciones de investigación siguientes describen el estado anterior; prevalece el resultado de ejecución documentado aquí.
+
+## Ejecución autorizada y resultado
+
+El usuario autorizó retirar ca.key y recrear ambos frontends, preservando recursos y verificando restauración; excluyó expresamente importar certificados o modificar GLPI/API/bases/volúmenes.
+
+Respaldo duradero local: `C:\Users\DEVELOPMENT\AppData\Local\GLPI-Ticket-Manager\audit-backups\tls-20261105131506195`. Contiene assets y manifests SHA-256 de ambos frontends, configuración nginx/compose, inventario anterior/posterior sin variables secretas, archivo de imagen base e imagen preservada. No se copiaron allí las claves TLS del host. Manifests públicos idénticos: 30 archivos por frontend.
+
+Restaurabilidad: el archivo de imagen base se cargó mediante Docker y recuperó el mismo ID `sha256:5de83c3a1459d8ee8b9364db722b834a63fa573dd4171ab7ff1de47cd58152eb`; se verificaron hashes de las copias públicas. La imagen de conservación se construyó desde esa base fijada y exclusivamente los assets actuales, sin recompilar la aplicación, sin certificados en su contexto y sin red de build. Preflight: Nginx válido, 30/30 hashes coincidentes, ca.key ausente. El overlay de reversión también pasa `compose config --quiet`. No se ensayó un segundo reinicio de producción para simular rollback innecesariamente.
+
+Imagen aplicada: `glpi-audit-tls-assets:20261105131506195`, ID `sha256:4efc2692b490b70c3c7fac0bc0276a0d6aed618fb95b0e352b0b726263587c55`. Archivo guardado como `preserved-frontend-image.tar`. Se inspeccionaron todas las capas exportadas: imagen base 12 capas/1.009 archivos, conservada 14 capas/1.052 archivos, cero rutas ca.key, cero coincidencias del PEM/DER privado actual y cero claves PEM privadas parseables. Esto incluye capas históricas de estas imágenes concretas; no implica auditoría de todos los caches de Docker.
+
+Aplicación: compose original + local-sync + `frontend-image.yml` del respaldo, `up -d --no-build --no-deps --pull never frontend lan-frontend`. Ese tercer overlay conserva el tag de la imagen de assets; se debe mantener para reproducir esta entrega. No se modificó un tag compartido previo ni se desplegaron las correcciones funcionales del PR.
+
+Resultados posteriores:
+
+- Ambos contenedores ejecutándose, Nginx válido, 30/30 hashes públicos conservados en cada uno. Montajes readonly exclusivamente `server.crt`, `server.key` y nginx.conf; ca.key ausente.
+- ID nuevo local `88226f893d226dcd620dad9d072d77ad87a2fc08c995f621fb744d621e07741d`; LAN `953883d3c442ce33ab9da95fda241c0220ecfaef39edbca7849c0c6bac228a1a`.
+- GLPI, API, MariaDB, PostgreSQL, glpi-nginx y frontend-prod preexistente: mismo ID, hora de arranque, imagen y montajes. Ningún volumen eliminado/reemplazado. Conteos originales de lectura: 43 tickets, 0 eliminados, 16 categorías y 9 formularios activos, iguales a los observados antes.
+- TLS con CA explícita y validación normal de nombre/IP en localhost, 127.0.0.1 y 10.10.40.31: PASS, mismo leaf DER `24C0C4…358840`; ninguna relajación de validación ni cambio de confianza del SO.
+- Autenticación real tech_dev, GET tickets, GET notificaciones y salud: 200; conexión SignalR forzada a WebSocket: Connected, en loopback HTTP y HTTPS localhost/LAN. Credenciales leídas sólo en memoria; no incluidas en reportes.
+- Chrome interactivo: sesión tech1 conservada, Kanban y campana con 6 no leídas visibles después de recargar. No se marcaron leídas ni mutaron tickets. Advertencias 1006/failed fetch durante el intervalo previsto de recreación; tras recarga posterior, ninguna advertencia/error nueva en el recorrido observado. La apertura HTTPS LAN mostró login; eso por sí solo no prueba confianza normal del perfil ni entrega push.
+- Ambos almacenes Root consultados después: cero coincidencias de la CA DER actual. **No importada.** PWA HTTPS confiable y push nativo Windows/Android siguen sin verificarse.
+
+Reversión preparada: preservar este respaldo; cargar `preserved-frontend-image.tar` si faltara la imagen y usar los dos compose originales más `frontend-rollback.yml` del respaldo, recreando sólo ambos frontends con `--no-build --no-deps --pull never`. Restaura la misma imagen/assets y el montaje anterior; reintroduce temporalmente exposición de ca.key y sólo debe usarse ante un fallo confirmado. Para mantener el arreglo, usar `frontend-image.yml`, no el overlay rollback. El cambio no requiere restauración de datos ni regenerar certificados.
 
 ## Discrepancia resuelta
 
