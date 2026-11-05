@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { requireCred } from './credentials.mjs'
 
 async function run() {
   const outDir = resolve(process.cwd(), '../docs/qa/evidencias-layout')
@@ -20,7 +21,7 @@ async function run() {
   await page.waitForLoadState('networkidle')
 
   await page.locator('input[type="text"], input[name="username"]').fill('tech1')
-  await page.locator('input[type="password"]').fill('Tech1Pass!')
+  await page.locator('input[type="password"]').fill(requireCred('tech1'))
   await page.click('button[type="submit"]')
   await page.waitForURL('**/kanban**', { timeout: 15000 })
   await page.waitForLoadState('networkidle')
@@ -83,7 +84,7 @@ async function run() {
   await mobilePage.goto('http://localhost:5173/login')
   await mobilePage.waitForLoadState('networkidle')
   await mobilePage.locator('input[type="text"], input[name="username"]').fill('tech1')
-  await mobilePage.locator('input[type="password"]').fill('Tech1Pass!')
+  await mobilePage.locator('input[type="password"]').fill(requireCred('tech1'))
   await mobilePage.click('button[type="submit"]')
   await mobilePage.waitForURL('**/kanban**', { timeout: 15000 })
   await mobilePage.waitForLoadState('networkidle')

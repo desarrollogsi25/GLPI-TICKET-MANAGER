@@ -31,7 +31,7 @@ Los tres puntos que bloquean el visto bueno son:
   - **Browser MCP** (`@playwright/mcp`, Chromium) para navegación interactiva, lectura del árbol de accesibilidad, DevTools y Lighthouse.
   - **Scripts Playwright** (`frontend/qa-*.mjs`, desechados al terminar) para: emulación real de iPhone 12 (`devices['iPhone 12']`), muestreo temporal de la animación de entrada, medición de skeletons y barridos de consola/red.
 - La **inspección de código del contenedor GLPI** (`docker exec glpi … cat/grep` sobre `/var/www/glpi/src`) se usó sólo en modo **lectura** para acortar el diagnóstico del bloqueante B1. No se ejecutó ninguna sentencia SQL ni se modificó la instancia.
-- Credenciales usadas: `solicitante_test / Soli123!`, `tecnico_test1 / Tec123!`, `admin_test / Admin123!`, `glpi / glpi` (super-admin GLPI).
+- Credenciales usadas: `solicitante_test / <redactada>`, `tecnico_test1 / <redactada>`, `admin_test / <redactada>`, `glpi / <redactada>` (super-admin GLPI).
 
 ---
 
@@ -381,12 +381,12 @@ Todas las capturas están en **`qa-report/final-shots/`** (37 imágenes).
 
 ```bash
 # Service Desk
-http://10.10.40.25/login        tecnico_test1 / Tec123!
-http://10.10.40.25/login        admin_test  / Admin123!
-http://10.10.40.25/login        solicitante_test / Soli123!
+http://10.10.40.25/login        tecnico_test1 / <redactada>
+http://10.10.40.25/login        admin_test  / <redactada>
+http://10.10.40.25/login        solicitante_test / <redactada>
 
 # GLPI nativo (super-admin, sólo diagnóstico)
-http://10.10.40.25:8081/        glpi / glpi
+http://10.10.40.25:8081/        glpi / <redactada>
 
 # Rutas clave
 /tickets  /tickets/317  /kanban  /queue  /dashboard  /services  /ayuda  /preferences

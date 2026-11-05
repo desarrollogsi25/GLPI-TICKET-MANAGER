@@ -72,7 +72,7 @@ function Show {
 }
 
 # ---------------------------------------------------------------- login
-$login = Invoke-Api -Method Post -Uri "$Api/api/auth/login" -Token '' -Body @{ username = 'tech1'; password = 'Tech1Pass!' }
+$login = Invoke-Api -Method Post -Uri "$Api/api/auth/login" -Token '' -Body @{ username = 'tech1'; password = $env:E2E_TECH_PASSWORD }
 if ($login.Status -ne 200) { throw "login failed: $($login.Body)" }
 $token = $login.Json.accessToken
 Write-Host "== logged in as $($login.Json.user.username) (id $($login.Json.user.userId)) =="
@@ -100,7 +100,7 @@ Show 'D. POST /solutions  content length 2001' $d
 
 # E. technician NOT assigned (ticket in group 1, other tech not in that group)
 Reset-Ticket -Id $TicketId -Status 1
-$other = Invoke-Api -Method Post -Uri "$Api/api/auth/login" -Token '' -Body @{ username = 'tecnico_test1'; password = 'Tec123!' }
+$other = Invoke-Api -Method Post -Uri "$Api/api/auth/login" -Token '' -Body @{ username = 'tecnico_test1'; password = $env:CRED_TECNICO_TEST1 }
 if ($other.Status -eq 200) {
   $e = Invoke-Api -Method Post -Uri "$base/solutions" -Token $other.Json.accessToken -Body @{ content = 'Intento de otro tecnico sin relacion con el ticket' }
   Show 'E. POST /solutions  by technician NOT assigned and NOT in group' $e

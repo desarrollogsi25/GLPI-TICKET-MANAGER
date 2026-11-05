@@ -9,29 +9,32 @@
 --
 -- Este script es idempotente y mantiene los IDs 10–17 estables porque están
 -- referenciados por `user_role_overrides` en PostgreSQL y por la documentación.
--- Contraseña para todos: Password123!
 --
--- Uso:
---   docker exec -i glpi-db mariadb -uglpi -p"$MARIADB_PASSWORD" glpi \
---     < scripts/provision-glpi-test-users.sql
+-- Las contraseñas NO se versionan: las cuentas se crean sin contraseña y la
+-- rotación se aplica desde GLPI o con las variables CRED_* de `.env.local`
+-- (ver docs/qa/credenciales-prueba.md). Este script tampoco pisa la contraseña
+-- de una cuenta existente, para no revertir una rotación.
+--
+-- Uso (sólo fixture efímero H-20, a través del guard):
+--   node scripts/e2e/guard.mjs verify --destructive
+--   node scripts/e2e/guard.mjs sql mariadb < scripts/provision-glpi-test-users.sql
 -- =============================================================================
 
--- 1. Cuentas con hash bcrypt ya generado por GLPI (PASSWORD_DEFAULT, coste 12).
+-- 1. Cuentas sin contraseña (la rotación las habilita fuera de este script).
 INSERT INTO glpi_users
   (id, name, password, password_last_update, authtype, auths_id, is_active, is_deleted, profiles_id, entities_id, date_creation, date_mod)
 VALUES
-  (10, 'admin_test', '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (11, 'lider_dev',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (12, 'lider_bi',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (13, 'lider_sd',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (14, 'tech_dev',   '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (15, 'tech_bi',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (16, 'tech_sd',    '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
-  (17, 'user_test',  '$2y$12$8wEbIJkabO5qjJNx2bBsA.rKVyOzykWYwCBNT.aBxyRUTpFrC8WPC', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
+  (10, 'admin_test', '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (11, 'lider_dev',  '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (12, 'lider_bi',   '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (13, 'lider_sd',   '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (14, 'tech_dev',   '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (15, 'tech_bi',    '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (16, 'tech_sd',    '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW()),
+  (17, 'user_test',  '', NOW(), 1, 0, 1, 0, 0, 0, NOW(), NOW())
 ON DUPLICATE KEY UPDATE
   -- El nombre manda: si el ID ya existe con otro nombre, no lo pisamos.
-  password = IF(name = VALUES(name), VALUES(password), password),
-  password_last_update = IF(name = VALUES(name), VALUES(password_last_update), password_last_update),
+  -- `password` y `password_last_update` no se actualizan nunca aquí.
   authtype = IF(name = VALUES(name), 1, authtype),
   auths_id = IF(name = VALUES(name), 0, auths_id),
   is_active = IF(name = VALUES(name), 1, is_active),

@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { requireCred } from './credentials.mjs'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173'
-const PASSWORD = 'Password123!'
 const OUT_DIR = path.resolve(process.cwd(), '../docs/qa/evidencias-h44')
 const BRAIN_DIR =
   'C:\\Users\\DEVELOPMENT\\.gemini\\antigravity\\brain\\b7cf4c52-ac34-4fb8-adea-ad4684ac81f1'
@@ -50,7 +50,7 @@ async function saveShot(page, name) {
   }
 }
 
-async function login(page, username, password = PASSWORD) {
+async function login(page, username, password = requireCred(username)) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' })
   await page.fill('input[name="username"], input[autocomplete="username"]', username)
   await page.fill('input[name="password"], input[type="password"]', password)

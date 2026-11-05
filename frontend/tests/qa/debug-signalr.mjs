@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+import { requireCred } from './credentials.mjs';
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -12,7 +13,7 @@ async function main() {
   });
   await page.goto('http://localhost:5173/login');
   await page.fill('input[name="username"]', 'tech_dev');
-  await page.fill('input[name="password"]', 'Password123!');
+  await page.fill('input[name="password"]', requireCred('tech_dev'));
   await page.click('button[type="submit"]');
   await page.waitForURL(url => !url.pathname.includes('/login'));
   console.log('Navigated to:', page.url());

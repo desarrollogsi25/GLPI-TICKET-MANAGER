@@ -16,9 +16,9 @@
 
 | Usuario | Contraseña | Perfil GLPI | Rol en la app |
 | --- | --- | --- | --- |
-| `admin_test` | `Admin123!` | Self-Service (1) + Super-Admin (4) | `admin` |
-| `tecnico_test1` | `Tec123!` | Self-Service (1) + Technician (6) | `technician` |
-| `solicitante_test` | `Soli123!` | Self-Service (1) | `technician` ⚠️ (ver F1) |
+| `admin_test` | `<redactada>` | Self-Service (1) + Super-Admin (4) | `admin` |
+| `tecnico_test1` | `<redactada>` | Self-Service (1) + Technician (6) | `technician` |
+| `solicitante_test` | `<redactada>` | Self-Service (1) | `technician` ⚠️ (ver F1) |
 
 **Alcance:** auditoría visual/UX de 5 áreas. **No se modificó código de la aplicación.**
 **Método:** simulación de usuario real contra el stack en marcha. La evidencia se obtuvo por

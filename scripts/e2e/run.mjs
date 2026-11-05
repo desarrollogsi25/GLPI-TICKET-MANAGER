@@ -48,6 +48,10 @@ const secrets = {
   E2E_RUN_ID: runId,
   E2E_MARIA_ROOT_PASSWORD: secret(), E2E_MARIA_PASSWORD: secret(), E2E_APP_PASSWORD: secret(),
   E2E_GLPI_APP_TOKEN: secret(), E2E_GLPI_USER_TOKEN: secret(), E2E_JWT_KEY: jwtKey, E2E_WEBHOOK_SECRET: secret(),
+  // Ephemeral fixture accounts: generated per run, never versioned.
+  E2E_TECH_PASSWORD: randomBytes(24).toString('base64url'),
+  E2E_REQUESTER_PASSWORD: randomBytes(24).toString('base64url'),
+  E2E_ADMIN_PASSWORD: randomBytes(24).toString('base64url'),
 }
 // Do not inherit targeting overrides, Compose configuration, or DB credentials.
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
@@ -209,9 +213,9 @@ $key = new GLPIKey();
 if (!$DB->insert('glpi_apiclients', ['id'=>2,'name'=>'Disposable E2E','entities_id'=>0,'is_recursive'=>1,'app_token'=>$key->encrypt('${secrets.E2E_GLPI_APP_TOKEN}'),'is_active'=>1])) exit(1);
 if (!$DB->update('glpi_users', ['api_token'=>$key->encrypt('${secrets.E2E_GLPI_USER_TOKEN}'),'api_token_date'=>date('Y-m-d H:i:s')], ['id'=>10])) exit(1);
 foreach (['enable_api','enable_api_login_external_token'] as $name) { if (!$DB->update('glpi_configs', ['value'=>'1'], ['context'=>'core','name'=>$name])) exit(1); }
-$hash = password_hash('User1Pass!', PASSWORD_BCRYPT);
-if (!$DB->update('glpi_users', ['password'=>password_hash('Tech1Pass!', PASSWORD_BCRYPT)], ['name'=>'tech1'])) exit(1);
-if (!$DB->update('glpi_users', ['password'=>password_hash('Password123!', PASSWORD_BCRYPT)], ['name'=>'admin_test'])) exit(1);
+$hash = password_hash('${secrets.E2E_REQUESTER_PASSWORD}', PASSWORD_BCRYPT);
+if (!$DB->update('glpi_users', ['password'=>password_hash('${secrets.E2E_TECH_PASSWORD}', PASSWORD_BCRYPT)], ['name'=>'tech1'])) exit(1);
+if (!$DB->update('glpi_users', ['password'=>password_hash('${secrets.E2E_ADMIN_PASSWORD}', PASSWORD_BCRYPT)], ['name'=>'admin_test'])) exit(1);
 if (!$DB->insert('glpi_users', ['id'=>19,'name'=>'user1','password'=>$hash,'authtype'=>1,'auths_id'=>0,'is_active'=>1,'is_deleted'=>0,'profiles_id'=>1,'entities_id'=>0])) exit(1);
 if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entities_id'=>0,'is_recursive'=>0,'is_default_profile'=>1])) exit(1);
 `
@@ -222,9 +226,10 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
     await ready(`${manifest.frontendUrl}/login`)
     await ready(`${manifest.apiUrl}/health/ready`)
     Object.assign(env, { E2E_DESK_URL: manifest.frontendUrl, E2E_GLPI_URL: manifest.glpiUrl,
-      E2E_API_URL: manifest.apiUrl, E2E_TECH_USERNAME: 'tech1', E2E_TECH_PASSWORD: 'Tech1Pass!',
-      E2E_REQUESTER_USERNAME: 'user1', E2E_REQUESTER_PASSWORD: 'User1Pass!', E2E_ADMIN_USERNAME: 'admin_test',
-      E2E_ADMIN_PASSWORD: 'Password123!', E2E_GLPI_NATIVE: nativeGlpi ? 'true' : 'false' })
+      E2E_API_URL: manifest.apiUrl, E2E_TECH_USERNAME: 'tech1', E2E_TECH_PASSWORD: secrets.E2E_TECH_PASSWORD,
+      E2E_REQUESTER_USERNAME: 'user1', E2E_REQUESTER_PASSWORD: secrets.E2E_REQUESTER_PASSWORD,
+      E2E_ADMIN_USERNAME: 'admin_test', E2E_ADMIN_PASSWORD: secrets.E2E_ADMIN_PASSWORD,
+      E2E_GLPI_NATIVE: nativeGlpi ? 'true' : 'false' })
     assertDisposableFixture(env)
     progress('verify GLPI API authentication using synthetic credentials')
     const sessionResponse = await fetch(`${manifest.glpiUrl}/apirest.php/initSession`, {

@@ -10,9 +10,9 @@
 import { chromium } from '@playwright/test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { requireCred } from './credentials.mjs'
 
 const BASE = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
-const PASSWORD = 'Password123!'
 // Fuera de test-results/: Playwright borra ese directorio al inicio de cada suite.
 const OUT = resolve(process.cwd(), '../docs/qa/evidencias-h38')
 mkdirSync(OUT, { recursive: true })
@@ -26,7 +26,7 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` (${detail})` : ''}`)
 }
 
-async function session(browser, username, password = PASSWORD) {
+async function session(browser, username, password = requireCred(username)) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   const errors = { console: [], http: [], requestFailed: [] }

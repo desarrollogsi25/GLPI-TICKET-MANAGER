@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
+import { requireCred } from './credentials.mjs'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173'
 const API_URL = process.env.API_URL ?? 'http://localhost:8080'
@@ -27,7 +28,7 @@ async function saveShot(page, name) {
   } catch {}
 }
 
-async function loginUser(page, username, password = 'Password123!') {
+async function loginUser(page, username, password = requireCred(username)) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' })
   await page.fill('input[name="username"]', username)
   await page.fill('input[name="password"]', password)
@@ -36,7 +37,7 @@ async function loginUser(page, username, password = 'Password123!') {
   await page.waitForLoadState('networkidle')
 }
 
-async function getAuthToken(username, password = 'Password123!') {
+async function getAuthToken(username, password = requireCred(username)) {
   const res = await fetch(`${API_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
