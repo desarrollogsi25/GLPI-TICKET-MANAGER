@@ -167,7 +167,7 @@ export function PreferencesPage() {
       const { data } = await apiClient.post<{ success: boolean; sentToDevices: number }>('/notifications/push/test')
       pushToast({
         title: 'Prueba enviada',
-        description: `Notificación enviada a ${data.sentToDevices} dispositivo(s). Comprueba tu barra de tareas o centro de notificaciones.`,
+        description: `El servicio push aceptó ${data.sentToDevices} envío(s). Comprueba su recepción en el centro de notificaciones del dispositivo.`,
         variant: 'success',
       })
     } catch (err) {

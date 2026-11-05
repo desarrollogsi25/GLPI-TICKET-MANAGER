@@ -2,6 +2,8 @@ using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Notifications;
+using GlpiTicketManager.Application.Notifications;
+using GlpiTicketManager.Api.RateLimiting;
 
 namespace GlpiTicketManager.Api.Endpoints;
 
@@ -11,7 +13,8 @@ public static class NotificationEndpoints
     {
         var group = app.MapGroup("/api/notifications")
             .WithTags("Notifications")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicies.PerUser);
 
         // GET /api/notifications
         group.MapGet("/", GetNotifications)
@@ -53,12 +56,21 @@ public static class NotificationEndpoints
         // GET /api/notifications/push/vapid-public-key
         group.MapGet("/push/vapid-public-key", (IPushNotificationSender pushSender) =>
         {
-            var key = pushSender.GetVapidPublicKey();
-            return Results.Ok(new VapidPublicKeyDto(key));
+            try
+            {
+                var key = pushSender.GetVapidPublicKey();
+                return Results.Ok(new VapidPublicKeyDto(key));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "Notificaciones push temporalmente no disponibles");
+            }
         })
         .WithName("GetVapidPublicKey")
         .WithSummary("Get the VAPID public key for WebPush subscriptions")
         .Produces<VapidPublicKeyDto>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
         .Produces(StatusCodes.Status401Unauthorized);
 
         // POST /api/notifications/push/subscribe
@@ -71,9 +83,7 @@ public static class NotificationEndpoints
         {
             var userId = principal.GetUserId();
             if (userId is null) return Results.Unauthorized();
-            if (string.IsNullOrWhiteSpace(subscription.Endpoint) ||
-                string.IsNullOrWhiteSpace(subscription.Keys?.P256dh) ||
-                string.IsNullOrWhiteSpace(subscription.Keys?.Auth))
+            if (!PushSubscriptionPolicy.IsValid(subscription))
             {
                 return Results.BadRequest(new { message = "Suscripción push inválida." });
             }
@@ -120,7 +130,7 @@ public static class NotificationEndpoints
             var count = await pushSender.SendPushAsync(
                 userId.Value,
                 "GLPI Ticket Manager",
-                "¡Notificación del sistema operativo verificada correctamente!",
+                "Notificación de prueba de GLPI Ticket Manager",
                 "/kanban",
                 ct);
 
