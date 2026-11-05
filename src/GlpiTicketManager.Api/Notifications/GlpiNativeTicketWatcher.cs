@@ -50,7 +50,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         _hostEnvironment = hostEnvironment;
     }
 
-    internal sealed record NewTicketRow(long Id, string Name, long CategoryId, int Status = 1);
+    internal sealed record NewTicketRow(long Id, string Name, long CategoryId, long Status = 1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -276,7 +276,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         {
             var ticketId = (int)row.Id;
             var categoryId = (int)row.CategoryId;
-            _knownStatuses.TryAdd(ticketId, row.Status);
+            _knownStatuses.TryAdd(ticketId, (int)row.Status);
 
             if (IsExcluded(ticketId))
             {
