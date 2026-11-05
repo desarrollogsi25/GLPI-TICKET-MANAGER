@@ -2,6 +2,7 @@
 
 > Fecha: 2026-11-05 | Ejecutor: agente automatizado (Tech Lead) | QA manual humano: **no ejecutado**
 > Commit desplegado: `main` `749a834` | PR: [#44](https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER/pull/44) | CI: [run 42085345613](https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER/actions/runs/42085345613)
+> **Actualización de entrega:** este informe cubre el despliegue de `749a834`. La entrega final (commit `433c6c2`, PR #50, tiempo real desde GLPI y QA 35/35) está en [`INFORME_FINAL_DE_ENTREGA.md`](../../INFORME_FINAL_DE_ENTREGA.md) y [`MATRIZ_QA_FINAL.md`](../../MATRIZ_QA_FINAL.md).
 
 ## 1. Resultado
 

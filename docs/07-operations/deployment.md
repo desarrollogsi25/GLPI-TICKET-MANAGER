@@ -193,3 +193,18 @@ docker compose -p sistemaopensourceglpi -f docker-compose.yml -f docker-compose.
 ```
 
 La restauración de bases (`glpi-mariadb.sql`, `app-postgres.sql`) solo procede ante un incidente de datos confirmado y requiere autorización explícita; no forma parte del rollback de código.
+
+## 9. Registro de despliegue — 2026-11-05 (main `433c6c2`, entrega final)
+
+Despliegue del PR #50 (rebase-merge) sobre el stack de demostración en LAN. No se crearon ni eliminaron volúmenes.
+
+| Elemento | Registro |
+| --- | --- |
+| Commit desplegado | `433c6c2` en `main` (PR #50, fusionado 2026-11-05T21:37Z). |
+| CI | Run [42112779010](https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER/actions/runs/42112779010): 4/4 jobs en verde; E2E 45/45, backend 57+227, gitleaks. |
+| Imágenes | API `sha256:debeed137f01…`; frontend `sha256:a64f32258f04…` (sin cambios de frontend). |
+| Respaldo de datos | `scratch/backups/2026-11-05T21-18-16Z/` con `SHA256SUMS` y restauración aislada verificada (`RESTORE_CHECK.txt`). |
+| Rollback | `sistemaopensourceglpi-api:rollback-20261105-433c6c2` y `glpi-ticket-manager-frontend:rollback-20261105-433c6c2`. |
+| Verificación | `post-deploy-verify.mjs` 9/9 antes y 9/9 después de reiniciar la pila completa. |
+
+Contenido: propagación en tiempo real de cambios de estado hechos directamente en GLPI (sondeo de `date_mod` + SignalR con audiencia limitada), sin modificar la configuración de webhooks de GLPI. Detalle en [`INFORME_FINAL_DE_ENTREGA.md`](../../INFORME_FINAL_DE_ENTREGA.md) y procedimiento en [`RUNBOOK_DESPLIEGUE_Y_ROLLBACK.md`](../../RUNBOOK_DESPLIEGUE_Y_ROLLBACK.md).
