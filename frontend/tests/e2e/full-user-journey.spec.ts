@@ -35,11 +35,16 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     await expect(glpiPage).toHaveURL(/Form\/Render\/1/)
     await glpiPage.screenshot({ path: testInfo.outputPath('glpi-form.png'), fullPage: true })
     await glpiPage.getByRole('textbox', { name: 'Asunto', exact: true }).fill(ticketTitle)
-    await glpiPage.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body').fill('Prueba completa del flujo de Hardware.')
+    const description = glpiPage.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body')
+    await description.pressSequentially('Prueba completa del flujo de Hardware.')
+    await expect(description).toContainText('Prueba completa del flujo de Hardware.')
+    await description.press('Tab')
     const category = glpiPage.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
     await category.click()
     await glpiPage.getByText(/»Hardware/).click()
-    const submission = glpiPage.waitForResponse(r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST')
+    const submission = glpiPage.waitForResponse(
+      r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST', { timeout: 20000 },
+    )
     const submitStartedAt = Date.now()
     await glpiPage.getByRole('button', { name: /Enviar/i }).click()
     const response = await submission
