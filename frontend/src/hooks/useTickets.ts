@@ -19,7 +19,6 @@ import {
   reopenTicket,
   resolveTicket,
   putPendingTicket,
-  createTicket,
   getTeamDashboard,
   getAdminDashboard,
   getAdminWatcherStatus,
@@ -277,20 +276,6 @@ export function usePutPendingMutation() {
       putPendingTicket(ticketId, { reasonId, comment }),
     onSuccess: async () => {
       await invalidateTicketCaches(queryClient)
-    },
-  })
-}
-export function useCreateTicketMutation() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (payload: { title: string; description: string; urgency?: number; categoryId?: number | null }) =>
-      createTicket(payload),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateTicketCaches(queryClient),
-        queryClient.invalidateQueries({ queryKey: ['groups', 'dashboard'] }, { cancelRefetch: false }),
-        queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] }, { cancelRefetch: false }),
-      ])
     },
   })
 }

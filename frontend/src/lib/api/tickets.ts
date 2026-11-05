@@ -5,8 +5,6 @@ import type {
   TeamMember,
   GroupDashboard,
   GroupSummary,
-  CreateTicketRequest,
-  CreateTicketResponse,
 } from '@/lib/api/types'
 
 export interface TicketListParams {
@@ -129,10 +127,6 @@ export interface PutPendingRequest {
 
 export async function putPendingTicket(id: number, payload: PutPendingRequest): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.post(`/tickets/${id}/pending`, payload)
-  return data
-}
-export async function createTicket(payload: CreateTicketRequest): Promise<CreateTicketResponse> {
-  const { data } = await apiClient.post<CreateTicketResponse>('/tickets', payload)
   return data
 }
 export async function getTeamDashboard(groupId: number): Promise<GroupDashboard> {
