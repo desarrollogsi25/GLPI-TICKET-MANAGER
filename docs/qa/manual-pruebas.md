@@ -84,3 +84,21 @@ Chromium, 2026-10-28: calendario con flecha + Enter selecciona la fecha; límite
 Tarjetas visibles a 390/767 px y tabla a 768/1440 px; ancho del documento igual al viewport en los cuatro tamaños. Un único Sol/Luna visible por viewport, sin dropdown de presets; alternancia y persistencia tras recargar verificadas. Verificación de formularios vacíos sin llamadas inválidas y éxito posterior cubierta por las pruebas E2E actualizadas, sin reducir casos.
 
 Reportes: [resumen Playwright](evidence/H64/playwright-summary.json) y [JUnit](evidence/H64/playwright-junit.xml).
+
+---
+
+## Registro de Ejecución — Misión de Finalización y QA Exploratorio (2026-11-05)
+
+| Campo | Registro |
+| --- | --- |
+| Versión evaluada | Commit `ba30eac` sobre `26a284e`, `8ec79c2` y `13968a7`, rama `main`, base `12866e6`. |
+| Responsable y método | Ejecución de agente automatizado (Playwright/Chromium headless). **No hubo QA manual humano**: no debe citarse como validación manual. Viewports 1440×900 y 390×844. |
+| QA exploratorio por rol | `frontend/tests/qa/exploratory-roles.mjs`: **142/142 comprobaciones PASS, 0 fallos**, base `http://127.0.0.1:5180` (build con `ba30eac`), 2026-11-05 18:04 UTC. 8 cuentas × 2 viewports. Evidencia: `evidence-20261105/exploratory-qa-report.json` y 16 capturas `qa-<cuenta>-<viewport>.png`. |
+| Cobertura del QA exploratorio | Landing por rol, navegación lateral y móvil, títulos de dashboard por rol, selector de grupo del admin, pestañas móviles, overflow horizontal 0, campana de notificaciones (abrir/Escape), ausencia de UI de creación de tickets para solicitante, 403 de `tech_bi` contra la cola de Desarrollo, acceso de supervisores a `/equipo`, consola sin errores y ausencia de toast falso de red. |
+| Ciclo de vida del ticket #1026 | Verificado por consulta SQL de solo lectura sobre GLPI persistente: estado 6 (Cerrado) y dos `TicketTask` reales (id 23: 2026-11-05 15:45–16:45; id 24, reprogramada: 2026-11-12 15:40–16:40, técnico 14). Capturas `lifecycle-01` a `lifecycle-11`; las `*-ERROR.png` corresponden a intentos intermedios descartados y se conservan como traza. |
+| Catálogo nativo de GLPI | Ticket #1027 «Acceso a sistema» creado desde `/ServiceCatalog`; categoría ITIL «Acceso a sistema» y asignación al grupo Service Desk (id 3), verificado por SQL. Captura `catalog-acceso-sistema.png`. |
+| Suite E2E H-20 local | **BLOCKED por recursos del host**: primer intento abortó en `globalSetup` (`page.goto('/login')` superó 30 s) con el host a 1,1 GB de RAM libre; el runner eliminó el fixture exclusivo sin residuos. La ejecución autoritativa se realiza en CI (ver fila siguiente). |
+| CI GitHub Actions | Pendiente de ejecutar sobre el PR de esta entrega; registrar aquí el run ID, los checks de backend/frontend/gitleaks y el resultado real de Playwright en el fixture H-20. |
+| Gates locales | Backend Release: 0 warnings/errores; 51 pruebas de aplicación y 217 de integración PASS. Frontend: typecheck 0, 14 pruebas unitarias PASS, build de producción correcto. `lint`: NOT_CONFIGURED (no existe script en el repositorio). |
+| PWA y Web Push | Service Worker y manifiesto presentes en el build. Notificaciones a nivel de sistema operativo: NOT_VERIFIED en esta ejecución (sin instalación de CA raíz ni dispositivo físico). |
+| Despliegue | Pendiente; se ejecutará con respaldo de bases y etiquetas de rollback tras la fusión y verificación en CI. |
