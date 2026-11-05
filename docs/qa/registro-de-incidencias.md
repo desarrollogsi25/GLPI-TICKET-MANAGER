@@ -30,4 +30,4 @@ Validación del 2026-11-05 (agente automatizado, sin QA manual humano):
 - Frontend: typecheck 0, 14 pruebas unitarias PASS y build de producción correcto.
 - QA exploratorio `frontend/tests/qa/exploratory-roles.mjs`: 142/142 comprobaciones PASS en 8 cuentas × 2 viewports (1440×900 y 390×844), incluida la regresión del toast falso de red.
 - Ticket #1026 verificado en GLPI persistente como Cerrado (estado 6) con dos `TicketTask` reales; ticket #1027 creado desde el catálogo nativo y enrutado al grupo Service Desk.
-- Suite E2E H-20: ejecución local BLOCKED por falta de memoria del host; se valida en CI, cuyo resultado se registra en `docs/qa/manual-pruebas.md` al cerrar el PR.
+- Suite E2E H-20: ejecución local BLOCKED por falta de memoria del host; validada en CI run [42083334351](https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER/actions/runs/42083334351) sobre el commit `2b1bd98`: 45/45 PASS en 3,6 min, con los cuatro jobs en verde.
