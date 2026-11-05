@@ -38,6 +38,13 @@ public sealed class TicketHub : Hub
             if (int.TryParse(userId, out var uid))
             {
                 var role = user?.GetRole() ?? AppRole.Technician;
+                if (role is not (AppRole.Technician or AppRole.Supervisor or AppRole.Admin))
+                {
+                    // Personal notifications remain available; technical group
+                    // membership alone never subscribes a requester to the queue.
+                    await base.OnConnectedAsync();
+                    return;
+                }
                 try
                 {
                     await using var connection = (DbConnection)_dbConnectionFactory.CreateConnection();

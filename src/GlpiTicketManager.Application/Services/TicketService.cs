@@ -201,7 +201,8 @@ public sealed class TicketService : ITicketService
         var canSeePrivate = await _accessPolicy.CanSeePrivateFollowupsAsync(userId, role, ticketId, cancellationToken);
         if (!canSeePrivate)
         {
-            ticket = await _tickets.GetByIdAsync(ticketId, canSeePrivate: false, cancellationToken) ?? ticket;
+            ticket = await _tickets.GetByIdAsync(ticketId, canSeePrivate: false, cancellationToken);
+            if (ticket is null) return null;
         }
 
         return ticket.ToDetail();

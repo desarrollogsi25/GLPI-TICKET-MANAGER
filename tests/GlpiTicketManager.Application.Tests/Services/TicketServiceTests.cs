@@ -51,6 +51,23 @@ public class TicketServiceTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_WhenFilteredReadDisappears_DoesNotReturnUnfilteredTicket()
+    {
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 1 });
+        _repo.Setup(r => r.GetByIdAsync(10, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Ticket?)null);
+        _accessPolicy.Setup(p => p.CanViewAsync(40, AppRole.Solicitante, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(p => p.CanSeePrivateFollowupsAsync(40, AppRole.Solicitante, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var result = await _svc.GetByIdAsync(10, 40, AppRole.Solicitante, CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
     public async Task UpdateStatusAsync_WhenTicketIdInvalid_Throws()
     {
         var act = async () => await _svc.UpdateStatusAsync(0, 2, 7, CancellationToken.None);
