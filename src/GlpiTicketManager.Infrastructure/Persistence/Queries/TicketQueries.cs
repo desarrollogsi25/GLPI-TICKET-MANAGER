@@ -21,7 +21,7 @@ public static class TicketQueries
             t.urgency           AS Urgency,
             t.impact            AS Impact,
             t.itilcategories_id AS CategoryId,
-            t.date              AS CreatedAt,
+            COALESCE(NULLIF(t.date, '0000-00-00 00:00:00'), t.date_mod) AS CreatedAt,
             t.date_mod          AS UpdatedAt,
             t.solvedate         AS SolvedAt,
             t.closedate         AS ClosedAt,
@@ -176,7 +176,7 @@ public static class TicketQueries
             CAST(COALESCE(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ExecutionTickets,
             CAST(COALESCE(SUM(CASE WHEN t.status = 3 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PlannedTickets,
             CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PausedTickets,
-            CAST(COALESCE(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END), 0) AS SIGNED)           AS PendingTickets,
+            CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PendingTickets,
             CAST(COALESCE(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS SolvedTickets,
             CAST(COALESCE(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ClosedTickets,
             CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4)
@@ -308,7 +308,7 @@ public static class TicketQueries
                 CAST(COALESCE(SUM(CASE WHEN t.status = 2 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ExecutionTickets,
                 CAST(COALESCE(SUM(CASE WHEN t.status = 3 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PlannedTickets,
                 CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PausedTickets,
-                CAST(COALESCE(SUM(CASE WHEN t.status IN (3,4) THEN 1 ELSE 0 END), 0) AS SIGNED)           AS PendingTickets,
+                CAST(COALESCE(SUM(CASE WHEN t.status = 4 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS PendingTickets,
                 CAST(COALESCE(SUM(CASE WHEN t.status = 5 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS SolvedTickets,
                 CAST(COALESCE(SUM(CASE WHEN t.status = 6 THEN 1 ELSE 0 END), 0) AS SIGNED)                AS ClosedTickets,
                 CAST(COALESCE(SUM(CASE WHEN t.status IN (1,2,3,4)

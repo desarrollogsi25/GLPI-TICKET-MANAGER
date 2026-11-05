@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace GlpiTicketManager.Application.Dtos.Tickets;
 
 /// <summary>
-/// Transition a ticket from state 2 (En proceso / asignado) or 4 (En espera) to
-/// state 3 (En proceso / planificado) by scheduling an explicit GLPI TicketTask.
+/// Transition a ticket from state 2 (Asignado) or 4 (Pendiente) to state 3
+/// (En proceso / planificado) by scheduling an explicit GLPI TicketTask.
 /// </summary>
 public sealed record PlanTicketRequest
 {
