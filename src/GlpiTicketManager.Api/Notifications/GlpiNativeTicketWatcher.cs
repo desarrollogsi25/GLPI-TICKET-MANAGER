@@ -32,6 +32,10 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
     internal int LastSeenTicketId { get; private set; } = -1;
 
+    private readonly Dictionary<int, int> _knownStatuses = new();
+    private DateTime _lastChangeScanUtc = DateTime.MinValue;
+    private bool _statusBaselineLoaded;
+
     public GlpiNativeTicketWatcher(
         IServiceScopeFactory scopeFactory,
         IDbConnectionFactory dbFactory,
@@ -46,7 +50,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         _hostEnvironment = hostEnvironment;
     }
 
-    internal sealed record NewTicketRow(long Id, string Name, long CategoryId);
+    internal sealed record NewTicketRow(long Id, string Name, long CategoryId, int Status = 1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -155,7 +159,8 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
             SELECT
                 CAST(t.id AS SIGNED) AS Id,
                 t.name AS Name,
-                CAST(t.itilcategories_id AS SIGNED) AS CategoryId
+                CAST(t.itilcategories_id AS SIGNED) AS CategoryId,
+                CAST(t.status AS SIGNED) AS Status
             FROM glpi_tickets t
             WHERE t.id > @LastId
               AND t.is_deleted = 0
@@ -173,6 +178,84 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
         // Reconcile pending tickets (late group assignments or retry tickets)
         await ReconcilePendingAsync(ct);
+
+        // Propagate status changes made directly in GLPI (e.g. a manager closing
+        // the ticket from GLPI's UI) so open Kanban boards drop the card without F5.
+        await PollExternalStatusChangesAsync(ct);
+    }
+
+    internal async Task PollExternalStatusChangesAsync(CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var tickets = scope.ServiceProvider.GetRequiredService<ITicketRepository>();
+
+        if (!_statusBaselineLoaded)
+        {
+            var snapshot = await tickets.GetTicketStatusSnapshotAsync(ct);
+            foreach (var (ticketId, status) in snapshot)
+            {
+                _knownStatuses[ticketId] = status;
+            }
+            _statusBaselineLoaded = true;
+            _lastChangeScanUtc = DateTime.UtcNow;
+            return;
+        }
+
+        var dashboardRepository = scope.ServiceProvider.GetRequiredService<IDashboardRepository>();
+        var ticketNotificationService = scope.ServiceProvider.GetRequiredService<ITicketNotificationService>();
+
+        // Overlap the window so rows sharing the same second are never skipped.
+        var since = _lastChangeScanUtc.AddSeconds(-2);
+        for (var page = 0; page < 5; page++)
+        {
+            var changes = await tickets.GetChangedTicketsSinceAsync(since, 50, ct);
+            if (changes.Count == 0)
+            {
+                _lastChangeScanUtc = DateTime.UtcNow;
+                return;
+            }
+
+            foreach (var change in changes)
+            {
+                _lastChangeScanUtc = change.ModifiedAt > _lastChangeScanUtc
+                    ? change.ModifiedAt
+                    : _lastChangeScanUtc;
+
+                var alreadyKnown = _knownStatuses.TryGetValue(change.TicketId, out var knownStatus);
+                _knownStatuses[change.TicketId] = change.Status;
+                if (alreadyKnown && knownStatus == change.Status)
+                {
+                    continue;
+                }
+
+                if (change.Status is < 1 or > 6)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var groupInfo = await dashboardRepository.GetTicketGroupAssignmentAsync(change.TicketId, ct);
+                    if (groupInfo?.GroupId is not > 0)
+                    {
+                        continue;
+                    }
+
+                    await ticketNotificationService.NotifyExternalTicketStatusChangedAsync(
+                        change.TicketId, change.Status, change.AssigneeId, groupInfo.GroupId, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "External status propagation skipped for ticket {TicketId}", change.TicketId);
+                }
+            }
+
+            if (changes.Count < 50)
+            {
+                return;
+            }
+            since = changes[^1].ModifiedAt;
+        }
     }
 
     internal async Task ProcessBatchAsync(IReadOnlyList<NewTicketRow> newTickets, CancellationToken ct)
@@ -193,6 +276,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         {
             var ticketId = (int)row.Id;
             var categoryId = (int)row.CategoryId;
+            _knownStatuses.TryAdd(ticketId, row.Status);
 
             if (IsExcluded(ticketId))
             {

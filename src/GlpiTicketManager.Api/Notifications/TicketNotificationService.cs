@@ -85,6 +85,25 @@ public sealed class TicketNotificationService : ITicketNotificationService
             await _hubContext.Clients.Groups(targets).SendAsync("SolutionAdded", payload, ct);
     }
 
+    public async Task NotifyExternalTicketStatusChangedAsync(
+        int ticketId, int newStatus, int? assigneeId, int groupId, CancellationToken ct = default)
+    {
+        if (ticketId <= 0 || groupId <= 0)
+        {
+            _logger.LogWarning("Skipped unscoped external change for ticket {TicketId}", ticketId);
+            return;
+        }
+
+        // An external GLPI edit is not a user-scoped action. Group members may only
+        // learn about tickets still in their unassigned queue; once a colleague owns
+        // the ticket the audience narrows to that assignee and the group supervisors.
+        var targets = new List<string> { $"supervisors-{groupId}" };
+        targets.Add(assigneeId is > 0 ? $"user-{assigneeId.Value}" : $"group-{groupId}");
+
+        var payload = new { ticketId, newStatus, assigneeId, groupId, timestamp = DateTime.UtcNow };
+        await _hubContext.Clients.Groups(targets).SendAsync("TicketStatusChanged", payload, ct);
+    }
+
     public async Task NotifyTicketCreatedAsync(int ticketId, int? groupId, CancellationToken ct = default)
     {
         groupId ??= await GetGroupIdForTicketAsync(ticketId, ct);

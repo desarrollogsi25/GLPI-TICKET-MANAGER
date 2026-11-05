@@ -6,4 +6,11 @@ public interface ITicketNotificationService
     Task NotifyTicketStatusChangedAsync(int ticketId, int newStatus, int? assigneeId, CancellationToken ct = default);
     Task NotifySolutionAddedAsync(int ticketId, int authorUserId, CancellationToken ct = default);
     Task NotifyTicketCreatedAsync(int ticketId, int? groupId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Broadcasts a status change made directly in GLPI. Only the assignee (or the
+    /// group queue when unassigned) and the group supervisors are targeted.
+    /// </summary>
+    Task NotifyExternalTicketStatusChangedAsync(
+        int ticketId, int newStatus, int? assigneeId, int groupId, CancellationToken ct = default);
 }

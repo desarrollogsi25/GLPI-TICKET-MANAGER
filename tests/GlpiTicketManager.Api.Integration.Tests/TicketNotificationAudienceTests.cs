@@ -69,6 +69,32 @@ public class TicketNotificationAudienceTests
     }
 
     [Fact]
+    public async Task ExternalChange_UnassignedTicket_TargetsGroupQueueAndSupervisors()
+    {
+        await _service.NotifyExternalTicketStatusChangedAsync(11, 6, null, 1);
+        _targets.Should().ContainSingle().Which.Should().BeEquivalentTo("group-1", "supervisors-1");
+        _proxy.Verify(p => p.SendCoreAsync("TicketStatusChanged", It.IsAny<object?[]>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _clients.VerifyGet(c => c.All, Times.Never);
+    }
+
+    [Fact]
+    public async Task ExternalChange_AssignedTicket_NeverLeaksToGroupPeers()
+    {
+        await _service.NotifyExternalTicketStatusChangedAsync(11, 6, 7, 1);
+        _targets.Should().ContainSingle().Which.Should().BeEquivalentTo("user-7", "supervisors-1");
+        _clients.VerifyGet(c => c.All, Times.Never);
+    }
+
+    [Fact]
+    public async Task ExternalChange_WithoutGroup_IsDropped()
+    {
+        await _service.NotifyExternalTicketStatusChangedAsync(11, 6, 7, 0);
+        _targets.Should().BeEmpty();
+        _proxy.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task Creation_UsesOneSendAcrossOverlappingAuthorizedGroups()
     {
         await _service.NotifyTicketCreatedAsync(11, 1);
