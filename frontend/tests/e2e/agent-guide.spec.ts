@@ -6,8 +6,11 @@ test('Ayuda muestra la guia del agente', async ({ page }) => {
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByText('Guía del agente')).toBeVisible({ timeout: 10000 })
+  // Los tickets se crean exclusivamente en GLPI: la guía no ofrece crearlos aquí.
+  await expect(page.getByText('Los tickets se crean en GLPI')).toBeVisible()
+  await expect(page.getByText('3. Crear un ticket')).toHaveCount(0)
   await expect(page.getByText('1. Ver tu cola')).toBeVisible()
   await expect(page.getByText('2. Asignarte un ticket')).toBeVisible()
-  await expect(page.getByText('3. Crear un ticket')).toBeVisible()
+  await expect(page.getByText('3. Planificar')).toBeVisible()
   await expect(page.getByText('4. Resolver un ticket')).toBeVisible()
 })
