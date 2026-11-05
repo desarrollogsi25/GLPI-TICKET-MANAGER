@@ -19,6 +19,9 @@ export function TechnicianFilter() {
   const selectedAssignee = useSelectedAssignee()
   const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const currentUserId = useAuthStore((state) => state.user?.userId ?? null)
+  const currentUserName = useAuthStore(
+    (state) => state.user?.displayName || state.user?.username || null,
+  )
   const { data: stats } = useDashboardStatsQuery()
 
   const ids = new Set<number>()
@@ -51,7 +54,10 @@ export function TechnicianFilter() {
           { value: '', label: 'Selecciona un técnico' },
           ...options.map((id) => ({
             value: String(id),
-            label: `Técnico #${id}${id === currentUserId ? ' (yo)' : ''}`,
+            label:
+              id === currentUserId && currentUserName
+                ? `${currentUserName} (yo)`
+                : `Técnico #${id}`,
           })),
         ]}
       />

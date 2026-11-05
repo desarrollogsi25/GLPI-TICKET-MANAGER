@@ -331,32 +331,23 @@ export function PreferencesPage() {
 
           {!isLoading && !isError && (
             <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-              {/* Selector semántico accesible / compatibilidad de formulario */}
-              <select
-                name="theme"
-                id="theme"
-                value={theme}
-                onChange={(e) => autoSaveTheme(e.target.value as 'light' | 'dark')}
-                className="sr-only"
-                aria-label="Tema de la interfaz"
-              >
-                <option value="light">Claro</option>
-                <option value="dark">Oscuro</option>
-              </select>
-
               {/* Selector de Tema con Tarjetas Interactivas */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Tema de la interfaz</Label>
-                  <span className="text-xs text-muted-foreground font-medium">
+                  <Label htmlFor="theme-light" className="text-sm font-semibold">Tema de la interfaz</Label>
+                  <span className="text-xs text-muted-foreground font-medium" aria-live="polite">
                     {theme === 'dark' ? 'Modo Oscuro activo' : 'Modo Claro activo'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Tema de la interfaz">
                   {/* Tarjeta Tema Claro */}
                   <button
                     type="button"
+                    id="theme-light"
+                    role="radio"
+                    aria-checked={theme === 'light'}
+                    data-testid="theme-option-light"
                     onClick={() => autoSaveTheme('light')}
                     className={cn(
                       'group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
@@ -388,6 +379,10 @@ export function PreferencesPage() {
                   {/* Tarjeta Tema Oscuro */}
                   <button
                     type="button"
+                    id="theme-dark"
+                    role="radio"
+                    aria-checked={theme === 'dark'}
+                    data-testid="theme-option-dark"
                     onClick={() => autoSaveTheme('dark')}
                     className={cn(
                       'group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',

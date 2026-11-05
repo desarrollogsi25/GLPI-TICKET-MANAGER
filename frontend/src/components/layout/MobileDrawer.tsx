@@ -88,16 +88,20 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
   const prefersReduced = useReducedMotion()
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
-  const { isAdmin, isSupervisor } = useRole()
+  const { isAdmin, isSupervisor, isRequester } = useRole()
   const logout = useLogout()
   const profile = currentUser ?? storedUser
   const drawerRef = useRef<HTMLDivElement>(null)
 
-  const visibleItems = drawerNavItems.filter((item) => {
-    if (item.adminOnly) return isAdmin
-    if (item.supervisorOrAdmin) return isAdmin || isSupervisor
-    return true
-  })
+  const visibleItems = isRequester
+    ? drawerNavItems
+        .filter((item) => item.to === '/tickets' || item.to === '/preferences' || item.to === '/ayuda')
+        .map((item) => (item.to === '/tickets' ? { ...item, label: 'Mis tickets' } : item))
+    : drawerNavItems.filter((item) => {
+        if (item.adminOnly) return isAdmin
+        if (item.supervisorOrAdmin) return isAdmin || isSupervisor
+        return true
+      })
 
   useEffect(() => {
     if (isOpen) {

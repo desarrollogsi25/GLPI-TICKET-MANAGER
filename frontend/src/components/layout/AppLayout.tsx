@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery } from '@/hooks/useAuth'
 import { showNativeNotification, useAutomaticNotificationPermission } from '@/hooks/useAutomaticNotificationPermission'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
+import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { AppSidebar } from './AppSidebar'
@@ -41,9 +42,12 @@ export function AppLayout() {
   })
 
   const location = useLocation()
+  const { isRequester } = useRole()
+  const homePath = isRequester ? '/tickets' : '/kanban'
   const pathSegments = location.pathname.split('/').filter(Boolean)
   const routeLabels: Record<string, string> = {
-    kanban: 'Mis tickets', queue: 'Cola del grupo', tickets: 'Tickets',
+    kanban: 'Mis tickets', queue: 'Cola del grupo',
+    tickets: isRequester ? 'Mis tickets' : 'Tickets',
     equipo: 'Mi Equipo', dashboard: 'Dashboard', administracion: 'Administración',
     preferences: 'Preferencias', services: 'Servicios', ayuda: 'Ayuda',
   }
@@ -150,7 +154,7 @@ export function AppLayout() {
       </header>
 
       <nav aria-label="Breadcrumb global" className="flex md:hidden items-center gap-1.5 border-b border-border/40 bg-card px-4 py-2 text-xs text-muted-foreground">
-        <Link to="/kanban">Inicio</Link><ChevronRight className="size-3" aria-hidden="true" />
+        <Link to={homePath}>Inicio</Link><ChevronRight className="size-3" aria-hidden="true" />
         <span aria-current="page">{currentPage}</span>
       </nav>
       {/* 3. Desktop Top Header + Main Content Area */}
@@ -172,7 +176,7 @@ export function AppLayout() {
             className="flex items-center gap-1.5 text-xs text-muted-foreground"
           >
             <Link
-              to="/kanban"
+              to={homePath}
               className="font-medium text-muted-foreground hover:text-foreground transition-colors duration-150"
             >
               Inicio

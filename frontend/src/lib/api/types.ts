@@ -3,7 +3,7 @@
  * Source of truth: src/GlpiTicketManager.Application/Dtos
  */
 
-export type AppRole = 'technician' | 'supervisor' | 'admin'
+export type AppRole = 'solicitante' | 'technician' | 'supervisor' | 'admin'
 
 export interface UserProfile {
   userId: number

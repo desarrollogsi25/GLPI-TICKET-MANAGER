@@ -48,7 +48,7 @@ export function NotificationBell({
   const queryClient = useQueryClient()
   const sessionValid = useIsSessionValid()
 
-  // Cerrar al hacer clic fuera del contenedor
+  // Cerrar al hacer clic fuera del contenedor o con Escape
   useEffect(() => {
     if (!open) return
 
@@ -57,10 +57,15 @@ export function NotificationBell({
         setOpen(false)
       }
     }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
 
     document.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('keydown', handleKeyDown)
     }
   }, [open])
 
@@ -136,6 +141,19 @@ export function NotificationBell({
     },
   })
 
+  const markAllAsRead = async () => {
+    // Instant feedback; the invalidation below reconciles with the server.
+    queryClient.setQueryData<Notification[]>(['notifications', 'list'], (prev) =>
+      (prev ?? []).map((n) => ({ ...n, read: true, isRead: true })),
+    )
+    queryClient.setQueryData(['notifications', 'unread-count'], 0)
+    try {
+      await apiClient.put('/notifications/read-all')
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    }
+  }
+
   const handleToggle = () => {
     const nextOpen = !open
     setOpen(nextOpen)
@@ -178,6 +196,8 @@ export function NotificationBell({
         size="sm"
         onClick={handleToggle}
         aria-label="Notificaciones"
+        aria-haspopup="dialog"
+        aria-expanded={open}
         data-testid={testId}
         className="relative h-9 w-9 p-0 rounded-lg"
       >
@@ -228,9 +248,9 @@ export function NotificationBell({
                 ? { duration: 0 }
                 : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
             }
-            className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-96 overflow-y-auto custom-scrollbar origin-top-right rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md text-card-foreground shadow-2xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 sm:w-[24rem] max-w-[calc(100vw-1.5rem)] overflow-hidden origin-top-right rounded-2xl bg-card/95 backdrop-blur-md text-card-foreground shadow-2xl ring-1 ring-border/50 z-50"
           >
-            <div className="p-3 border-b border-border/50 flex items-center justify-between bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
+            <div className="px-3.5 py-3 flex items-center justify-between bg-muted/40 backdrop-blur-md">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
                   Notificaciones
@@ -246,15 +266,8 @@ export function NotificationBell({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-[11px] h-6 px-2 gap-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg"
-                    onClick={async () => {
-                      try {
-                        await apiClient.put('/notifications/read-all')
-                        void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-                      } catch {
-                        // ignore
-                      }
-                    }}
+                    className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg"
+                    onClick={() => void markAllAsRead()}
                   >
                     <CheckCheck className="size-3" />
                     Marcar leídas
@@ -268,7 +281,7 @@ export function NotificationBell({
                 <p className="text-xs text-muted-foreground">Sin notificaciones recientes.</p>
               </div>
             ) : (
-              <ul className="p-2 space-y-1.5 list-none border-0 divide-none">
+              <ul className="p-2 space-y-1.5 list-none border-0 divide-none max-h-[min(22rem,calc(100vh-12rem))] overflow-y-auto custom-scrollbar overscroll-contain">
                 {uniqueNotifications.map((n) => {
                   const isUnread = !n.read && !n.isRead
                   return (

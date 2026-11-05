@@ -10,10 +10,12 @@ import { useUiStore } from '@/store/uiStore'
  */
 export function useSelectedAssignee(): number | null {
   const userId = useAuthStore((state) => state.user?.userId ?? null)
-  const role = useAuthStore((state) => state.role ?? state.user?.role ?? 'technician')
+  const role = useAuthStore((state) => state.user?.role ?? state.role ?? 'technician')
   const selectedAssigneeId = useUiStore((state) => state.selectedAssigneeId)
 
-  if (role === 'technician') {
+  // Requesters see tickets they opened; the API forces requester scope for that
+  // role, so a stale technician selection must never leak into their view.
+  if (role === 'technician' || role === 'solicitante') {
     return userId
   }
 

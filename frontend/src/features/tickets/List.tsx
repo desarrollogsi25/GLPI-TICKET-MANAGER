@@ -106,7 +106,7 @@ const EMPTY_TICKETS: TicketSummary[] = []
 export function List() {
   const [searchParams] = useSearchParams()
   const isMobile = useIsMobile()
-  const { isTechnician } = useRole()
+  const { isTechnician, isRequester } = useRole()
   const serviceIdParam = searchParams.get('serviceId')
   const serviceId = serviceIdParam ? parseInt(serviceIdParam, 10) : null
 
@@ -341,20 +341,24 @@ export function List() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Tickets"
+        title={isRequester ? 'Mis tickets' : 'Tickets'}
         description={
           serviceId
             ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
-            : isTechnician
+            : isRequester
               ? data
-                ? `${data.total} ticket(s) asignados a vos.`
-                : 'Tus tickets asignados'
-              : data
-                ? `${data.total} ticket(s) para el técnico seleccionado.`
-                : 'Listado de tickets'
+                ? `${data.total} ticket(s) abiertos por vos.`
+                : 'Tickets que abriste en GLPI'
+              : isTechnician
+                ? data
+                  ? `${data.total} ticket(s) asignados a vos.`
+                  : 'Tus tickets asignados'
+                : data
+                  ? `${data.total} ticket(s) para el técnico seleccionado.`
+                  : 'Listado de tickets'
         }
-        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Tickets' }]}
-        actions={serviceId == null && !isTechnician ? <TechnicianFilter /> : undefined}
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: isRequester ? 'Mis tickets' : 'Tickets' }]}
+        actions={serviceId == null && !isTechnician && !isRequester ? <TechnicianFilter /> : undefined}
       />
 
       {serviceId != null && (
@@ -375,9 +379,11 @@ export function List() {
 
       {assigneeId == null && serviceId == null ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {isTechnician
-            ? 'No hay tickets asignados a tu usuario.'
-            : 'Selecciona un técnico o servicio para ver tickets.'}
+          {isRequester
+            ? 'No tenés tickets registrados en GLPI.'
+            : isTechnician
+              ? 'No hay tickets asignados a tu usuario.'
+              : 'Selecciona un técnico o servicio para ver tickets.'}
         </p>
       ) : (
         <>
