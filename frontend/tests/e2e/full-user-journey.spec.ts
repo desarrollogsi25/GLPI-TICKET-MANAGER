@@ -15,7 +15,10 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   if (!REQUESTER_PASSWORD || !TECH_PASSWORD || !ADMIN_PASSWORD) {
     throw new Error('Configura E2E_REQUESTER_PASSWORD, E2E_TECH_PASSWORD y E2E_ADMIN_PASSWORD en el entorno de pruebas.')
   }
-  test.setTimeout(120000)
+  // Two native submissions and six browser contexts; Windows trace shows the
+  // functional assertions finish but video/context teardown exceeds 120s.
+  // Individual navigation/action/realtime deadlines remain unchanged.
+  test.setTimeout(180000)
   const title = `E2E demo Hardware ${Date.now()}`
   const serviceDesk = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const page = await serviceDesk.newPage()
@@ -34,19 +37,23 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     await glpiPage.getByRole('link', { name: /Reportar un problema|Reportar una incidencia general/ }).last().click()
     await expect(glpiPage).toHaveURL(/Form\/Render\/1/)
     await glpiPage.screenshot({ path: testInfo.outputPath('glpi-form.png'), fullPage: true })
-    await glpiPage.getByRole('textbox', { name: 'Asunto', exact: true }).fill(ticketTitle)
-    const description = glpiPage.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body')
-    await description.pressSequentially('Prueba completa del flujo de Hardware.')
-    await expect(description).toContainText('Prueba completa del flujo de Hardware.')
-    await description.press('Tab')
+    const submitButton = glpiPage.getByRole('button', { name: /Enviar/i })
     const category = glpiPage.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
     await category.click()
     await glpiPage.getByText(/»Hardware/).click()
+    await expect(submitButton).toBeEnabled()
+    await glpiPage.getByRole('textbox', { name: 'Asunto', exact: true }).fill(ticketTitle)
+    await expect(submitButton).toBeEnabled()
+    const description = glpiPage.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body')
+    await description.pressSequentially('Prueba completa del flujo de Hardware.', { delay: 10 })
+    await description.press('Tab')
+    await expect(submitButton).toBeEnabled()
+    await expect(description).toContainText('Prueba completa del flujo de Hardware.')
     const submission = glpiPage.waitForResponse(
       r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST', { timeout: 20000 },
     )
     const submitStartedAt = Date.now()
-    await glpiPage.getByRole('button', { name: /Enviar/i }).click()
+    await submitButton.click()
     const response = await submission
     const responseReceivedAt = Date.now()
     expect(response.status()).toBeLessThan(400)

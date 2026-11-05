@@ -6,7 +6,8 @@ import { resetFixtureTicket } from './support/ticket-fixtures'
 
 test('requester technical membership cannot receive queue events through automatic or explicit hub groups', async ({ request }) => {
   test.setTimeout(60000)
-  const api = fixtureUrl('api')
+  // Exercise the same verified frontend proxy used by browser API/WebSocket calls.
+  const api = fixtureUrl('desk')
   const requesterPassword = process.env.E2E_REQUESTER_PASSWORD
   const technicianPassword = process.env.E2E_TECH_PASSWORD
   if (!requesterPassword || !technicianPassword || process.env.E2E_REQUESTER_USERNAME !== 'user1')
