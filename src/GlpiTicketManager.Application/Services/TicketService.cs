@@ -463,6 +463,15 @@ public sealed class TicketService : ITicketService
                 "El estado Planificado requiere programar una tarea con fechas. Usa POST /api/tickets/{id}/plan.");
         }
 
+        // Authorize before any workflow-state validation. The checks below return 422
+        // for state-dependent rejections; running them first let an unauthorized
+        // caller infer the ticket's status from the response code.
+        if (!await _accessPolicy.CanAttemptStatusChangeAsync(userId, role, ticketId, cancellationToken))
+        {
+            throw new ForbiddenException(
+                $"User {userId} cannot modify status of ticket {ticketId} to {status}");
+        }
+
         // H-39: a Waiting (4) ticket cannot be resolved (5) or closed (6) directly. The
         // check must run BEFORE the solution insert below: otherwise a rejected request
         // would still write a solution (and GLPI would auto-solve the ticket as a side
@@ -834,6 +843,13 @@ public sealed class TicketService : ITicketService
             throw new NotFoundException($"Ticket {ticketId} not found.");
         }
 
+        // Authorize before the state checks: otherwise an out-of-scope caller got a
+        // 409 that disclosed the ticket's status and assignee link.
+        if (!await _accessPolicy.CanClaimAsync(userId, role, ticketId, cancellationToken))
+        {
+            throw new ForbiddenException($"User {userId} cannot claim ticket {ticketId}");
+        }
+
         // A ticket routed to a group by a GLPI business rule is stored as
         // "Assigned" (2) even though no technician owns it yet, so both 1 and 2
         // are claimable as long as there is no technician link (checked below).
@@ -849,11 +865,6 @@ public sealed class TicketService : ITicketService
         if (links != null && links.Any(l => l.Type == (int)TicketUserType.Assigned))
         {
             throw new ConflictException("El ticket ya está asignado a un técnico.");
-        }
-
-        if (!await _accessPolicy.CanClaimAsync(userId, role, ticketId, cancellationToken))
-        {
-            throw new ForbiddenException($"User {userId} cannot claim ticket {ticketId}");
         }
 
         var claimed = await _tickets.ClaimAsync(ticketId, userId, userId, cancellationToken);

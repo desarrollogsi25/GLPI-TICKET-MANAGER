@@ -38,6 +38,11 @@ public class TicketServiceTests
         _planningRequests.Setup(s => s.AcquireTechnicianScheduleLockAsync(
                 It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EmptyScheduleLease());
+        // Default: the caller passed the identity gate; individual tests override the
+        // transition graph through EvaluateStatusTransitionAsync as before.
+        _accessPolicy.Setup(p => p.CanAttemptStatusChangeAsync(
+                It.IsAny<int>(), It.IsAny<AppRole>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         _svc = new TicketService(
             _repo.Object,
             _glpi.Object,
@@ -414,6 +419,7 @@ public class TicketServiceTests
     {
         var ticket = new Ticket { Id = 10, Status = (int)TicketStatus.Planned };
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
 
@@ -428,6 +434,7 @@ public class TicketServiceTests
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
         _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { new TicketUser { TicketId = 10, UserId = 99, Type = (int)TicketUserType.Assigned } });
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
 
@@ -447,6 +454,49 @@ public class TicketServiceTests
         var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_WhenCallerCannotChangeStatus_ThrowsForbiddenBeforeStateValidation()
+    {
+        // A Waiting ticket resolved directly used to return 422 before authorization,
+        // disclosing the ticket state to an out-of-scope caller.
+        _accessPolicy.Setup(a => a.CanAttemptStatusChangeAsync(
+                7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Name = "Ticket 10", Status = (int)TicketStatus.Waiting });
+
+        var act = async () => await _svc.UpdateStatusAsync(
+            10, (int)TicketStatus.Solved, 7, AppRole.Technician, null, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _accessPolicy.Verify(a => a.EvaluateStatusTransitionAsync(
+            It.IsAny<int>(), It.IsAny<AppRole>(), It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _glpi.Verify(g => g.CreateSolutionAsync(It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ClaimAsync_WhenCallerCannotClaim_ThrowsForbiddenBeforeStateChecks()
+    {
+        // A ticket in a non-claimable state used to return 409 to an out-of-scope
+        // caller before CanClaimAsync ran.
+        var ticket = new Ticket { Id = 10, Status = (int)TicketStatus.Planned };
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _repo.Verify(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _repo.Verify(r => r.ClaimAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -22,6 +22,13 @@ public interface ITicketAccessPolicy
     Task<bool> CanModifyStatusAsync(int userId, AppRole role, int ticketId, int newStatus, CancellationToken ct = default);
 
     /// <summary>
+    /// Identity/relationship gate for status changes, independent of the ticket's
+    /// current state. It runs before workflow-state validation so an unauthorized
+    /// caller always receives 403 and cannot infer the ticket's status from a 422.
+    /// </summary>
+    Task<bool> CanAttemptStatusChangeAsync(int userId, AppRole role, int ticketId, CancellationToken ct = default);
+
+    /// <summary>
     /// Evaluates a status transition for the given role and returns a decision with a
     /// clear reason when the transition is rejected (business rules: technicians cannot
     /// reopen resolved/closed tickets nor move work backwards to New).
@@ -104,6 +111,31 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
     {
         var decision = await EvaluateStatusTransitionAsync(userId, role, ticketId, newStatus, ct);
         return decision.Allowed;
+    }
+
+    public async Task<bool> CanAttemptStatusChangeAsync(
+        int userId,
+        AppRole role,
+        int ticketId,
+        CancellationToken ct = default)
+    {
+        if (role == AppRole.Admin) return true;
+
+        if (role == AppRole.Supervisor)
+        {
+            if (await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct))
+                return true;
+
+            var supervisorGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);
+            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return supervisorGroups.Intersect(ticketGroups).Any();
+        }
+
+        // Requesters and any other role never change status, and a technician may
+        // only act on their own assignment (H-03: group membership is queue
+        // visibility, not ownership).
+        return role == AppRole.Technician
+            && await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, ct);
     }
 
     /// <summary>
