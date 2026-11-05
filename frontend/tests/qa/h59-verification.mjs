@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { requireCred } from './credentials.mjs'
 
 const BASE_URL = 'http://localhost:5173'
 const ARTIFACTS_DIR = 'C:/Users/DEVELOPMENT/.gemini/antigravity/brain/b7cf4c52-ac34-4fb8-adea-ad4684ac81f1'
@@ -42,7 +43,7 @@ async function run() {
     // 2. Probar Push en iOS no-standalone (muestra toast instructivo)
     console.log('[2/3] Probando Push en navegador iOS (modo no-standalone)...')
     await mobilePage.fill('input[type="text"], input[name="username"]', 'tech1')
-    await mobilePage.fill('input[type="password"]', 'Tech1Pass!')
+    await mobilePage.fill('input[type="password"]', requireCred('tech1'))
     await mobilePage.click('button[type="submit"]')
     await mobilePage.waitForURL('**/kanban**', { timeout: 15000 })
     await mobilePage.waitForLoadState('networkidle')

@@ -6,10 +6,10 @@
 import { chromium } from '@playwright/test'
 import { mkdirSync, writeFileSync, copyFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { requireCred } from './credentials.mjs'
 
 const BASE = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
 const GLPI = process.env.E2E_GLPI_URL ?? 'http://localhost:8081'
-const PASSWORD = 'Password123!'
 const ARTIFACTS_DIR = 'C:/Users/DEVELOPMENT/.gemini/antigravity/brain/b7cf4c52-ac34-4fb8-adea-ad4684ac81f1'
 const OUT = resolve(process.cwd(), '../docs/qa/evidencias-h41')
 mkdirSync(OUT, { recursive: true })
@@ -31,7 +31,7 @@ async function saveScreenshot(page, filename) {
   copyFileSync(outPath, artPath)
 }
 
-async function createSession(browser, username, password = PASSWORD) {
+async function createSession(browser, username, password = requireCred(username)) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   const errors = { console: [], http: [], requestFailed: [] }
@@ -101,7 +101,7 @@ try {
     await glpiPage.locator('#login_name').click()
     await glpiPage.locator('#login_name').fill('user_test')
     await glpiPage.locator('#login_password').click()
-    await glpiPage.locator('#login_password').fill(PASSWORD)
+    await glpiPage.locator('#login_password').fill(requireCred('user_test'))
     await glpiPage.locator('button[type="submit"]').click()
   }
 

@@ -8,8 +8,8 @@
 - **GLPI nativo 11.0.11** → `http://10.10.40.25:8081` (contenedor `glpi`)
 
 **Usuarios:**
-- Solicitante: `solicitante_test` / `Soli123!`
-- Técnico: `tecnico_test1` / `Tec123!`
+- Solicitante: `solicitante_test` / `<redactada>`
+- Técnico: `tecnico_test1` / `<redactada>`
 
 **Método:** Interacción exclusivamente por GUI (clic, escritura, teclado real). **Sin SQL, sin `curl`, sin inyección de datos por API.** Toda la evidencia proviene de capturas de pantalla, árbol de accesibilidad, inspección de red (peticiones realmente emitidas por la app) y consola del navegador.
 

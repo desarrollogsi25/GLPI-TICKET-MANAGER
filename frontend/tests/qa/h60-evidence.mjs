@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
+import { requireCred } from './credentials.mjs'
 
 const evidenceDir = path.resolve('docs/qa/evidencias-h60')
 const artifactDir = 'C:\\Users\\DEVELOPMENT\\.gemini\\antigravity\\brain\\b7cf4c52-ac34-4fb8-adea-ad4684ac81f1'
@@ -21,7 +22,7 @@ async function capture() {
   // Login
   await page.goto('http://localhost:5173/login')
   await page.fill('input[type="text"], input[name="username"]', 'tech1')
-  await page.fill('input[type="password"]', 'tech1')
+  await page.fill('input[type="password"]', requireCred('tech1'))
   await page.click('button[type="submit"]')
   await page.waitForURL('http://localhost:5173/**', { timeout: 10000 })
   await page.waitForTimeout(1000)
@@ -72,7 +73,7 @@ async function capture() {
 
   await mobilePage.goto('http://localhost:5173/login')
   await mobilePage.fill('input[type="text"], input[name="username"]', 'tech1')
-  await mobilePage.fill('input[type="password"]', 'tech1')
+  await mobilePage.fill('input[type="password"]', requireCred('tech1'))
   await mobilePage.click('button[type="submit"]')
   await mobilePage.waitForURL('http://localhost:5173/**', { timeout: 10000 })
   await mobilePage.waitForTimeout(1000)

@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { requireCred } from './credentials.mjs'
 
 const BASE_URL = 'http://localhost:5173'
 const ARTIFACTS_DIR = 'C:/Users/DEVELOPMENT/.gemini/antigravity/brain/b7cf4c52-ac34-4fb8-adea-ad4684ac81f1'
@@ -21,7 +22,7 @@ async function run() {
     console.log('[1/4] Autenticando tech1...')
     await page.goto(`${BASE_URL}/login`)
     await page.fill('input[type="text"], input[name="username"]', 'tech1')
-    await page.fill('input[type="password"]', 'Tech1Pass!')
+    await page.fill('input[type="password"]', requireCred('tech1'))
     await page.click('button[type="submit"]')
     await page.waitForURL('**/kanban', { timeout: 15000 })
     console.log('✓ Login correcto en Kanban')
