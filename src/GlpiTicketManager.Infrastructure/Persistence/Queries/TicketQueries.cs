@@ -74,57 +74,12 @@ public static class TicketQueries
         WHERE tu.users_id = @AssigneeId
           AND tu.type = 2
           AND t.is_deleted = 0
-        ORDER BY t.date ASC
+        ORDER BY t.date ASC, t.id ASC
         LIMIT @Limit OFFSET @Offset;
         """;
 
-    public const string UnassignedByGroup = """
-        SELECT
-            t.id                AS Id,
-            t.name              AS Name,
-            t.content           AS Content,
-            t.status            AS Status,
-            t.type              AS Type,
-            t.priority          AS Priority,
-            t.urgency           AS Urgency,
-            t.impact            AS Impact,
-            t.itilcategories_id AS CategoryId,
-            t.date              AS CreatedAt,
-            t.date_mod          AS UpdatedAt,
-            t.solvedate         AS SolvedAt,
-            t.closedate         AS ClosedAt,
-            t.is_deleted        AS IsDeleted,
-            (SELECT COUNT(*) > 0
-             FROM glpi_itilsolutions s
-             WHERE s.itemtype = 'Ticket'
-               AND s.items_id = t.id) AS HasSolution,
-            (SELECT MIN(tt.`begin`)
-             FROM glpi_tickettasks tt
-             WHERE tt.tickets_id = t.id
-               AND tt.state = 1
-               AND tt.`begin` IS NOT NULL) AS NextPlannedAt,
-            (SELECT tt.users_id_tech
-             FROM glpi_tickettasks tt
-             WHERE tt.tickets_id = t.id
-               AND tt.state = 1
-               AND tt.`begin` IS NOT NULL
-             ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedTechnicianId,
-            (SELECT tt.actiontime
-             FROM glpi_tickettasks tt
-             WHERE tt.tickets_id = t.id
-               AND tt.state = 1
-               AND tt.`begin` IS NOT NULL
-             ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedDuration,
-            (SELECT tt.content
-             FROM glpi_tickettasks tt
-             WHERE tt.tickets_id = t.id
-               AND tt.state = 1
-               AND tt.`begin` IS NOT NULL
-             ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedComment
-        FROM glpi_tickets t
+    public const string UnassignedByGroup = BaseProjection + """
+
         INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id
         WHERE gt.groups_id = @GroupId
           AND gt.type = 2
@@ -134,7 +89,7 @@ public static class TicketQueries
             SELECT 1 FROM glpi_tickets_users tu
             WHERE tu.tickets_id = t.id AND tu.type = 2
           )
-        ORDER BY t.date DESC
+        ORDER BY t.date DESC, t.id DESC
         LIMIT @Limit OFFSET @Offset;
         """;
 

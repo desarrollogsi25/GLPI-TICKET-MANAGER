@@ -304,7 +304,7 @@ public sealed class TicketRepository : ITicketRepository
             // Active work is listed oldest-first (FIFO); resolved/closed tickets are
             // pushed to the end and listed most-recent-first (LIFO). The Kanban re-sorts
             // per column, but this keeps the flat list predictable too.
-            sql.AppendLine("ORDER BY (t.status >= 5) ASC, CASE WHEN t.status >= 5 THEN 0 ELSE t.date END ASC, CASE WHEN t.status >= 5 THEN t.date ELSE NULL END DESC");
+            sql.AppendLine("ORDER BY (t.status >= 5) ASC, CASE WHEN t.status >= 5 THEN 0 ELSE t.date END ASC, CASE WHEN t.status >= 5 THEN t.date ELSE NULL END DESC, t.id ASC");
             sql.AppendLine("LIMIT @Limit OFFSET @Offset;");
             parameters.Add("Limit", limit.Value);
             parameters.Add("Offset", offset.Value);

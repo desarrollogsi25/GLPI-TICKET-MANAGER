@@ -10,7 +10,8 @@ services:
       - "127.0.0.1:5173:80"
     volumes: !override
       - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./infra/nginx/certs:/etc/nginx/certs:ro
+      - ./infra/nginx/certs/server.crt:/etc/nginx/certs/server.crt:ro
+      - ./infra/nginx/certs/server.key:/etc/nginx/certs/server.key:ro
 
   lan-frontend:
     image: glpi-ticket-manager-frontend:local
@@ -22,6 +23,7 @@ services:
       - "0.0.0.0:443:443"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./infra/nginx/certs:/etc/nginx/certs:ro
+      - ./infra/nginx/certs/server.crt:/etc/nginx/certs/server.crt:ro
+      - ./infra/nginx/certs/server.key:/etc/nginx/certs/server.key:ro
     depends_on:
       - frontend

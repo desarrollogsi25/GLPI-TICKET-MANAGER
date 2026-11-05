@@ -55,30 +55,21 @@ docker compose up -d --build
 
 > **Detener los servicios:**  
 > - Detener contenedores manteniendo volúmenes y datos: `docker compose down`  
-> - Detener y reiniciar limpiando volúmenes: `docker compose down -v`
+> - Conserva los volúmenes existentes; no borres datos para resolver problemas de arranque.
 
 ---
 
-## Credenciales de prueba
+## Cuentas y credenciales locales
 
-Para facilitar las pruebas funcionales, QA y evaluación del sistema, se encuentran preconfigurados los siguientes usuarios con sus respectivos roles y grupos en GLPI.
+Las cuentas de administrador, líderes, técnicos y solicitante se aprovisionan en GLPI.
+Las contraseñas vigentes se conservan únicamente en el archivo local ignorado
+`.env.local` (claves `CRED_*`). No copies sus valores a documentación, tickets,
+logs, capturas ni commits. Los ejemplos de contraseñas que figuraban aquí estaban
+obsoletos; no son instrucciones para restablecer usuarios.
 
-> **Contraseña universal para todos los usuarios de prueba:**  
-> `Password123!`
-
-| Usuario | Contraseña | Rol en la App | Grupo GLPI | Propósito / Funcionalidad |
-|---|---|---|---|---|
-| `admin_test` | `Password123!` | Administrador | Todos (Global) | Control total, gestión de roles, métricas de todos los grupos y supervisión |
-| `lider_dev` | `Password123!` | Supervisor | **Desarrollo** | Vista de cola grupal, asignación de tickets, métricas de rendimiento del grupo Desarrollo |
-| `lider_bi` | `Password123!` | Supervisor | **BI** | Supervisión y gestión de tickets del grupo Business Intelligence |
-| `lider_sd` | `Password123!` | Supervisor | **Service Desk** | Supervisión y despacho de tickets del grupo Service Desk |
-| `tech_dev` | `Password123!` | Técnico | **Desarrollo** | Autoasignación de tickets, actualización de estados, notas técnicas y resolución de incidentes |
-| `tech_bi` | `Password123!` | Técnico | **BI** | Atención técnica de solicitudes del grupo BI |
-| `tech_sd` | `Password123!` | Técnico | **Service Desk** | Atención de soporte nivel 1, hardware y accesos en Service Desk |
-| `user_test` | `Password123!` | Solicitante (Self-Service) | Solicitante | Creación y seguimiento de tickets como usuario final en GLPI |
-| `glpi` | `glpi` | Super-Admin Nativo | GLPI Native | Administración directa de la consola GLPI (http://localhost:8081) |
-
----
+GLPI es el único canal de creación. Ticket Manager consulta y administra los tickets
+existentes; no ofrece creación directa. Las credenciales sintéticas del fixture H-20
+son exclusivas de ese entorno descartable.
 
 ### Option B — API + frontend on the host, only GLPI in Docker
 

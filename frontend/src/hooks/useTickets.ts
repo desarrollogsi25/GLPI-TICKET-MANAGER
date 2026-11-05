@@ -19,7 +19,6 @@ import {
   reopenTicket,
   resolveTicket,
   putPendingTicket,
-  createTicket,
   getTeamDashboard,
   getAdminDashboard,
   getAdminWatcherStatus,
@@ -27,9 +26,7 @@ import {
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
-
-/** The API caps `limit` at 100; the board and table filter client-side. */
-export const TICKETS_PAGE_LIMIT = 100
+import { collectPages } from '@/lib/api/pagination'
 
 export interface TicketFilters {
   assigneeId?: number | null
@@ -59,15 +56,15 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
 
   const result = useQuery({
     queryKey,
-    queryFn: () =>
+    queryFn: ({ signal }) => collectPages((limit, offset) =>
       listTickets({
         assigneeId: assigneeId ?? undefined,
         serviceId: serviceId ?? undefined,
         startDate: startDate ?? undefined,
         endDate: endDate ?? undefined,
-        limit: TICKETS_PAGE_LIMIT,
-        offset: 0,
-      }),
+        limit,
+        offset,
+      }, signal), signal),
     enabled: hasFilter && enabled && sessionValid,
   })
   return result
@@ -97,8 +94,11 @@ export function useTicketTasksQuery(ticketId: number) {
  * `['tickets', 'group-queue']` as well made TanStack cancel the in-flight
  * `GET /tickets/by-group` and fire it again, burning rate-limit tokens for nothing.
  */
-function invalidateTicketCaches(queryClient: QueryClient) {
+function invalidateTicketCaches(queryClient: QueryClient, taskTicketId?: number) {
   return Promise.all([
+    // A tasks refetch already in flight may have read GLPI before this write committed; restart it
+    // so the timeline can never settle on pre-mutation data.
+    ...(taskTicketId ? [queryClient.invalidateQueries({ queryKey: queryKeys.tickets.tasks(taskTicketId) }, { cancelRefetch: true })] : []),
     queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }, { cancelRefetch: false }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats }, { cancelRefetch: false }),
   ])
@@ -121,7 +121,7 @@ export function usePlanTicketMutation() {
   return useMutation({
     mutationFn: ({ ticketId, payload }: { ticketId: number; payload: PlanTicketRequest }) =>
       planTicket(ticketId, payload),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -131,7 +131,7 @@ export function useReplanTicketTaskMutation() {
     mutationFn: ({ ticketId, taskId, payload }: {
       ticketId: number; taskId: number; payload: import('@/lib/api/tickets').ReplanTicketTaskRequest
     }) => replanTicketTask(ticketId, taskId, payload),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -140,7 +140,7 @@ export function useCompleteTicketTaskMutation() {
   return useMutation({
     mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
       completeTicketTask(ticketId, taskId),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -149,7 +149,7 @@ export function useCancelTicketTaskMutation() {
   return useMutation({
     mutationFn: ({ ticketId, taskId }: { ticketId: number; taskId: number }) =>
       cancelTicketTask(ticketId, taskId),
-    onSuccess: async () => { await invalidateTicketCaches(queryClient) },
+    onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
 
@@ -202,7 +202,8 @@ export function useGroupQueueQuery(
 
   return useQuery({
     queryKey: queryKeys.tickets.byGroupQueue(groupId ?? 0),
-    queryFn: () => listGroupQueue(groupId as number),
+    queryFn: ({ signal }) => collectPages(
+      (limit, offset) => listGroupQueue(groupId as number, limit, offset, signal), signal),
     // Without a usable session every request would come back 401: the query stays
     // disabled instead of burning the quota on doomed calls.
     enabled: groupId != null && groupId > 0 && sessionValid,
@@ -278,20 +279,6 @@ export function usePutPendingMutation() {
       putPendingTicket(ticketId, { reasonId, comment }),
     onSuccess: async () => {
       await invalidateTicketCaches(queryClient)
-    },
-  })
-}
-export function useCreateTicketMutation() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (payload: { title: string; description: string; urgency?: number; categoryId?: number | null }) =>
-      createTicket(payload),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateTicketCaches(queryClient),
-        queryClient.invalidateQueries({ queryKey: ['groups', 'dashboard'] }, { cancelRefetch: false }),
-        queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] }, { cancelRefetch: false }),
-      ])
     },
   })
 }

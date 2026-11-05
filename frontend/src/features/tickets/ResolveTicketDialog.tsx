@@ -48,7 +48,7 @@ export function ResolveTicketDialog({
   /**
    * Closes the dialog unconditionally (never gated on `pending`). Used after a
    * successful mutation so the modal always dismisses on mobile, where the ticket
-   * may have moved to the auto-closed "Resuelto" state underneath.
+   * may have moved to the "Resuelto" column underneath.
    */
   const closeDialog = () => {
     reset()

@@ -1,6 +1,8 @@
+import { fixtureUrl } from './support/fixture-url'
 import { test, expect } from '@playwright/test'
 import { confirmPlanning } from './support/planning'
 
+const DESK = fixtureUrl('desk')
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
 
 test.setTimeout(120000)
@@ -16,7 +18,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   })
 
   // 1. Claim ticket #70 desde la cola
-  await page.goto('http://localhost:5173/queue')
+  await page.goto(`${DESK}/queue`)
   await page.waitForLoadState('networkidle')
 
   await expect(page.locator('text=#70').first()).toBeVisible({ timeout: 15000 })
@@ -27,7 +29,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await expect(page.locator('text=#70').first()).not.toBeVisible({ timeout: 15000 })
 
   // Navegar al ticket asignado a tech1 (#70)
-  await page.goto('http://localhost:5173/tickets/70')
+  await page.goto(`${DESK}/tickets/70`)
   await page.waitForLoadState('networkidle')
 
   await expect(page.locator('text=#70').first()).toBeVisible({ timeout: 15000 })
@@ -51,14 +53,14 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await expect(confirmResolve).toBeEnabled()
   await confirmResolve.click()
 
-  // 3. Verificar status resuelto y cierre automático
+  // 3. Verificar estado resuelto sin forzar cierre.
   await expect(page.getByText('Ticket resuelto')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('textarea')).toHaveCount(0, { timeout: 15000 })
   await expect(page.getByText(/Resuelto|Solved/).first()).toBeVisible({ timeout: 10000 })
 
-  // 3b. Al resolver el ticket se cierra automáticamente (6). Sólo un administrador
-  //     puede reabrirlo, así que el técnico no debe ver el botón "Reabrir".
-  await expect(page.getByRole('button', { name: /^Reabrir$/ })).toHaveCount(0)
+  // 3b. Resolver conserva Resuelto (5); el técnico asignado puede reabrirlo.
+  // Cerrado (6) tiene su propia política y no se fuerza desde esta operación.
+  await expect(page.getByRole('button', { name: /^Reabrir$/ })).toBeVisible()
 
   // 4. Reabrir como administrador. Se usa un contexto aparte para no cerrar la
   //    sesión compartida de tech1 (el resto de la suite depende de storageState).
@@ -68,13 +70,13 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
     if (msg.type() === 'error') consoleErrors.push(`[admin] ${msg.text()}`)
   })
 
-  await adminPage.goto('http://localhost:5173/login')
+  await adminPage.goto(`${DESK}/login`)
   await adminPage.fill('input[name="username"]', 'admin_test')
   await adminPage.fill('input[name="password"]', ADMIN_PASSWORD)
   await adminPage.click('button[type="submit"]')
   await adminPage.waitForURL(/\/(kanban|dashboard|tickets|queue|services)/, { timeout: 15000 })
 
-  await adminPage.goto('http://localhost:5173/tickets/70')
+  await adminPage.goto(`${DESK}/tickets/70`)
   await adminPage.waitForLoadState('networkidle')
 
   const reopenButton = adminPage.getByRole('button', { name: /^Reabrir$/ }).first()

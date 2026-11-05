@@ -64,6 +64,9 @@ services:
         condition: service_healthy
 
   api:
+    # Keep the fixture container alive while the runner installs clean schemas
+    # and verifies both database sentinels. Production startup is unchanged.
+    entrypoint: ["/bin/sh", "-c", "until test -f /tmp/glpi-e2e-ready; do sleep 1; done; exec dotnet GlpiTicketManager.Api.dll"]
     build:
       context: .
       dockerfile: src/GlpiTicketManager.Api/Dockerfile
@@ -88,6 +91,7 @@ services:
       # stack for a full suite. Production values in appsettings.json are
       # untouched; never copy these into a real environment.
       RateLimiting__PerUserRequestLimit: "600"
+      RateLimiting__LoginAttemptLimit: "60"
       RateLimiting__ExpensiveTokenLimit: "200"
       RateLimiting__ExpensiveReplenishmentSeconds: "1"
     ports:

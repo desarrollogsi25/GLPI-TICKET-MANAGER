@@ -1,6 +1,9 @@
+import { fixtureUrl } from './support/fixture-url'
+import { selectNativeCategory } from './support/glpi-form'
 import { test, expect } from '@playwright/test'
 
-const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const DESK = fixtureUrl('desk')
+const GLPI = fixtureUrl('glpi')
 const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_dev'
 const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD
 const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
@@ -51,45 +54,30 @@ test('realtime: connection indicator connects and maintains real-time link acros
     await expect(kanbanGroup.locator('option:checked')).toHaveText('Desarrollo')
   }
   const title = `E2E SignalR requester ${Date.now()}`
-  const created = await pageB.evaluate(async (ticketTitle) => {
-    const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
-    const token = stored.state?.accessToken
-    const response = await fetch('/api/tickets', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        title: ticketTitle,
-        description: 'Ticket de prueba automatizada del evento SignalR.',
-        urgency: 3,
-        categoryId: 11,
-      }),
-    })
-    return { status: response.status, body: await response.json() }
-  }, title)
+  const glpi = await contextB.newPage()
+  await glpi.goto(GLPI)
+  await glpi.locator('#login_name').fill(REQUESTER_USERNAME)
+  await glpi.locator('#login_password').fill(REQUESTER_PASSWORD)
+  await glpi.locator('button[type="submit"]').click()
+  await glpi.getByRole('link', { name: /Reportar un problema|Reportar una incidencia general/ }).last().click()
+  await expect(glpi).toHaveURL(/Form\/Render\/1/)
+  const submitButton = glpi.getByRole('button', { name: /Enviar/i })
+  await selectNativeCategory(glpi, /»Dev$/)
+  await expect(submitButton).toBeEnabled()
+  await glpi.getByRole('textbox', { name: 'Asunto', exact: true }).fill(title)
+  await expect(submitButton).toBeEnabled()
+  const description = glpi.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body')
+  await description.pressSequentially('Ticket nativo de prueba automatizada del evento SignalR.', { delay: 10 })
+  await description.press('Tab')
+  await expect(submitButton).toBeEnabled()
+  await expect(description).toContainText('Ticket nativo de prueba automatizada del evento SignalR.')
+  await submitButton.click()
+  await expect(glpi.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
 
-  expect(created.status).toBe(201)
-  const ticketId = created.body.ticketId as number
-  const selectedGroupId = await kanbanGroup.isVisible().catch(() => false)
-    ? Number(await kanbanGroup.locator('option:checked').getAttribute('value'))
-    : 1
-  // GLPI can persist the assignment link shortly after the API returns; poll the
-  // queue until the fixture reaches the assigned group, without a blind sleep.
-  await expect.poll(async () => pageA.evaluate(async ({ groupId, id }) => {
-    const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
-    const response = await fetch(`/api/tickets/by-group?groupId=${groupId}&unassigned=true&limit=20&offset=0`, {
-      headers: { Authorization: `Bearer ${stored.state?.accessToken}` },
-    })
-    const payload = await response.json()
-    return payload.items?.some((ticket: { id: number }) => ticket.id === id) ?? false
-  }, { groupId: selectedGroupId, id: ticketId }), { timeout: 60000, intervals: [500, 1000, 2000] }).toBe(true)
-  // Bring the technician tab back to the foreground so React Query's normal
-  // visibility-aware polling can render the now-assigned ticket.
+  // Observe the rendered queue without an explicit fetch, navigation or reload.
   await pageA.bringToFront()
-  await expect(pageA.locator('[data-column-id="queue"]').getByText(`#${ticketId}`)).toBeVisible({
-    timeout: 15000,
+  await expect(pageA.locator('[data-column-id="queue"]').getByText(title)).toBeVisible({
+    timeout: 60000,
   })
   expect(pageNavigations).toBe(0)
 

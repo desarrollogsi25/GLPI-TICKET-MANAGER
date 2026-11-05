@@ -1,8 +1,5 @@
-using System.Data.Common;
-using Dapper;
 using GlpiTicketManager.Api.Hubs;
 using GlpiTicketManager.Application.Abstractions;
-using GlpiTicketManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
@@ -11,16 +8,16 @@ namespace GlpiTicketManager.Api.Notifications;
 public sealed class TicketNotificationService : ITicketNotificationService
 {
     private readonly IHubContext<TicketHub> _hubContext;
-    private readonly IDbConnectionFactory _dbFactory;
+    private readonly ITicketRepository _tickets;
     private readonly ILogger<TicketNotificationService> _logger;
 
     public TicketNotificationService(
         IHubContext<TicketHub> hubContext,
-        IDbConnectionFactory dbFactory,
+        ITicketRepository tickets,
         ILogger<TicketNotificationService> logger)
     {
         _hubContext = hubContext;
-        _dbFactory = dbFactory;
+        _tickets = tickets;
         _logger = logger;
     }
 
@@ -28,14 +25,12 @@ public sealed class TicketNotificationService : ITicketNotificationService
     {
         try
         {
-            await using var conn = (DbConnection)_dbFactory.CreateConnection();
-            await conn.OpenAsync(ct);
-            var gid = await conn.QueryFirstOrDefaultAsync<int?>(
-                new CommandDefinition(
-                    "SELECT groups_id FROM glpi_groups_tickets WHERE tickets_id = @TicketId AND type = 2 LIMIT 1;",
-                    new { TicketId = ticketId },
-                    cancellationToken: ct));
-            return gid;
+            var groups = await _tickets.GetGroupIdsForTicketAsync(ticketId, ct);
+            return groups.Where(id => id > 0).OrderBy(id => id).Select(id => (int?)id).FirstOrDefault();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -46,100 +41,30 @@ public sealed class TicketNotificationService : ITicketNotificationService
 
     public async Task NotifyTicketClaimedAsync(int ticketId, int assignedUserId, int groupId, CancellationToken ct = default)
     {
-        var payload = new
-        {
-            ticketId,
-            assignedUserId,
-            groupId,
-            timestamp = DateTime.UtcNow
-        };
-
-        await _hubContext.Clients.Group($"group-{groupId}")
-            .SendAsync("TicketClaimed", payload, ct);
-        await _hubContext.Clients.Group($"supervisors-{groupId}")
+        if (ticketId <= 0 || assignedUserId <= 0 || groupId <= 0) return;
+        var payload = new { ticketId, assignedUserId, groupId, timestamp = DateTime.UtcNow };
+        // SignalR deduplicates connections belonging to more than one target group.
+        await _hubContext.Clients.Groups(new[] { $"group-{groupId}", $"supervisors-{groupId}", $"user-{assignedUserId}" })
             .SendAsync("TicketClaimed", payload, ct);
     }
 
     public async Task NotifyTicketStatusChangedAsync(int ticketId, int newStatus, int? assigneeId, CancellationToken ct = default)
     {
         var groupId = await GetGroupIdForTicketAsync(ticketId, ct);
-        var payload = new
+        var payload = new { ticketId, newStatus, assigneeId, groupId, timestamp = DateTime.UtcNow };
+        var targets = new List<string>();
+        if (assigneeId is > 0) targets.Add($"user-{assigneeId.Value}");
+        if (groupId is > 0) targets.Add($"supervisors-{groupId.Value}");
+        if (targets.Count == 0)
         {
-            ticketId,
-            newStatus,
-            assigneeId,
-            groupId,
-            timestamp = DateTime.UtcNow
-        };
-
-        if (newStatus == 4) // Pausado (Waiting)
-        {
-            // Ticket Pausado (Pending): Notificar ÚNICAMENTE a los supervisores (supervisors-{groupId})
-            if (groupId.HasValue && groupId.Value > 0)
-            {
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("TicketStatusChanged", payload, ct);
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("NotificationReceived", ct);
-            }
-            else
-            {
-                await _hubContext.Clients.All.SendAsync("TicketStatusChanged", payload, ct);
-            }
+            _logger.LogWarning("Skipped unscoped status event for ticket {TicketId}", ticketId);
+            return;
         }
-        else if (newStatus == 5 || newStatus == 6) // Resuelto / Cerrado
-        {
-            // Ticket Resuelto: Notificar ÚNICAMENTE a los supervisores (supervisors-{groupId})
-            if (groupId.HasValue && groupId.Value > 0)
-            {
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("TicketStatusChanged", payload, ct);
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("NotificationReceived", ct);
-            }
-            else
-            {
-                await _hubContext.Clients.All.SendAsync("TicketStatusChanged", payload, ct);
-            }
-        }
-        else if (newStatus == 2) // Reabierto / Asignado
-        {
-            // Ticket Reabierto: Notificar al técnico asignado y al supervisor
-            if (assigneeId.HasValue && assigneeId.Value > 0)
-            {
-                await _hubContext.Clients.Group($"user-{assigneeId.Value}")
-                    .SendAsync("TicketStatusChanged", payload, ct);
-                await _hubContext.Clients.Group($"user-{assigneeId.Value}")
-                    .SendAsync("NotificationReceived", ct);
-            }
-
-            if (groupId.HasValue && groupId.Value > 0)
-            {
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("TicketStatusChanged", payload, ct);
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("NotificationReceived", ct);
-            }
-        }
-        else
-        {
-            // Otros estados (ej. 3 En progreso)
-            if (assigneeId.HasValue && assigneeId.Value > 0)
-            {
-                await _hubContext.Clients.Group($"user-{assigneeId.Value}")
-                    .SendAsync("TicketStatusChanged", payload, ct);
-            }
-
-            if (groupId.HasValue && groupId.Value > 0)
-            {
-                await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                    .SendAsync("TicketStatusChanged", payload, ct);
-            }
-            else
-            {
-                await _hubContext.Clients.All.SendAsync("TicketStatusChanged", payload, ct);
-            }
-        }
+        // Every status, including Pending/Solved/Closed, refreshes the assignee's
+        // other sessions. A failed group lookup never widens the audience.
+        var clients = _hubContext.Clients.Groups(targets);
+        await clients.SendAsync("TicketStatusChanged", payload, ct);
+        await clients.SendAsync("NotificationReceived", ct);
     }
 
     public async Task NotifySolutionAddedAsync(int ticketId, int authorUserId, CancellationToken ct = default)
@@ -153,15 +78,11 @@ public sealed class TicketNotificationService : ITicketNotificationService
             timestamp = DateTime.UtcNow
         };
 
-        if (groupId.HasValue && groupId.Value > 0)
-        {
-            await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                .SendAsync("SolutionAdded", payload, ct);
-        }
-        else
-        {
-            await _hubContext.Clients.All.SendAsync("SolutionAdded", payload, ct);
-        }
+        var targets = new List<string>();
+        if (authorUserId > 0) targets.Add($"user-{authorUserId}");
+        if (groupId is > 0) targets.Add($"supervisors-{groupId.Value}");
+        if (targets.Count > 0)
+            await _hubContext.Clients.Groups(targets).SendAsync("SolutionAdded", payload, ct);
     }
 
     public async Task NotifyTicketCreatedAsync(int ticketId, int? groupId, CancellationToken ct = default)
@@ -174,23 +95,13 @@ public sealed class TicketNotificationService : ITicketNotificationService
             timestamp = DateTime.UtcNow
         };
 
-        if (groupId.HasValue && groupId.Value > 0)
+        if (groupId is not > 0)
         {
-            // Ticket Creado: Notificar a TODO el grupo (group-{groupId} y supervisors-{groupId})
-            await _hubContext.Clients.Group($"group-{groupId.Value}")
-                .SendAsync("TicketCreated", payload, ct);
-            await _hubContext.Clients.Group($"group-{groupId.Value}")
-                .SendAsync("NotificationReceived", ct);
-
-            await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                .SendAsync("TicketCreated", payload, ct);
-            await _hubContext.Clients.Group($"supervisors-{groupId.Value}")
-                .SendAsync("NotificationReceived", ct);
+            _logger.LogWarning("Skipped unscoped creation event for ticket {TicketId}", ticketId);
+            return;
         }
-        else
-        {
-            await _hubContext.Clients.All.SendAsync("TicketCreated", payload, ct);
-            await _hubContext.Clients.All.SendAsync("NotificationReceived", ct);
-        }
+        var clients = _hubContext.Clients.Groups(new[] { $"group-{groupId.Value}", $"supervisors-{groupId.Value}" });
+        await clients.SendAsync("TicketCreated", payload, ct);
+        await clients.SendAsync("NotificationReceived", ct);
     }
 }

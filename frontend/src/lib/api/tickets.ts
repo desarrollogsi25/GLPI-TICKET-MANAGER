@@ -5,8 +5,6 @@ import type {
   TeamMember,
   GroupDashboard,
   GroupSummary,
-  CreateTicketRequest,
-  CreateTicketResponse,
 } from '@/lib/api/types'
 
 export interface TicketListParams {
@@ -20,8 +18,8 @@ export interface TicketListParams {
   offset?: number
 }
 
-export async function listTickets(params: TicketListParams): Promise<PagedResult<TicketSummary>> {
-  const { data } = await apiClient.get<PagedResult<TicketSummary>>('/tickets', { params })
+export async function listTickets(params: TicketListParams, signal?: AbortSignal): Promise<PagedResult<TicketSummary>> {
+  const { data } = await apiClient.get<PagedResult<TicketSummary>>('/tickets', { params, signal })
   return data
 }
 export async function getTicket(id: number): Promise<import('@/lib/api/types').TicketDetail> {
@@ -92,9 +90,10 @@ export async function listChannels(): Promise<import('@/lib/api/types').Channel[
   const { data } = await apiClient.get('/channels')
   return data
 }
-export async function listGroupQueue(groupId: number, limit = 20, offset = 0): Promise<PagedResult<TicketSummary>> {
+export async function listGroupQueue(groupId: number, limit = 20, offset = 0, signal?: AbortSignal): Promise<PagedResult<TicketSummary>> {
   const { data } = await apiClient.get<PagedResult<TicketSummary>>('/tickets/by-group', {
     params: { groupId, unassigned: true, limit, offset },
+    signal,
   })
   return data
 }
@@ -128,10 +127,6 @@ export interface PutPendingRequest {
 
 export async function putPendingTicket(id: number, payload: PutPendingRequest): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.post(`/tickets/${id}/pending`, payload)
-  return data
-}
-export async function createTicket(payload: CreateTicketRequest): Promise<CreateTicketResponse> {
-  const { data } = await apiClient.post<CreateTicketResponse>('/tickets', payload)
   return data
 }
 export async function getTeamDashboard(groupId: number): Promise<GroupDashboard> {

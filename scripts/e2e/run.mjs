@@ -6,17 +6,20 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
-import { verifyFixtureResources, assertDisposableFixture, runFixtureSql } from './guard.mjs'
+import { verifyFixtureResources, assertDisposableFixture, runFixtureSql, runFixtureCommand } from './guard.mjs'
 import { cleanupFixture, removeTemporaryFixtureDirectory } from './runner-cleanup.mjs'
+import { verifyWebhookMigration, verifyWebhookReplicas } from './integration-smoke.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const composeFile = resolve(root, 'docker-compose.e2e.yml')
 const services = ['glpi-db', 'app-db', 'glpi', 'api', 'frontend']
 const suppliedArgs = process.argv.slice(2)
-const nativeGlpi = suppliedArgs[0] === '--native-glpi'
-const args = nativeGlpi ? suppliedArgs.slice(1) : suppliedArgs
+// GLPI is the sole ticket-creation channel. Keep the old flag as a compatible
+// spelling, but never fall back to creating tickets through Ticket Manager.
+const nativeGlpi = true
+const args = suppliedArgs[0] === '--native-glpi' ? suppliedArgs.slice(1) : suppliedArgs
 if (args.includes('--help')) {
-  console.log('node scripts/e2e/run.mjs [--native-glpi] [--check] [-- Playwright arguments]\nCreates a new, memory-backed fixture; never uses the repository .env or local stack.\n--check validates Compose only, without starting containers.\n--native-glpi provisions forms and tests native GLPI submission instead of the API variant.')
+  console.log('node scripts/e2e/run.mjs [--native-glpi] [--check] [-- Playwright arguments]\nCreates a new, memory-backed fixture; never uses the repository .env or local stack.\n--check validates Compose only, without starting containers.\nNative GLPI forms are always provisioned; --native-glpi remains accepted for compatibility.')
   process.exit(0)
 }
 const checkOnly = args[0] === '--check'
@@ -25,7 +28,13 @@ if (!checkOnly && args.length && args[0] !== '--') throw new Error('Use --help f
 const playwrightCli = resolve(root, 'frontend/node_modules/@playwright/test/cli.js')
 if (!checkOnly && !existsSync(playwrightCli)) throw new Error('Install the declared frontend dependencies before starting the isolated fixture')
 
-const secret = () => randomBytes(32).toString('hex')
+// The startup validator requires 16 distinct characters for webhook secrets as
+// well as JWT keys. A random hex string can omit a digit and fail intermittently.
+const secret = () => {
+  let value
+  do { value = randomBytes(32).toString('hex') } while (new Set(value).size < 16)
+  return value
+}
 // StartupConfigurationValidator requires >=16 distinct characters. Hex keys
 // occasionally miss a digit; use a wider alphabet and enforce the requirement.
 let jwtKey
@@ -175,7 +184,9 @@ try {
     progress('install clean GLPI schema and reference data')
     docker(['exec', '-u', 'www-data', '-w', '/var/www/glpi', containers.glpi,
       'php', 'bin/console', 'database:install', '--no-interaction', '--no-telemetry', '--default-language=es_ES'])
-    for (const name of ['001_init.sql', '002_add_updated_by_to_app_settings.sql', '003_roles.sql', '004_schema_migrations.sql', '005_add_solicitante_role.sql', '006_notifications.sql']) {
+    for (const name of ['001_init.sql', '002_add_updated_by_to_app_settings.sql', '003_roles.sql', '004_schema_migrations.sql', '005_add_solicitante_role.sql', '006_notifications.sql',
+      '008_ticket_planning_idempotency.sql', '009_glpi_webhook_idempotency.sql',
+      '009_webhook_notification_idempotency.sql', '010_watcher_state.sql', '011_user_push_subscriptions.sql']) {
       progress(`apply disposable PostgreSQL migration ${name}`)
       sqlRaw('postgres', readFileSync(resolve(root, 'db/migrations', name), 'utf8'))
     }
@@ -199,11 +210,14 @@ if (!$DB->insert('glpi_apiclients', ['id'=>2,'name'=>'Disposable E2E','entities_
 if (!$DB->update('glpi_users', ['api_token'=>$key->encrypt('${secrets.E2E_GLPI_USER_TOKEN}'),'api_token_date'=>date('Y-m-d H:i:s')], ['id'=>10])) exit(1);
 foreach (['enable_api','enable_api_login_external_token'] as $name) { if (!$DB->update('glpi_configs', ['value'=>'1'], ['context'=>'core','name'=>$name])) exit(1); }
 $hash = password_hash('User1Pass!', PASSWORD_BCRYPT);
+if (!$DB->update('glpi_users', ['password'=>password_hash('Tech1Pass!', PASSWORD_BCRYPT)], ['name'=>'tech1'])) exit(1);
+if (!$DB->update('glpi_users', ['password'=>password_hash('Password123!', PASSWORD_BCRYPT)], ['name'=>'admin_test'])) exit(1);
 if (!$DB->insert('glpi_users', ['id'=>19,'name'=>'user1','password'=>$hash,'authtype'=>1,'auths_id'=>0,'is_active'=>1,'is_deleted'=>0,'profiles_id'=>1,'entities_id'=>0])) exit(1);
 if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entities_id'=>0,'is_recursive'=>0,'is_default_profile'=>1])) exit(1);
 `
     assertDisposableFixture(env)
     docker(['exec', '-i', '-u', 'www-data', containers.glpi, 'php'], { input: php })
+    runFixtureCommand('api', ['touch', '/tmp/glpi-e2e-ready'], env)
     progress('wait for frontend and API readiness')
     await ready(`${manifest.frontendUrl}/login`)
     await ready(`${manifest.apiUrl}/health/ready`)
@@ -226,6 +240,10 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
       signal: AbortSignal.timeout(10_000),
     })
     if (nativeGlpi) {
+      progress('verify SQL007 on a fresh schema-only child database inside the fixture')
+      await verifyWebhookMigration(env)
+      progress('verify webhook deduplication and stable VAPID keys across two API processes and restart')
+      verifyWebhookReplicas(env, secrets.E2E_WEBHOOK_SECRET)
       progress('provision guarded synthetic visual forms for native GLPI submission')
       const visualSeed = spawnSync(process.execPath, [resolve(root, 'scripts/seed-visual-forms.js')], { cwd: root, env, stdio: 'inherit' })
       if (visualSeed.error || visualSeed.status !== 0) throw new Error('Synthetic visual fixture provisioning failed')

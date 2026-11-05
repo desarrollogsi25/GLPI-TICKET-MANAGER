@@ -10,7 +10,6 @@ import {
   KeyRound,
   Monitor,
   Mouse,
-  Plus,
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -18,7 +17,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CreateTicketDialog } from '@/features/tickets/CreateTicketDialog'
 import { useServicesQuery } from '@/hooks/useServices'
 import type { Service } from '@/lib/api/types'
 
@@ -138,10 +136,9 @@ interface ServiceTreeNodeProps {
   level?: number
   expandedIds: Set<number>
   toggleExpand: (id: number) => void
-  onCreateTicket: (categoryId: number) => void
 }
 
-function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand, onCreateTicket }: ServiceTreeNodeProps) {
+function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand }: ServiceTreeNodeProps) {
   const navigate = useNavigate()
   const hasChildren = node.children.length > 0
   const isExpanded = expandedIds.has(node.id)
@@ -192,17 +189,6 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand, onCreateT
               Nivel {node.level}
             </span>
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onCreateTicket(node.id)}
-              className="h-7 px-2 text-xs gap-1 text-primary hover:text-primary"
-              title={`Crear ticket en ${node.completeName || node.name}`}
-              data-testid={`create-ticket-service-${node.id}`}
-            >
-              <Plus className="size-3" />
-              Crear ticket
-            </Button>
-            <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(`/tickets?serviceId=${node.id}`)}
@@ -224,7 +210,6 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand, onCreateT
               level={level + 1}
               expandedIds={expandedIds}
               toggleExpand={toggleExpand}
-              onCreateTicket={onCreateTicket}
             />
           ))}
         </div>
@@ -234,15 +219,9 @@ function ServiceTreeNode({ node, level = 0, expandedIds, toggleExpand, onCreateT
 }
 
 export function ServicesPage() {
+  const navigate = useNavigate()
   const { data: services, isLoading, isError, error, refetch } = useServicesQuery()
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
-  const [createOpen, setCreateOpen] = useState(false)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
-
-  const handleOpenCreate = (catId: number | null = null) => {
-    setSelectedCategoryId(catId)
-    setCreateOpen(true)
-  }
 
   // Default: all categories expanded once data is loaded
   useEffect(() => {
@@ -286,15 +265,6 @@ export function ServicesPage() {
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Servicios' }]}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              onClick={() => handleOpenCreate(null)}
-              data-testid="services-new-ticket-btn"
-              className="gap-1.5"
-            >
-              <Plus className="size-3.5" />
-              Nuevo ticket
-            </Button>
             {services && services.length > 0 ? (
               <>
                 <Button variant="outline" size="sm" onClick={expandAll}>
@@ -317,11 +287,11 @@ export function ServicesPage() {
               Servicios Destacados
             </h2>
             <p className="text-xs text-muted-foreground">
-              Selecciona un servicio para crear un ticket con asignación automática al equipo especialista.
+              Consulta los tickets por servicio. Las solicitudes nuevas se crean en el portal GLPI.
             </p>
           </div>
           <Badge variant="secondary" className="text-xs">
-            8 tarjetas activas
+            8 servicios
           </Badge>
         </div>
 
@@ -361,10 +331,10 @@ export function ServicesPage() {
                     size="sm"
                     variant="secondary"
                     className="h-7 px-2.5 text-xs shrink-0"
-                    onClick={() => handleOpenCreate(item.categoryId)}
+                    onClick={() => navigate(`/tickets?serviceId=${item.categoryId}`)}
                     data-testid={`featured-service-open-${item.id}`}
                   >
-                    Solicitar
+                    Ver tickets
                   </Button>
                 </CardContent>
               </Card>
@@ -426,7 +396,6 @@ export function ServicesPage() {
                   level={0}
                   expandedIds={expandedIds}
                   toggleExpand={toggleExpand}
-                  onCreateTicket={(catId) => handleOpenCreate(catId)}
                 />
               ))}
             </div>
@@ -434,11 +403,6 @@ export function ServicesPage() {
         </CardContent>
       </Card>
 
-      <CreateTicketDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        initialCategoryId={selectedCategoryId}
-      />
     </div>
   )
 }

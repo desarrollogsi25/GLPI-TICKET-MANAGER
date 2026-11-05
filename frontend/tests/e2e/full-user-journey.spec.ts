@@ -1,10 +1,10 @@
-import { test, expect } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { test, expect, type Page } from '@playwright/test'
 import { confirmPlanning } from './support/planning'
+import { fixtureUrl } from './support/fixture-url'
+import { selectNativeCategory } from './support/glpi-form'
 
-const GLPI = process.env.E2E_GLPI_URL ?? 'http://localhost:8081'
-const DESK = process.env.E2E_DESK_URL ?? 'http://localhost:5173'
+const GLPI = fixtureUrl('glpi')
+const DESK = fixtureUrl('desk')
 const REQUESTER_USERNAME = process.env.E2E_REQUESTER_USERNAME ?? 'user_test'
 const REQUESTER_PASSWORD = process.env.E2E_REQUESTER_PASSWORD
 const TECH_USERNAME = process.env.E2E_TECH_USERNAME ?? 'tech_sd'
@@ -12,61 +12,55 @@ const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin_test'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
 
-test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }) => {
+test('journey real: solicitante, técnico, SignalR, filtros, administrador y permisos', async ({ browser }, testInfo) => {
   if (!REQUESTER_PASSWORD || !TECH_PASSWORD || !ADMIN_PASSWORD) {
     throw new Error('Configura E2E_REQUESTER_PASSWORD, E2E_TECH_PASSWORD y E2E_ADMIN_PASSWORD en el entorno de pruebas.')
   }
-  test.setTimeout(120000)
+  // Two native submissions and six browser contexts; Windows trace shows the
+  // functional assertions finish but video/context teardown exceeds 120s.
+  // Individual navigation/action/realtime deadlines remain unchanged.
+  test.setTimeout(180000)
   const title = `E2E demo Hardware ${Date.now()}`
-  mkdirSync(resolve(process.cwd(), 'test-results/full-user-journey'), { recursive: true })
   const serviceDesk = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const page = await serviceDesk.newPage()
   page.setDefaultTimeout(15000)
   const requester = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const glpi = await requester.newPage()
 
-  // CI's minimal GLPI schema does not include the populated category tree used
-  // by the native form. Keep the native SubmitAnswers check for local runs and
-  // create the same Hardware ticket through the authenticated API in CI.
-  if (process.env.E2E_GLPI_NATIVE !== 'true') {
-    await glpi.goto(`${DESK}/login`)
-    await glpi.waitForSelector('input[name="username"]', { timeout: 15000 })
-    await glpi.locator('input[name="username"]').fill(REQUESTER_USERNAME)
-    await glpi.locator('input[name="password"]').fill(REQUESTER_PASSWORD)
-    await glpi.locator('button[type="submit"]').click()
-    await glpi.waitForURL(/\/(tickets|kanban)/, { timeout: 15000 })
-    const created = await glpi.evaluate(async (ticketTitle) => {
-      const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
-      const response = await fetch('/api/tickets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${stored.state?.accessToken}` },
-        body: JSON.stringify({ title: ticketTitle, description: 'Prueba completa del flujo de Hardware.', urgency: 3, categoryId: 16 }),
-      })
-      return { status: response.status, body: await response.json() }
-    }, title)
-    expect(created.status).toBe(201)
-  } else {
-    await glpi.goto(GLPI)
-    if (await glpi.locator('#login_name').isVisible().catch(() => false)) {
-      await glpi.locator('#login_name').fill(REQUESTER_USERNAME)
-      await glpi.locator('#login_password').fill(REQUESTER_PASSWORD)
-      await glpi.locator('button[type="submit"]').click()
+
+  async function submitNativeTicket(glpiPage: Page, ticketTitle: string) {
+    await glpiPage.goto(GLPI)
+    if (await glpiPage.locator('#login_name').isVisible().catch(() => false)) {
+      await glpiPage.locator('#login_name').fill(REQUESTER_USERNAME)
+      await glpiPage.locator('#login_password').fill(REQUESTER_PASSWORD!)
+      await glpiPage.locator('button[type="submit"]').click()
     }
-    await glpi.getByRole('link', { name: /Reportar un problema/ }).last().click()
-    await expect(glpi).toHaveURL(/Form\/Render\/1/)
-    await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-form.png', fullPage: true }).catch(() => {})
-    await glpi.getByRole('textbox', { name: 'Título' }).fill(title)
-    await glpi.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body').fill('Prueba completa del flujo de Hardware.')
-    const category = glpi.getByRole('region', { name: 'Categoría' }).getByRole('combobox').last()
-    await category.click()
-    await glpi.getByText(/»Hardware/).click()
-    const glpiResponse = glpi.waitForResponse(r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST')
-    await glpi.getByRole('button', { name: /Enviar/i }).click()
-    const submit = await glpiResponse
-    expect(submit.status(), 'GLPI SubmitAnswers no debe responder con error 500').toBeLessThan(500)
-    await expect(glpi.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
-    await glpi.screenshot({ path: 'test-results/full-user-journey/glpi-submitted.png', fullPage: true }).catch(() => {})
+    await glpiPage.getByRole('link', { name: /Reportar un problema|Reportar una incidencia general/ }).last().click()
+    await expect(glpiPage).toHaveURL(/Form\/Render\/1/)
+    await glpiPage.screenshot({ path: testInfo.outputPath('glpi-form.png'), fullPage: true })
+    const submitButton = glpiPage.getByRole('button', { name: /Enviar/i })
+    await selectNativeCategory(glpiPage, /»Hardware/)
+    await expect(submitButton).toBeEnabled()
+    await glpiPage.getByRole('textbox', { name: 'Asunto', exact: true }).fill(ticketTitle)
+    await expect(submitButton).toBeEnabled()
+    const description = glpiPage.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body')
+    await description.pressSequentially('Prueba completa del flujo de Hardware.', { delay: 10 })
+    await description.press('Tab')
+    await expect(submitButton).toBeEnabled()
+    await expect(description).toContainText('Prueba completa del flujo de Hardware.')
+    const submission = glpiPage.waitForResponse(
+      r => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST', { timeout: 20000 },
+    )
+    const submitStartedAt = Date.now()
+    await submitButton.click()
+    const response = await submission
+    const responseReceivedAt = Date.now()
+    expect(response.status()).toBeLessThan(400)
+    await expect(glpiPage.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
+    await glpiPage.screenshot({ path: testInfo.outputPath('glpi-submitted.png'), fullPage: true })
+    return { submitStartedAt, responseReceivedAt }
   }
+  await submitNativeTicket(glpi, title)
 
   // Técnico: abrir la cola en el Service Desk, asignar e intentar resolver.
   await page.goto(`${DESK}/login`)
@@ -123,7 +117,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await dialog.getByRole('button', { name: /^Resolver$/ }).last().click()
   await expect(dialog).not.toBeVisible({ timeout: 15000 })
   await expect(page.getByText(/Ticket resuelto/i).first()).toBeVisible({ timeout: 15000 })
-  await page.screenshot({ path: 'test-results/full-user-journey/technician-resolved.png', fullPage: true }).catch(() => {})
+  await page.screenshot({ path: testInfo.outputPath('technician-resolved.png'), fullPage: true }).catch(() => {})
 
   // Filtros: el rango inválido se bloquea en español antes de hacer petición.
   // El calendario impide invertir el rango en la UI; un enlace profundo sigue ejercitando el guard.
@@ -137,7 +131,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await page.goto(`${DESK}/tickets?startDate=2026-10-20&endDate=2026-10-19`)
   await expect(page.getByRole('alert')).toContainText('La fecha de inicio no puede ser posterior a la fecha de fin.')
   expect(rangedTicketRequests).toBe(0)
-  await page.screenshot({ path: 'test-results/full-user-journey/date-filter.png', fullPage: true }).catch(() => {})
+  await page.screenshot({ path: testInfo.outputPath('date-filter.png'), fullPage: true }).catch(() => {})
 
   // Admin: reabrir el ticket recién resuelto y avanzar a En progreso.
   const adminContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })
@@ -183,8 +177,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await expect(app).toHaveURL(/\/tickets$/)
 
   // Realtime: technician and GLPI requester are separate browser contexts.
-  // GLPI's native form submission is covered above; this additional API-created
-  // ticket verifies the SignalR path used by the Service Desk integration.
+  // Submit another native GLPI form while the technician observes the queue.
   const techContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const techPage = await techContext.newPage()
   await techPage.goto(`${DESK}/login`)
@@ -204,14 +197,20 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   const requesterPage = await requesterApp.newPage()
   await requesterPage.goto(`${DESK}/tickets`)
   const realtimeTitle = `E2E SignalR ${Date.now()}`
-  const created = await requesterPage.evaluate(async ticketTitle => {
-    const stored = JSON.parse(localStorage.getItem('glpi-ticket-manager.auth') ?? '{}')
-    const response = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${stored.state?.accessToken}` }, body: JSON.stringify({ title: ticketTitle, description: 'SignalR journey', urgency: 3, categoryId: 16 }) })
-    return { status: response.status, body: await response.json() }
-  }, realtimeTitle)
-  expect(created.status).toBe(201)
+  const [submitted, visibleAt] = await Promise.all([
+    submitNativeTicket(glpi, realtimeTitle),
+    techPage.locator('[data-column-id="queue"]').getByText(realtimeTitle)
+      .waitFor({ state: 'visible', timeout: 60000 }).then(() => Date.now()),
+  ])
   await techPage.bringToFront()
-  await expect(techPage.locator('[data-column-id="queue"]').getByText(`#${created.body.ticketId}`)).toBeVisible({ timeout: 60000 })
+  await testInfo.attach('native-creation-to-visible-latency', {
+    body: JSON.stringify({
+      submitToVisibleMs: visibleAt - submitted.submitStartedAt,
+      responseToVisibleMs: visibleAt - submitted.responseReceivedAt,
+      includesGLPIProcessing: true,
+    }),
+    contentType: 'application/json',
+  })
 
   await requester.close()
   await requesterApp.close()

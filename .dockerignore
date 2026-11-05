@@ -23,6 +23,15 @@
 **/.env.*.prod
 **/*.user
 **/appsettings.*.Local.json
+# TLS keys are host runtime binds, never build inputs (including the SDK stage).
+infra/nginx/certs/
+**/*.key
+**/*.pfx
+**/*.p12
+token.txt
+login_body.json
+body.json
+GLPI/
 
 # Node dependencies
 **/node_modules

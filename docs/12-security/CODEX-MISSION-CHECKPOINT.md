@@ -1,5 +1,281 @@
 # Checkpoint de finalización — GLPI Ticket Manager
 
+## Refuerzo posterior de autorización y push — 2026-11-05
+
+Cambios de código posteriores al montaje TLS, todavía sin desplegar en el entorno
+original: M-12 deniega grupos técnicos del Hub a solicitantes incluso si pertenecen
+a un grupo; conserva su canal personal y deniega también suscripción explícita.
+M-13 elimina fallback a detalle sin filtrar cuando desaparece la lectura privada
+restringida. Pruebas negativas de Hub/política y lectura concurrente PASS.
+Un E2E nuevo añade pertenencia técnica al solicitante sintético sólo dentro de
+H-20, utiliza WebSockets reales con control positivo del técnico y observa ausencia
+de copia prohibida antes de retirar exclusivamente el vínculo temporal creado.
+
+M-14: el envío push antes desprendido podía sobrevivir al scope y utilizar un
+cliente liberado; el cambio previo de IDisposable hacía más visible esa carrera.
+Se espera ahora el envío dentro del scope con presupuesto de 10 segundos y
+cancelación del llamador. El fallo del proveedor conserva la notificación interna
+persistida. El título/body de dispositivo sólo incluyen tipo de aviso/número de
+ticket e invitación genérica a abrir la app, nunca título/descripción privada;
+el detalle autorizado dentro de la app se conserva. Dos regresiones prueban
+espera efectiva y privacidad, y supervivencia de la notificación ante fallo push.
+Tradeoff: el envío puede añadir hasta 10 segundos al flujo notificante. Sigue
+siendo best effort, sin afirmar entrega SO ni reintentos durables push.
+
+Backend Windows Release actual: 51 aplicación + 212 API con dobles = 263 PASS.
+GitNexus: TicketHub 3 consumidores; GetByIdAsync ambiguo/UNKNOWN y NotificationService
+UNKNOWN por DI; detect-changes de autorización 12 símbolos/9 procesos, HIGH.
+Fallback manual: endpoints de detalle, política de cola, hub automático/explícito,
+servicios de notificación, watcher/webhook, repositorios y consumidores React.
+Gates reales ampliados pendientes en CI, no se declara seguridad global aprobada.
+
+Windows suite completa anterior: 41 PASS / 2 FAIL; uno era la creación directa
+residual, otro editor enriquecido vacío. Cambios de prueba: login nativo por
+tipo submit sin depender de idioma, entrada de descripción con eventos teclado
+y blur, envío acotado. Revalidación selectiva con trace EN CURSO. Se conservaron
+los artefactos locales y se retiró sólo el fixture anterior con guardas intactas.
+Chrome original: Preferencias muestra notificaciones del dispositivo «No activadas»;
+no se cambió permiso ni suscripción. Consola del recorrido sin error/warn.
+
+## Cambio TLS autorizado — 2026-11-05 (último estado)
+
+El usuario autorizó exclusivamente retirar ca.key y recrear ambos frontends
+preservando recursos; **NO autorizó importar la CA**. Operación aplicada y
+verificada: imagen local con los mismos 30 assets por frontend (hashes idénticos),
+mounts readonly de server.crt/server.key, ca.key ausente tanto en contenedores
+como en las 14 capas inspeccionadas de la imagen conservada. Backup duradero,
+carga de imagen base y preflight de reversión verificados antes del cambio.
+GLPI, API, ambas bases, proxy y frontend-prod mantienen ID/arranque/imagen/mounts;
+conteos originales 43/0/16/9 sin cambios. No se desplegó el nuevo código del PR.
+
+Autenticación real, tickets, notificaciones, salud y WebSocket Connected en
+loopback y HTTPS localhost/LAN PASS con CA explícita, sin ignorar validación.
+Chrome: sesión existente, Kanban y campana con 6 no leídas conservados. Avisos
+de desconexión durante el reinicio previsto; cero avisos/error nuevos tras la
+recarga posterior observada. Root usuario/equipo: cero coincidencias de la CA.
+PWA/push SO y confianza normal siguen pendientes. Detalle, IDs, imagen, respaldo
+y procedimiento exacto: [TLS-FORENSICS-20261105.md](TLS-FORENSICS-20261105.md).
+
+QA interactivo adicional GLPI original: login técnico, interfaz estándar,
+catálogo nativo y formulario Hardware sin enviar, consola sin error/warn.
+Confirma 7 destacados + 2 generales, sin «Acceso a sistema». El Hardware antiguo
+todavía exige categoría manual; los formularios especializados actuales del
+fixture fijan categoría en destino. No se ejecuta el seed sobre datos persistentes.
+
+CI Linux `42033186235`, SHA `2d7d1a4`: backend, frontend y secretos PASS;
+E2E 42 PASS / 1 FAIL. Causa confirmada del fallo: realtime.spec aún intenta
+POST /api/tickets, retirado deliberadamente. La corrección debe usar formulario
+nativo y volver a validar antes de declarar el gate aprobado. SQL007 y la prueba
+ampliada de VAPID/deduplicación entre procesos con reinicio PASARON dentro del
+runner actual en Windows; la suite completa local continúa en ejecución.
+
+## Continuación — 2026-11-05 (prevalece sobre los resultados anteriores)
+
+**EN CURSO; PR #43 en borrador; sin merge ni despliegue persistente.** Rama
+`codex/mission-audit-20261104`, HEAD publicado al iniciar esta continuación
+`bda3c712fa047aeebb9399cf2f69be88b3517550`. Los cambios siguientes todavía
+requieren el resultado de CI y revisión humana. No se delegó a otros agentes.
+
+- M-09: retirada de la ruta pública POST /api/tickets y de los diálogos/cliente
+  de creación en Ticket Manager. La creación corresponde a los formularios
+  nativos de GLPI; las tarjetas de Servicios consultan tickets. Regresiones de
+  cuatro roles esperan 405 y ninguna escritura GLPI.
+- M-10: SignalR ya no usa Clients.All cuando falta grupo. Estado y solución se
+  envían al usuario asignado/autor conocido y supervisores del grupo resuelto;
+  creación y claim usan grupos explícitos en una única llamada. Regresión para
+  todos los estados y resolución de grupo fallida. Limitación: se elige el primer
+  grupo técnico positivo; el caso multigrupo requiere revisión adicional.
+- M-11: suscripciones push validan HTTPS/443, proveedor permitido y claves P256/auth;
+  redirecciones HTTP deshabilitadas. VAPID usa exclusión transaccional PostgreSQL
+  entre procesos, conserva la pareja persistida y falla sin generar claves
+  efímeras cuando falla la persistencia. Logs sin URL/token de suscripción.
+  La respuesta de prueba sólo expresa aceptación del proveedor, no recepción SO.
+- M-08/H-20: fixtures cubren SQL007 con esquema nativo recién instalado y replay
+  firmado entre dos procesos API con reinicio. Ambas pruebas pasaron por separado.
+  Se amplía la prueba a estabilidad VAPID concurrente, pendiente de integración.
+  Todos los specs usan los destinos verificados; se corrigen expectativas de
+  autocierre y dos creaciones residuales mediante Ticket Manager en el journey.
+- M-06: discrepancia de huellas resuelta: hash del archivo PEM frente a huella
+  del certificado DER, del mismo certificado actual. Ambos frontends presentan
+  el mismo leaf válido con los tres SAN esperados. ca.key sigue expuesta a root
+  por el montaje completo. El usuario NO autorizó importar la CA. Se preservaron
+  assets públicos modificados de ambos frontends antes de proponer recreación.
+  Investigación, límites y rollback: [TLS-FORENSICS-20261105.md](TLS-FORENSICS-20261105.md).
+  Se excluyen claves/certificados/artefactos locales del contexto de build futuro;
+  no se eliminaron caches ni se alteraron montajes o certificados actuales.
+
+Evidencia acumulada: 50 pruebas de aplicación + 205 API con dobles PASS, Release;
+TypeScript/build PWA y 8 pruebas de paginación PASS. Guardas 106/106 PASS con
+Git Bash nativo. Con bash predeterminado Windows hubo fallos de plataforma al
+apuntar a WSL sin /bin/bash; no se reportan como PASS ni como defecto de GLPI.
+Último E2E selectivo: 5 PASS y 1 FAIL por expectativa obsoleta de autocierre,
+corregida después. Ejecución completa siguiente detenida en SQL007 antes de
+Playwright; guardas mantuvieron aislamiento y cleanup confirmó recursos retirados.
+Se investiga timeout por comando con polling dentro del fixture, sin ampliar
+permisos. Nueva ejecución completa EN CURSO; no convertir estos resultados en PASS.
+
+QA interactivo real recuperado mediante extensión Chrome: login del técnico
+`tech1` en el entorno original, Kanban, listado, filtro sin coincidencias,
+limpieza de filtro, detalle y catálogo; revisión visual a 390x844 y restauración
+del viewport. Cero mensajes console error/warn en ese recorrido. No se realizaron
+mutaciones de tickets. El entorno original todavía muestra creación directa y
+mezcla estados 5/6: confirma que estos cambios aún NO están desplegados. No se
+equipara esta revisión parcial con QA completo de todos los roles, red, GLPI
+original, accesibilidad, push Windows ni Android físico.
+
+GitNexus local detect-changes: 21 archivos, 39 símbolos, 10 procesos, impacto HIGH;
+índice base anterior y alcance PARCIAL, contrastado manualmente con interfaces,
+endpoints, consumidores React y tests. Afecta creación, notificaciones realtime,
+preferencias push y runner aislado. Requiere gates backend/frontend/E2E y revisión.
+Rollback: revertir sólo commits de esta misión; sin restaurar ni borrar datos.
+Siguiente: completar suite aislada, publicar los cambios en PR borrador y revisar
+CI; pedir autorización específica para TLS tras presentar evidencia. Push nativo,
+Android, catálogo original incompleto y avisos de dependencias siguen abiertos.
+
+## Reanudación de misión — 2026-11-04 (estado actual)
+
+**EN CURSO / NO APROBADO PARA PUBLICACIÓN.** Este bloque sustituye el estado de
+las entregas históricas que siguen debajo; sus pruebas no se presentan como QA actual.
+Rama de trabajo: `codex/mission-audit-20261104`, base
+`db54bdc27ccabc9724c91d7cf6b13ef26e93ea66` (main y GitHub coincidían al inicio).
+PR #38, #39, #40, #41 y #42 están fusionadas. PR #36 y #37 seguían abiertas;
+no deben fusionarse sin revisar solapamientos con main y estas correcciones.
+Se preservan los archivos sin seguimiento previos y ambos worktrees ajenos.
+
+### Inventario observado antes de corregir
+
+- Proyecto original Docker Compose: `sistemaopensourceglpi`, directorio original.
+  API `glpi-api`, GLPI `glpi`, MariaDB `glpi-db`, PostgreSQL `glpi-app-db`,
+  frontend `glpi-frontend`, LAN `glpi-lan-frontend`, proxy `glpi-nginx`.
+- API apunta a MariaDB `glpi-db/glpi`, PostgreSQL `app-db/glpi_ticket_manager`
+  y GLPI `http://glpi/apirest.php/` dentro de la misma red original.
+  Los proyectos `glpi-pr38-staging-20261102` y `glpi-pr38-lab-20261102`
+  usan otros volúmenes/redes; no se reutilizan como fixture H-20.
+- Volúmenes originales observados: `sistemaopensourceglpi_glpi-db-data`,
+  `sistemaopensourceglpi_app-db-data`, `sistemaopensourceglpi_glpi-data`,
+  `sistemaopensourceglpi_glpi-plugins`. No se eliminaron ni reemplazaron.
+- Inicio: Docker estaba detenido. Se inició Docker Desktop; sus contenedores
+  existentes arrancaron según sus políticas. No se reconstruyó el entorno persistente.
+- Salud original: `http://localhost:8080/health/ready` HTTP 200; frontend
+  `http://localhost:5173` y `http://10.10.40.31` HTTP 200 con los mismos
+  assets de main (`index-dEqxTVV0.js`, `index-CubZHqcY.css`).
+  GLPI original: `http://localhost:8081`. HTTPS no queda validado como confiable.
+- MariaDB 10.11.19: 43 tickets, ninguno eliminado; 16 categorías originales y
+  sus grupos presentes. Se observaron 9 formularios activos: 2 generales y 7
+  destacados. Falta la tarjeta/formulario destacado «Acceso a sistema».
+  Hay 3 grupos técnicos, 48 acciones automáticas, 2 webhooks y 0 SLA definidos.
+  La existencia de reglas no demuestra que todos sus recorridos funcionen.
+
+### Hallazgos y cambios de esta revisión
+
+1. **H-20 / crítico: guardas desconectadas.** El guard aislado pasaba 68 casos,
+   pero configuración/global setup de Playwright y varios helpers conservaban
+   destinos fijos del entorno persistente. Se reconectaron al guard común, con
+   manifest, identidades, redes, tmpfs, sentinels y consentimiento por ejecución.
+   Se conservaron las definiciones actuales de categorías/formularios.
+   Las pruebas negativas ahora revisan estáticamente el helper ANTES de invocarlo,
+   para impedir que una regresión convierta la propia prueba en una mutación real.
+   La primera ejecución de esas pruebas llegó a invocar helpers inseguros;
+   después se comprobaron los conteos 43/16/9 sin cambios. No se dispone de una
+   instantánea fila por fila previa: estos conteos no prueban ausencia de toda mutación.
+2. **M-01: listas truncadas.** Cola limitada a 20 y asignados a 100, pese a filtrar
+   y contar en cliente. Se cargan todas las páginas autorizadas de 100, con
+   cancelación; páginas vacías, duplicados o totales cambiantes fallan sin
+   publicar una lista parcial. El orden SQL incorpora desempate por ID.
+   Consumidores: Kanban, listado, cola y dashboard del técnico. No hay snapshot
+   transaccional entre páginas: una lista que cambia requiere reintento.
+   El coste crece con el número de páginas y siguen vigentes los rate limits.
+3. **M-02: privacidad de planificación.** La cola duplicaba la proyección SQL y
+   omitía el filtro privado en cuatro subconsultas. Comparte ahora BaseProjection,
+   que excluye esas tareas de los metadatos resumidos para todos los consumidores.
+   Se añadió una regresión contra MariaDB real dentro de H-20.
+4. **M-03: resolución/cierre.** Resolver forzaba una segunda escritura a estado 6.
+   Se conserva el resultado confirmado en GLPI sin forzar cierre. Kanban muestra
+   solamente estado 5 en Resuelto; estado 6 sigue accesible por listado/historial.
+   Se mantienen permisos, API nativa y lectura de confirmación. Las pruebas que
+   exigían autocierre se actualizaron por este cambio explícito de requisito.
+5. **M-04: contadores realtime.** Un TicketClaimed repetido decrementaba total
+   aunque la tarjeta ya no estuviera en la cola. Se evita ese segundo decremento.
+   El dashboard muestra error si fallan los agregados, evitando indicadores falsos.
+6. **M-05: secretos/documentación.** Se retiraron contraseñas obsoletas publicadas
+   en README y la recomendación de borrar volúmenes. Las credenciales vigentes
+   siguen exclusivamente en el archivo local ignorado. También se sustituyó una
+   URL remota local de rama con credencial incrustada por la referencia origin;
+   no se rotaron contraseñas/tokens ni se publicó su contenido.
+7. **M-06: TLS.** Cadena X.509 y correspondencia de las claves verificadas
+   localmente, SANs localhost/127.0.0.1/10.10.40.31 y vigencia comprobadas.
+   La CA no figura en los almacenes Root de usuario/equipo consultados; Node
+   rechaza la cadena con UNABLE_TO_VERIFY_LEAF_SIGNATURE. La configuración local
+   ahora monta sólo server.crt/server.key: deja fuera ca.key del frontend.
+   El cambio de mounts aún NO está desplegado. Instalar la CA en Windows exige
+   confirmación específica; no se ignoró TLS ni se alteró la confianza.
+8. **M-07: dependencias.** Auditoría pnpm inicial: 2 altas, 3 moderadas, 1 baja.
+   Zod 4.6.6 + resolvers 5.9.2 y actualización transitiva de follow-redirects
+   eliminan las dos altas. Quedan 3 moderadas y 1 baja en herramientas de build
+   (Vite, glob, minimatch, deepmerge); no se declara auditoría limpia.
+9. **M-08: fixture desactualizado.** Se añaden migraciones PostgreSQL 008–011
+   (ambos scripts 009 son distintos); SQL007 permanece fuera por ser MariaDB.
+   El arranque de la API espera exclusivamente en el fixture hasta el bootstrap.
+   El generador hexadecimal asegura los 16 caracteres distintos exigidos también
+   al secreto webhook; no se debilita el validador de producción.
+   CI usa el fixture descartable y formularios nativos; elimina el arranque con
+   secretos persistentes. Los antiguos smoke tests multinodo/007 deben adaptarse
+   al fixture antes de dar por recuperada su cobertura: NO_VERIFICADOS aquí.
+
+### Pruebas actuales y límites
+
+- Backend Release Windows: PASS, 0 advertencias/errores, 50 unitarias y 177
+  pruebas API con dobles. Resultados TRX en TestResults locales (no versionados).
+- TypeScript y build frontend/PWA: PASS tras actualización de dependencias;
+  persiste advertencia de bundle >500 kB.
+- Regresiones de paginación: 8/8 PASS; guardas y limpieza H-20: 103/103 PASS.
+- Gitleaks 8.30.1 (binario oficial y checksum verificado): PASS sobre cambios
+  preparados, sin hallazgos; no se escanearon/publicaron credenciales locales.
+- NuGet, incluidos transitivos: sin avisos conocidos en el feed consultado.
+  Esto no equivale a ausencia de vulnerabilidades de la aplicación.
+- Autenticación por API real: admin_test (admin), lider_dev/lider_bi/lider_sd
+  (supervisor), tech_dev/tech_bi/tech_sd (technician), user_test (solicitante):
+  8/8 HTTP 200 en Ticket Manager y GLPI initSession; sesiones GLPI cerradas.
+  Se usaron las credenciales vigentes sin copiarlas a evidencia.
+- Negativas reales para los 3 técnicos y 3 líderes: cola propia 200, cola de otro
+  grupo 403 y endpoint administrativo 403. No sustituye auditoría multi-entidad,
+  perfiles/derechos GLPI, acceso por ID, privacidad completa o concurrencia.
+- E2E real: EN CURSO. Dos intentos fallaron antes de las pruebas (identidad de
+  servicio al arrancar / API no lista). Se retiraron sólo sus recursos exclusivos.
+  No se clasificó automáticamente exit 139 como defecto nativo: ambos binarios
+  (original y nuevo) también devuelven ese código ante configuración inválida;
+  una sonda mínima CLR funciona en ambas imágenes. Falta resultado concluyente.
+- QA manual: NO_VERIFICADO. El navegador embebido no llegó a adjuntarse y el
+  control de Chrome terminó por no poder identificar su URL con suficiente certeza.
+  No se presentan scripts Playwright como clics manuales.
+- Push Windows real, Android físico, ciclo completo por rol, reconexión/latencia,
+  aprobación de solución y cierre nativo: NO_VERIFICADOS actualmente.
+- Lint: NOT_CONFIGURED (no script específico); TypeScript no se etiqueta como lint.
+- GitNexus local 1.6.12 reindexado con --skip-agents-md --skip-skills;
+  AGENTS.md preservado. Hay flujos truncados y símbolos ResolveAsync/UpdateStatusAsync
+  ambiguos: alcance PARCIAL, completado con rg de interfaces, endpoints, React,
+  consultas y pruebas. detect-changes: 70 símbolos y 28 procesos afectados; riesgo
+  CRÍTICO de impacto, que requiere revisión reforzada (no es vulnerabilidad demostrada).
+
+### Siguiente y rollback
+
+Completar fixture/E2E y QA manual; reparar los avisos restantes sin actualizaciones
+mayores a ciegas, validar la tarjeta faltante mediante API/UI GLPI y respaldo;
+revisar PR obsoletos. Publicar sólo PR en borrador mientras falten gates.
+No se fusionó, migró ni desplegó esta rama en el entorno persistente.
+Rollback del código: revertir exclusivamente los commits de esta revisión;
+no restaurar/borrar bases ni volúmenes. No hay migración de datos propia aplicada
+al entorno original. La versión original continúa sirviéndose hasta autorización
+y verificación de una entrega completa.
+
+Fuentes de contraste: [ciclo GLPI](https://help.glpi-project.org/documentation/modules/assistance/tickets/ticketlifecycle),
+[aprobación de soluciones](https://help.glpi-project.org/documentation/modules/assistance/tabs/solution),
+[autorización OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html).
+
+---
+
+## Registro histórico (no representa la verificación de 2026-11-04)
+
 > **Control documental ISO 9001 / ISO 27001**  
 > **Código:** DOC-12-SEC-MISSION | **Fecha:** 2026-11-02 | **Estado:** implementación en PR **borrador**, no autorizada para producción.
 

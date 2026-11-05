@@ -506,6 +506,7 @@ export function useRealtimeTicketHub(options?: UseRealtimeTicketHubOptions) {
           { queryKey: queryKeys.tickets.byGroupQueue(payload.groupId) },
           (old) => {
             if (!old || !Array.isArray(old.items)) return old
+            if (!old.items.some((t) => t.id === payload.ticketId)) return old
             const filtered = old.items.filter((t) => t.id !== payload.ticketId)
             return {
               ...old,

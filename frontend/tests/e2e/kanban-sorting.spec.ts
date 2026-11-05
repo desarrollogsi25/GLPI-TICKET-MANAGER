@@ -55,7 +55,7 @@ test.describe('kanban ordering', () => {
     expect(pendingIds.indexOf(84)).toBeGreaterThanOrEqual(0)
     expect(pendingIds.indexOf(83)).toBeLessThan(pendingIds.indexOf(84))
 
-    // LIFO: the most recently resolved/closed ticket on top (#86 Mar before #85 Feb).
+    // LIFO: the most recently resolved ticket on top (#86 Mar before #85 Feb).
     const resolvedIds = await visibleIds(resolved)
     expect(resolvedIds.indexOf(86)).toBeGreaterThanOrEqual(0)
     expect(resolvedIds.indexOf(85)).toBeGreaterThanOrEqual(0)

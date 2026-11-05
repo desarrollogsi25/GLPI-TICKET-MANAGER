@@ -18,24 +18,10 @@
  * =============================================================================
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const path = require('path');
 
-let mariadbPassword = process.env.MARIADB_PASSWORD;
-let mariadbDatabase = process.env.MARIADB_DATABASE || 'glpi';
-let mariadbUser = process.env.MARIADB_USER || 'glpi';
-let mariadbContainer = process.env.MARIADB_CONTAINER || 'glpi-db';
-
-if (!mariadbPassword) {
-  const envPath = path.resolve(__dirname, '../.env');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const match = envContent.match(/^MARIADB_PASSWORD=(.*)$/m);
-    if (match) mariadbPassword = match[1].trim();
-  }
-}
-if (!mariadbPassword) mariadbPassword = 'secret';
+const GUARD = path.resolve(__dirname, 'e2e/guard.mjs');
 
 const TECHNICAL_GROUPS = [
   { id: 1, name: 'Desarrollo' },
@@ -287,13 +273,11 @@ const FEATURED_CATALOG_CATEGORIES = [
 
 function runSql(sql) {
   try {
-    return execSync(
-      `docker exec -i ${mariadbContainer} mariadb --default-character-set=utf8mb4 -u ${mariadbUser} -p"${mariadbPassword}" -N -B ${mariadbDatabase}`,
-      { input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-  } catch (err) {
-    const msg = err.stderr || err.message;
-    throw new Error(`Error MariaDB: ${msg}`);
+    return execFileSync(process.execPath, [GUARD, 'sql', 'mariadb'], {
+      input: `SET NAMES utf8mb4;\n${sql}`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    throw new Error('Fixture blocked: a confirmed disposable E2E fixture is required.');
   }
 }
 

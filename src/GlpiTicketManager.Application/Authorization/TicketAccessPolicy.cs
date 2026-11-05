@@ -256,6 +256,8 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
 
     public async Task<bool> CanViewGroupQueueAsync(int userId, AppRole role, int groupId, CancellationToken ct = default)
     {
+        if (userId <= 0 || groupId <= 0 ||
+            role is not (AppRole.Admin or AppRole.Supervisor or AppRole.Technician)) return false;
         if (role == AppRole.Admin) return true;
 
         var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, ct);

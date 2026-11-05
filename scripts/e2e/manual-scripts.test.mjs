@@ -26,17 +26,22 @@ function cleanEnv() {
   return { ...process.env, E2E_FIXTURE_MANIFEST: '', E2E_CONFIRM_DESTRUCTIVE: '' }
 }
 
-for (const relative of HELPERS) {
-  test(`${relative} delegates to the fixture guard only`, () => {
+function assertGuarded(relative) {
     const body = readFileSync(resolve(ROOT, relative), 'utf8')
     assert.match(body, /e2e\/guard\.mjs/, 'must call the shared guard')
     assert.doesNotMatch(body, /docker\s+(compose\s+)?exec/, 'must not open its own Docker route')
     assert.doesNotMatch(body, /MARIADB_PASSWORD|PGPASSWORD/, 'must not read database credentials')
     assert.doesNotMatch(body, /['"][^'"]*\.env['"]/, 'must not read the repository .env')
     assert.doesNotMatch(body, /=\s*['"]secret['"]/, 'must not carry a credential fallback')
-  })
+}
+
+for (const relative of HELPERS) {
+  test(`${relative} delegates to the fixture guard only`, () => assertGuarded(relative))
 
   test(`${relative} exits non-zero before side effects without a fixture`, () => {
+    // A regression must never cause this negative test to execute an unsafe helper.
+    // Separate static tests do not prevent Node from running subsequent test cases.
+    assertGuarded(relative)
     const isShell = relative.endsWith('.sh')
     const result = spawnSync(isShell ? 'bash' : process.execPath, [relative], {
       cwd: ROOT, env: cleanEnv(), encoding: 'utf8', timeout: 15_000,

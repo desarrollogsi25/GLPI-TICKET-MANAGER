@@ -5,20 +5,22 @@
 
 set -euo pipefail
 
-API="http://localhost:8080"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+GUARD="$SCRIPT_DIR/e2e/guard.mjs"
+# Validate the target and run-scoped consent before HTTP, SQL or cleanup.
+node "$GUARD" verify --destructive
+API="$(node "$GUARD" url api)"
 SMOKE_TICKET_ID=98
 SMOKE_USER_ID=7
 SMOKE_GROUP_ID=1
 
-# Leer password de MariaDB del .env
-MARIADB_PASSWORD=$(grep '^MARIADB_PASSWORD=' .env | cut -d '=' -f2-)
 
 psql_app() {
-  docker compose exec -T app-db psql -U app -d glpi_ticket_manager -tAc "$1"
+  printf '%s\n' "$1" | node "$GUARD" sql postgres
 }
 
 mariadb_glpi() {
-  docker compose exec -T glpi-db mariadb -u glpi -p"${MARIADB_PASSWORD}" glpi -e "$1"
+  printf '%s\n' "$1" | node "$GUARD" sql mariadb
 }
 
 cleanup() {

@@ -126,11 +126,11 @@ export function Dashboard() {
     )
   }
 
-  const hasError = groups.isError || groupQueue.isError || assigned.isError
+  const hasError = groups.isError || groupQueue.isError || assigned.isError || stats.isError
   if (hasError) {
     return (
       <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm space-y-3">
-        <p>{getApiErrorMessage(groups.error ?? groupQueue.error ?? assigned.error)}</p>
+        <p>{getApiErrorMessage(groups.error ?? groupQueue.error ?? assigned.error ?? stats.error)}</p>
         <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
           Reintentar
         </Button>

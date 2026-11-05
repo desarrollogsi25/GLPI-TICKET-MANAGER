@@ -196,17 +196,6 @@ export interface GroupTicketDetail {
   lastComment: string | null
 }
 
-export interface CreateTicketRequest {
-  title: string
-  description: string
-  urgency?: number
-  categoryId?: number | null
-}
-
-export interface CreateTicketResponse {
-  ticketId: number
-}
-
 export interface GroupSummary {
   groupId: number
   groupName: string

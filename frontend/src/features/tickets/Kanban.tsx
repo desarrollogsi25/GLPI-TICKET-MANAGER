@@ -85,7 +85,7 @@ const COLUMNS: ColumnDef[] = [
   {
     id: 'resolved',
     title: 'Resuelto',
-    description: 'Solucionado y cerrado · GLPI 5 y 6',
+    description: 'Solucionado · GLPI 5',
     bgClass: 'bg-muted/30 border-0 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
@@ -220,7 +220,7 @@ function KanbanColumn({
               <span className="size-2 rounded-full bg-amber-500 shrink-0" title="En espera · GLPI 4" />
             )}
             {column.id === 'resolved' && (
-              <span className="size-2 rounded-full bg-emerald-600/70 shrink-0" title="Solucionados y cerrados · GLPI 5 y 6" />
+              <span className="size-2 rounded-full bg-emerald-600/70 shrink-0" title="Solucionados · GLPI 5" />
             )}
             <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
               {column.title}
@@ -571,8 +571,8 @@ export function Kanban() {
       mine: all.filter((t) => t.status === 1 || t.status === 2),
       in_progress: all.filter((t) => t.status === 3),
       pending: all.filter((t) => t.status === 4),
-      // Auto-close moves resolved tickets to Closed (6); both live in the "Resuelto" column.
-      resolved: all.filter((t) => t.status === 5 || t.status === 6),
+      // Closed tickets remain accessible through the list/history, outside the board.
+      resolved: all.filter((t) => t.status === 5),
     }
   }, [myTicketsQuery.data])
 
@@ -1175,7 +1175,7 @@ export function Kanban() {
           2. Asignado (mine · GLPI 2)
           3. En proceso (in_progress · GLPI 3 planificado)
           4. Pendiente (pending · GLPI 4 en espera)
-          5. Resuelto (resolved · GLPI 5 y 6 listo)
+          5. Resuelto (resolved · GLPI 5)
           + Drag & Drop @dnd-kit con DragOverlay renderizado en Portal (document.body)
          ========================================================================= */}
       <div className="hidden md:flex flex-1 h-full min-h-0 overflow-x-auto overflow-y-hidden" ref={boardContainerRef}>

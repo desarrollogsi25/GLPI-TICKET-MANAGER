@@ -667,7 +667,7 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
     }
 
     [Fact]
-    public async Task Scenario19_CreateTicketGroupAssignment_EnforcesMultiLevelAndMultiEntityRules_AndRejectsUnauthorizedFallback()
+    public async Task Scenario19_TicketManagerCreationChannel_IsDisabledForEveryCategory()
     {
         using var client = _factory.CreateClient();
 
@@ -679,33 +679,33 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         loginResp.EnsureSuccessStatusCode();
         var token = (await loginResp.Content.ReadFromJsonAsync<GlpiTicketManager.Application.Dtos.Auth.LoginResponse>())!.AccessToken;
 
-        // 1. Omitting categoryId for external requester with no authorized group -> 400 Bad Request (no fallback to Group 1!)
+        // Creation is unavailable even with an otherwise valid category.
         using var noCatReq = new HttpRequestMessage(HttpMethod.Post, "/api/tickets")
         {
             Content = JsonContent.Create(new { title = "Sin categoría", description = "No debe asignarse a grupo 1", urgency = 3 })
         };
         noCatReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var noCatResp = await client.SendAsync(noCatReq);
-        noCatResp.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        noCatResp.StatusCode.Should().Be(System.Net.HttpStatusCode.MethodNotAllowed);
 
-        // 2. Category from another entity (Category 50 in Entity 5 vs requester in Entity 0) -> 400 Bad Request
+        // Creation is unavailable even with an otherwise valid category.
         using var crossEntityReq = new HttpRequestMessage(HttpMethod.Post, "/api/tickets")
         {
             Content = JsonContent.Create(new { title = "Otra entidad", description = "Categoría entidad 5", urgency = 3, categoryId = 50 })
         };
         crossEntityReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var crossEntityResp = await client.SendAsync(crossEntityReq);
-        crossEntityResp.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        crossEntityResp.StatusCode.Should().Be(System.Net.HttpStatusCode.MethodNotAllowed);
 
-        // 3. Multi-level child category (Category 12 inherits from Parent 10 -> Group 1) -> 201 Created with Group 1
+        // Creation is unavailable even with an otherwise valid category.
         using var multiLevelReq = new HttpRequestMessage(HttpMethod.Post, "/api/tickets")
         {
             Content = JsonContent.Create(new { title = "Subcategoría multinivel", description = "Hereda grupo 1", urgency = 3, categoryId = 12 })
         };
         multiLevelReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var multiLevelResp = await client.SendAsync(multiLevelReq);
-        multiLevelResp.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
-        _factory.LastCreatedTicketAssignedGroupId.Should().Be(CustomWebApplicationFactory.Group1Id);
+        multiLevelResp.StatusCode.Should().Be(System.Net.HttpStatusCode.MethodNotAllowed);
+        _factory.GlpiMock.Invocations.Should().NotContain(i => i.Method.Name == "CreateTicketAsync");
     }
 
     private static HttpRequestMessage CreateSignedRequest(string uri, string rawBody)
