@@ -788,8 +788,8 @@ public sealed class TicketRepository : ITicketRepository
             cancellationToken: cancellationToken);
 
         var rows = await connection.QueryAsync<TicketStatusRow>(command);
-        return rows.ToDictionary(row => row.TicketId, row => row.Status);
+        return rows.ToDictionary(row => (int)row.TicketId, row => (int)row.Status);
     }
 
-    private sealed record TicketStatusRow(int TicketId, int Status);
+    private sealed record TicketStatusRow(long TicketId, long Status);
 }
