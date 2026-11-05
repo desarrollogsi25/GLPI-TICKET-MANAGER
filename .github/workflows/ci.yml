@@ -86,6 +86,8 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         if: steps.filter.outputs.frontend == 'true'
+      - run: pnpm lint
+        if: steps.filter.outputs.frontend == 'true'
       - run: pnpm typecheck
         if: steps.filter.outputs.frontend == 'true'
       - run: pnpm test:unit
