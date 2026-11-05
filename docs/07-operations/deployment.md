@@ -1,7 +1,7 @@
 # Procedimiento de Despliegue y Puesta en Producción (H-19)
 
 > **Control Documental ISO 9001 / ISO 27001**  
-> **Código:** DOC-07-OPS-DEPLOYMENT | **Versión:** 1.2.0 | **Fecha:** 2026-10-19 | **Autor:** GLPI Ticket Manager Team
+> **Código:** DOC-07-OPS-DEPLOYMENT | **Versión:** 1.3.0 | **Fecha:** 2026-11-05 | **Autor:** GLPI Ticket Manager Team
 
 ## 1. Propósito y Alcance
 
@@ -153,3 +153,43 @@ http://<IP_DEL_HOST>:80
   ```bash
   docker compose -f docker-compose.prod.yml up -d --build
   ```
+
+## 8. Registro de despliegue — 2026-11-05 (main `749a834`)
+
+Despliegue del PR #44 (rebase-merge) sobre el stack local existente con el overlay `docker-compose.local-sync.yml`. No se crearon ni eliminaron volúmenes; GLPI, MariaDB y PostgreSQL conservaron sus datos.
+
+### 8.1 Fuente y validación previa
+
+| Elemento | Registro |
+| --- | --- |
+| Commit desplegado | `749a834` en `main` (7 commits del PR #44 sobre `12866e6`). |
+| CI | Run [42085345613](https://github.com/desarrollogsi25/GLPI-TICKET-MANAGER/actions/runs/42085345613): 4/4 jobs en verde; E2E 45/45, backend 51+217, frontend 14 unit, gitleaks. |
+| Respaldo de datos | `scratch/backup-20261105/`: `glpi-mariadb.sql` (5.561.763 bytes) y `app-postgres.sql` (194.186 bytes); `mysqldump`/`pg_dump` con salida 0. Directorio no versionado. |
+| Imágenes de rollback | `sistemaopensourceglpi-api:rollback-20261105-premerge` (`854af249742d`) y `glpi-ticket-manager-frontend:rollback-20261105-premerge` (`0de3642a0ee8`). |
+
+### 8.2 Ejecución
+
+```bash
+docker compose -p sistemaopensourceglpi -f docker-compose.yml -f docker-compose.local-sync.yml \
+  up -d --build api frontend lan-frontend
+```
+
+Resultado: `glpi-ticket-manager-frontend:local` reconstruida (`a64f32258f04`, bundle `index-CmV1ILv0.js`); `sistemaopensourceglpi-api:latest` conserva el digest `819fa448834a` porque el backend no cambió respecto de `12866e6` (los únicos cambios del PR fuera del frontend están en `scripts/`, que no forma parte del contexto de build de la API). Contenedores `glpi-api`, `glpi-frontend` y `glpi-lan-frontend` recreados sin tocar `glpi`, `nginx`, `glpi-db` ni `app-db`.
+
+### 8.3 Verificación posterior
+
+- `GET /health` → 200; `GET /health/ready` → 200 `{"status":"ready","checks":{"mariadb":true,"postgresql":true}}`.
+- Frontend 200 en `127.0.0.1:5173`, `127.0.0.1:80` y `127.0.0.1:443`.
+- Smoke Playwright (20 comprobaciones) **20/20 en :5173 y 20/20 en :80**: login por rol, 5 columnas Kanban, SignalR `connected`, campana de notificaciones, etiqueta de dashboard por rol, guía «Los tickets se crean en GLPI» sin paso de creación, ausencia de toast falso de red y móvil 390×844 sin desborde horizontal.
+- Cabeceras en `/`: HSTS, CSP (con `connect-src 'self' ws: wss:`), `X-Frame-Options: DENY`, `Permissions-Policy`; `sw.js`, `manifest.webmanifest` y `theme-init.js` responden 200 con `no-cache`.
+
+### 8.4 Rollback
+
+```bash
+docker tag sistemaopensourceglpi-api:rollback-20261105-premerge sistemaopensourceglpi-api:latest
+docker tag glpi-ticket-manager-frontend:rollback-20261105-premerge glpi-ticket-manager-frontend:local
+docker compose -p sistemaopensourceglpi -f docker-compose.yml -f docker-compose.local-sync.yml \
+  up -d --no-build api frontend lan-frontend
+```
+
+La restauración de bases (`glpi-mariadb.sql`, `app-postgres.sql`) solo procede ante un incidente de datos confirmado y requiere autorización explícita; no forma parte del rollback de código.
