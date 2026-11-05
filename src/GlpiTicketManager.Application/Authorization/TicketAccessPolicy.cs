@@ -99,7 +99,12 @@ public sealed class TicketAccessPolicy : ITicketAccessPolicy
             return true;
 
         var ticket = await _tickets.GetByIdAsync(ticketId, ct);
-        if (ticket is null || ticket.Status != 1) return false;
+        if (ticket is null) return false;
+        // GLPI moves a new ticket to Assigned (2) as soon as a rule assigns it to a
+        // group, even when no individual technician is assigned yet. The group queue
+        // lists status 1 and 2 without assignee, so both must be viewable/claimable
+        // by members of that group; otherwise the card would be visible but unopenable.
+        if (ticket.Status is not ((int)TicketStatus.New or (int)TicketStatus.Assigned)) return false;
         if (await _tickets.HasAssigneeAsync(ticketId, ct)) return false;
 
         var userGroups2 = await _tickets.GetGroupIdsForUserAsync(userId, ct);
