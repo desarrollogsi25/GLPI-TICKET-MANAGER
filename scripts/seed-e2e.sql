@@ -321,8 +321,8 @@ VALUES
   (82, 0, 'ORDER FIFO B (newer)', '2026-03-01 08:00:00', '2026-03-01 08:00:00', 3, 3, 'Orden FIFO', 3, 3, 1, 1, 1, 2),
   (83, 0, 'ORDER WAIT A (older)', '2026-02-02 08:00:00', '2026-02-02 08:00:00', 4, 3, 'Orden FIFO', 3, 3, 4, 1, 1, 2),
   (84, 0, 'ORDER WAIT B (newer)', '2026-03-02 08:00:00', '2026-03-02 08:00:00', 4, 3, 'Orden FIFO', 3, 3, 2, 1, 1, 2),
-  (85, 0, 'ORDER DONE A (older)', '2026-02-03 08:00:00', '2026-02-03 08:00:00', 6, 3, 'Orden LIFO', 3, 3, 3, 1, 1, 2),
-  (86, 0, 'ORDER DONE B (newer)', '2026-03-03 08:00:00', '2026-03-03 08:00:00', 6, 3, 'Orden LIFO', 3, 3, 3, 1, 1, 2)
+  (85, 0, 'ORDER DONE A (older)', '2026-02-03 08:00:00', '2026-02-03 08:00:00', 5, 3, 'Orden LIFO', 3, 3, 3, 1, 1, 2),
+  (86, 0, 'ORDER DONE B (newer)', '2026-03-03 08:00:00', '2026-03-03 08:00:00', 5, 3, 'Orden LIFO', 3, 3, 3, 1, 1, 2)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name), status = VALUES(status), date = VALUES(date), date_mod = VALUES(date_mod),
   priority = VALUES(priority), itilcategories_id = 2, is_deleted = 0,

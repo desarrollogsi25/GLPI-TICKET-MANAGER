@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { createRequire, syncBuiltinESMExports } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,14 @@ import childProcess from 'node:child_process'
 import * as guard from './guard.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+
+test('specs cannot override the verified base URL with a persistent local stack', () => {
+  const specs = resolve(ROOT, 'frontend/tests/e2e')
+  for (const name of readdirSync(specs).filter(name => name.endsWith('.ts'))) {
+    assert.ok(!/https?:\/\/(?:localhost|127\.0\.0\.1):(?:5173|8080|8081)(?:\b|\/)/.test(
+      readFileSync(resolve(specs, name), 'utf8')), `Unverified persistent URL in ${name}`)
+  }
+})
 const requireFrontend = createRequire(resolve(ROOT, 'frontend/package.json'))
 const ts = requireFrontend('typescript')
 

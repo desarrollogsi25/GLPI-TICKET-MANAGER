@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { verifyFixtureResources, assertDisposableFixture, runFixtureSql, runFixtureCommand } from './guard.mjs'
 import { cleanupFixture, removeTemporaryFixtureDirectory } from './runner-cleanup.mjs'
+import { verifyWebhookMigration, verifyWebhookReplicas } from './integration-smoke.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const composeFile = resolve(root, 'docker-compose.e2e.yml')
@@ -239,6 +240,10 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
       signal: AbortSignal.timeout(10_000),
     })
     if (nativeGlpi) {
+      progress('verify SQL007 on a fresh schema-only child database inside the fixture')
+      await verifyWebhookMigration(env)
+      progress('verify webhook deduplication and stable VAPID keys across two API processes and restart')
+      verifyWebhookReplicas(env, secrets.E2E_WEBHOOK_SECRET)
       progress('provision guarded synthetic visual forms for native GLPI submission')
       const visualSeed = spawnSync(process.execPath, [resolve(root, 'scripts/seed-visual-forms.js')], { cwd: root, env, stdio: 'inherit' })
       if (visualSeed.error || visualSeed.status !== 0) throw new Error('Synthetic visual fixture provisioning failed')

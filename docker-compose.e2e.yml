@@ -91,6 +91,7 @@ services:
       # stack for a full suite. Production values in appsettings.json are
       # untouched; never copy these into a real environment.
       RateLimiting__PerUserRequestLimit: "600"
+      RateLimiting__LoginAttemptLimit: "60"
       RateLimiting__ExpensiveTokenLimit: "200"
       RateLimiting__ExpensiveReplenishmentSeconds: "1"
     ports:

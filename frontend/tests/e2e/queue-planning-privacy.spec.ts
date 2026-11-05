@@ -37,4 +37,7 @@ test('Ticket Manager rejects direct ticket creation', async ({ page }) => {
   })
   expect(response.status()).toBe(405)
   await expect(page.getByRole('link', { name: /crear ticket|nuevo ticket/i })).toHaveCount(0)
+  await page.goto('/services')
+  await expect(page.getByRole('button', { name: /crear ticket|nuevo ticket|solicitar/i })).toHaveCount(0)
+  await expect(page.getByText('Las solicitudes nuevas se crean en el portal GLPI.', { exact: false })).toBeVisible()
 })
