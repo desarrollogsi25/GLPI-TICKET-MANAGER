@@ -57,7 +57,7 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await glpi.goto(GLPI)
   await glpi.locator('#login_name').fill(REQUESTER_USERNAME)
   await glpi.locator('#login_password').fill(REQUESTER_PASSWORD)
-  await glpi.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+  await glpi.locator('button[type="submit"]').click()
   await glpi.getByRole('link', { name: /Reportar un problema|Reportar una incidencia general/ }).last().click()
   await expect(glpi).toHaveURL(/Form\/Render\/1/)
   await glpi.getByRole('textbox', { name: 'Asunto', exact: true }).fill(title)
