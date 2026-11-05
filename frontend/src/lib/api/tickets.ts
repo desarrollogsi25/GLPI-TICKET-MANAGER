@@ -62,7 +62,7 @@ export async function listTicketTasks(ticketId: number): Promise<TicketTask[]> {
   return data
 }
 
-export interface ReplanTicketTaskRequest extends PlanTicketRequest {}
+export type ReplanTicketTaskRequest = PlanTicketRequest
 
 export interface TicketTaskMutationResponse { ticketId: number; taskId: number; ticketStatus: number }
 

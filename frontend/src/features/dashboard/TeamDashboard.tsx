@@ -58,7 +58,7 @@ export function TeamDashboard() {
   const { data, isLoading, isError } = useTeamDashboardQuery(groupId)
   const technicians = data?.technicians ?? []
   const summary = data?.summary
-  const allTickets: GroupTicketDetail[] = data?.tickets ?? []
+  const allTickets: GroupTicketDetail[] = useMemo(() => data?.tickets ?? [], [data?.tickets])
 
   // 1. Stalled ticket criteria (>24h without updates in active/pending status)
   const ONE_DAY_MS = 24 * 60 * 60 * 1000
