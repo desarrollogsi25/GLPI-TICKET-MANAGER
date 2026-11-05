@@ -1,5 +1,6 @@
 import axios from 'axios'
 
+import { isNetworkFailure } from '@/lib/api/network-error'
 import { useAuthStore } from '@/store/authStore'
 import { useToastStore } from '@/store/toastStore'
 
@@ -72,14 +73,10 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Network errors (no response, timeout, server down)
-    if (
-      axios.isAxiosError(error) &&
-      (!error.response ||
-        error.code === 'ERR_NETWORK' ||
-        error.code === 'ECONNABORTED' ||
-        error.code === 'ETIMEDOUT')
-    ) {
+    // Network errors (no response, timeout, server down). Cancellations are
+    // filtered out: React Query aborts in-flight queries on unmount and that is
+    // not a connectivity failure.
+    if (isNetworkFailure(error)) {
       const now = Date.now()
       if (now - lastNetworkToastTime > 5000) {
         lastNetworkToastTime = now

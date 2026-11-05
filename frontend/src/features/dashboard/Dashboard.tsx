@@ -97,7 +97,7 @@ export function Dashboard() {
     ? 'Métricas globales de la instancia'
     : isSupervisor
       ? 'Métricas de tus grupos supervisados'
-      : 'Métricas personales (todos tus grupos)'
+      : 'Métricas personales (tickets asignados a vos)'
   const totalCardTitle = isAdmin ? 'Tickets totales' : isSupervisor ? 'Tickets del grupo' : 'Total asignados'
   const assignedOpenCount = dbStats?.openTickets ?? assignedItems.filter((t) => [1, 2, 3, 4].includes(t.status)).length
   const ticketsNuevos = dbStats?.newTickets ?? assignedItems.filter((t) => t.status === 1).length
