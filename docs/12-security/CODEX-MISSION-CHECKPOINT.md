@@ -1,5 +1,68 @@
 # Checkpoint de finalización — GLPI Ticket Manager
 
+## Continuación — 2026-11-05 (prevalece sobre los resultados anteriores)
+
+**EN CURSO; PR #43 en borrador; sin merge ni despliegue persistente.** Rama
+`codex/mission-audit-20261104`, HEAD publicado al iniciar esta continuación
+`bda3c712fa047aeebb9399cf2f69be88b3517550`. Los cambios siguientes todavía
+requieren el resultado de CI y revisión humana. No se delegó a otros agentes.
+
+- M-09: retirada de la ruta pública POST /api/tickets y de los diálogos/cliente
+  de creación en Ticket Manager. La creación corresponde a los formularios
+  nativos de GLPI; las tarjetas de Servicios consultan tickets. Regresiones de
+  cuatro roles esperan 405 y ninguna escritura GLPI.
+- M-10: SignalR ya no usa Clients.All cuando falta grupo. Estado y solución se
+  envían al usuario asignado/autor conocido y supervisores del grupo resuelto;
+  creación y claim usan grupos explícitos en una única llamada. Regresión para
+  todos los estados y resolución de grupo fallida. Limitación: se elige el primer
+  grupo técnico positivo; el caso multigrupo requiere revisión adicional.
+- M-11: suscripciones push validan HTTPS/443, proveedor permitido y claves P256/auth;
+  redirecciones HTTP deshabilitadas. VAPID usa exclusión transaccional PostgreSQL
+  entre procesos, conserva la pareja persistida y falla sin generar claves
+  efímeras cuando falla la persistencia. Logs sin URL/token de suscripción.
+  La respuesta de prueba sólo expresa aceptación del proveedor, no recepción SO.
+- M-08/H-20: fixtures cubren SQL007 con esquema nativo recién instalado y replay
+  firmado entre dos procesos API con reinicio. Ambas pruebas pasaron por separado.
+  Se amplía la prueba a estabilidad VAPID concurrente, pendiente de integración.
+  Todos los specs usan los destinos verificados; se corrigen expectativas de
+  autocierre y dos creaciones residuales mediante Ticket Manager en el journey.
+- M-06: discrepancia de huellas resuelta: hash del archivo PEM frente a huella
+  del certificado DER, del mismo certificado actual. Ambos frontends presentan
+  el mismo leaf válido con los tres SAN esperados. ca.key sigue expuesta a root
+  por el montaje completo. El usuario NO autorizó importar la CA. Se preservaron
+  assets públicos modificados de ambos frontends antes de proponer recreación.
+  Investigación, límites y rollback: [TLS-FORENSICS-20261105.md](TLS-FORENSICS-20261105.md).
+  Se excluyen claves/certificados/artefactos locales del contexto de build futuro;
+  no se eliminaron caches ni se alteraron montajes o certificados actuales.
+
+Evidencia acumulada: 50 pruebas de aplicación + 205 API con dobles PASS, Release;
+TypeScript/build PWA y 8 pruebas de paginación PASS. Guardas 106/106 PASS con
+Git Bash nativo. Con bash predeterminado Windows hubo fallos de plataforma al
+apuntar a WSL sin /bin/bash; no se reportan como PASS ni como defecto de GLPI.
+Último E2E selectivo: 5 PASS y 1 FAIL por expectativa obsoleta de autocierre,
+corregida después. Ejecución completa siguiente detenida en SQL007 antes de
+Playwright; guardas mantuvieron aislamiento y cleanup confirmó recursos retirados.
+Se investiga timeout por comando con polling dentro del fixture, sin ampliar
+permisos. Nueva ejecución completa EN CURSO; no convertir estos resultados en PASS.
+
+QA interactivo real recuperado mediante extensión Chrome: login del técnico
+`tech1` en el entorno original, Kanban, listado, filtro sin coincidencias,
+limpieza de filtro, detalle y catálogo; revisión visual a 390x844 y restauración
+del viewport. Cero mensajes console error/warn en ese recorrido. No se realizaron
+mutaciones de tickets. El entorno original todavía muestra creación directa y
+mezcla estados 5/6: confirma que estos cambios aún NO están desplegados. No se
+equipara esta revisión parcial con QA completo de todos los roles, red, GLPI
+original, accesibilidad, push Windows ni Android físico.
+
+GitNexus local detect-changes: 21 archivos, 39 símbolos, 10 procesos, impacto HIGH;
+índice base anterior y alcance PARCIAL, contrastado manualmente con interfaces,
+endpoints, consumidores React y tests. Afecta creación, notificaciones realtime,
+preferencias push y runner aislado. Requiere gates backend/frontend/E2E y revisión.
+Rollback: revertir sólo commits de esta misión; sin restaurar ni borrar datos.
+Siguiente: completar suite aislada, publicar los cambios en PR borrador y revisar
+CI; pedir autorización específica para TLS tras presentar evidencia. Push nativo,
+Android, catálogo original incompleto y avisos de dependencias siguen abiertos.
+
 ## Reanudación de misión — 2026-11-04 (estado actual)
 
 **EN CURSO / NO APROBADO PARA PUBLICACIÓN.** Este bloque sustituye el estado de
