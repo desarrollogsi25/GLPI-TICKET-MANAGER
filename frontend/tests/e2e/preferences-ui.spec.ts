@@ -10,14 +10,16 @@ test('preferences UI: toggle, save, reload persists', async ({ page }) => {
   await page.goto('/preferences')
   await page.waitForLoadState('networkidle')
 
-  // 2. Verificar selector de tema
-  const themeSelect = page.locator('select[name="theme"], input[name="theme"]').first()
-  await expect(themeSelect).toBeAttached({ timeout: 10000 })
+  // 2. Verificar que solo existe un selector de tema (tarjetas claro/oscuro)
+  const lightOption = page.getByTestId('theme-option-light')
+  const darkOption = page.getByTestId('theme-option-dark')
+  await expect(lightOption).toBeVisible({ timeout: 10000 })
+  await expect(darkOption).toBeVisible()
+  await expect(page.locator('select[name="theme"], input[name="theme"]')).toHaveCount(0)
 
   // 3. Cambiar a dark (autoguardado con debounce H-61)
-  await themeSelect.selectOption('dark').catch(async () => {
-    await themeSelect.check()
-  })
+  await darkOption.click()
+  await expect(darkOption).toHaveAttribute('aria-checked', 'true')
 
   // 4. Verificar mensaje de confirmación o toast de autoguardado
   await expect(page.getByText(/guardado|saved|actualizado/i).first()).toBeVisible({ timeout: 8000 })
@@ -25,19 +27,14 @@ test('preferences UI: toggle, save, reload persists', async ({ page }) => {
   // 5. Recargar y verificar persistencia
   await page.reload()
   await page.waitForLoadState('networkidle')
-  const valueAfter = await themeSelect.inputValue().catch(async () => {
-    return (await themeSelect.isChecked()) ? 'dark' : 'light'
-  })
-  expect(valueAfter).toBe('dark')
+  await expect(page.getByTestId('theme-option-dark')).toHaveAttribute('aria-checked', 'true')
 
   // 6. Verificar data-theme en <html>
   const dataTheme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
   expect(dataTheme).toBe('dark')
 
   // Restaurar a light para no alterar otras pruebas
-  await themeSelect.selectOption('light').catch(async () => {
-    await themeSelect.check()
-  })
+  await page.getByTestId('theme-option-light').click()
   await page.waitForTimeout(600)
 
   expect(consoleErrors).toEqual([])

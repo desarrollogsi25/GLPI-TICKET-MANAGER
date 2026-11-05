@@ -4,11 +4,9 @@ test('dark mode toggle actually changes html class', async ({ page }) => {
   await page.goto('/preferences')
   await page.waitForLoadState('networkidle')
 
-  // Cambiar a dark (autoguardado con debounce H-61)
-  const themeSelect = page.locator('select[name="theme"], input[name="theme"]').first()
-  await themeSelect.selectOption('dark').catch(async () => {
-    await themeSelect.check()
-  })
+  // Cambiar a dark con las tarjetas de tema (autoguardado con debounce H-61)
+  await page.getByTestId('theme-option-dark').click()
+  await expect(page.getByTestId('theme-option-dark')).toHaveAttribute('aria-checked', 'true')
   await page.waitForTimeout(800)
 
   // Verificar clase .dark en html
@@ -35,8 +33,6 @@ test('dark mode toggle actually changes html class', async ({ page }) => {
   expect(stillDark).toBe(true)
 
   // Restaurar a light para no contaminar el resto de suites
-  await themeSelect.selectOption('light').catch(async () => {
-    await themeSelect.check()
-  })
+  await page.getByTestId('theme-option-light').click()
   await page.waitForTimeout(600)
 })

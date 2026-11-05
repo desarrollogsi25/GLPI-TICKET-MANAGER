@@ -20,7 +20,7 @@ export function ProtectedRouteWithRole({
   fallbackPath = '/tickets',
   children,
 }: ProtectedRouteWithRoleProps) {
-  const role = useAuthStore((state) => state.role)
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
 
   if (!allowedRoles.includes(role)) {
     return <Navigate to={fallbackPath} replace />

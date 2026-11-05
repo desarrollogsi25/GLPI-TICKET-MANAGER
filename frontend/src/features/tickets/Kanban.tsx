@@ -119,10 +119,10 @@ function sortTicketsForColumn(columnId: ColumnId, tickets: TicketSummary[]): Tic
 
 const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   queue: ['mine'],
-  // En ejecución (GLPI 2): puede planificarse (→ in_progress), pausarse (→ pending), o resolverse (→ resolved)
+  // Asignado (GLPI 2): puede planificarse (→ in_progress), pausarse (→ pending), o resolverse (→ resolved)
   mine: ['in_progress', 'pending', 'resolved'],
   in_progress: ['pending', 'resolved', 'mine'],
-  // H-39: un ticket Pendiente puede reanudarse hacia En ejecución o Planificado
+  // H-39: un ticket Pendiente puede reanudarse hacia Asignado o En proceso (planificado)
   pending: ['in_progress', 'mine'],
   // Resolved is terminal in the board: only an admin reopens via the detail view.
   resolved: [],
@@ -1255,7 +1255,7 @@ export function Kanban() {
               invalidDropTicketId={invalidDropTicketId}
             />
 
-            {/* Columna 5: Resuelto (GLPI 5 y 6) */}
+            {/* Columna 5: Resuelto (GLPI 5). El estado 6 Cerrado vive solo en el histórico. */}
             <KanbanColumn
               column={COLUMNS[4]}
               tickets={ticketsByColumn.resolved}

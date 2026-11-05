@@ -71,7 +71,8 @@ function GlobalThemeSync() {
 }
 
 function RootRedirect() {
-  return <Navigate to="/kanban" replace />
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
+  return <Navigate to={role === 'solicitante' ? '/tickets' : '/kanban'} replace />
 }
 
 function DemoEnvironmentBanner() {

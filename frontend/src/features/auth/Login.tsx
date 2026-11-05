@@ -27,9 +27,11 @@ const EASE = [0.23, 1, 0.32, 1] as const
 
 export function Login() {
   const token = useAuthStore((state) => state.token)
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
   const login = useLoginMutation()
   const navigate = useNavigate()
   const location = useLocation()
+  const homePath = role === 'solicitante' ? '/tickets' : '/kanban'
 
   const {
     register,
@@ -43,14 +45,17 @@ export function Login() {
   })
 
   if (token) {
-    return <Navigate to="/kanban" replace />
+    return <Navigate to={homePath} replace />
   }
 
   const onSubmit = handleSubmit((values) => {
     login.mutate(values, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         const state = location.state as LocationState | null
-        navigate(state?.from ?? '/kanban', { replace: true })
+        // The default landing depends on the role returned by this login, not on
+        // the pre-login store value (which is still the previous session's role).
+        const destination = data.user.role === 'solicitante' ? '/tickets' : '/kanban'
+        navigate(state?.from ?? destination, { replace: true })
       },
     })
   })

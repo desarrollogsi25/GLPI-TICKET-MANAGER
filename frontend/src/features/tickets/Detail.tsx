@@ -32,7 +32,7 @@ export function Detail() {
   const cancelTask = useCancelTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
   const currentUser = useAuthStore((state) => state.user)
-  const role = useAuthStore((state) => state.role ?? state.user?.role)
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
   const currentTime = useCurrentTime()
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
@@ -155,7 +155,9 @@ export function Detail() {
                 {ticket.solutions.map((sol) => (
                   <div key={sol.id} className="border-l-2 border-emerald-500/60 pl-4 space-y-1">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">Usuario #{sol.userId}</span>
+                      <span className="font-semibold text-foreground">
+                        {sol.userId === currentUser?.userId ? `Vos (#${sol.userId})` : `Usuario #${sol.userId}`}
+                      </span>
                       <span>· {formatDateTime(sol.createdAt)}</span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm text-foreground">
@@ -179,7 +181,11 @@ export function Detail() {
                   {ticket.followups.map((followup) => (
                     <li key={followup.id} className="border-l-2 border-border/80 pl-4 py-0.5">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Usuario #{followup.userId}</span>
+                        <span className="font-semibold text-foreground">
+                          {followup.userId === currentUser?.userId
+                            ? `Vos (#${followup.userId})`
+                            : `Usuario #${followup.userId}`}
+                        </span>
                         <span>{formatDateTime(followup.createdAt)}</span>
                         {followup.isPrivate ? <Badge variant="secondary" className="text-[10px]">Privado</Badge> : null}
                       </div>
@@ -215,7 +221,11 @@ export function Detail() {
                           {task.state === 2 ? 'Realizada' : task.state === 1 ? 'Por hacer' : 'Información'}
                         </Badge>
                         {task.isPrivate ? <Badge variant="secondary">Privada</Badge> : null}
-                        <span>Técnico #{task.technicianId}</span>
+                        <span>
+                          {task.technicianId === currentUser?.userId
+                            ? `Vos (#${task.technicianId})`
+                            : `Técnico #${task.technicianId}`}
+                        </span>
                       </div>
                       <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground">{toPlainText(task.content) || '—'}</p>
                       {task.startAt && task.endAt && (
@@ -410,7 +420,7 @@ export function Detail() {
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Técnicos asignados</span>
-                <span className="font-medium text-xs text-foreground">{ticket.assigneeIds.map((userId) => `#${userId}`).join(', ') || '—'}</span>
+                <span className="font-medium text-xs text-foreground">{ticket.assigneeIds.map((userId) => userId === currentUser?.userId ? `Vos (#${userId})` : `#${userId}`).join(', ') || '—'}</span>
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Solicitantes</span>

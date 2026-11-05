@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { motion } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -11,12 +12,14 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 
+import { DropdownSelect } from '@/components/ui/dropdown-select'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useGroupsQuery, useGroupQueueQuery, useTicketsQuery } from '@/hooks/useTickets'
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
+import { useRole } from '@/hooks/useRole'
 import { useAuthStore } from '@/store/authStore'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { formatRelative } from '@/lib/format'
@@ -69,9 +72,16 @@ function StatCard({
 export function Dashboard() {
   const navigate = useNavigate()
   const userId = useAuthStore((state) => state.user?.userId ?? null)
+  const { isAdmin, isSupervisor, isTechnician } = useRole()
   const groups = useGroupsQuery()
-  const effectiveGroupId =
-    groups.data && groups.data.length > 0 ? groups.data[0].id : null
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  const currentGroup =
+    groups.data?.find((group) => group.id === selectedGroupId) ??
+    (groups.data && groups.data.length > 0 ? groups.data[0] : null)
+  const effectiveGroupId = currentGroup?.id ?? null
+  // Scope is explicit: the queue cards belong to the selected group, while the
+  // counters below are personal (every group the user belongs to).
+  const effectiveGroupName = currentGroup?.name ?? 'Sin grupo'
   const groupQueue = useGroupQueueQuery(effectiveGroupId)
   const assigned = useTicketsQuery(userId ?? null)
   const stats = useDashboardStatsQuery()
@@ -79,8 +89,16 @@ export function Dashboard() {
   const dbStats = stats.data
   const assignedItems = assigned.data?.items ?? []
 
-  // Totales agregados directos desde backend SQL (soporta > 100 tickets sin truncar)
-  const totalAssigned = dbStats?.assignedTickets ?? (dbStats ? (dbStats.newTickets + (dbStats.executionTickets ?? 0) + (dbStats.plannedTickets ?? 0) + (dbStats.pausedTickets ?? 0)) : assignedItems.length)
+  // Totales agregados directos desde backend SQL (soporta > 100 tickets sin truncar).
+  // El alcance lo decide el backend: admin = global, supervisor = sus grupos,
+  // técnico = solo los tickets asignados a él.
+  const totalInScope = dbStats?.totalTickets ?? assignedItems.length
+  const scopeLabel = isAdmin
+    ? 'Métricas globales de la instancia'
+    : isSupervisor
+      ? 'Métricas de tus grupos supervisados'
+      : 'Métricas personales (todos tus grupos)'
+  const totalCardTitle = isAdmin ? 'Tickets totales' : isSupervisor ? 'Tickets del grupo' : 'Total asignados'
   const assignedOpenCount = dbStats?.openTickets ?? assignedItems.filter((t) => [1, 2, 3, 4].includes(t.status)).length
   const ticketsNuevos = dbStats?.newTickets ?? assignedItems.filter((t) => t.status === 1).length
   const ticketsEnProgreso = dbStats?.executionTickets ?? dbStats?.assignedTickets ?? assignedItems.filter((t) => t.status === 2).length
@@ -113,8 +131,8 @@ export function Dashboard() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Dashboard del Agente"
-          description="Resumen operativo en tiempo real de tus tickets asignados y flujo de trabajo."
+          title={isAdmin ? 'Dashboard global' : isSupervisor ? 'Dashboard de supervisión' : 'Dashboard del Agente'}
+          description="Resumen operativo en tiempo real de los tickets en tu alcance."
           breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
         />
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -141,33 +159,48 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard del Agente"
-        description="Resumen operativo en tiempo real de tus tickets asignados y flujo de trabajo."
+        title={isAdmin ? 'Dashboard global' : isSupervisor ? 'Dashboard de supervisión' : 'Dashboard del Agente'}
+        description={`Resumen operativo en tiempo real. ${scopeLabel} · Cola: ${effectiveGroupName}.`}
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
+        actions={
+          (groups.data?.length ?? 0) > 1 ? (
+            <DropdownSelect
+              aria-label="Grupo de la cola"
+              value={effectiveGroupId ? String(effectiveGroupId) : ''}
+              onChange={(value) => setSelectedGroupId(Number(value))}
+              options={(groups.data ?? []).map((group) => ({
+                value: String(group.id),
+                label: group.name,
+              }))}
+              className="w-44 sm:w-48"
+              data-testid="dashboard-group-select"
+            />
+          ) : undefined
+        }
       />
 
       {/* Métricas Principales del Técnico */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard
-          title="Tickets en mi cola"
+          title="Tickets en la cola"
           value={queueCount}
-          subtitle={queueCount === 0 ? 'Cola al día' : `${queueCount} por asignar`}
+          subtitle={queueCount === 0 ? `${effectiveGroupName}: al día` : `${effectiveGroupName}: ${queueCount} por asignar`}
           icon={Inbox}
           variant="primary"
           onClick={() => navigate('/queue')}
         />
         <StatCard
-          title="Total Asignados"
-          value={totalAssigned}
+          title={totalCardTitle}
+          value={totalInScope}
           subtitle={`${assignedOpenCount} activos / abiertos`}
           icon={ListTodo}
           variant="default"
           onClick={() => navigate('/tickets')}
         />
         <StatCard
-          title="En Ejecución"
+          title="Asignados"
           value={ticketsEnProgreso}
-          subtitle="Trabajando activamente (GLPI 2)"
+          subtitle={isTechnician ? 'Asignados a ti, sin planificar (GLPI 2)' : 'Sin planificar (GLPI 2)'}
           icon={PlayCircle}
           variant="primary"
           onClick={() => navigate('/tickets?status=2')}
@@ -175,7 +208,7 @@ export function Dashboard() {
         <StatCard
           title="Planificados"
           value={ticketsPlanificados}
-          subtitle={`${tareasProgramadas} tareas programadas (GLPI 3)`}
+          subtitle={`${tareasProgramadas} tareas activas en GLPI`}
           icon={Calendar}
           variant="default"
           onClick={() => navigate('/tickets?status=3')}
@@ -199,7 +232,7 @@ export function Dashboard() {
         <StatCard
           title="Resueltos"
           value={ticketsResueltos}
-          subtitle={`${solvedToday.length} resueltos hoy (GLPI 5)`}
+          subtitle={isTechnician ? `${solvedToday.length} resueltos hoy (GLPI 5)` : 'Solucionados (GLPI 5)'}
           icon={CheckCircle2}
           variant="success"
           onClick={() => navigate('/tickets?status=5')}
@@ -235,8 +268,8 @@ export function Dashboard() {
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold tracking-tight">Próximos en la cola del grupo</h2>
-              <p className="text-xs text-muted-foreground">Tickets disponibles para auto-asignación</p>
+              <h2 className="text-base font-semibold tracking-tight">Próximos en la cola de {effectiveGroupName}</h2>
+              <p className="text-xs text-muted-foreground">Tickets del grupo seleccionado disponibles para auto-asignación</p>
             </div>
             <Button
               variant="outline"
@@ -309,7 +342,7 @@ export function Dashboard() {
                 <span className="font-semibold tabular-nums">{ticketsNuevos}</span>
               </div>
               <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                <span className="text-muted-foreground">2. En Proceso (Asignado)</span>
+                <span className="text-muted-foreground">2. Asignado</span>
                 <span className="font-semibold tabular-nums">{ticketsEnProgreso}</span>
               </div>
               <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">

@@ -121,7 +121,16 @@ export function AppSidebar({
   const username = profile?.username ? `@${profile.username}` : ''
   const initial = displayName.charAt(0).toUpperCase()
 
-  const { isAdmin, isSupervisor } = useRole()
+  const { isAdmin, isSupervisor, isRequester } = useRole()
+  // Requesters only have access to their own tickets, help and preferences.
+  const visiblePrimaryNav = isRequester
+    ? primaryNav
+        .filter((item) => item.id === 'tickets')
+        .map((item) => ({ ...item, label: 'Mis tickets' }))
+    : primaryNav
+  const visibleSecondaryNav = isRequester
+    ? secondaryNav.filter((item) => item.id === 'ayuda' || item.id === 'preferences')
+    : secondaryNav
   const queryClient = useQueryClient()
   const groupsQuery = useGroupsQuery()
   const currentGroupId =
@@ -285,7 +294,7 @@ export function AppSidebar({
               Operación
             </p>
           )}
-          {renderNavList(primaryNav)}
+          {renderNavList(visiblePrimaryNav)}
         </div>
 
         <div className="border-t border-border/60 pt-3">
@@ -294,7 +303,7 @@ export function AppSidebar({
               Gestión y Ajustes
             </p>
           )}
-          {renderNavList(secondaryNav)}
+          {renderNavList(visibleSecondaryNav)}
         </div>
       </div>
 
