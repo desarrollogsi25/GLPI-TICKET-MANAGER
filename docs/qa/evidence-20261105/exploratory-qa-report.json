@@ -1,0 +1,719 @@
+{
+  "base": "http://127.0.0.1:5180",
+  "ranAt": "2026-11-05T18:04:44.841Z",
+  "total": 142,
+  "failed": 0,
+  "failures": [],
+  "results": [
+    {
+      "name": "[desktop] admin_test lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] admin_test dashboard title",
+      "ok": true,
+      "detail": "Dashboard global"
+    },
+    {
+      "name": "[desktop] admin sees group selector",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] admin_test has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] admin_test has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] admin_test lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n1 Asignado\n0 En proceso\n0 Pendiente\n0 Resuelto\n0 Kanban Tickets Cola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] admin_test dashboard title",
+      "ok": true,
+      "detail": "Dashboard global"
+    },
+    {
+      "name": "[mobile] admin sees group selector",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] admin_test has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] admin_test has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_dev lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_dev dashboard title",
+      "ok": true,
+      "detail": "Dashboard de supervisión"
+    },
+    {
+      "name": "[desktop] lider_dev has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_dev has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_dev can open /equipo",
+      "ok": true,
+      "detail": "http://127.0.0.1:5180/equipo"
+    },
+    {
+      "name": "[mobile] lider_dev lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n4 Asignado\n0 En proceso\n0 Pendiente\n0 Resuelto\n0 Kanban Tickets Cola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_dev dashboard title",
+      "ok": true,
+      "detail": "Dashboard de supervisión"
+    },
+    {
+      "name": "[mobile] lider_dev has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_dev has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_dev can open /equipo",
+      "ok": true,
+      "detail": "http://127.0.0.1:5180/equipo"
+    },
+    {
+      "name": "[desktop] lider_bi lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_bi dashboard title",
+      "ok": true,
+      "detail": "Dashboard de supervisión"
+    },
+    {
+      "name": "[desktop] lider_bi has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_bi has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_bi can open /equipo",
+      "ok": true,
+      "detail": "http://127.0.0.1:5180/equipo"
+    },
+    {
+      "name": "[mobile] lider_bi lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n1 Asignado\n0 En proceso\n0 Pendiente\n0 Resuelto\n0 Kanban Tickets Cola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_bi dashboard title",
+      "ok": true,
+      "detail": "Dashboard de supervisión"
+    },
+    {
+      "name": "[mobile] lider_bi has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_bi has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_bi can open /equipo",
+      "ok": true,
+      "detail": "http://127.0.0.1:5180/equipo"
+    },
+    {
+      "name": "[desktop] lider_sd lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_sd dashboard title",
+      "ok": true,
+      "detail": "Dashboard de supervisión"
+    },
+    {
+      "name": "[desktop] lider_sd has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_sd has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] lider_sd can open /equipo",
+      "ok": true,
+      "detail": "http://127.0.0.1:5180/equipo"
+    },
+    {
+      "name": "[mobile] lider_sd lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n1 Asignado\n0 En proceso\n0 Pendiente\n0 Resuelto\n0 Kanban Tickets 1\nCola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_sd dashboard title",
+      "ok": true,
+      "detail": "Dashboard de supervisión"
+    },
+    {
+      "name": "[mobile] lider_sd has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_sd has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] lider_sd can open /equipo",
+      "ok": true,
+      "detail": "http://127.0.0.1:5180/equipo"
+    },
+    {
+      "name": "[desktop] tech_dev lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_dev dashboard title",
+      "ok": true,
+      "detail": "Dashboard del Agente"
+    },
+    {
+      "name": "[desktop] tech_dev has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_dev has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_dev lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n4 Asignado\n6 En proceso\n4 Pendiente\n0 Resuelto\n0 Kanban Tickets 4\nCola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_dev dashboard title",
+      "ok": true,
+      "detail": "Dashboard del Agente"
+    },
+    {
+      "name": "[mobile] tech_dev has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_dev has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_bi lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_bi dashboard title",
+      "ok": true,
+      "detail": "Dashboard del Agente"
+    },
+    {
+      "name": "[desktop] tech_bi has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_bi has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_bi cannot read Desarrollo queue (403)",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "name": "[mobile] tech_bi lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n1 Asignado\n0 En proceso\n0 Pendiente\n0 Resuelto\n0 Kanban Tickets Cola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_bi dashboard title",
+      "ok": true,
+      "detail": "Dashboard del Agente"
+    },
+    {
+      "name": "[mobile] tech_bi has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_bi has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_bi cannot read Desarrollo queue (403)",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "name": "[desktop] tech_sd lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[desktop] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_sd dashboard title",
+      "ok": true,
+      "detail": "Dashboard del Agente"
+    },
+    {
+      "name": "[desktop] tech_sd has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] tech_sd has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_sd lands on /kanban",
+      "ok": true,
+      "detail": "/kanban"
+    },
+    {
+      "name": "[mobile] staff sees Kanban nav",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] staff mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Cola\n1 Asignado\n0 En proceso\n3 Pendiente\n0 Resuelto\n0 Kanban Tickets Cola"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_sd dashboard title",
+      "ok": true,
+      "detail": "Dashboard del Agente"
+    },
+    {
+      "name": "[mobile] tech_sd has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] tech_sd has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] user_test lands on /tickets",
+      "ok": true,
+      "detail": "/tickets"
+    },
+    {
+      "name": "[desktop] requester sees \"Mis tickets\"",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] requester has no Kanban nav",
+      "ok": true,
+      "detail": "Saltar al contenido\n\nGLPI Manager\n\nWorkspace SaaS\n\nOPERACIÓN\n\nMis tickets\n\nGESTIÓN Y AJUSTES\n\nAyuda\nPreferencias\nU\n\nuser"
+    },
+    {
+      "name": "[desktop] requester has no ticket creation UI",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] requester list title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] user_test has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[desktop] user_test has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] user_test lands on /tickets",
+      "ok": true,
+      "detail": "/tickets"
+    },
+    {
+      "name": "[mobile] requester sees \"Mis tickets\"",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] requester has no Kanban nav",
+      "ok": true,
+      "detail": "Saltar al contenido\nuser_test\nConectado en tiempo real\nInicio\nMis tickets\nMis tickets\n\n5 ticket(s) abiertos por vos.\n\nFi"
+    },
+    {
+      "name": "[mobile] requester has no ticket creation UI",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] requester list title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] no horizontal overflow",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "[mobile] requester mobile tabs",
+      "ok": true,
+      "detail": "Inicio Inicio Mis tickets Ayuda Ajustes"
+    },
+    {
+      "name": "[mobile] notification panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] notification panel closes with Escape",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] user_test has no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[mobile] user_test has no false network-error toast",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

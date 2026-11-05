@@ -29,6 +29,8 @@ test-output.txt
 *-output.txt
 test-results/
 playwright-report/
+TestResults/
+scratch/
 
 
 # Node
