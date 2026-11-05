@@ -49,12 +49,13 @@ Detalle completo y procedimiento de rollback en [`docs/07-operations/deployment.
 
 ## 5. Riesgos residuales y limitaciones
 
-1. **Cuentas demo de GLPI**: `scripts/glpi-base.sql` conserva hashes bcrypt de usuarios de demostración (`glpi`, `tech`, `normal`, `post-only`, etc.). Son datos de laboratorio, pero no deben habilitarse en una instancia expuesta; rotar o deshabilitar fuera del entorno de pruebas.
-2. **Push a nivel sistema operativo**: no verificado; requiere dispositivo/instalación PWA y, en iOS, instalación previa.
-3. **E2E local**: bloqueado por memoria del host; cobertura equivalente en CI (45/45).
-4. **`pnpm lint`**: NOT_CONFIGURED; no existe script de lint en el repositorio.
-5. **Directorio de trabajo**: el checkout local está en `deploy/main-749a834` para no reescribir la rama local `main` (pre-rebase). El remoto `main` es la fuente de verdad (`749a834`).
-6. **Archivos no versionados intencionalmente**: `.agents/`, `.claude/`, `CLAUDE.md`, `scripts/restore-acceso-sistema-form.mjs`, `scratch/` (respaldos y evidencias temporales).
+1. **Credenciales de laboratorio expuestas**: `gen_hashes.cs` (versionado desde #29) contenía contraseñas de prueba en texto plano; se elimina en el PR #46 (`INC-QA-20261105-07`) y se comprobó que las cuentas afectadas ya las rechazan (401). El contenido sigue en el historial público anterior; su purga exigiría reescritura de historia, no autorizada.
+2. **Cuentas demo de GLPI**: `scripts/glpi-base.sql` conserva hashes bcrypt de usuarios de demostración (`glpi`, `tech`, `normal`, `post-only`, etc.). Son datos de laboratorio, pero no deben habilitarse en una instancia expuesta; rotar o deshabilitar fuera del entorno de pruebas.
+3. **Push a nivel sistema operativo**: no verificado; requiere dispositivo/instalación PWA y, en iOS, instalación previa.
+4. **E2E local**: bloqueado por memoria del host; cobertura equivalente en CI (45/45).
+5. **`pnpm lint`**: NOT_CONFIGURED; no existe script de lint en el repositorio.
+6. **Directorio de trabajo**: el checkout local está en `deploy/main-749a834` para no reescribir la rama local `main` (pre-rebase). El remoto `main` es la fuente de verdad (`749a834`).
+7. **Archivos no versionados intencionalmente**: `.agents/`, `.claude/`, `CLAUDE.md`, `scripts/restore-acceso-sistema-form.mjs`, `scratch/` (respaldos y evidencias temporales).
 
 ## 6. Reproducción
 
