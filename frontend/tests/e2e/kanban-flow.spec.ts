@@ -1,13 +1,22 @@
 import { test, expect } from '@playwright/test'
+import { resetFixtureTicket } from './support/ticket-fixtures'
+
+// El test toma posesión de un ticket; cada retry debe restaurar su propio
+// fixture para no depender del estado que dejó una ejecución previa.
+const TICKET_ID = 908
+
+test.beforeEach(() => {
+  resetFixtureTicket(TICKET_ID, 'QA Kanban and date-time controls')
+})
 
 test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }) => {
-  test.setTimeout(60000)
+  test.setTimeout(90000)
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  // 1. Seed garantiza ticket #11 en cola (el seed lo hace)
+  // 1. Ticket propio en cola, repuesto antes de cada intento (H-20).
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
@@ -18,26 +27,24 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   await expect(page.locator('[data-column-id="pending"]').getByText('Pendiente', { exact: true })).toBeVisible()
   await expect(page.locator('[data-column-id="resolved"]').getByText('Resuelto', { exact: true })).toBeVisible()
 
-  // 3. Verificar que #11 está en la cola
+  // 3. Verificar que el ticket de prueba está en la cola.
   const queueColumn = page.locator('[data-column-id="queue"]')
-  await expect(queueColumn.locator('span').filter({ hasText: /^#11$/ }).first()).toBeVisible({ timeout: 10000 })
+  await expect(queueColumn.getByText(`#${TICKET_ID}`, { exact: true }).first()).toBeVisible({ timeout: 15000 })
 
-  // 4. Click en "Asignarme" del ticket #11
-  const card11 = queueColumn.locator('span').filter({ hasText: /^#11$/ }).first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
-  const claimBtn = card11.locator('button', { hasText: 'Asignarme' })
+  // 4. Reclamar el ticket dedicado.
+  const card = queueColumn.getByText(`#${TICKET_ID}`, { exact: true }).first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
+  const claimBtn = card.locator('button', { hasText: 'Asignarme' })
   await expect(claimBtn).toBeVisible()
   // H-63: la tarjeta revela sus botones de acción al hacer hover (expansión suave),
   // así que hay que pasar el mouse por la tarjeta antes de poder clickear.
-  await card11.hover()
+  await card.hover()
   await claimBtn.click()
 
-  // 5. Esperar a que el ticket aparezca en "Mis tickets"
-  await page.waitForTimeout(1500) // esperar invalidación + re-render
-  // Verificar que ya no está en cola
-  await expect(queueColumn.locator('span').filter({ hasText: /^#11$/ })).not.toBeVisible({ timeout: 10000 })
+  // 5. Esperar a que el ticket se retire de la cola (sin pausa arbitraria).
+  await expect(queueColumn.getByText(`#${TICKET_ID}`, { exact: true })).not.toBeVisible({ timeout: 15000 })
 
   // 6. Abrir el detalle del ticket y verificar status=2
-  await page.goto('/tickets/11')
+  await page.goto(`/tickets/${TICKET_ID}`)
   await page.waitForLoadState('networkidle')
   // El detalle debe mostrar estado "Asignado"
 
@@ -45,13 +52,13 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
-  // 8. Verificar que #11 está en "Mis tickets"
+  // 8. Verificar que aparece en "Mis tickets".
   const mineColumn = page.locator('[data-column-id="mine"]')
-  await expect(mineColumn.locator('span').filter({ hasText: /^#11$/ })).toBeVisible({ timeout: 10000 })
+  await expect(mineColumn.getByText(`#${TICKET_ID}`, { exact: true })).toBeVisible({ timeout: 15000 })
 
   // UI de programación: calendario temático, acceso por teclado y horas rápidas.
   // No guardamos la tarea aquí; el fixture de pruebas de planificación lo hace.
-  const assignedCard = mineColumn.getByText('#11', { exact: true }).first().locator('xpath=ancestor::div[.//button][1]')
+  const assignedCard = mineColumn.getByText(`#${TICKET_ID}`, { exact: true }).first().locator('xpath=ancestor::div[.//button][1]')
   await assignedCard.hover()
   await assignedCard.getByRole('button', { name: /Planificar/i }).first().click()
   const planDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
