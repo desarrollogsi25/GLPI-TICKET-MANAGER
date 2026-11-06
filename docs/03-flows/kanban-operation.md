@@ -25,7 +25,8 @@ Describe la interacción operativa del técnico y supervisor con el tablero Kanb
   - Cola: Botón `[Asignarme]` con spinner interactivo de carga y salida animada (`scale: 0.9` + `opacity: 0`).
   - Mis tickets: Botón `[Empezar]`.
   - En progreso: Botón `[Resolver]` (abre modal de solución mandatoria).
-  - Pendiente: Botón `[Retomar]`.
+  - Pendiente: Botón `[Replanificar]` (abre el modal en modo «Reprogramar tarea
+    existente»; al confirmar, GLPI reanuda el ticket a En proceso sin duplicar tareas).
 
 ## 4. Orden de las Tarjetas
 
@@ -37,6 +38,17 @@ Describe la interacción operativa del técnico y supervisor con el tablero Kanb
 
 - El técnico asignado no puede devolver un ticket `Asignado` (2) o `En progreso` (3) al estado `Nuevo` (1).
 - `Pendiente` (4) puede avanzar a `En progreso` (2) o resolverse directamente (5).
+- **Reanudar un ticket `Pendiente`** se hace con `[Replanificar]`: el modal carga las
+  tareas nativas de GLPI y, por defecto, reprograma la tarea existente (`pending=0` con
+  fechas nuevas). GLPI ejecuta `Waiting → Assigned` y deriva `Planned`; no se crea una
+  segunda tarea ni se pierde el historial. Reprogramar sin cambiar nada responde
+  `409 no_changes`.
+- **Conflicto de horario:** si el intervalo choca con otra tarea del técnico, el modal
+  muestra los intervalos ocupados (ticket y tarea) y ofrece aplicar el hueco libre
+  sugerido con un clic. Si el bloqueo es la propia tarea del ticket, el modo por
+  defecto la reprograma en lugar de crear un duplicado.
+- **Crear tarea nueva** es una elección explícita del técnico; en ese modo un
+  solapamiento con la tarea propia se presenta como conflicto para evitar duplicados.
 - Resolver un ticket requiere una solución escrita (ADR-006).
 - **Cierre automático:** al resolver un ticket (técnico o administrador), el ticket pasa inmediatamente a `Cerrado` (6) en la misma operación.
 - `Resuelto` (5) y `Cerrado` (6) son estados terminales para el técnico: **solo un administrador** puede cambiarlos o reabrirlos. Al intentarlo, el backend responde 403 con el mensaje `Solo un administrador puede cambiar el estado de un ticket resuelto o cerrado.`, que la interfaz muestra en un *toast* de error.

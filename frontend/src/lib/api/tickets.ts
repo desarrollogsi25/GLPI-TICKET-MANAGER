@@ -35,9 +35,21 @@ export interface PlanTicketRequest {
   content: string
   startAt: string
   endAt: string
+  /**
+   * The API reschedules this ticket's own TODO task when it overlaps the
+   * requested window (traceability preserved, no duplicate). Set to true only
+   * when the user explicitly chose to create an additional task.
+   */
+  createNewTask?: boolean
 }
 
-export interface PlanTicketResponse { ticketId: number; taskId: number; status: number }
+export interface PlanTicketResponse {
+  ticketId: number
+  taskId: number
+  status: number
+  /** True when an existing GLPI task was moved instead of creating a new one. */
+  rescheduled?: boolean
+}
 
 export async function planTicket(id: number, payload: PlanTicketRequest): Promise<PlanTicketResponse> {
   const { data } = await apiClient.post<PlanTicketResponse>(`/tickets/${id}/plan`, payload)

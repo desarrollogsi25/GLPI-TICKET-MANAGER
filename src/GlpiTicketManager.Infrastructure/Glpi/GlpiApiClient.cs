@@ -241,6 +241,9 @@ public sealed class GlpiApiClient : IGlpiApiClient
         var sessionToken = await InitSessionAsync(cancellationToken);
         try
         {
+            // `pending = 0` is GLPI's own "no longer pending" input. On a Waiting
+            // ticket the TicketTask post-update hook reopens it and derives Planned
+            // from the planned task, so the API never writes status 3 directly.
             using var response = await SendAsync(HttpMethod.Put, $"TicketTask/{taskId}", sessionToken,
                 new { input = new
                 {
@@ -248,7 +251,8 @@ public sealed class GlpiApiClient : IGlpiApiClient
                     state = 1,
                     begin = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
                     end = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    actiontime = (int)(endAt - startAt).TotalSeconds
+                    actiontime = (int)(endAt - startAt).TotalSeconds,
+                    pending = 0
                 } }, cancellationToken);
         }
         finally { await KillSessionAsync(sessionToken, cancellationToken); }
@@ -366,6 +370,9 @@ public sealed class GlpiApiClient : IGlpiApiClient
                     is_private = request.IsPrivate ? 1 : 0,
                     state = (int)GlpiTicketManager.Domain.Enums.TicketTaskState.ToDo,
                     uuid = request.Uuid,
+                    // Native "this scheduled task is not pending": lets GLPI reopen a
+                    // Waiting ticket and derive Planned in its own post-add hook.
+                    pending = 0,
                     plan = new
                     {
                         begin = FormatGlpiDate(request.BeginUtc),
@@ -490,6 +497,9 @@ public sealed class GlpiApiClient : IGlpiApiClient
             if (request.TechnicianId is not null) input["users_id_tech"] = request.TechnicianId.Value;
             if (request.State is not null) input["state"] = request.State.Value;
             if (request.IsPrivate is not null) input["is_private"] = request.IsPrivate.Value ? 1 : 0;
+            // GLPI form input: telling it the task is no longer pending makes its
+            // post-update hook reopen Waiting and derive Planned from the task.
+            if (request.ClearPending) input["pending"] = 0;
             if (request.HasScheduleChange)
             {
                 if (request.BeginUtc is null || request.EndUtc is null)

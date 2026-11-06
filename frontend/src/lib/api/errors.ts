@@ -5,6 +5,38 @@ interface ProblemDetails {
   detail?: string
   status?: number
   errors?: Record<string, string[]>
+  /** Machine-readable 409 reason sent by the API (planning/task operations). */
+  code?: string
+  conflicts?: ApiScheduleConflict[]
+  suggestedStart?: string | null
+  ownTaskId?: number | null
+  requestedStart?: string
+  requestedEnd?: string
+}
+
+export interface ApiScheduleConflict {
+  ticketId: number
+  taskId: number
+  startAt: string
+  endAt: string
+}
+
+export interface ApiConflictDetails {
+  conflicts: ApiScheduleConflict[]
+  suggestedStart: string | null
+  ownTaskId: number | null
+  requestedStart: string | null
+  requestedEnd: string | null
+}
+
+const CONFLICT_TITLES: Record<string, string> = {
+  schedule_conflict: 'Ese horario ya está ocupado',
+  state_conflict: 'El estado del ticket no permite esta operación',
+  task_modified: 'La tarea cambió mientras editabas',
+  task_not_editable: 'La tarea ya no se puede reprogramar',
+  no_changes: 'No hay cambios para guardar',
+  idempotency_conflict: 'Solicitud duplicada',
+  glpi_unconfirmed: 'GLPI no confirmó la operación',
 }
 
 /** Fallbacks for status codes whose ProblemDetails detail/title may be missing. */
@@ -60,13 +92,19 @@ export function getApiErrorMessage(error: unknown): string {
     const problem = error.response?.data
     const status = error.response?.status
 
-    // Network / timeout failures have no ProblemDetails body; resolve them first.
-    if (error.code === 'ERR_NETWORK' || !error.response) {
-      return 'No se pudo conectar al servidor. ¿Está el backend en marcha?'
+    // Do not surface backend authorization internals (user IDs, ticket IDs,
+    // access policy details) to the browser on a denied resource request.
+    if (status === 403) {
+      return STATUS_FALLBACK[403]
     }
 
     if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
       return 'El API tardó demasiado en responder.'
+    }
+
+    // Network / timeout failures have no ProblemDetails body; resolve them first.
+    if (error.code === 'ERR_NETWORK' || !error.response) {
+      return 'No se pudo conectar al servidor. ¿Está el backend en marcha?'
     }
 
     if (problem?.errors) {
@@ -113,6 +151,31 @@ export function getApiFieldErrors(error: unknown): Record<string, string[]> | nu
   return null
 }
 
+/** Machine-readable 409 reason, or null when the API sent none. */
+export function getApiErrorCode(error: unknown): string | null {
+  if (axios.isAxiosError<ProblemDetails>(error)) {
+    return error.response?.data?.code ?? null
+  }
+  return null
+}
+
+/**
+ * Structured planning conflict: which native GLPI tasks occupy the interval and
+ * the first free slot of the same duration. Null when the error is not a conflict.
+ */
+export function getApiConflictDetails(error: unknown): ApiConflictDetails | null {
+  if (!axios.isAxiosError<ProblemDetails>(error)) return null
+  const data = error.response?.data
+  if (!data) return null
+  return {
+    conflicts: Array.isArray(data.conflicts) ? data.conflicts : [],
+    suggestedStart: data.suggestedStart ?? null,
+    ownTaskId: data.ownTaskId ?? null,
+    requestedStart: data.requestedStart ?? null,
+    requestedEnd: data.requestedEnd ?? null,
+  }
+}
+
 /** HTTP status of an axios error, or null when it never reached the server. */
 export function getApiErrorStatus(error: unknown): number | null {
   if (axios.isAxiosError(error) && error.response?.status != null) {
@@ -123,15 +186,24 @@ export function getApiErrorStatus(error: unknown): number | null {
 
 /**
  * Short, human toast title for permission/validation failures.
- * Falls back to the caller-supplied title for any other status.
+ * A 409 title comes from the API's machine-readable code, so an occupied
+ * schedule is never presented as an incompatible ticket state.
  */
 export function getApiErrorTitle(error: unknown, fallback: string): string {
+  const code = getApiErrorCode(error)
+  if (code && CONFLICT_TITLES[code]) {
+    return CONFLICT_TITLES[code]
+  }
   const status = getApiErrorStatus(error)
   if (status === 403) {
     return 'No tienes permiso para realizar esta acción'
   }
   if (status === 409) {
-    return 'El ticket ya no está en un estado que permita esta operación'
+    // A conflict may mean scheduling overlap, an idempotency collision or a
+    // concurrent status update. Keep the caller's action-specific title and
+    // show the server-provided detail as the description instead of lying that
+    // every 409 is a state transition failure.
+    return fallback
   }
   if (status === 422) {
     return fallback

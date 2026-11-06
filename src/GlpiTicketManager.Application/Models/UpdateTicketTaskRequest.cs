@@ -10,7 +10,8 @@ public sealed record UpdateTicketTaskRequest(
     DateTime? BeginUtc = null,
     DateTime? EndUtc = null,
     int? State = null,
-    bool? IsPrivate = null)
+    bool? IsPrivate = null,
+    bool ClearPending = false)
 {
     public bool HasScheduleChange => BeginUtc.HasValue || EndUtc.HasValue;
 }

@@ -35,6 +35,13 @@ public sealed record PlanTicketRequest
     }
     public bool IsPrivate { get; init; } = false;
 
+    /// <summary>
+    /// When true the caller explicitly asked for a new task, so an overlapping
+    /// TODO task of the same ticket is reported as a conflict instead of being
+    /// rescheduled in place. The default preserves traceability by rescheduling.
+    /// </summary>
+    public bool CreateNewTask { get; init; }
+
     public PlanTicketRequest() { }
 
     public PlanTicketRequest(
@@ -59,7 +66,7 @@ public sealed record PlanTicketRequest
     }
 }
 
-public sealed record PlanTicketResponse(int TicketId, int TaskId, int Status);
+public sealed record PlanTicketResponse(int TicketId, int TaskId, int Status, bool Rescheduled = false);
 
 /// <summary>
 /// Request to move an existing scheduled task. Every member is optional: only the

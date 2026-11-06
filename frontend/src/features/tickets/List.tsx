@@ -347,7 +347,7 @@ export function List() {
             ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
             : isRequester
               ? data
-                ? `${data.total} ticket(s) abiertos por vos.`
+                ? `${data.total} ticket(s) registrados por vos, incluidos los resueltos y cerrados.`
                 : 'Tickets que abriste en GLPI'
               : isTechnician
                 ? data

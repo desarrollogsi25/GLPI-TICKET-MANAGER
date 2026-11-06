@@ -28,32 +28,38 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
 
-  // 1. Cola del grupo: asignarme el ticket dedicado (si está en cola).
+  // 1. Cola del grupo: asignarme el ticket dedicado. The fixture always resets it
+  // to New + group 1 without technician, so a missing card is a real failure.
   await page.goto('/queue')
   await page.waitForResponse((r) => r.url().includes('/api/tickets/by-group') && r.status() === 200)
 
-  const inQueue = await page.locator(`text=#${TICKET_ID}`).first().isVisible({ timeout: 10000 }).catch(() => false)
-  if (inQueue) {
-    const card = page
-      .getByText(`#${TICKET_ID}`)
-      .first()
-      .locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
-    const claimButton = card.getByRole('button', { name: /Asignarme/i })
-    await expect(claimButton).toBeVisible()
-    await claimButton.click()
-    await expect(page.locator(`text=#${TICKET_ID}`).first()).not.toBeVisible({ timeout: 15000 })
-  }
+  const queueCard = page
+    .getByText(`#${TICKET_ID}`)
+    .first()
+    .locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
+  const claimButton = queueCard.getByRole('button', { name: /Asignarme/i })
+  await expect(claimButton).toBeVisible({ timeout: 10000 })
+  const [claimResponse] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes(`/api/tickets/${TICKET_ID}/claim`) && r.request().method() === 'POST'),
+    claimButton.click(),
+  ])
+  expect(claimResponse.status()).toBe(200)
+  await expect(page.locator(`text=#${TICKET_ID}`).first()).not.toBeVisible({ timeout: 15000 })
 
-  // 2. Kanban: verificar que el ticket asignado aparece en "Mis tickets" o "En progreso"
+  // 2. Kanban: the claim write must be visible as an assigned card before planning.
+  // `locator.isVisible()` returns immediately (its timeout is ignored), so the
+  // previous conditional check raced the list query and skipped step 3 entirely.
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
 
   const mineColumn = page.locator('[data-column-id="mine"]')
   const inProgressColumn = page.locator('[data-column-id="in_progress"]')
 
-  const inMine = await mineColumn.locator(`text=#${TICKET_ID}`).first().isVisible({ timeout: 5000 }).catch(() => false)
-  if (inMine) {
-    // 3. Mover a "En progreso" (status 3) desde la tarjeta asignada
+  await expect(mineColumn.getByText(`#${TICKET_ID}`).first()).toBeVisible({ timeout: 15000 })
+
+  // 3. Plan a real GLPI TicketTask so the ticket reaches En proceso (status 3)
+  // with a TODO task; Pending must then resume that same task.
+  {
     const mineCard = mineColumn
       .getByText(`#${TICKET_ID}`)
       .first()
@@ -130,6 +136,12 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
   // 8. Verificar que el comentario aparece en el seguimiento (historial) del ticket
   await expect(page.getByText(pendingComment).first()).toBeVisible({ timeout: 15000 })
 
+  // Al pausar, GLPI solo permite reanudar a Asignado (2), nunca un PATCH directo
+  // a Planificado (3). La UI debe ofrecer el camino real sin proponer un 409.
+  await expect(page.getByTestId('resume-waiting-ticket-btn')).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Asignado', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'En proceso (planificado)', exact: true })).toBeDisabled()
+
   // 9. Verificar que en Kanban el ticket se movió a la columna "Pendiente" (status 4)
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')
@@ -148,6 +160,14 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
   await expect(resumeButton).toBeVisible({ timeout: 10000 })
   await pendingCard.hover() // H-63: los botones se revelan con hover (expansión de la tarjeta)
   await resumeButton.click()
+
+  // The Pending ticket already has a scheduled GLPI task: the dialog must offer
+  // reprogramming it in place (traceability, no duplicate task) instead of
+  // failing with an opaque 409.
+  const resumeDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  await expect(resumeDialog.getByText('Reprogramar tarea existente')).toBeVisible({ timeout: 30_000 })
+  await expect(resumeDialog.getByRole('alert')).toHaveCount(0)
+
   await confirmPlanning(page)
 
   // 11. El ticket vuelve a "En progreso"

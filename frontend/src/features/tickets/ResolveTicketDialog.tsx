@@ -73,8 +73,10 @@ export function ResolveTicketDialog({
     submittingRef.current = true
     setIsSubmitting(true)
 
+    let resolvedStatus: number
     try {
-      await resolveTicket.mutateAsync({ ticketId, content: trimmed })
+      const result = await resolveTicket.mutateAsync({ ticketId, content: trimmed })
+      resolvedStatus = result.status
     } catch (err) {
       // The ticket may still have been solved server-side (e.g. the write succeeded
       // but the response was lost), so always refresh before reporting the failure.
@@ -95,8 +97,10 @@ export function ResolveTicketDialog({
     void queryClient.invalidateQueries({ queryKey: ['tickets'] })
     void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     pushToast({
-      title: 'Ticket resuelto correctamente',
-      description: `El ticket #${ticketId} pasó a Resuelto`,
+      title: resolvedStatus === 6 ? 'Ticket cerrado correctamente' : 'Ticket resuelto correctamente',
+      description: resolvedStatus === 6
+        ? `El ticket #${ticketId} figura como Cerrado en GLPI.`
+        : `El ticket #${ticketId} figura como Resuelto en GLPI. El cierre automático depende de la configuración de la entidad y de la tarea closeticket.`,
       variant: 'success',
     })
   }

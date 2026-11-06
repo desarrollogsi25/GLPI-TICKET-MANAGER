@@ -79,12 +79,12 @@ export function useTicketQuery(ticketId: number) {
   })
 }
 
-export function useTicketTasksQuery(ticketId: number) {
+export function useTicketTasksQuery(ticketId: number, enabled = true) {
   const sessionValid = useIsSessionValid()
   return useQuery({
     queryKey: queryKeys.tickets.tasks(ticketId),
     queryFn: () => listTicketTasks(ticketId),
-    enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
+    enabled: enabled && Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
 

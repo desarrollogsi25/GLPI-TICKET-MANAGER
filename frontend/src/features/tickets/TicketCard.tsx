@@ -10,7 +10,7 @@ import { formatDateTime, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 
-import { priorityMeta } from './labels'
+import { priorityMeta, statusMeta } from './labels'
 
 interface TicketCardProps {
   ticket: TicketSummary
@@ -74,6 +74,7 @@ function TicketCardComponent({
   })
 
   const priority = priorityMeta(ticket.priority)
+  const status = statusMeta(ticket.status)
   const assignee = getAssigneeInitials(ticket, currentUser?.displayName || currentUser?.username)
 
   if (compact) {
@@ -142,6 +143,12 @@ function TicketCardComponent({
         >
           {ticket.title}
         </Link>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge className={cn('px-2 py-0.5 text-[11px] font-semibold', status.badgeClass)}>
+            Estado GLPI: {status.label}
+          </Badge>
+        </div>
 
         {ticket.status === 3 && (
           <div className="flex flex-col gap-1.5 text-[11px] text-blue-700 dark:text-blue-300 bg-blue-500/10 p-2.5 rounded-lg border border-blue-500/20">
@@ -229,7 +236,7 @@ function TicketCardComponent({
           : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
       }
       className={cn(
-        'group relative @container kanban-card-item rounded-xl border-0 bg-card p-3.5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group relative @container kanban-card-item rounded-xl border border-border/50 bg-card p-4 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-40 scale-105 shadow-2xl ring-2 ring-primary border-dashed',
         isOverlay && 'shadow-2xl ring-2 ring-primary bg-card scale-105',
@@ -277,13 +284,19 @@ function TicketCardComponent({
       {/* Title with single #id element */}
       <Link
         to={`/tickets/${ticket.id}`}
-        className="line-clamp-2 text-sm font-medium leading-snug text-foreground hover:text-primary hover:underline transition-colors duration-150"
+        className="line-clamp-2 text-[14px] font-semibold leading-relaxed text-foreground hover:text-primary hover:underline transition-colors duration-150"
       >
         <span className="font-mono text-xs font-semibold text-muted-foreground mr-1">
           #{ticket.id}
         </span>
         {ticket.title}
       </Link>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge className={cn('px-2 py-0.5 text-[11px] font-semibold', status.badgeClass)}>
+          Estado GLPI: {status.label}
+        </Badge>
+      </div>
 
       {ticket.status === 3 && (
         <div className="mt-2.5 flex flex-col gap-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-[11px] text-blue-700 dark:text-blue-300">
