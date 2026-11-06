@@ -63,6 +63,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   await assignedCard.getByRole('button', { name: /Planificar/i }).first().click()
   const planDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
   await expect(planDialog.getByTestId('plan-start')).toBeVisible()
+  await expect(planDialog.getByTestId('plan-start')).not.toHaveValue('', { timeout: 30_000 })
   const start = await planDialog.getByTestId('plan-start').inputValue()
   await planDialog.locator('#plan-start-calendar').click()
   await expect(page.locator('[data-calendar-popover="true"]')).toBeVisible()
