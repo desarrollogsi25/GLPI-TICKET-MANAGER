@@ -32,25 +32,31 @@ public sealed class ResolveRuleTests
     [Fact]
     public void Assigned_ticket_whose_task_was_completed_can_be_resolved()
     {
-        // P2-03: GLPI returns the ticket to Assigned (2) after completing the last task.
+        // Case 3 & 6: Completed task evidence of work done, or reopened ticket
         var result = ResolveRule.Evaluate(2, new[] { Task(ResolveRule.TaskDone) });
         Assert.True(result.CanResolve);
         Assert.Equal("completed_task", result.Code);
     }
 
     [Fact]
-    public void Assigned_ticket_without_any_real_task_is_blocked()
+    public void Assigned_ticket_without_tasks_can_be_resolved_directly()
     {
+        // Case 1: Direct resolution by assigned technician
         var none = ResolveRule.Evaluate(2, Array.Empty<TicketTaskDto>());
+        Assert.True(none.CanResolve);
+        Assert.Equal("direct", none.Code);
+
         var infoOnly = ResolveRule.Evaluate(2, new[] { Task(ResolveRule.TaskInformation) });
-        Assert.False(none.CanResolve);
-        Assert.Equal("no_task", none.Code);
-        Assert.False(infoOnly.CanResolve);
+        Assert.True(infoOnly.CanResolve);
     }
 
     [Fact]
-    public void Unknown_task_list_defers_to_status_checks()
+    public void When_glpi_tasks_cannot_be_retrieved_evaluate_fails_closed()
     {
-        Assert.True(ResolveRule.Evaluate(2, null).CanResolve);
+        // Case 8: GLPI communication error must NOT allow resolution
+        var result = ResolveRule.Evaluate(2, null);
+        Assert.False(result.CanResolve);
+        Assert.Equal("glpi_error", result.Code);
+        Assert.Contains("error de comunicación", result.Reason);
     }
 }

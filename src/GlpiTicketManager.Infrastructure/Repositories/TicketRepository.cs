@@ -826,10 +826,20 @@ public sealed class TicketRepository : ITicketRepository
     }
 
     public async Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(
-        int? groupId, CancellationToken cancellationToken)
+        int? groupId, IReadOnlyList<int>? allowedGroupIds, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var sql = """
+        var parameters = new DynamicParameters();
+        parameters.Add("GroupId", groupId);
+
+        var groupFilter = "";
+        if (allowedGroupIds is { Count: > 0 })
+        {
+            groupFilter = "AND gu.groups_id IN @AllowedGroupIds";
+            parameters.Add("AllowedGroupIds", allowedGroupIds.Distinct().ToArray());
+        }
+
+        var sql = $"""
             SELECT DISTINCT
                 CAST(u.id AS SIGNED) AS Id,
                 u.name AS Username,
@@ -845,12 +855,13 @@ public sealed class TicketRepository : ITicketRepository
               AND u.id != 2
               AND (pu.profiles_id IN (4, 6) OR gu.groups_id IS NOT NULL)
               AND (@GroupId IS NULL OR gu.groups_id = @GroupId)
+              {groupFilter}
             ORDER BY DisplayName ASC;
             """;
 
         var command = new CommandDefinition(
             sql,
-            new { GroupId = groupId },
+            parameters,
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 

@@ -256,17 +256,44 @@ public sealed class TicketService : ITicketService
         if (!transition.Allowed)
             return new ResolveEligibilityDto(false, "forbidden", transition.Reason);
 
-        var tasks = ticket.Status is (int)TicketStatus.Assigned or (int)TicketStatus.Planned
-            ? await _glpi.GetTicketTasksAsync(ticketId, cancellationToken)
-            : null;
+        IReadOnlyList<TicketTaskDto>? tasks = null;
+        if (ticket.Status is (int)TicketStatus.Assigned or (int)TicketStatus.Planned)
+        {
+            try
+            {
+                tasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to retrieve GLPI tasks for ticket {TicketId} in eligibility check", ticketId);
+                tasks = null; // Forces fail-closed
+            }
+        }
+        else
+        {
+            tasks = Array.Empty<TicketTaskDto>();
+        }
+
         return ResolveRule.Evaluate(ticket.Status, tasks);
     }
 
     /// <summary>Server-side enforcement of <see cref="ResolveRule"/> before any solution is written.</summary>
     private async Task EnsureResolvableByTasksAsync(int ticketId, int currentStatus, CancellationToken cancellationToken)
     {
-        if (currentStatus is not ((int)TicketStatus.Assigned or (int)TicketStatus.Planned)) return;
-        var tasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+        IReadOnlyList<TicketTaskDto>? tasks = Array.Empty<TicketTaskDto>();
+        if (currentStatus is (int)TicketStatus.Assigned or (int)TicketStatus.Planned)
+        {
+            try
+            {
+                tasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to retrieve GLPI tasks for ticket {TicketId} during resolve validation", ticketId);
+                tasks = null; // Forces fail-closed
+            }
+        }
+
         var decision = ResolveRule.Evaluate(currentStatus, tasks);
         if (!decision.CanResolve)
         {
@@ -640,7 +667,7 @@ public sealed class TicketService : ITicketService
             throw new UnprocessableEntityException(PendingResolveBlockedMessage);
         }
 
-        if (currentTicket is not null && status == (int)TicketStatus.Solved)
+        if (currentTicket is not null && status == (int)TicketStatus.Solved && currentTicket.Status != (int)TicketStatus.Solved)
         {
             await EnsureResolvableByTasksAsync(ticketId, currentTicket.Status, cancellationToken);
         }
@@ -1166,9 +1193,35 @@ public sealed class TicketService : ITicketService
         return await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(int? groupId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(
+        int? groupId, int userId, AppRole role, CancellationToken cancellationToken)
     {
-        return await _tickets.GetTechniciansAsync(groupId, cancellationToken);
+        if (role == AppRole.Solicitante)
+        {
+            throw new ForbiddenException("Los solicitantes no tienen autorización para consultar la lista de técnicos.");
+        }
+
+        if (role == AppRole.Admin)
+        {
+            return await _tickets.GetTechniciansAsync(groupId, null, cancellationToken);
+        }
+
+        var userGroupIds = await _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
+        if (userGroupIds.Count == 0)
+        {
+            return Array.Empty<UserSummaryDto>();
+        }
+
+        if (groupId.HasValue)
+        {
+            if (!userGroupIds.Contains(groupId.Value))
+            {
+                throw new ForbiddenException($"No tienes autorización para consultar técnicos del grupo {groupId.Value}.");
+            }
+            return await _tickets.GetTechniciansAsync(groupId.Value, null, cancellationToken);
+        }
+
+        return await _tickets.GetTechniciansAsync(null, userGroupIds, cancellationToken);
     }
 
     /// <summary>

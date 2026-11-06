@@ -16,12 +16,8 @@ public static class ResolveRule
     public const int TaskDone = 2;
 
     /// <summary>
-    /// A ticket can be resolved from Assigned (2) or Planned (3) only when GLPI holds real
-    /// work for it: an open (to-do) TicketTask or a completed one. A completed task is
-    /// evidence of work done, not "no task": GLPI drops the ticket back to Assigned (2) when
-    /// the last task is completed, and that must not block the resolution.
-    /// <paramref name="tasks"/> null means the task list could not be determined by the caller
-    /// (unit seams); the rule then defers to the status checks only.
+    /// Pure domain rule for ticket resolve eligibility based on status and native GLPI tasks.
+    /// Caller permissions are evaluated by TicketService before/alongside this rule.
     /// </summary>
     public static ResolveEligibilityDto Evaluate(int status, IReadOnlyList<TicketTaskDto>? tasks)
     {
@@ -38,16 +34,23 @@ public static class ResolveRule
                 return new(false, "not_assigned", "Asigna el ticket a un técnico antes de resolverlo.");
         }
 
+        // FAIL-CLOSED: if tasks is null (e.g. communication error with GLPI),
+        // we MUST NOT assume permission to resolve.
         if (tasks is null)
         {
-            return new(true, "ok", null);
+            return new(false, "glpi_error",
+                "No se pudieron verificar las tareas en GLPI debido a un error de comunicación. Intenta nuevamente.");
         }
 
-        var open = tasks.Count(t => t.State == TaskTodo);
+        // 1. Evidence of work done: ticket had completed tasks
         var done = tasks.Count(t => t.State == TaskDone);
-        if (open > 0) return new(true, "open_task", null);
         if (done > 0) return new(true, "completed_task", null);
-        return new(false, "no_task",
-            "Programa y realiza al menos una tarea GLPI antes de resolver el ticket.");
+
+        // 2. Open planned tasks: solving resolves the planned work
+        var open = tasks.Count(t => t.State == TaskTodo);
+        if (open > 0) return new(true, "open_task", null);
+
+        // 3. Direct resolution: assigned ticket without planned tasks
+        return new(true, "direct", null);
     }
 }

@@ -1085,6 +1085,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                             .ToArray();
                 });
 
+            ticketRepoMock.Setup(t => t.GetTechniciansAsync(It.IsAny<int?>(), It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int? groupId, IReadOnlyList<int>? allowedGroupIds, CancellationToken _) =>
+                {
+                    return new List<UserSummaryDto>
+                    {
+                        new(Tech1Id, "tech1", "Técnico Uno"),
+                        new(Tech2Id, "tech2", "Técnico Dos")
+                    };
+                });
+
             ticketRepoMock.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int id, CancellationToken _) =>
                 {

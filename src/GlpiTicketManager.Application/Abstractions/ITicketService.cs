@@ -113,7 +113,7 @@ public interface ITicketService
 
     Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(int? groupId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(int? groupId, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken);
 
