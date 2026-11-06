@@ -25,7 +25,7 @@ Este documento define la máquina de estados y el ciclo de vida completo de las 
                                                              │
                                                       (Iniciar trabajo)
                                                              ▼
- [ 4. Pendiente (Espera) ] <──(Pausar/Reanudar)──> [ 3. En progreso ]
+ [ 4. Pendiente (Espera) ] <──(Pausar / Reprogramar tarea existente)──> [ 3. En progreso ]
                                                              │
                                                    (Registrar Solución)
                                                              ▼
@@ -46,9 +46,22 @@ La máquina de estados es **monótona hacia adelante** para el técnico: `Nuevo 
    - Solo permitido si el ticket está en estado `New` (1) y no tiene técnico asignado.
    - Ejecutado mediante `UPDATE` condicional atómico en base de datos.
 2. **Inicio (2 → 3)**:
-   - Técnico cambia el estado a `Planned` (3) mediante `PATCH /api/tickets/{id}/status`.
+   - Se realiza mediante una planificación real: `POST /api/tickets/{id}/plan` crea una
+     `TicketTask` nativa con fechas y GLPI deriva el estado `Planned` (3).
+   - `PATCH /api/tickets/{id}/status` **no puede** escribir `3`: responde `422` e indica
+     usar el endpoint de planificación. El estado 3 nunca se simula mediante un PATCH
+     genérico.
 3. **Pausa y Reanudación (3 ↔ 4)**:
    - Transiciones bidireccionales entre `Planned` (3) y `Waiting` (4).
+   - **Reanudar desde `Pendiente`** se hace reprogramando la `TicketTask` existente
+     (`PUT /api/tickets/{id}/tasks/{taskId}` o `POST /api/tickets/{id}/plan` con
+     `pending=0` y fechas nuevas). GLPI ejecuta `Waiting → Assigned` y deriva de nuevo
+     `Planned` al confirmar la tarea. No se crea una segunda tarea y se conserva el
+     identificador y el historial de la original.
+   - Una reprogramación con las mismas fechas y comentario es un *no-op* para GLPI: se
+     rechaza con `409 no_changes` indicando que hay que modificar la planificación.
+   - Si el horario solicitado choca con una tarea de **otro** ticket, la API responde
+     `409 schedule_conflict` con los intervalos ocupados y un hueco libre sugerido.
 4. **Resolver (3/4 → 5)**:
    - Exige la existencia de una solución escrita en `glpi_itilsolutions` (ADR-006). La ausencia de solución se rechaza con `422 Unprocessable Entity`.
 5. **Cierre automático (5 → 6)**:

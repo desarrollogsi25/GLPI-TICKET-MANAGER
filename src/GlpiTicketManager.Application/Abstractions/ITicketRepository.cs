@@ -89,6 +89,14 @@ public interface ITicketRepository
     Task<bool> HasOverlappingScheduledTaskAsync(int technicianId, DateTime startUtc,
         DateTime endUtc, int? excludingTaskId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Same read as <see cref="HasOverlappingScheduledTaskAsync"/> but returns the
+    /// colliding tasks so the API can name the occupied interval and suggest a slot.
+    /// </summary>
+    Task<IReadOnlyList<ScheduledTaskConflict>> GetScheduledTaskConflictsAsync(
+        int technicianId, DateTime startUtc, DateTime endUtc, int? excludingTaskId,
+        CancellationToken cancellationToken);
+
     /// <summary>Loads the user links (requesters / assignees) for a set of tickets.</summary>
     Task<IReadOnlyList<TicketUser>> GetUsersForTicketsAsync(
         IReadOnlyCollection<int> ticketIds,

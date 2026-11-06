@@ -51,10 +51,6 @@ function DatePickerBase({ value, onChange, label, id, className, placeholder, mi
     [value],
   )
 
-  const handleSelect = useCallback((day?: Date) => {
-    setDraft(day)
-  }, [])
-
   const selected = localDate(value)
   const earliest = localDate(min)
   const latest = localDate(max)
@@ -63,6 +59,13 @@ function DatePickerBase({ value, onChange, label, id, className, placeholder, mi
   if (latest) disabledDates.push({ after: latest })
   const today = new Date()
   const initialDate = draft ?? (earliest && today < earliest ? earliest : latest && today > latest ? latest : today)
+
+  const handleSelect = useCallback(
+    (day?: Date) => {
+      setDraft(day ?? selected)
+    },
+    [selected],
+  )
 
   return (
     <Popover

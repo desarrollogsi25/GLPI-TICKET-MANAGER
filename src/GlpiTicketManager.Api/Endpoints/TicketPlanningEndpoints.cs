@@ -224,10 +224,17 @@ public static class TicketPlanningEndpoints
         }
         catch (ConflictException ex)
         {
+            var extensions = new Dictionary<string, object?>();
+            if (!string.IsNullOrWhiteSpace(ex.Code)) extensions["code"] = ex.Code;
+            if (ex.Details is not null)
+            {
+                foreach (var pair in ex.Details) extensions[pair.Key] = pair.Value;
+            }
             return Results.Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Conflicto de planificación",
-                detail: ex.Message);
+                detail: ex.Message,
+                extensions: extensions);
         }
         catch (UnprocessableEntityException ex)
         {

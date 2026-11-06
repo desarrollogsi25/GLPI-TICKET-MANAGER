@@ -387,9 +387,24 @@ public static class TicketEndpoints
         }
         catch (ConflictException ex)
         {
-            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
-                title: "Tarea no confirmada", detail: ex.Message);
+            return ConflictProblem(ex, "Tarea no confirmada");
         }
+    }
+
+    /// <summary>
+    /// 409 with a machine-readable `code` plus any structured details, so the UI can
+    /// distinguish an occupied schedule from an incompatible state or a stale task.
+    /// </summary>
+    private static IResult ConflictProblem(ConflictException ex, string title)
+    {
+        var extensions = new Dictionary<string, object?>();
+        if (!string.IsNullOrWhiteSpace(ex.Code)) extensions["code"] = ex.Code;
+        if (ex.Details is not null)
+        {
+            foreach (var pair in ex.Details) extensions[pair.Key] = pair.Value;
+        }
+        return Results.Problem(statusCode: StatusCodes.Status409Conflict,
+            title: title, detail: ex.Message, extensions: extensions);
     }
 
     private static async Task<IResult> UpdateStatus(
@@ -499,8 +514,7 @@ public static class TicketEndpoints
         }
         catch (ConflictException ex)
         {
-            return Results.Problem(statusCode: StatusCodes.Status409Conflict,
-                title: "Planificación no confirmada", detail: ex.Message);
+            return ConflictProblem(ex, "Planificación no confirmada");
         }
     }
 

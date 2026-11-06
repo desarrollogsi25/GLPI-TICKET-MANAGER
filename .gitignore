@@ -47,6 +47,8 @@ logs/
 # Tools
 .opencode/
 .agents/.agents/
+.claude/
+CLAUDE.md
 
 # Docker
 .docker/

@@ -151,7 +151,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 return forced;
             }
 
-            return _glpiTicketStates.TryGetValue(ticketId, out var state) ? state.Status : null;
+            if (_glpiTicketStates.TryGetValue(ticketId, out var state))
+            {
+                return state.Status;
+            }
+
+            return _allTickets.TryGetValue(ticketId, out var ticket) ? ticket.Status : null;
         }
     }
 
@@ -676,9 +681,29 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                             var index = items.FindIndex(item => item.Id == taskId);
                             if (index >= 0)
                             {
+                                var ownerTicketId = items[index].TicketId;
                                 items[index] = items[index] with { Content = content, State = 1,
                                     StartAt = start, EndAt = end,
                                     DurationSeconds = (int)(end - start).TotalSeconds };
+                                // Real GLPI reopens Waiting and derives Planned from the
+                                // updated TicketTask (pending=0), so the fake must too.
+                                _glpiTicketStates[ownerTicketId] = new GlpiTicketState(ownerTicketId,
+                                    (int)TicketStatus.Planned);
+                                if (_allTickets.TryGetValue(ownerTicketId, out var owner))
+                                {
+                                    _allTickets[ownerTicketId] = new Ticket
+                                    {
+                                        Id = owner.Id, Name = owner.Name, Content = owner.Content,
+                                        Status = (int)TicketStatus.Planned, Type = owner.Type,
+                                        Priority = owner.Priority, Urgency = owner.Urgency,
+                                        Impact = owner.Impact, CategoryId = owner.CategoryId,
+                                        CreatedAt = owner.CreatedAt, UpdatedAt = DateTime.UtcNow,
+                                        SolvedAt = owner.SolvedAt, ClosedAt = owner.ClosedAt,
+                                        IsDeleted = owner.IsDeleted, HasSolution = owner.HasSolution,
+                                        AssigneeIds = owner.AssigneeIds, RequesterIds = owner.RequesterIds,
+                                        Followups = owner.Followups
+                                    };
+                                }
                                 break;
                             }
                         }
@@ -1043,6 +1068,21 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                             task.StartAt.HasValue && task.EndAt.HasValue &&
                             task.StartAt.Value.UtcDateTime < end && task.EndAt.Value.UtcDateTime > start &&
                             _allTickets.TryGetValue(task.TicketId, out var owner) && owner.Status is not (5 or 6));
+                });
+
+            ticketRepoMock.Setup(t => t.GetScheduledTaskConflictsAsync(It.IsAny<int>(),
+                    It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int technicianId, DateTime start, DateTime end, int? excluded, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                        return _nativeTasks.Values.SelectMany(items => items)
+                            .Where(task => task.TechnicianId == technicianId && task.State == 1 &&
+                                task.Id != excluded && task.StartAt.HasValue && task.EndAt.HasValue &&
+                                task.StartAt.Value.UtcDateTime < end && task.EndAt.Value.UtcDateTime > start &&
+                                _allTickets.TryGetValue(task.TicketId, out var owner) && owner.Status is not (5 or 6))
+                            .Select(task => new ScheduledTaskConflict(task.Id, task.TicketId,
+                                task.StartAt!.Value.UtcDateTime, task.EndAt!.Value.UtcDateTime))
+                            .ToArray();
                 });
 
             ticketRepoMock.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

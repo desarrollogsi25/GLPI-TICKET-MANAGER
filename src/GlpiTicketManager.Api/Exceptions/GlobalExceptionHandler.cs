@@ -115,6 +115,21 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
             problem.Extensions["errors"] = errors;
         }
 
+        if (exception is Application.Exceptions.ConflictException conflict)
+        {
+            if (!string.IsNullOrWhiteSpace(conflict.Code))
+            {
+                problem.Extensions["code"] = conflict.Code;
+            }
+            if (conflict.Details is not null)
+            {
+                foreach (var pair in conflict.Details)
+                {
+                    problem.Extensions[pair.Key] = pair.Value;
+                }
+            }
+        }
+
         httpContext.Response.StatusCode = statusCode;
         await httpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
 
