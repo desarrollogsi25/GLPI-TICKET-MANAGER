@@ -104,6 +104,7 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
             CustomWebApplicationFactory.Ticket12Id,
             comment,
             true,
+            It.IsAny<int?>(),
             It.IsAny<CancellationToken>()), Times.Once);
 
         _factory.GlpiMock.Verify(g => g.UpdateTicketStatusAsync(

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useResolveTicketMutation, useTicketResolveEligibilityQuery } from '@/hooks/useTickets'
+import { useCompleteTicketTaskMutation, useResolveTicketMutation, useTicketResolveEligibilityQuery, useTicketTasksQuery } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
@@ -29,11 +29,15 @@ export function ResolveTicketDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
   const resolveTicket = useResolveTicketMutation()
+  const completeTask = useCompleteTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
   const { data: eligibility, isLoading: checkingEligibility } = useTicketResolveEligibilityQuery(
     ticketId,
     open && ticketId > 0,
   )
+  const { data: tasks } = useTicketTasksQuery(ticketId, open && ticketId > 0)
+  const pendingTasks = (tasks ?? []).filter((t) => t.state === 1)
+  const [completeTasksOnResolve, setCompleteTasksOnResolve] = useState(true)
 
   /**
    * Synchronous in-flight guard. `resolveTicket.isPending` only becomes true after
@@ -79,7 +83,11 @@ export function ResolveTicketDialog({
 
     let resolvedStatus: number
     try {
-      const result = await resolveTicket.mutateAsync({ ticketId, content: trimmed })
+      const result = await resolveTicket.mutateAsync({
+        ticketId,
+        content: trimmed,
+        completePendingTasks: pendingTasks.length > 0 ? completeTasksOnResolve : false,
+      })
       resolvedStatus = result.status
     } catch (err) {
       // The ticket may still have been solved server-side (e.g. the write succeeded
@@ -124,12 +132,55 @@ export function ResolveTicketDialog({
       description="Escribí la solución. Puede ser breve (por ejemplo «OK»), pero no puede quedar vacía: sin solución el ticket no puede marcarse como resuelto."
     >
       <form onSubmit={handleSubmit(submit)} noValidate>
-        {eligibility && !eligibility.canResolve && (
+        {pendingTasks.length > 0 ? (
+          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
+            <p className="font-semibold">Tareas pendientes por hacer ({pendingTasks.length})</p>
+            <p className="text-muted-foreground">
+              Un ticket no debe finalizar con tareas inconclusas. Puedes completarlas individualmente o marcarlas al resolver.
+            </p>
+            <div className="space-y-1.5 pt-1">
+              {pendingTasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between gap-2 rounded-lg bg-background/60 p-2 border border-border/40">
+                  <span className="font-medium text-foreground truncate max-w-[200px]">
+                    Tarea #{task.id}: {task.content ? task.content.replace(/<[^>]+>/g, '').slice(0, 35) : 'Planificada'}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px]"
+                    disabled={completeTask.isPending}
+                    onClick={async () => {
+                      try {
+                        await completeTask.mutateAsync({ ticketId, taskId: task.id })
+                        void queryClient.invalidateQueries({ queryKey: ['tickets', 'tasks', ticketId] })
+                        void queryClient.invalidateQueries({ queryKey: ['tickets', 'resolve-eligibility', ticketId] })
+                      } catch {
+                        // error handled
+                      }
+                    }}
+                  >
+                    ✓ Completar
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer font-medium pt-1 text-foreground">
+              <input
+                type="checkbox"
+                checked={completeTasksOnResolve}
+                onChange={(e) => setCompleteTasksOnResolve(e.target.checked)}
+                className="rounded border-amber-400"
+              />
+              Completar tareas pendientes al registrar esta solución
+            </label>
+          </div>
+        ) : eligibility && !eligibility.canResolve ? (
           <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-            <p className="font-semibold">Planificación requerida para resolver</p>
+            <p className="font-semibold">Requisitos de resolución no cumplidos</p>
             <p className="mt-0.5">{eligibility.reason}</p>
           </div>
-        )}
+        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="resolve-solution">Solución</Label>
           <Textarea
@@ -168,7 +219,7 @@ export function ResolveTicketDialog({
             disabled={
               pending ||
               checkingEligibility ||
-              (eligibility != null && !eligibility.canResolve)
+              (eligibility != null && !eligibility.canResolve && (pendingTasks.length === 0 || !completeTasksOnResolve))
             }
           >
             {pending ? 'Guardando...' : 'Resolver'}

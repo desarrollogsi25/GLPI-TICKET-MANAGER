@@ -43,6 +43,7 @@ export function Detail() {
   const getTechName = (techId?: number | null) => {
     if (!techId) return '-'
     if (currentUser?.userId === techId) return `${currentUser.displayName || currentUser.username} (yo)`
+    if (techId === 2) return 'Administrador GLPI (Sistema)'
     return techMap.get(techId) ?? `Técnico #${techId}`
   }
 

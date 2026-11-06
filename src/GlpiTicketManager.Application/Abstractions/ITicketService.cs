@@ -133,6 +133,15 @@ public interface ITicketService
         AppRole role,
         CancellationToken cancellationToken);
 
+    /// <inheritdoc cref="ResolveAsync(int, string, int, AppRole, CancellationToken)"/>
+    Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        AppRole role,
+        bool completePendingTasks,
+        CancellationToken cancellationToken);
+
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);

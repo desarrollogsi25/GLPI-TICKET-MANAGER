@@ -71,21 +71,28 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
-    public async Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken)
+    public Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken) =>
+        CreateSolutionAsync(ticketId, content, null, cancellationToken);
+
+    public async Task<int> CreateSolutionAsync(int ticketId, string content, int? userId, CancellationToken cancellationToken)
     {
         var sessionToken = await InitSessionAsync(cancellationToken);
 
         try
         {
-            var payload = new
+            var inputDict = new Dictionary<string, object>
             {
-                input = new
-                {
-                    itemtype = "Ticket",
-                    items_id = ticketId,
-                    content
-                }
+                ["itemtype"] = "Ticket",
+                ["items_id"] = ticketId,
+                ["content"] = content
             };
+
+            if (userId.HasValue && userId.Value > 0)
+            {
+                inputDict["users_id"] = userId.Value;
+            }
+
+            var payload = new { input = inputDict };
 
             using var response = await SendAsync(
                 HttpMethod.Post,
@@ -603,22 +610,29 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
-    public async Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken)
+    public Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken) =>
+        CreateFollowupAsync(ticketId, content, isPrivate, null, cancellationToken);
+
+    public async Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, int? userId, CancellationToken cancellationToken)
     {
         var sessionToken = await InitSessionAsync(cancellationToken);
 
         try
         {
-            var payload = new
+            var inputDict = new Dictionary<string, object>
             {
-                input = new
-                {
-                    itemtype = "Ticket",
-                    items_id = ticketId,
-                    content,
-                    is_private = isPrivate ? 1 : 0
-                }
+                ["itemtype"] = "Ticket",
+                ["items_id"] = ticketId,
+                ["content"] = content,
+                ["is_private"] = isPrivate ? 1 : 0
             };
+
+            if (userId.HasValue && userId.Value > 0)
+            {
+                inputDict["users_id"] = userId.Value;
+            }
+
+            var payload = new { input = inputDict };
 
             using var response = await SendAsync(
                 HttpMethod.Post,

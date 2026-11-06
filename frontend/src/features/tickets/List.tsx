@@ -7,7 +7,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -123,6 +123,19 @@ export function List() {
   const [priorityFilter, setPriorityFilter] = useState(initialPriority)
   const [startDate, setStartDate] = useState(initialStartDate)
   const [endDate, setEndDate] = useState(initialEndDate)
+
+  useEffect(() => {
+    const s = searchParams.get('status') ?? 'all'
+    const p = searchParams.get('priority') ?? 'all'
+    const q = searchParams.get('q') ?? ''
+    const sd = searchParams.get('startDate') ?? ''
+    const ed = searchParams.get('endDate') ?? ''
+    setStatusFilter(s)
+    setPriorityFilter(p)
+    setGlobalFilter(q)
+    setStartDate(sd)
+    setEndDate(ed)
+  }, [searchParams])
 
   const isDateRangeInvalid = Boolean(startDate && endDate && startDate > endDate)
 
@@ -380,32 +393,22 @@ export function List() {
         </div>
       )}
 
-      {assigneeId == null && serviceId == null ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {isRequester
-            ? 'No tenés tickets registrados en GLPI.'
-            : isTechnician
-              ? 'No hay tickets asignados a tu usuario.'
-              : 'Selecciona un técnico o servicio para ver tickets.'}
-        </p>
-      ) : (
-        <>
-          {/* Barra de Filtros (Responsive: horizontal en desktop, input + botón sheet en móvil) */}
-          <TicketFiltersBar
-            search={globalFilter}
-            onSearchChange={handleSearchChange}
-            status={statusFilter}
-            onStatusChange={handleStatusChange}
-            priority={priorityFilter}
-            onPriorityChange={handlePriorityChange}
-            startDate={startDate}
-            onStartDateChange={handleStartDateChange}
-            endDate={endDate}
-            onEndDateChange={handleEndDateChange}
-            onClearFilters={handleClearFilters}
-            onOpenSheet={handleOpenSheet}
-            activeFiltersCount={activeFiltersCount}
-          />
+      {/* Barra de Filtros (Responsive: horizontal en desktop, input + botón sheet en móvil) */}
+      <TicketFiltersBar
+        search={globalFilter}
+        onSearchChange={handleSearchChange}
+        status={statusFilter}
+        onStatusChange={handleStatusChange}
+        priority={priorityFilter}
+        onPriorityChange={handlePriorityChange}
+        startDate={startDate}
+        onStartDateChange={handleStartDateChange}
+        endDate={endDate}
+        onEndDateChange={handleEndDateChange}
+        onClearFilters={handleClearFilters}
+        onOpenSheet={handleOpenSheet}
+        activeFiltersCount={activeFiltersCount}
+      />
 
           {/* Bottom Sheet Móvil para Filtros */}
           <TicketFiltersSheet
@@ -520,8 +523,6 @@ export function List() {
               </Button>
             </div>
           </div>
-        </>
-      )}
     </div>
   )
 }

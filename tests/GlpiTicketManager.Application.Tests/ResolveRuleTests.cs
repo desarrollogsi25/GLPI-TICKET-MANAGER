@@ -22,11 +22,21 @@ public sealed class ResolveRuleTests
     }
 
     [Fact]
-    public void Planned_ticket_with_open_task_can_be_resolved()
+    public void Ticket_with_open_task_cannot_be_resolved_until_completed_or_cancelled()
     {
+        // ERROR CRÍTICO FUNCIONAL 01: Un ticket no debe cerrarse con tareas en 'Por hacer'.
         var result = ResolveRule.Evaluate(3, new[] { Task(ResolveRule.TaskTodo) });
-        Assert.True(result.CanResolve);
-        Assert.Equal("open_task", result.Code);
+        Assert.False(result.CanResolve);
+        Assert.Equal("pending_tasks", result.Code);
+        Assert.Contains("tarea(s) pendiente(s) por hacer", result.Reason);
+    }
+
+    [Fact]
+    public void Ticket_with_both_done_and_open_tasks_is_blocked_by_open_tasks()
+    {
+        var result = ResolveRule.Evaluate(2, new[] { Task(ResolveRule.TaskDone), Task(ResolveRule.TaskTodo) });
+        Assert.False(result.CanResolve);
+        Assert.Equal("pending_tasks", result.Code);
     }
 
     [Fact]

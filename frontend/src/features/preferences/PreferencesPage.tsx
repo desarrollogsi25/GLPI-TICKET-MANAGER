@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Bell, Check, CheckCircle2, Laptop, Moon, Send, Smartphone, Sun } from 'lucide-react'
+import { AlertCircle, Bell, Check, CheckCircle2, Laptop, Lock, Moon, Send, Smartphone, Sun } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import type { DarkPreset } from '@/components/layout/AppLayout'
@@ -70,7 +70,7 @@ export function PreferencesPage() {
       return 'midnight'
     }
   })
-  const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default')
+  const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported' | 'insecure_context'>('default')
   const [isPushSubscribed, setIsPushSubscribed] = useState(false)
   const [isPushLoading, setIsPushLoading] = useState(false)
   const [isTestingPush, setIsTestingPush] = useState(false)
@@ -78,6 +78,12 @@ export function PreferencesPage() {
 
   // Comprobar estado de soporte y permisos de Web Push
   useEffect(() => {
+    const isSecure = typeof window !== 'undefined' && window.isSecureContext
+    if (!isSecure) {
+      setPushStatus('insecure_context')
+      return
+    }
+
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       setPushStatus('unsupported')
       return
@@ -527,6 +533,11 @@ export function PreferencesPage() {
                     No activadas
                   </span>
                 )}
+                {pushStatus === 'insecure_context' && (
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full">
+                    Requiere HTTPS
+                  </span>
+                )}
                 {pushStatus === 'unsupported' && (
                   <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
                     No compatible
@@ -538,14 +549,27 @@ export function PreferencesPage() {
                   ? 'Recibirás notificaciones en el Centro de Actividades de Windows y en la barra de tu celular.'
                   : pushStatus === 'denied'
                     ? 'El navegador tiene bloqueado el permiso. Para activarlo, pulsa en el candado de la URL y permite Notificaciones.'
-                    : pushStatus === 'unsupported'
-                      ? 'Este navegador no soporta la API de notificaciones Web Push.'
-                      : 'Activa las notificaciones para enterarte inmediatamente de asignaciones y tickets creados en GLPI.'}
+                    : pushStatus === 'insecure_context'
+                      ? 'Las notificaciones del sistema operativo y Web Push requieren un contexto seguro (HTTPS). Conéctate a https://10.10.40.31 para habilitarlas.'
+                      : pushStatus === 'unsupported'
+                        ? 'Este navegador no soporta la API de notificaciones Web Push.'
+                        : 'Activa las notificaciones para enterarte inmediatamente de asignaciones y tickets creados en GLPI.'}
               </p>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {pushStatus !== 'granted' || !isPushSubscribed ? (
+              {pushStatus === 'insecure_context' ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = window.location.href.replace(/^http:/, 'https:')
+                  }}
+                  className="rounded-xl text-xs font-semibold shadow-xs cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <Lock className="size-3.5 mr-1.5" />
+                  Ir a HTTPS para activar
+                </Button>
+              ) : pushStatus !== 'granted' || !isPushSubscribed ? (
                 <Button
                   type="button"
                   onClick={handleActivatePush}

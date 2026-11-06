@@ -149,8 +149,8 @@ export async function createSolution(id: number, content: string): Promise<{ id:
  * single realtime event. The previous two-call sequence (POST /solutions followed by
  * PATCH /status) answered 400/422 for the same technician action.
  */
-export async function resolveTicket(id: number, content: string): Promise<import('@/lib/api/types').TicketDetail> {
-  const { data } = await apiClient.post(`/tickets/${id}/resolve`, { content })
+export async function resolveTicket(id: number, content: string, completePendingTasks?: boolean): Promise<import('@/lib/api/types').TicketDetail> {
+  const { data } = await apiClient.post(`/tickets/${id}/resolve`, { content, completePendingTasks: Boolean(completePendingTasks) })
   return data
 }
 export async function reopenTicket(id: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {

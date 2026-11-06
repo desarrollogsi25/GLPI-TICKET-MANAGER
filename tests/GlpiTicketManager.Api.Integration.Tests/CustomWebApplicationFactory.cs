@@ -897,6 +897,32 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                         return 1;
                     }
                 });
+            glpiMock.Setup(g => g.CreateFollowupAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, string content, bool isPrivate, int? userId, CancellationToken ct) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            var list = ticket.Followups.ToList();
+                            list.Add(new TicketFollowup
+                            {
+                                Id = list.Count + 1,
+                                TicketId = ticketId,
+                                Content = content,
+                                IsPrivate = isPrivate,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                            ticket.Followups = list;
+                        }
+                        return 1;
+                    }
+                });
+            glpiMock.Setup(g => g.CreateSolutionAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((int ticketId, string content, int? userId, CancellationToken ct) =>
+                {
+                    return glpiMock.Object.CreateSolutionAsync(ticketId, content, ct).GetAwaiter().GetResult();
+                });
             glpiMock.Setup(g => g.CreateSolutionAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int ticketId, string content, CancellationToken _) =>
                 {

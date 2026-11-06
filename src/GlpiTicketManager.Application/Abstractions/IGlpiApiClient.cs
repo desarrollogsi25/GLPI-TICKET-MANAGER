@@ -12,6 +12,7 @@ public interface IGlpiApiClient
     Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
 
     Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
+    Task<int> CreateSolutionAsync(int ticketId, string content, int? userId, CancellationToken cancellationToken);
 
     /// <summary>Create a native, scheduled TODO TicketTask (GLPI owns the status change).</summary>
     Task<int> CreatePlannedTaskAsync(
@@ -53,6 +54,7 @@ public interface IGlpiApiClient
     Task ReopenTicketAsync(int ticketId, CancellationToken cancellationToken);
 
     Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, CancellationToken cancellationToken);
+    Task<int> CreateFollowupAsync(int ticketId, string content, bool isPrivate, int? userId, CancellationToken cancellationToken);
 
     Task<int> CreateTicketAsync(
         string title,
