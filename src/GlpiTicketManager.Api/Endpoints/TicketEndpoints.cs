@@ -29,6 +29,13 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // GET /api/tickets/technicians -> lista de técnicos activos
+        group.MapGet("technicians", GetTechnicians)
+            .WithName("GetTechnicians")
+            .WithSummary("List active technicians with real name display formatting")
+            .Produces<IReadOnlyList<UserSummaryDto>>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
 
         // GET /api/tickets?groupId=X&unassigned=true -> cola del grupo (sin asignar)
         group.MapGet("by-group", GetUnassignedByGroup)
@@ -57,6 +64,15 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapGet("/{id:int}/resolve-eligibility", GetResolveEligibility)
+            .WithName("GetTicketResolveEligibility")
+            .WithSummary("Evaluates whether a ticket meets business and task requirements to be resolved")
+            .Produces<ResolveEligibilityDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapPut("/{id:int}/tasks/{taskId:int}", ReplanTask)
@@ -229,7 +245,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Filtros inválidos",
+                title: "Filtros invÃ¡lidos",
                 detail: ex.Message);
         }
     }
@@ -277,6 +293,15 @@ public static class TicketEndpoints
         }
     }
 
+    private static async Task<IResult> GetTechnicians(
+        int? groupId,
+        ITicketService ticketService,
+        CancellationToken cancellationToken)
+    {
+        var technicians = await ticketService.GetTechniciansAsync(groupId, cancellationToken);
+        return Results.Ok(technicians);
+    }
+
     private static async Task<IResult> GetById(
         int id,
         ITicketService ticketService,
@@ -305,6 +330,35 @@ public static class TicketEndpoints
         }
     }
 
+    private static async Task<IResult> GetResolveEligibility(
+        int id,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        try
+        {
+            return Results.Ok(await ticketService.GetResolveEligibilityAsync(
+                id, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Identificador inválido", detail: ex.Message);
+        }
+        catch (NotFoundException)
+        {
+            return Results.NotFound();
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+    }
     private static async Task<IResult> GetTasks(
         int id,
         ITicketService ticketService,
@@ -322,7 +376,7 @@ public static class TicketEndpoints
         catch (ValidationException ex)
         {
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
-                title: "Identificador inválido", detail: ex.Message);
+                title: "Identificador invÃ¡lido", detail: ex.Message);
         }
         catch (ForbiddenException ex)
         {
@@ -373,7 +427,7 @@ public static class TicketEndpoints
         catch (ValidationException ex)
         {
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
-                title: "Tarea inválida", detail: ex.Message);
+                title: "Tarea invÃ¡lida", detail: ex.Message);
         }
         catch (ForbiddenException ex)
         {
@@ -438,14 +492,14 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Operación no válida",
+                title: "OperaciÃ³n no vÃ¡lida",
                 detail: ex.Message);
         }
         catch (ValidationException ex)
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Solicitud inválida",
+                title: "Solicitud invÃ¡lida",
                 detail: ex.Message);
         }
     }
@@ -499,7 +553,7 @@ public static class TicketEndpoints
         catch (ValidationException ex)
         {
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
-                title: "Planificación inválida", detail: ex.Message, extensions:
+                title: "PlanificaciÃ³n invÃ¡lida", detail: ex.Message, extensions:
                 new Dictionary<string, object?> { ["errors"] = ex.Errors });
         }
         catch (ForbiddenException ex)
@@ -514,7 +568,7 @@ public static class TicketEndpoints
         }
         catch (ConflictException ex)
         {
-            return ConflictProblem(ex, "Planificación no confirmada");
+            return ConflictProblem(ex, "PlanificaciÃ³n no confirmada");
         }
     }
 
@@ -600,7 +654,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Solicitud inválida",
+                title: "Solicitud invÃ¡lida",
                 detail: ex.Message,
                 extensions: new Dictionary<string, object?> { ["errors"] = ex.Errors });
         }
@@ -629,7 +683,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Operación no válida",
+                title: "OperaciÃ³n no vÃ¡lida",
                 detail: ex.Message);
         }
     }
@@ -717,7 +771,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Solicitud inválida",
+                title: "Solicitud invÃ¡lida",
                 detail: ex.Message,
                 extensions: new Dictionary<string, object?> { ["errors"] = ex.Errors });
         }
@@ -746,7 +800,7 @@ public static class TicketEndpoints
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Operación no válida",
+                title: "OperaciÃ³n no vÃ¡lida",
                 detail: ex.Message);
         }
     }

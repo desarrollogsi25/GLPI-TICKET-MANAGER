@@ -75,6 +75,8 @@ public interface ITicketService
 
     Task<IReadOnlyList<TicketTaskDto>> GetTasksAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
 
+    Task<ResolveEligibilityDto> GetResolveEligibilityAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
+
     Task<TicketTaskMutationResponse> ReplanTaskAsync(int ticketId, int taskId,
         ReplanTicketTaskRequest request, int userId, AppRole role, CancellationToken cancellationToken);
 
@@ -110,6 +112,8 @@ public interface ITicketService
     Task<TicketDetailDto> ClaimAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(int? groupId, CancellationToken cancellationToken);
 
     Task<int> SolutionInsertAsync(int ticketId, string content, int userId, CancellationToken cancellationToken);
 

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useResolveTicketMutation } from '@/hooks/useTickets'
+import { useResolveTicketMutation, useTicketResolveEligibilityQuery } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
@@ -30,6 +30,10 @@ export function ResolveTicketDialog({
   const queryClient = useQueryClient()
   const resolveTicket = useResolveTicketMutation()
   const pushToast = useToastStore((state) => state.push)
+  const { data: eligibility, isLoading: checkingEligibility } = useTicketResolveEligibilityQuery(
+    ticketId,
+    open && ticketId > 0,
+  )
 
   /**
    * Synchronous in-flight guard. `resolveTicket.isPending` only becomes true after
@@ -120,6 +124,12 @@ export function ResolveTicketDialog({
       description="Escribí la solución. Puede ser breve (por ejemplo «OK»), pero no puede quedar vacía: sin solución el ticket no puede marcarse como resuelto."
     >
       <form onSubmit={handleSubmit(submit)} noValidate>
+        {eligibility && !eligibility.canResolve && (
+          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+            <p className="font-semibold">Planificación requerida para resolver</p>
+            <p className="mt-0.5">{eligibility.reason}</p>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="resolve-solution">Solución</Label>
           <Textarea
@@ -153,7 +163,14 @@ export function ResolveTicketDialog({
           >
             Cancelar
           </Button>
-          <Button type="submit" disabled={pending}>
+          <Button
+            type="submit"
+            disabled={
+              pending ||
+              checkingEligibility ||
+              (eligibility != null && !eligibility.canResolve)
+            }
+          >
             {pending ? 'Guardando...' : 'Resolver'}
           </Button>
         </div>

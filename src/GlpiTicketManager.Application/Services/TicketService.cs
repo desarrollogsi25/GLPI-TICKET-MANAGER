@@ -235,6 +235,45 @@ public sealed class TicketService : ITicketService
         return canSeePrivate ? tasks : tasks.Where(task => !task.IsPrivate).ToArray();
     }
 
+    /// <summary>
+    /// Single decision point for "Resolver", consumed by the detail view and the Kanban.
+    /// Combines the caller's authority with <see cref="ResolveRule"/> (status + real GLPI tasks).
+    /// </summary>
+    public async Task<ResolveEligibilityDto> GetResolveEligibilityAsync(
+        int ticketId, int userId, AppRole role, CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0) throw Invalid("id", "id must be a positive integer.");
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} not found.");
+        if (!await _accessPolicy.CanViewAsync(userId, role, ticketId, cancellationToken))
+            throw new ForbiddenException($"User {userId} cannot view ticket {ticketId}");
+
+        if (!await _accessPolicy.CanAttemptStatusChangeAsync(userId, role, ticketId, cancellationToken))
+            return new ResolveEligibilityDto(false, "forbidden", "Solo el técnico asignado, un supervisor del grupo o un administrador pueden resolver este ticket.");
+
+        var transition = await _accessPolicy.EvaluateStatusTransitionAsync(
+            userId, role, ticketId, (int)TicketStatus.Solved, cancellationToken);
+        if (!transition.Allowed)
+            return new ResolveEligibilityDto(false, "forbidden", transition.Reason);
+
+        var tasks = ticket.Status is (int)TicketStatus.Assigned or (int)TicketStatus.Planned
+            ? await _glpi.GetTicketTasksAsync(ticketId, cancellationToken)
+            : null;
+        return ResolveRule.Evaluate(ticket.Status, tasks);
+    }
+
+    /// <summary>Server-side enforcement of <see cref="ResolveRule"/> before any solution is written.</summary>
+    private async Task EnsureResolvableByTasksAsync(int ticketId, int currentStatus, CancellationToken cancellationToken)
+    {
+        if (currentStatus is not ((int)TicketStatus.Assigned or (int)TicketStatus.Planned)) return;
+        var tasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+        var decision = ResolveRule.Evaluate(currentStatus, tasks);
+        if (!decision.CanResolve)
+        {
+            throw new UnprocessableEntityException(decision.Reason ?? "El ticket no cumple las condiciones para resolverse.");
+        }
+    }
+
     private async Task<(Ticket Ticket, TicketTaskDto Task, GlpiTicketState State)>
         GetEditableTaskAsync(int ticketId, int taskId, int userId, AppRole role, CancellationToken ct)
     {
@@ -599,6 +638,11 @@ public sealed class TicketService : ITicketService
             && (status == (int)TicketStatus.Solved || status == (int)TicketStatus.Closed))
         {
             throw new UnprocessableEntityException(PendingResolveBlockedMessage);
+        }
+
+        if (currentTicket is not null && status == (int)TicketStatus.Solved)
+        {
+            await EnsureResolvableByTasksAsync(ticketId, currentTicket.Status, cancellationToken);
         }
 
         // Payload/state validation and solution insertion run before or during resolve:
@@ -1122,6 +1166,11 @@ public sealed class TicketService : ITicketService
         return await _tickets.SolutionExistsAsync(ticketId, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(int? groupId, CancellationToken cancellationToken)
+    {
+        return await _tickets.GetTechniciansAsync(groupId, cancellationToken);
+    }
+
     /// <summary>
     /// Resolves a ticket in a single atomic operation (BUG-031 / H-31).
     /// <para>
@@ -1210,6 +1259,8 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException(
                 transition.Reason ?? $"User {userId} cannot resolve ticket {ticketId}");
         }
+
+        await EnsureResolvableByTasksAsync(ticketId, ticket.Status, cancellationToken);
 
         try
         {
@@ -1378,6 +1429,8 @@ public sealed class TicketService : ITicketService
         {
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
+
+        await EnsureResolvableByTasksAsync(ticketId, ticket.Status, cancellationToken);
 
         int solutionId;
         try

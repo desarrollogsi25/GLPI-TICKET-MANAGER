@@ -143,4 +143,7 @@ public interface ITicketRepository
 
     /// <summary>Ticket id to status baseline used to detect external transitions.</summary>
     Task<IReadOnlyDictionary<int, int>> GetTicketStatusSnapshotAsync(CancellationToken cancellationToken);
+
+    /// <summary>List active technicians with real name formatting, optionally filtered by group.</summary>
+    Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(int? groupId, CancellationToken cancellationToken);
 }

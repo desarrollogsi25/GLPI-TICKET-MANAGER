@@ -13,11 +13,13 @@ export function useSelectedAssignee(): number | null {
   const role = useAuthStore((state) => state.user?.role ?? state.role ?? 'technician')
   const selectedAssigneeId = useUiStore((state) => state.selectedAssigneeId)
 
-  // Requesters see tickets they opened; the API forces requester scope for that
-  // role, so a stale technician selection must never leak into their view.
+  // Requesters see tickets they opened; technicians only work on their own queue.
   if (role === 'technician' || role === 'solicitante') {
     return userId
   }
 
-  return selectedAssigneeId ?? userId
+  // Admins and supervisors: if no specific technician was selected in the filter,
+  // return null so queries match all tickets across their scope rather than locking
+  // to their own admin user id (P2-04).
+  return selectedAssigneeId ?? null
 }

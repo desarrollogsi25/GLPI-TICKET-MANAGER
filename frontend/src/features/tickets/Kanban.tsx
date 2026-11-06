@@ -202,7 +202,7 @@ function KanbanColumn({
     <div
       data-column-id={column.id}
       data-testid={`kanban-column-${column.id}`}
-      className="flex flex-col h-full max-h-full min-w-[250px] w-full overflow-hidden"
+      className="flex flex-col h-full max-h-full min-w-[220px] w-full overflow-hidden"
     >
       <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
@@ -1183,7 +1183,7 @@ export function Kanban() {
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-5 gap-4 w-full h-full min-h-0 min-w-[1370px]"
+            className="grid grid-cols-5 gap-3.5 w-full h-full min-h-0 min-w-[1150px] 2xl:min-w-full"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}

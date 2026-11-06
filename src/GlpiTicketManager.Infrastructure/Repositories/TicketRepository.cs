@@ -825,5 +825,38 @@ public sealed class TicketRepository : ITicketRepository
         return rows.ToDictionary(row => (int)row.TicketId, row => (int)row.Status);
     }
 
+    public async Task<IReadOnlyList<UserSummaryDto>> GetTechniciansAsync(
+        int? groupId, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var sql = """
+            SELECT DISTINCT
+                CAST(u.id AS SIGNED) AS Id,
+                u.name AS Username,
+                COALESCE(
+                    NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''),
+                    u.name
+                ) AS DisplayName
+            FROM glpi_users u
+            LEFT JOIN glpi_groups_users gu ON gu.users_id = u.id
+            LEFT JOIN glpi_profiles_users pu ON pu.users_id = u.id
+            WHERE u.is_deleted = 0
+              AND u.is_active = 1
+              AND u.id != 2
+              AND (pu.profiles_id IN (4, 6) OR gu.groups_id IS NOT NULL)
+              AND (@GroupId IS NULL OR gu.groups_id = @GroupId)
+            ORDER BY DisplayName ASC;
+            """;
+
+        var command = new CommandDefinition(
+            sql,
+            new { GroupId = groupId },
+            commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        var rows = await connection.QueryAsync<UserSummaryDto>(command);
+        return rows.AsList();
+    }
+
     private sealed record TicketStatusRow(long TicketId, long Status);
 }
