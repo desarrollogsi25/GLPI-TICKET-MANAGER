@@ -16,7 +16,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   await expect(page.locator('[data-column-id="mine"]').getByText('Asignado', { exact: true })).toBeVisible()
   await expect(page.locator('[data-column-id="in_progress"]').getByText('En proceso (planificado)').first()).toBeVisible()
   await expect(page.locator('[data-column-id="pending"]').getByText('Pendiente', { exact: true })).toBeVisible()
-  await expect(page.locator('[data-column-id="resolved"]').getByText('Resuelto')).toBeVisible()
+  await expect(page.locator('[data-column-id="resolved"]').getByText('Resuelto', { exact: true })).toBeVisible()
 
   // 3. Verificar que #11 está en la cola
   const queueColumn = page.locator('[data-column-id="queue"]')
