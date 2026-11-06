@@ -130,6 +130,12 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
   // 8. Verificar que el comentario aparece en el seguimiento (historial) del ticket
   await expect(page.getByText(pendingComment).first()).toBeVisible({ timeout: 15000 })
 
+  // Al pausar, GLPI solo permite reanudar a Asignado (2), nunca un PATCH directo
+  // a Planificado (3). La UI debe ofrecer el camino real sin proponer un 409.
+  await expect(page.getByTestId('resume-waiting-ticket-btn')).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Asignado', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'En proceso (planificado)', exact: true })).toBeDisabled()
+
   // 9. Verificar que en Kanban el ticket se movió a la columna "Pendiente" (status 4)
   await page.goto('/kanban')
   await page.waitForLoadState('networkidle')

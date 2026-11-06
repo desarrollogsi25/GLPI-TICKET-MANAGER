@@ -282,6 +282,25 @@ export function Detail() {
               <CardTitle className="text-base font-semibold">Cambiar estado</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {ticket.status === 4 && (
+                <div className="space-y-2 rounded-xl border border-amber-300/50 bg-amber-50/70 p-3 text-sm text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/20 dark:text-amber-100">
+                  <p>
+                    Este ticket está en espera. Reanúdalo a <strong>Asignado</strong> antes de editar
+                    una tarea existente. Para volver a <strong>En proceso (planificado)</strong>,
+                    GLPI debe confirmar una planificación nativa.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-10 rounded-xl border-amber-500/50 bg-background/80"
+                    disabled={updateStatus.isPending}
+                    onClick={() => changeStatus(2)}
+                    data-testid="resume-waiting-ticket-btn"
+                  >
+                    Reanudar a Asignado
+                  </Button>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {ticket.status === 2 && (
                   <Button
@@ -348,7 +367,7 @@ export function Detail() {
                       (ticket.status === 6 && option.value <= 5))
 
                   const isPendingInvalidTransition =
-                    ticket.status === 4 && option.value !== 3
+                    ticket.status === 4 && option.value !== 2
 
                   const isAssigneeDirectResolveBlocked =
                     ticket.status === 2 && option.value === 5
@@ -379,7 +398,7 @@ export function Detail() {
                         isAssigneeDirectResolveBlocked
                           ? 'Primero debes programar una tarea para resolverlo.'
                           : isPendingInvalidTransition
-                            ? 'Debes replanificar una tarea primero.'
+                            ? 'Primero reanuda el ticket a Asignado; GLPI confirma la planificación mediante tareas nativas.'
                             : isBackwardBlocked
                               ? 'No se puede retroceder el estado de este ticket.'
                               : undefined
