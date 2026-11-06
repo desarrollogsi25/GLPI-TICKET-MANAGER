@@ -19,6 +19,8 @@ import {
   reopenTicket,
   resolveTicket,
   putPendingTicket,
+  getTicketResolveEligibility,
+  listTechnicians,
   getTeamDashboard,
   getAdminDashboard,
   getAdminWatcherStatus,
@@ -78,7 +80,6 @@ export function useTicketQuery(ticketId: number) {
     enabled: Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
-
 export function useTicketTasksQuery(ticketId: number, enabled = true) {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -87,7 +88,6 @@ export function useTicketTasksQuery(ticketId: number, enabled = true) {
     enabled: enabled && Number.isInteger(ticketId) && ticketId > 0 && sessionValid,
   })
 }
-
 /**
  * H-36: `queryKeys.tickets.all` is a prefix of the detail, list, assignee AND
  * group-queue keys, so a single invalidation refreshes all of them. Invalidating
@@ -115,7 +115,6 @@ export function useUpdateTicketStatusMutation() {
     },
   })
 }
-
 export function usePlanTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -124,7 +123,6 @@ export function usePlanTicketMutation() {
     onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
-
 export function useReplanTicketTaskMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -134,7 +132,6 @@ export function useReplanTicketTaskMutation() {
     onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
-
 export function useCompleteTicketTaskMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -143,7 +140,6 @@ export function useCompleteTicketTaskMutation() {
     onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
-
 export function useCancelTicketTaskMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -152,7 +148,6 @@ export function useCancelTicketTaskMutation() {
     onSuccess: async (_result, { ticketId }) => { await invalidateTicketCaches(queryClient, ticketId) },
   })
 }
-
 export function useGroupsQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -298,7 +293,6 @@ export function useAdminDashboardQuery() {
     enabled: sessionValid,
   })
 }
-
 export function useAdminWatcherStatusQuery() {
   const sessionValid = useIsSessionValid()
   return useQuery({
@@ -307,7 +301,6 @@ export function useAdminWatcherStatusQuery() {
     enabled: sessionValid,
   })
 }
-
 export function useRecoverWatcherTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -317,4 +310,21 @@ export function useRecoverWatcherTicketMutation() {
     },
   })
 }
-
+export function useTicketResolveEligibilityQuery(ticketId: number, enabled = true) {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: queryKeys.tickets.resolveEligibility(ticketId),
+    queryFn: () => getTicketResolveEligibility(ticketId),
+    enabled: sessionValid && enabled && ticketId > 0,
+    staleTime: 10_000,
+  })
+}
+export function useTechniciansQuery(groupId?: number | null) {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: queryKeys.tickets.technicians(groupId),
+    queryFn: () => listTechnicians(groupId ?? undefined),
+    enabled: sessionValid,
+    staleTime: 60_000,
+  })
+}

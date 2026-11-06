@@ -23,6 +23,7 @@ import { formatRelative } from '@/lib/format'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useRole } from '@/hooks/useRole'
+import { useUiStore } from '@/store/uiStore'
 import { priorityMeta, statusMeta } from './labels'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketFiltersBar } from './TicketFiltersBar'
@@ -132,6 +133,7 @@ export function List() {
   const [draftStartDate, setDraftStartDate] = useState(startDate)
   const [draftEndDate, setDraftEndDate] = useState(endDate)
 
+  const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const assigneeId = useSelectedAssignee()
   const { data: services } = useServicesQuery()
   const activeService = services?.find((s) => s.id === serviceId)
@@ -237,6 +239,7 @@ export function List() {
 
   /** Clears every filter (status, priority, dates and search) back to the default view. */
   const handleClearFilters = () => {
+    setSelectedAssigneeId(null)
     setStatusFilter('all')
     setPriorityFilter('all')
     setStartDate('')

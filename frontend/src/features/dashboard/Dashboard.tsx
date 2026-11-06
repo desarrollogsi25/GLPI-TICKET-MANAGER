@@ -21,6 +21,7 @@ import { useGroupsQuery, useGroupQueueQuery, useTicketsQuery } from '@/hooks/use
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
 import { useRole } from '@/hooks/useRole'
 import { useAuthStore } from '@/store/authStore'
+import { useUiStore } from '@/store/uiStore'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -71,8 +72,17 @@ function StatCard({
 
 export function Dashboard() {
   const navigate = useNavigate()
+  const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const userId = useAuthStore((state) => state.user?.userId ?? null)
   const { isAdmin, isSupervisor, isTechnician } = useRole()
+
+  const navigateToTickets = (status?: number) => {
+    if (!isTechnician) {
+      setSelectedAssigneeId(null)
+    }
+    navigate(status != null ? `/tickets?status=${status}` : '/tickets')
+  }
+
   const groups = useGroupsQuery()
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const currentGroup =
@@ -195,7 +205,7 @@ export function Dashboard() {
           subtitle={`${assignedOpenCount} activos / abiertos`}
           icon={ListTodo}
           variant="default"
-          onClick={() => navigate('/tickets')}
+          onClick={() => navigateToTickets()}
         />
         <StatCard
           title="Asignados"
@@ -203,7 +213,7 @@ export function Dashboard() {
           subtitle={isTechnician ? 'Asignados a ti, sin planificar (GLPI 2)' : 'Sin planificar (GLPI 2)'}
           icon={PlayCircle}
           variant="primary"
-          onClick={() => navigate('/tickets?status=2')}
+          onClick={() => navigateToTickets(2)}
         />
         <StatCard
           title="Planificados"
@@ -211,7 +221,7 @@ export function Dashboard() {
           subtitle={`${tareasProgramadas} tareas activas en GLPI`}
           icon={Calendar}
           variant="default"
-          onClick={() => navigate('/tickets?status=3')}
+          onClick={() => navigateToTickets(3)}
         />
         <StatCard
           title="En Espera / Pausa"
@@ -219,7 +229,7 @@ export function Dashboard() {
           subtitle="Pendiente usuario o repuesto (GLPI 4)"
           icon={PauseCircle}
           variant="warning"
-          onClick={() => navigate('/tickets?status=4')}
+          onClick={() => navigateToTickets(4)}
         />
         <StatCard
           title="Abiertos / Nuevos"
@@ -227,7 +237,7 @@ export function Dashboard() {
           subtitle="Por iniciar gestión (GLPI 1)"
           icon={Clock}
           variant="default"
-          onClick={() => navigate('/tickets?status=1')}
+          onClick={() => navigateToTickets(1)}
         />
         <StatCard
           title="Resueltos"
@@ -235,7 +245,7 @@ export function Dashboard() {
           subtitle={isTechnician ? `${solvedToday.length} resueltos hoy (GLPI 5)` : 'Solucionados (GLPI 5)'}
           icon={CheckCircle2}
           variant="success"
-          onClick={() => navigate('/tickets?status=5')}
+          onClick={() => navigateToTickets(5)}
         />
         <StatCard
           title="Cerrados"
@@ -243,7 +253,7 @@ export function Dashboard() {
           subtitle="Histórico finalizado (GLPI 6)"
           icon={CheckCircle2}
           variant="default"
-          onClick={() => navigate('/tickets?status=6')}
+          onClick={() => navigateToTickets(6)}
         />
         <StatCard
           title="Próximos a Vencer (<24h)"
@@ -251,7 +261,7 @@ export function Dashboard() {
           subtitle={ticketsProximos === 0 ? 'Sin riesgos próximos' : 'Atención preventiva recomendada'}
           icon={Clock}
           variant={ticketsProximos > 0 ? 'warning' : 'default'}
-          onClick={() => navigate('/tickets')}
+          onClick={() => navigateToTickets()}
         />
         <StatCard
           title="Vencimientos Críticos"
@@ -259,7 +269,7 @@ export function Dashboard() {
           subtitle={ticketsVencidos === 0 ? 'SLA al día' : 'SLA o fecha límite vencida'}
           icon={ShieldAlert}
           variant={ticketsVencidos > 0 ? 'danger' : 'default'}
-          onClick={() => navigate('/tickets')}
+          onClick={() => navigateToTickets()}
         />
       </div>
 

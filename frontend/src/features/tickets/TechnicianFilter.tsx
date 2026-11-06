@@ -1,15 +1,14 @@
 import { Label } from '@/components/ui/label'
 import { DropdownSelect } from '@/components/ui/dropdown-select'
-import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
 import { useRole } from '@/hooks/useRole'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
+import { useTechniciansQuery } from '@/hooks/useTickets'
 import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
 
 /**
  * Picks which technician's queue is being viewed.
- * Options come from the dashboard aggregate plus the logged-in user, since the API
- * has no dedicated technicians endpoint.
+ * Options come from the GLPI technicians endpoint with real names.
  *
  * Technicians always work on their own queue (the view auto-scopes to them), so the
  * dropdown is only rendered for admins and supervisors auditing other technicians.
@@ -19,45 +18,31 @@ export function TechnicianFilter() {
   const selectedAssignee = useSelectedAssignee()
   const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const currentUserId = useAuthStore((state) => state.user?.userId ?? null)
-  const currentUserName = useAuthStore(
-    (state) => state.user?.displayName || state.user?.username || null,
-  )
-  const { data: stats } = useDashboardStatsQuery()
-
-  const ids = new Set<number>()
-  if (currentUserId != null) {
-    ids.add(currentUserId)
-  }
-  for (const technician of stats?.byTechnician ?? []) {
-    ids.add(technician.userId)
-  }
-  if (selectedAssignee != null) {
-    ids.add(selectedAssignee)
-  }
-
-  const options = [...ids].sort((a, b) => a - b)
+  const { data: technicians } = useTechniciansQuery()
 
   if (isTechnician) {
     return null
   }
+
+  const list = technicians ?? []
 
   return (
     <div className="space-y-1">
       <Label htmlFor="technician-filter">Técnico</Label>
       <DropdownSelect
         id="technician-filter"
-        className="w-44"
+        className="w-48"
         value={selectedAssignee != null ? String(selectedAssignee) : ''}
         onChange={(value) => setSelectedAssigneeId(value === '' ? null : Number(value))}
-        placeholder="Selecciona un técnico"
+        placeholder="Todos los técnicos"
         options={[
-          { value: '', label: 'Selecciona un técnico' },
-          ...options.map((id) => ({
-            value: String(id),
+          { value: '', label: 'Todos los técnicos' },
+          ...list.map((tech) => ({
+            value: String(tech.id),
             label:
-              id === currentUserId && currentUserName
-                ? `${currentUserName} (yo)`
-                : `Técnico #${id}`,
+              tech.id === currentUserId
+                ? `${tech.displayName || tech.username} (yo)`
+                : tech.displayName || tech.username,
           })),
         ]}
       />

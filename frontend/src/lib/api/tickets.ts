@@ -74,6 +74,31 @@ export async function listTicketTasks(ticketId: number): Promise<TicketTask[]> {
   return data
 }
 
+export interface ResolveEligibility {
+  canResolve: boolean
+  reasonCode: string
+  reason: string
+}
+
+export async function getTicketResolveEligibility(ticketId: number): Promise<ResolveEligibility> {
+  const { data } = await apiClient.get<ResolveEligibility>(`/tickets/${ticketId}/resolve-eligibility`)
+  return data
+}
+
+export interface TechnicianSummary {
+  id: number
+  username: string
+  displayName: string
+}
+
+export async function listTechnicians(groupId?: number): Promise<TechnicianSummary[]> {
+  const { data } = await apiClient.get<TechnicianSummary[]>('/tickets/technicians', {
+    params: groupId ? { groupId } : undefined,
+  })
+  return data
+}
+
+
 export type ReplanTicketTaskRequest = PlanTicketRequest
 
 export interface TicketTaskMutationResponse { ticketId: number; taskId: number; ticketStatus: number }

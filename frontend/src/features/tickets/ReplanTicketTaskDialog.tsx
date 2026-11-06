@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useReplanTicketTaskMutation } from '@/hooks/useTickets'
+import { useReplanTicketTaskMutation, useTechniciansQuery } from '@/hooks/useTickets'
 import type { TicketTask } from '@/lib/api/tickets'
 import {
   getApiConflictDetails,
@@ -42,6 +42,13 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   const submitting = useRef(false)
   const mutation = useReplanTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
+  const { data: technicians } = useTechniciansQuery()
+
+  const techName = task?.technicianId
+    ? technicians?.find((t) => t.id === task.technicianId)?.displayName ||
+      technicians?.find((t) => t.id === task.technicianId)?.username ||
+      `Técnico #${task.technicianId}`
+    : '—'
 
   useEffect(() => {
     if (!task) return
@@ -134,7 +141,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
             <span className="flex items-center gap-1.5 font-medium text-foreground">
               <User className="size-3.5 text-primary" /> Técnico asignado:
             </span>
-            <span>{task?.technicianId ? `Técnico #${task.technicianId}` : '—'}</span>
+            <span>{techName}</span>
           </div>
           <div className="flex items-start gap-1.5 pt-1 border-t border-border/40 text-muted-foreground">
             <CalendarClock className="mt-0.5 size-3.5 shrink-0 text-primary" />

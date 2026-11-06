@@ -8,7 +8,7 @@ public static class DashboardQueries
     public const string TeamMembersByGroup = """
         SELECT
             CAST(u.id AS INT) AS UserId,
-            u.name               AS Name,
+            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''), u.name) AS Name,
             CAST(COALESCE(SUM(CASE WHEN t.status IN (2, 3) AND t.is_deleted = 0 THEN 1 ELSE 0 END), 0) AS INT) AS ActiveTickets,
             CAST(COALESCE(SUM(CASE WHEN t.status = 4 AND t.is_deleted = 0 THEN 1 ELSE 0 END), 0) AS INT)       AS PendingTickets,
             CAST(
@@ -81,7 +81,7 @@ public static class DashboardQueries
         LEFT JOIN glpi_tickets t ON t.id = tu.tickets_id AND t.is_deleted = 0
         WHERE gu.groups_id = @GroupId
           AND u.is_deleted = 0
-        GROUP BY u.id, u.name
+        GROUP BY u.id, u.name, u.firstname, u.realname
         ORDER BY u.name ASC;
         """;
 
@@ -156,7 +156,7 @@ public static class DashboardQueries
             t.name                      AS Title,
             CAST(t.status AS INT)       AS Status,
             CAST(tu.users_id AS SIGNED) AS AssigneeId,
-            u.name                      AS AssigneeName,
+            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''), u.name) AS AssigneeName,
             CAST(t.priority AS INT)     AS Priority,
             t.date                      AS CreatedAt,
             t.date_mod                  AS UpdatedAt,

@@ -1,7 +1,7 @@
 import { useDraggable } from '@dnd-kit/core'
 import { motion, useReducedMotion } from 'motion/react'
 import { Calendar, Clock, MessageSquare, Timer, User } from 'lucide-react'
-import { memo } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +9,7 @@ import type { TicketSummary } from '@/lib/api/types'
 import { formatDateTime, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useTechniciansQuery } from '@/hooks/useTickets'
 
 import { priorityMeta, statusMeta } from './labels'
 
@@ -21,30 +22,6 @@ interface TicketCardProps {
   shake?: boolean
   isOverlay?: boolean
   onCardClick?: () => void
-}
-
-function getAssigneeInitials(ticket: TicketSummary, currentUsername?: string): {
-  initials: string
-  label: string
-  assigned: boolean
-} {
-  const assigneeIds = ticket.assigneeIds ?? []
-  if (assigneeIds.length === 0) {
-    return { initials: '—', label: 'Sin asignar', assigned: false }
-  }
-  const firstId = assigneeIds[0]
-  if (currentUsername) {
-    return {
-      initials: currentUsername.slice(0, 2).toUpperCase(),
-      label: `Técnico #${firstId}`,
-      assigned: true,
-    }
-  }
-  return {
-    initials: `T${firstId}`,
-    label: `Técnico #${firstId}`,
-    assigned: true,
-  }
 }
 
 function formatEstimatedDuration(seconds?: number | null): string | null {
@@ -68,6 +45,35 @@ function TicketCardComponent({
 }: TicketCardProps) {
   const shouldReduceMotion = useReducedMotion()
   const currentUser = useAuthStore((s) => s.user)
+  const { data: technicians } = useTechniciansQuery()
+
+  const techMap = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const t of technicians ?? []) {
+      map.set(t.id, t.displayName || t.username)
+    }
+    return map
+  }, [technicians])
+
+  const getTechLabel = useCallback((id?: number | null) => {
+    if (!id) return null
+    if (currentUser?.userId === id) return `${currentUser.displayName || currentUser.username} (yo)`
+    return techMap.get(id) ?? `Técnico #${id}`
+  }, [currentUser, techMap])
+
+  const assignee = useMemo(() => {
+    const ids = ticket.assigneeIds ?? []
+    if (ids.length === 0) {
+      return { initials: '—', label: 'Sin asignar', assigned: false }
+    }
+    const firstId = ids[0]
+    const label = getTechLabel(firstId) ?? `Técnico #${firstId}`
+    const initials =
+      firstId === currentUser?.userId && currentUser?.username
+        ? currentUser.username.slice(0, 2).toUpperCase()
+        : techMap.get(firstId)?.slice(0, 2).toUpperCase() || `T${firstId}`
+    return { initials, label, assigned: true }
+  }, [ticket.assigneeIds, currentUser, techMap, getTechLabel])
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
     disabled: !draggable,
@@ -75,7 +81,6 @@ function TicketCardComponent({
 
   const priority = priorityMeta(ticket.priority)
   const status = statusMeta(ticket.status)
-  const assignee = getAssigneeInitials(ticket, currentUser?.displayName || currentUser?.username)
 
   if (compact) {
     return (
@@ -169,7 +174,7 @@ function TicketCardComponent({
               <span className="inline-flex items-center gap-0.5">
                 <User className="size-2.5" />
                 {ticket.nextPlannedTechnicianId
-                  ? `Técnico #${ticket.nextPlannedTechnicianId}`
+                  ? (getTechLabel(ticket.nextPlannedTechnicianId) ?? `Técnico #${ticket.nextPlannedTechnicianId}`)
                   : assignee.assigned
                     ? assignee.label
                     : 'Técnico asignado'}
@@ -322,7 +327,7 @@ function TicketCardComponent({
             <span className="inline-flex items-center gap-1">
               <User className="size-3" />
               {ticket.nextPlannedTechnicianId
-                ? `Técnico #${ticket.nextPlannedTechnicianId}`
+                ? (getTechLabel(ticket.nextPlannedTechnicianId) ?? `Técnico #${ticket.nextPlannedTechnicianId}`)
                 : assignee.assigned
                   ? assignee.label
                   : 'Técnico asignado'}

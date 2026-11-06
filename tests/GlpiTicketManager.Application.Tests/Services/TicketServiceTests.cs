@@ -43,6 +43,8 @@ public class TicketServiceTests
         _accessPolicy.Setup(p => p.CanAttemptStatusChangeAsync(
                 It.IsAny<int>(), It.IsAny<AppRole>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        _glpi.Setup(g => g.GetTicketTasksAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TicketTaskDto>());
         _svc = new TicketService(
             _repo.Object,
             _glpi.Object,

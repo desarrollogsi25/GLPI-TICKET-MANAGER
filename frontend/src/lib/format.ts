@@ -60,6 +60,28 @@ export function toPlainText(value: string | null | undefined): string {
     return ''
   }
 
-  const parsed = new DOMParser().parseFromString(value, 'text/html')
-  return parsed.body.textContent?.trim() ?? ''
+  if (typeof DOMParser === 'undefined') {
+    return value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+
+  try {
+    const parsed = new DOMParser().parseFromString(value, 'text/html')
+    const blockTags = parsed.querySelectorAll('p, div, br, hr, li, h1, h2, h3, h4, h5, h6, tr')
+    blockTags.forEach((el) => {
+      if (el.tagName.toLowerCase() === 'br') {
+        el.replaceWith('\n')
+      } else {
+        el.after('\n')
+      }
+    })
+
+    return (parsed.body.textContent ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line, i, arr) => line.length > 0 || (i > 0 && arr[i - 1].length > 0))
+      .join('\n')
+      .trim()
+  } catch {
+    return value.replace(/<[^>]+>/g, ' ').trim()
+  }
 }

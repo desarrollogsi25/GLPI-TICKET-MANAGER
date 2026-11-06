@@ -29,6 +29,14 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // GET /api/tickets/technicians -> lista de técnicos activos
+        group.MapGet("technicians", GetTechnicians)
+            .WithName("GetTechnicians")
+            .WithSummary("List active technicians with real name display formatting")
+            .Produces<IReadOnlyList<UserSummaryDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
 
         // GET /api/tickets?groupId=X&unassigned=true -> cola del grupo (sin asignar)
         group.MapGet("by-group", GetUnassignedByGroup)
@@ -57,6 +65,15 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapGet("/{id:int}/resolve-eligibility", GetResolveEligibility)
+            .WithName("GetTicketResolveEligibility")
+            .WithSummary("Evaluates whether a ticket meets business and task requirements to be resolved")
+            .Produces<ResolveEligibilityDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapPut("/{id:int}/tasks/{taskId:int}", ReplanTask)
@@ -277,6 +294,33 @@ public static class TicketEndpoints
         }
     }
 
+    private static async Task<IResult> GetTechnicians(
+        int? groupId,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var role = principal.GetRole();
+        try
+        {
+            var technicians = await ticketService.GetTechniciansAsync(groupId, userId.Value, role, cancellationToken);
+            return Results.Ok(technicians);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado",
+                detail: ex.Message);
+        }
+    }
+
     private static async Task<IResult> GetById(
         int id,
         ITicketService ticketService,
@@ -305,6 +349,35 @@ public static class TicketEndpoints
         }
     }
 
+    private static async Task<IResult> GetResolveEligibility(
+        int id,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+
+        try
+        {
+            return Results.Ok(await ticketService.GetResolveEligibilityAsync(
+                id, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "Identificador inválido", detail: ex.Message);
+        }
+        catch (NotFoundException)
+        {
+            return Results.NotFound();
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Acceso denegado", detail: ex.Message);
+        }
+    }
     private static async Task<IResult> GetTasks(
         int id,
         ITicketService ticketService,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RichContent } from '@/components/ui/rich-content'
 import { useTicketQuery, useTicketTasksQuery, useUpdateTicketStatusMutation,
-  useCompleteTicketTaskMutation, useCancelTicketTaskMutation } from '@/hooks/useTickets'
+  useCompleteTicketTaskMutation, useCancelTicketTaskMutation,
+  useTicketResolveEligibilityQuery, useTechniciansQuery } from '@/hooks/useTickets'
 import type { TicketTask } from '@/lib/api/tickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
-import { formatDateTime, formatRelative, toPlainText } from '@/lib/format'
+import { formatDateTime, formatRelative } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useAuthStore } from '@/store/authStore'
@@ -27,6 +29,27 @@ export function Detail() {
   const ticketId = Number(id)
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
+  const { data: resolveEligibility } = useTicketResolveEligibilityQuery(ticketId)
+  const { data: technicians } = useTechniciansQuery()
+
+  const techMap = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const t of technicians ?? []) {
+      map.set(t.id, t.displayName || t.username)
+    }
+    return map
+  }, [technicians])
+
+  const getTechName = (techId?: number | null) => {
+    if (!techId) return '-'
+    if (currentUser?.userId === techId) return `${currentUser.displayName || currentUser.username} (yo)`
+    return techMap.get(techId) ?? `Técnico #${techId}`
+  }
+
+  const hasActionableTask = Boolean(tasks?.some((t) => t.state === 1 || t.state === 2))
+  const canResolveTicket = resolveEligibility
+    ? resolveEligibility.canResolve
+    : (ticket ? (ticket.status === 3 || (ticket.status === 2 && hasActionableTask)) : false)
   const updateStatus = useUpdateTicketStatusMutation()
   const completeTask = useCompleteTicketTaskMutation()
   const cancelTask = useCancelTicketTaskMutation()
@@ -137,9 +160,11 @@ export function Detail() {
               <CardTitle className="text-base font-semibold">Descripción del problema</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                {toPlainText(ticket.content) || 'Sin descripción.'}
-              </p>
+              {ticket.content ? (
+                <RichContent content={ticket.content} />
+              ) : (
+                <p className="text-sm text-muted-foreground italic">Sin descripción.</p>
+              )}
             </CardContent>
           </Card>
 
@@ -156,13 +181,11 @@ export function Detail() {
                   <div key={sol.id} className="border-l-2 border-emerald-500/60 pl-4 space-y-1">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">
-                        {sol.userId === currentUser?.userId ? `Vos (#${sol.userId})` : `Usuario #${sol.userId}`}
+                        {getTechName(sol.userId)}
                       </span>
                       <span>· {formatDateTime(sol.createdAt)}</span>
                     </div>
-                    <p className="whitespace-pre-wrap text-sm text-foreground">
-                      {toPlainText(sol.content) || '—'}
-                    </p>
+                    <RichContent content={sol.content} className="mt-1" />
                   </div>
                 ))}
               </CardContent>
@@ -182,16 +205,12 @@ export function Detail() {
                     <li key={followup.id} className="border-l-2 border-border/80 pl-4 py-0.5">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="font-semibold text-foreground">
-                          {followup.userId === currentUser?.userId
-                            ? `Vos (#${followup.userId})`
-                            : `Usuario #${followup.userId}`}
+                          {getTechName(followup.userId)}
                         </span>
                         <span>{formatDateTime(followup.createdAt)}</span>
                         {followup.isPrivate ? <Badge variant="secondary" className="text-[10px]">Privado</Badge> : null}
                       </div>
-                      <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground leading-relaxed">
-                        {toPlainText(followup.content) || '—'}
-                      </p>
+                      <RichContent content={followup.content} className="mt-1.5" />
                     </li>
                   ))}
                 </ol>
@@ -221,13 +240,9 @@ export function Detail() {
                           {task.state === 2 ? 'Realizada' : task.state === 1 ? 'Por hacer' : 'Información'}
                         </Badge>
                         {task.isPrivate ? <Badge variant="secondary">Privada</Badge> : null}
-                        <span>
-                          {task.technicianId === currentUser?.userId
-                            ? `Vos (#${task.technicianId})`
-                            : `Técnico #${task.technicianId}`}
-                        </span>
+                        <span>{getTechName(task.technicianId)}</span>
                       </div>
-                      <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground">{toPlainText(task.content) || '—'}</p>
+                      <RichContent content={task.content} className="mt-1.5" />
                       {task.startAt && task.endAt && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           {formatDateTime(task.startAt)} – {formatDateTime(task.endAt)}
@@ -319,18 +334,15 @@ export function Detail() {
                   variant="default"
                   className="rounded-xl"
                   disabled={
-                    ticket.status === 2 ||
-                    ticket.status === 4 ||
+                    !canResolveTicket ||
                     ticket.status === 5 ||
                     ticket.status === 6 ||
                     updateStatus.isPending
                   }
                   title={
-                    ticket.status === 2
-                      ? 'Primero debes programar una tarea para resolverlo.'
-                      : ticket.status === 4
-                        ? 'Debes replanificar una tarea primero.'
-                        : undefined
+                    !canResolveTicket
+                      ? (resolveEligibility?.reason || 'Primero debes programar y realizar una tarea en GLPI para resolverlo.')
+                      : undefined
                   }
                   onClick={() => setResolveOpen(true)}
                 >
@@ -370,7 +382,7 @@ export function Detail() {
                     ticket.status === 4 && option.value !== 2
 
                   const isAssigneeDirectResolveBlocked =
-                    ticket.status === 2 && option.value === 5
+                    option.value === 5 && !canResolveTicket
 
                   const isRewindToNewBlocked =
                     role !== 'admin' && ticket.status > 1 && option.value === 1
@@ -419,14 +431,14 @@ export function Detail() {
                 })}
               </div>
 
-              {ticket.status === 2 && (
+              {ticket.status === 2 && !hasActionableTask && (
                 <p className="text-xs text-muted-foreground font-medium">
-                  Primero debes planificar una tarea en GLPI para poder resolverlo.
+                  Primero debes planificar y realizar al menos una tarea en GLPI para poder resolverlo.
                 </p>
               )}
               {ticket.status === 4 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                  Debes replanificar una tarea en GLPI antes de resolverlo.
+                  Reanuda el ticket a Asignado o replanifica su tarea antes de resolverlo.
                 </p>
               )}
             </CardContent>
