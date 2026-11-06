@@ -358,7 +358,7 @@ public class TicketServiceTests
             .ReturnsAsync(true);
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Ticket { Id = 10, Name = "Ticket 10", Status = 2 });
-        _glpi.Setup(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<CancellationToken>()))
+        _glpi.Setup(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(123);
         _glpi.Setup(g => g.UpdateTicketStatusAsync(10, It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -366,7 +366,7 @@ public class TicketServiceTests
         var result = await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, AppRole.Technician, "Solucion provista", CancellationToken.None);
 
         result.Should().BeTrue();
-        _glpi.Verify(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
         _glpi.Verify(g => g.UpdateTicketStatusAsync(10, (int)TicketStatus.Solved, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -379,7 +379,7 @@ public class TicketServiceTests
             .ReturnsAsync(true);
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Ticket { Id = 10, Name = "Ticket 10", Status = 2 });
-        _glpi.Setup(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<CancellationToken>()))
+        _glpi.Setup(g => g.CreateSolutionAsync(10, "Solucion provista", It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new GlpiApiException(500, "GLPI error"));
 
         var act = async () => await _svc.UpdateStatusAsync(10, (int)TicketStatus.Solved, 7, AppRole.Technician, "Solucion provista", CancellationToken.None);
@@ -574,12 +574,12 @@ public class TicketServiceTests
         const string validSolution = "solucion valida para prueba";
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(new Ticket { Id = 10 });
         _accessPolicy.Setup(a => a.CanAddSolutionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _glpi.Setup(g => g.CreateSolutionAsync(10, validSolution, It.IsAny<CancellationToken>())).ReturnsAsync(99);
+        _glpi.Setup(g => g.CreateSolutionAsync(10, validSolution, It.IsAny<int?>(), It.IsAny<CancellationToken>())).ReturnsAsync(99);
 
         var result = await _svc.SolutionInsertAsync(10, validSolution, 7, CancellationToken.None);
 
         result.Should().Be(99);
-        _glpi.Verify(g => g.CreateSolutionAsync(10, validSolution, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.CreateSolutionAsync(10, validSolution, It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

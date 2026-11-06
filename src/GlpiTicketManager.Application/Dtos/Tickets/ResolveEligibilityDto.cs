@@ -42,15 +42,20 @@ public static class ResolveRule
                 "No se pudieron verificar las tareas en GLPI debido a un error de comunicación. Intenta nuevamente.");
         }
 
-        // 1. Evidence of work done: ticket had completed tasks
+        // 1. Un ticket no puede finalizar con tareas obligatorias inconclusas.
+        // Si existen tareas pendientes ("Por hacer"), deben completarse o cancelarse antes de resolver.
+        var open = tasks.Count(t => t.State == TaskTodo);
+        if (open > 0)
+        {
+            return new(false, "pending_tasks",
+                $"El ticket tiene {open} tarea(s) pendiente(s) por hacer. Completa o cancela las tareas antes de resolverlo.");
+        }
+
+        // 2. Evidencia de trabajo completado: el ticket tuvo tareas y todas fueron finalizadas.
         var done = tasks.Count(t => t.State == TaskDone);
         if (done > 0) return new(true, "completed_task", null);
 
-        // 2. Open planned tasks: solving resolves the planned work
-        var open = tasks.Count(t => t.State == TaskTodo);
-        if (open > 0) return new(true, "open_task", null);
-
-        // 3. Direct resolution: assigned ticket without planned tasks
+        // 3. Resolución directa: ticket asignado sin tareas planificadas.
         return new(true, "direct", null);
     }
 }

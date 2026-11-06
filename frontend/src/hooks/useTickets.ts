@@ -46,11 +46,11 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
       : { assigneeId: filtersOrAssigneeId }
 
   const { assigneeId, serviceId, startDate, endDate, enabled = true } = filters
-  const hasFilter = assigneeId != null || serviceId != null
 
-  // Any extra filter (service or date range) switches the cache key to the generic list
-  // key so date ranges and services never collide with the plain per-assignee entry.
-  const usesListKey = serviceId != null || startDate != null || endDate != null
+  // Any extra filter (service or date range) or unassigned scope (assigneeId == null, e.g. for admin)
+  // switches the cache key to the generic list key so date ranges and global views never collide
+  // with the plain per-assignee entry.
+  const usesListKey = serviceId != null || startDate != null || endDate != null || assigneeId == null
 
   const queryKey = usesListKey
     ? queryKeys.tickets.list(filters)
@@ -67,7 +67,7 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
         limit,
         offset,
       }, signal), signal),
-    enabled: hasFilter && enabled && sessionValid,
+    enabled: enabled && sessionValid,
   })
   return result
 }
@@ -250,8 +250,8 @@ export function useCreateSolutionMutation() {
 export function useResolveTicketMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ ticketId, content }: { ticketId: number; content: string }) =>
-      resolveTicket(ticketId, content),
+    mutationFn: ({ ticketId, content, completePendingTasks }: { ticketId: number; content: string; completePendingTasks?: boolean }) =>
+      resolveTicket(ticketId, content, completePendingTasks),
     onSuccess: async () => {
       await invalidateTicketCaches(queryClient)
     },

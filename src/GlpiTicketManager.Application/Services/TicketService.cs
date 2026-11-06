@@ -669,6 +669,20 @@ public sealed class TicketService : ITicketService
 
         if (currentTicket is not null && status == (int)TicketStatus.Solved && currentTicket.Status != (int)TicketStatus.Solved)
         {
+            try
+            {
+                var existingTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+                foreach (var task in existingTasks.Where(t => t.State == ResolveRule.TaskTodo))
+                {
+                    await _glpi.UpdateTicketTaskAsync(task.Id, ResolveRule.TaskDone, cancellationToken);
+                    _logger.LogInformation("Task {TaskId} completed as part of status patch on ticket {TicketId}", task.Id, ticketId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to complete pending tasks before patching status on ticket {TicketId}", ticketId);
+            }
+
             await EnsureResolvableByTasksAsync(ticketId, currentTicket.Status, cancellationToken);
         }
 
@@ -1244,13 +1258,22 @@ public sealed class TicketService : ITicketService
         string content,
         int userId,
         CancellationToken cancellationToken) =>
-        ResolveAsync(ticketId, content, userId, AppRole.Technician, cancellationToken);
+        ResolveAsync(ticketId, content, userId, AppRole.Technician, false, cancellationToken);
+
+    public Task<TicketDetailDto> ResolveAsync(
+        int ticketId,
+        string content,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken) =>
+        ResolveAsync(ticketId, content, userId, role, false, cancellationToken);
 
     public async Task<TicketDetailDto> ResolveAsync(
         int ticketId,
         string content,
         int userId,
         AppRole role,
+        bool completePendingTasks,
         CancellationToken cancellationToken)
     {
         if (ticketId <= 0)
@@ -1313,13 +1336,30 @@ public sealed class TicketService : ITicketService
                 transition.Reason ?? $"User {userId} cannot resolve ticket {ticketId}");
         }
 
+        if (completePendingTasks && (ticket.Status is (int)TicketStatus.Assigned or (int)TicketStatus.Planned))
+        {
+            try
+            {
+                var existingTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+                foreach (var task in existingTasks.Where(t => t.State == ResolveRule.TaskTodo))
+                {
+                    await _glpi.UpdateTicketTaskAsync(task.Id, ResolveRule.TaskDone, cancellationToken);
+                    _logger.LogInformation("Task {TaskId} completed as part of resolve on ticket {TicketId}", task.Id, ticketId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to complete pending tasks before resolve on ticket {TicketId}", ticketId);
+            }
+        }
+
         await EnsureResolvableByTasksAsync(ticketId, ticket.Status, cancellationToken);
 
         try
         {
             // Writing the solution through GLPI's REST API is what moves the ticket to
             // Solved (5); GLPI rejects a second solution for an already solved ticket.
-            await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+            await _glpi.CreateSolutionAsync(ticketId, content, userId, cancellationToken);
         }
         catch (GlpiApiException ex) when (ex.StatusCode == 400 && IsAlreadySolvedError(ex))
         {
@@ -1483,12 +1523,26 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
+        try
+        {
+            var existingTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+            foreach (var task in existingTasks.Where(t => t.State == ResolveRule.TaskTodo))
+            {
+                await _glpi.UpdateTicketTaskAsync(task.Id, ResolveRule.TaskDone, cancellationToken);
+                _logger.LogInformation("Task {TaskId} completed as part of solution on ticket {TicketId}", task.Id, ticketId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to complete pending tasks before adding solution on ticket {TicketId}", ticketId);
+        }
+
         await EnsureResolvableByTasksAsync(ticketId, ticket.Status, cancellationToken);
 
         int solutionId;
         try
         {
-            solutionId = await _glpi.CreateSolutionAsync(ticketId, content, cancellationToken);
+            solutionId = await _glpi.CreateSolutionAsync(ticketId, content, userId, cancellationToken);
         }
         catch (GlpiApiException ex) when (ex.StatusCode == 400 && IsAlreadySolvedError(ex))
         {
@@ -1563,7 +1617,7 @@ public sealed class TicketService : ITicketService
         {
             try
             {
-                await _glpi.CreateFollowupAsync(ticketId, reason.Trim(), isPrivate: true, cancellationToken);
+                await _glpi.CreateFollowupAsync(ticketId, reason.Trim(), isPrivate: true, userId, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1841,7 +1895,7 @@ public sealed class TicketService : ITicketService
         }
 
         // 1. Llama a GLPI REST: crea un seguimiento privado (ITILFollowup con is_private: 1) con el comentario
-        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, cancellationToken);
+        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, userId, cancellationToken);
 
         // 2. Llama a GLPI REST: actualiza estado a 4 (Pendiente)
         await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Waiting, cancellationToken);

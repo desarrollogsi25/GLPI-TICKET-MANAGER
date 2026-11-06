@@ -12,4 +12,10 @@ public sealed record ResolveTicketRequest
     /// Required, 1..2000 characters once trimmed. Short solutions such as "OK" are valid.
     /// </summary>
     public string Content { get; init; } = string.Empty;
+
+    /// <summary>
+    /// When true, any pending (ToDo) tasks are explicitly marked as completed (Done)
+    /// before recording the solution, ensuring the ticket does not finish with open tasks.
+    /// </summary>
+    public bool CompletePendingTasks { get; init; } = true;
 }

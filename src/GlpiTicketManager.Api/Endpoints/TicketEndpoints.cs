@@ -665,7 +665,7 @@ public static class TicketEndpoints
         try
         {
             var ticket = await ticketService.ResolveAsync(
-                id, request?.Content ?? string.Empty, userId.Value, role, cancellationToken);
+                id, request?.Content ?? string.Empty, userId.Value, role, request?.CompletePendingTasks ?? false, cancellationToken);
 
             return Results.Ok(ticket);
         }
