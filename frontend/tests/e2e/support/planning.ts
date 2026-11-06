@@ -5,7 +5,10 @@ import { randomInt } from 'node:crypto'
 export async function confirmPlanning(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog', { name: /Planificar ticket/i })
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByTestId('plan-start')).not.toHaveValue('')
+  // The dialog stays read-only until GLPI returns the ticket's tasks. A fresh
+  // fixture pays the first REST session handshake (measured 3.7 s warm, more on
+  // a cold GLPI), so allow well beyond the default 5 s expect timeout.
+  await expect(dialog.getByTestId('plan-start')).not.toHaveValue('', { timeout: 30_000 })
   // E2E exercises a *shared* GLPI technician calendar. After enforcing real
   // overlap rejection, unrelated sequential tests must not all schedule the
   // default "now + 15 min" slot. Choose a high-entropy 2-hour block within
@@ -24,5 +27,7 @@ export async function confirmPlanning(page: Page): Promise<void> {
   await dialog.getByTestId('plan-content').fill('Intervención técnica planificada por prueba E2E')
   await dialog.getByTestId('plan-confirm-btn').click()
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
-  await expect(page.getByText(/Ticket planificado/i).first()).toBeVisible()
+  // An Assigned ticket creates a task ("Ticket planificado"); a Pending ticket
+  // updates its existing task in place ("Ticket replanificado").
+  await expect(page.getByText(/Ticket (re)?planificado/i).first()).toBeVisible()
 }

@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using GlpiTicketManager.Application.Dtos.Auth;
 using GlpiTicketManager.Application.Dtos.Tickets;
+using GlpiTicketManager.Domain.Enums;
 using Xunit;
 
 namespace GlpiTicketManager.Api.Integration.Tests;
@@ -160,11 +162,34 @@ public class TicketTasksTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Plan_RejectsExistingTechnicianScheduleOverlap()
+    public async Task Plan_RejectsExistingTechnicianScheduleOverlapWhenNewTaskRequested()
     {
         var payload = new PlanTicketRequest
         {
             RequestId = Guid.NewGuid(), Content = "Intervención conflictiva",
+            StartAt = new DateTimeOffset(2026, 11, 3, 9, 30, 0, TimeSpan.Zero),
+            EndAt = new DateTimeOffset(2026, 11, 3, 10, 30, 0, TimeSpan.Zero),
+            CreateNewTask = true
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tickets/12/plan");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+            await AuthenticateAsync("tech1", TestCredentials.Tech1));
+        request.Content = JsonContent.Create(payload);
+        using var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("schedule_conflict");
+        // The ticket's own TODO task is the blocker; the client offers to adopt it.
+        problem.GetProperty("ownTaskId").GetInt32().Should().Be(8012);
+        _factory.GetTicket(12)!.Status.Should().Be((int)TicketStatus.Assigned);
+    }
+
+    [Fact]
+    public async Task Plan_WhenOwnTaskOverlaps_ReprogramsItWithoutCreatingADuplicate()
+    {
+        var payload = new PlanTicketRequest
+        {
+            RequestId = Guid.NewGuid(), Content = "Visita movida desde el tablero",
             StartAt = new DateTimeOffset(2026, 11, 3, 9, 30, 0, TimeSpan.Zero),
             EndAt = new DateTimeOffset(2026, 11, 3, 10, 30, 0, TimeSpan.Zero)
         };
@@ -173,8 +198,17 @@ public class TicketTasksTests : IClassFixture<CustomWebApplicationFactory>
             await AuthenticateAsync("tech1", TestCredentials.Tech1));
         request.Content = JsonContent.Create(payload);
         using var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        _factory.GetTicket(12)!.Status.Should().Be(2);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<PlanTicketResponse>();
+        result!.TaskId.Should().Be(8012);
+        result.Rescheduled.Should().BeTrue();
+        result.Status.Should().Be((int)TicketStatus.Planned);
+        _factory.GetGlpiReportedStatus(12).Should().Be((int)TicketStatus.Planned);
+        var tasks = await _factory.GlpiMock.Object.GetTicketTasksAsync(12, CancellationToken.None);
+        tasks.Should().ContainSingle(task => task.Id == 8012);
+        tasks.Single(task => task.Id == 8012).Content.Should().Be(payload.Content);
+        tasks.Should().NotContain(task => task.Id != 8012 && task.Content == payload.Content);
     }
 
     [Fact]
@@ -189,8 +223,58 @@ public class TicketTasksTests : IClassFixture<CustomWebApplicationFactory>
                 "Trabajo solapado", new DateTimeOffset(2026, 11, 5, 11, 30, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 11, 5, 12, 30, 0, TimeSpan.Zero)));
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("schedule_conflict");
+        problem.GetProperty("conflicts").GetArrayLength().Should().Be(1);
+        problem.GetProperty("conflicts")[0].GetProperty("ticketId").GetInt32().Should().Be(13);
+        problem.TryGetProperty("suggestedStart", out var suggested).Should().BeTrue();
+        suggested.ValueKind.Should().NotBe(JsonValueKind.Null);
         var tasks = await _factory.GlpiMock.Object.GetTicketTasksAsync(12, CancellationToken.None);
         tasks.Single(task => task.Id == 8012).Content.Should().Be("Visita programada");
+    }
+
+    [Fact]
+    public async Task PendingTicket_ReplansExistingTaskAndReturnsToPlannedWithoutDuplicate()
+    {
+        _factory.SetTicketStatus(12, (int)TicketStatus.Waiting);
+        var payload = new ReplanTicketTaskRequest(Guid.NewGuid(),
+            "Visita reprogramada desde Pendiente",
+            new DateTimeOffset(2026, 11, 6, 9, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 11, 6, 11, 0, 0, TimeSpan.Zero));
+
+        using var response = await MutateAsync("tech1", TestCredentials.Tech1,
+            HttpMethod.Put, "8012", payload);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<TicketTaskMutationResponse>();
+        result!.TaskId.Should().Be(8012);
+        result.TicketStatus.Should().Be((int)TicketStatus.Planned);
+        _factory.GetGlpiReportedStatus(12).Should().Be((int)TicketStatus.Planned);
+        var tasks = await _factory.GlpiMock.Object.GetTicketTasksAsync(12, CancellationToken.None);
+        tasks.Should().ContainSingle(task => task.Id == 8012);
+        var replanned = tasks.Single(task => task.Id == 8012);
+        replanned.Content.Should().Be(payload.Content);
+        replanned.StartAt.Should().Be(payload.StartAt);
+        replanned.EndAt.Should().Be(payload.EndAt);
+        tasks.Should().NotContain(task => task.Id != 8012 && task.Content == payload.Content);
+    }
+
+    [Fact]
+    public async Task PendingTicket_ReplanWithUnchangedValues_ReturnsNoChangesAndStaysPending()
+    {
+        _factory.SetTicketStatus(12, (int)TicketStatus.Waiting);
+        var existing = (await _factory.GlpiMock.Object.GetTicketTasksAsync(12, CancellationToken.None))
+            .Single(task => task.Id == 8012);
+        var payload = new ReplanTicketTaskRequest(Guid.NewGuid(), existing.Content,
+            existing.StartAt!.Value, existing.EndAt!.Value);
+
+        using var response = await MutateAsync("tech1", TestCredentials.Tech1,
+            HttpMethod.Put, "8012", payload);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("no_changes");
+        _factory.GetGlpiReportedStatus(12).Should().Be((int)TicketStatus.Waiting);
     }
 
     [Fact]

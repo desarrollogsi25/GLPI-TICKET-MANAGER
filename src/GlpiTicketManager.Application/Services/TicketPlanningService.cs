@@ -228,6 +228,17 @@ public sealed class TicketPlanningService : ITicketPlanningService
         // GLPI owns the status transition. Reading it back is the proof that the task
         // really produced "En proceso (planificado)".
         var state = await ReadBackStateAsync(ticketId, cancellationToken);
+        if (state.Status != (int)TicketStatus.Planned)
+        {
+            _logger.LogWarning(
+                "GLPI created planned task {TaskId} but ticket {TicketId} is status {Status}",
+                created.Id, ticketId, state.Status);
+            throw new ConflictException(
+                $"GLPI creó la tarea {created.Id}, pero no confirmó el estado En proceso (actual: {state.Status}). Revisa GLPI antes de repetir.",
+                "glpi_unconfirmed",
+                new Dictionary<string, object?> { ["taskId"] = created.Id, ["ticketStatus"] = state.Status });
+        }
+
         return await ReadPlanningAsync(ticketId, state, userId, role, cancellationToken);
     }
 
@@ -298,7 +309,8 @@ public sealed class TicketPlanningService : ITicketPlanningService
                 BeginUtc: beginUtc,
                 EndUtc: endUtc,
                 State: null,
-                IsPrivate: request.IsPrivate),
+                IsPrivate: request.IsPrivate,
+                ClearPending: true),
             cancellationToken)
             ?? throw new NotFoundException($"La tarea {taskId} no existe en GLPI.");
 
@@ -310,6 +322,21 @@ public sealed class TicketPlanningService : ITicketPlanningService
             updated.End);
 
         var state = await ReadBackStateAsync(ticketId, cancellationToken);
+
+        // A scheduled TODO task makes GLPI derive "En proceso (planificado)" on its
+        // own, including when the ticket was Pending. Never report success on the
+        // strength of the request alone: the read-back is the proof.
+        if (beginUtc is not null && state.Status != (int)TicketStatus.Planned)
+        {
+            _logger.LogWarning(
+                "GLPI rescheduled task {TaskId} but ticket {TicketId} is status {Status}",
+                taskId, ticketId, state.Status);
+            throw new ConflictException(
+                $"GLPI guardó la tarea {taskId}, pero no confirmó el estado En proceso (actual: {state.Status}). Revisa GLPI antes de reintentar.",
+                "glpi_unconfirmed",
+                new Dictionary<string, object?> { ["taskId"] = taskId, ["ticketStatus"] = state.Status });
+        }
+
         return await ReadPlanningAsync(ticketId, state, userId, role, cancellationToken);
     }
 

@@ -729,4 +729,296 @@ public class TicketServiceTests
         _inAppNotifications.Verify(n => n.CreateTicketCreatedOnceAsync(8, 501, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         _notifications.Verify(n => n.NotifyTicketCreatedAsync(501, 2, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    private static TicketTaskDto ManagedTask(int id, int technicianId, string content,
+        DateTimeOffset? startAt, DateTimeOffset? endAt, int state = 1) =>
+        new(id, 10, technicianId, content, state, false, startAt, endAt, 3600);
+
+    [Fact]
+    public async Task PlanAsync_WhenPendingWithOwnOverlappingTask_ReschedulesInPlaceAndConfirmsPlanned()
+    {
+        var request = ValidPlan();
+        var oldStart = new DateTimeOffset(2026, 11, 3, 11, 30, 0, TimeSpan.Zero);
+        var oldEnd = oldStart.AddHours(1);
+        var original = ManagedTask(900, 7, "Revisar servidor", oldStart, oldEnd);
+        var updated = ManagedTask(900, 7, "Revisar servidor", request.StartAt, request.EndAt);
+
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 4, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Deny("Waiting cannot jump to planned."));
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 3));
+        _glpi.SetupSequence(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { original })
+            .ReturnsAsync(new[] { updated });
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.EndAt.UtcDateTime, 900, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        var response = await _svc.PlanAsync(10, request, 7, AppRole.Technician, CancellationToken.None);
+
+        response.Should().Be(new PlanTicketResponse(10, 900, 3, Rescheduled: true));
+        _glpi.Verify(g => g.ReplanTicketTaskAsync(900, "Revisar servidor",
+            request.StartAt, request.EndAt, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _planningRequests.Verify(s => s.CompleteAsync(request.RequestId, 900,
+            It.IsAny<CancellationToken>()), Times.Once);
+        _audit.Verify(a => a.LogAsync(7, "replan_task", 10, It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlanAsync_WhenAnotherTicketOccupiesSchedule_ReturnsActionableScheduleConflict()
+    {
+        var request = ValidPlan();
+        var conflict = new ScheduledTaskConflict(901, 55, request.StartAt.UtcDateTime, request.EndAt.UtcDateTime);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 2))
+            .ReturnsAsync(new GlpiTicketState(10, 2));
+        _glpi.Setup(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TicketTaskDto>());
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.EndAt.UtcDateTime, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { conflict });
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.StartAt.UtcDateTime.AddDays(7), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { conflict });
+
+        var act = () => _svc.PlanAsync(10, request, 7, AppRole.Technician, CancellationToken.None);
+
+        var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
+        exception.Code.Should().Be("schedule_conflict");
+        exception.Message.Should().Contain("#55").And.Contain("#901");
+        exception.Details.Should().ContainKey("conflicts");
+        exception.Details!["suggestedStart"].Should().NotBeNull();
+        _planningRequests.Verify(s => s.CancelAsync(request.RequestId, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PlanAsync_WhenRescheduleChangesNothing_ReturnsNoChangesWithoutGlpiWrite()
+    {
+        var request = ValidPlan();
+        var unchanged = ManagedTask(900, 7, "Revisar servidor", request.StartAt, request.EndAt);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 4, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 4));
+        _glpi.Setup(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { unchanged });
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.EndAt.UtcDateTime, 900, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        var act = () => _svc.PlanAsync(10, request, 7, AppRole.Technician, CancellationToken.None);
+
+        var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
+        exception.Code.Should().Be("no_changes");
+        _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+        _planningRequests.Verify(s => s.CancelAsync(request.RequestId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlanAsync_WhenCreateNewTaskRequestedWithOwnOverlap_DoesNotAdoptExistingTask()
+    {
+        var request = ValidPlan() with { CreateNewTask = true };
+        var own = ManagedTask(900, 7, "Revisar servidor", request.StartAt.AddMinutes(-10),
+            request.EndAt.AddMinutes(10));
+        var conflict = new ScheduledTaskConflict(900, 10, request.StartAt.UtcDateTime, request.EndAt.UtcDateTime);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 2))
+            .ReturnsAsync(new GlpiTicketState(10, 2));
+        _glpi.Setup(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { own });
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.EndAt.UtcDateTime, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { conflict });
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.StartAt.UtcDateTime.AddDays(7), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { conflict });
+
+        var act = () => _svc.PlanAsync(10, request, 7, AppRole.Technician, CancellationToken.None);
+
+        var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
+        exception.Code.Should().Be("schedule_conflict");
+        _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+        _glpi.Verify(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReplanTaskAsync_WhenTicketPending_UpdatesTaskAndConfirmsPlanned()
+    {
+        var request = new ReplanTicketTaskRequest(Guid.NewGuid(), "Revisar servidor ampliado",
+            new DateTimeOffset(2026, 11, 4, 8, 0, 0, TimeSpan.FromHours(-3)),
+            new DateTimeOffset(2026, 11, 4, 10, 0, 0, TimeSpan.FromHours(-3)));
+        var oldStart = new DateTimeOffset(2026, 11, 3, 11, 0, 0, TimeSpan.Zero);
+        var current = ManagedTask(900, 7, "Revisar servidor", oldStart, oldStart.AddHours(1));
+        var updated = ManagedTask(900, 7, request.Content, request.StartAt, request.EndAt);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 4, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(a => a.CanViewAsync(7, AppRole.Technician, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 3));
+        _glpi.SetupSequence(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { current })
+            .ReturnsAsync(new[] { current })
+            .ReturnsAsync(new[] { updated });
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.EndAt.UtcDateTime, 900, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        var response = await _svc.ReplanTaskAsync(10, 900, request, 7, AppRole.Technician, CancellationToken.None);
+
+        response.Should().Be(new TicketTaskMutationResponse(10, 900, 3));
+        _glpi.Verify(g => g.ReplanTicketTaskAsync(900, request.Content,
+            request.StartAt, request.EndAt, It.IsAny<CancellationToken>()), Times.Once);
+        _planningRequests.Verify(s => s.CompleteAsync(request.RequestId, 900,
+            It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReplanTaskAsync_WhenTaskOnlyBelongsToAnotherTechnician_IsForbidden()
+    {
+        var request = new ReplanTicketTaskRequest(Guid.NewGuid(), "Intento ajeno",
+            new DateTimeOffset(2026, 11, 4, 8, 0, 0, TimeSpan.FromHours(-3)),
+            new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(-3)));
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3 });
+        _accessPolicy.Setup(a => a.CanViewAsync(7, AppRole.Technician, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.Setup(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 3));
+        _glpi.Setup(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { ManagedTask(900, 8, "Tarea ajena",
+                new DateTimeOffset(2026, 11, 4, 11, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 11, 4, 12, 0, 0, TimeSpan.Zero)) });
+
+        var act = () => _svc.ReplanTaskAsync(10, 900, request, 7, AppRole.Technician, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReplanTaskAsync_WhenGlpiLeavesTicketPending_ReportsGlpiUnconfirmed()
+    {
+        var request = new ReplanTicketTaskRequest(Guid.NewGuid(), "Revisar servidor ampliado",
+            new DateTimeOffset(2026, 11, 4, 8, 0, 0, TimeSpan.FromHours(-3)),
+            new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(-3)));
+        var oldStart = new DateTimeOffset(2026, 11, 3, 11, 0, 0, TimeSpan.Zero);
+        var current = ManagedTask(900, 7, "Revisar servidor", oldStart, oldStart.AddHours(1));
+        var updated = ManagedTask(900, 7, request.Content, request.StartAt, request.EndAt);
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 4, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(a => a.CanViewAsync(7, AppRole.Technician, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.SetupSequence(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 4))
+            .ReturnsAsync(new GlpiTicketState(10, 4));
+        _glpi.SetupSequence(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { current })
+            .ReturnsAsync(new[] { current })
+            .ReturnsAsync(new[] { updated });
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+                request.EndAt.UtcDateTime, 900, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        var act = () => _svc.ReplanTaskAsync(10, 900, request, 7, AppRole.Technician, CancellationToken.None);
+
+        var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
+        exception.Code.Should().Be("glpi_unconfirmed");
+        exception.Message.Should().Contain("#900");
+    }
+
+    [Fact]
+    public async Task ReplanTaskAsync_ReplayDoesNotWriteToGlpiAgain()
+    {
+        var request = new ReplanTicketTaskRequest(Guid.NewGuid(), "Revisar servidor",
+            new DateTimeOffset(2026, 11, 4, 8, 0, 0, TimeSpan.FromHours(-3)),
+            new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(-3)));
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3 });
+        _accessPolicy.Setup(a => a.CanViewAsync(7, AppRole.Technician, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
+                10, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.Setup(g => g.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 3));
+        _glpi.Setup(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { ManagedTask(900, 7, "Revisar servidor",
+                new DateTimeOffset(2026, 11, 3, 11, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 11, 3, 12, 0, 0, TimeSpan.Zero)) });
+        _planningRequests.Setup(s => s.ClaimAsync(request.RequestId, 10, 7,
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Completed, 900));
+
+        var response = await _svc.ReplanTaskAsync(10, 900, request, 7, AppRole.Technician, CancellationToken.None);
+
+        response.Should().Be(new TicketTaskMutationResponse(10, 900, 3));
+        _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }
