@@ -60,13 +60,19 @@ export function getApiErrorMessage(error: unknown): string {
     const problem = error.response?.data
     const status = error.response?.status
 
-    // Network / timeout failures have no ProblemDetails body; resolve them first.
-    if (error.code === 'ERR_NETWORK' || !error.response) {
-      return 'No se pudo conectar al servidor. ¿Está el backend en marcha?'
+    // Do not surface backend authorization internals (user IDs, ticket IDs,
+    // access policy details) to the browser on a denied resource request.
+    if (status === 403) {
+      return STATUS_FALLBACK[403]
     }
 
     if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
       return 'El API tardó demasiado en responder.'
+    }
+
+    // Network / timeout failures have no ProblemDetails body; resolve them first.
+    if (error.code === 'ERR_NETWORK' || !error.response) {
+      return 'No se pudo conectar al servidor. ¿Está el backend en marcha?'
     }
 
     if (problem?.errors) {
@@ -131,7 +137,11 @@ export function getApiErrorTitle(error: unknown, fallback: string): string {
     return 'No tienes permiso para realizar esta acción'
   }
   if (status === 409) {
-    return 'El ticket ya no está en un estado que permita esta operación'
+    // A conflict may mean scheduling overlap, an idempotency collision or a
+    // concurrent status update. Keep the caller's action-specific title and
+    // show the server-provided detail as the description instead of lying that
+    // every 409 is a state transition failure.
+    return fallback
   }
   if (status === 422) {
     return fallback

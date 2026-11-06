@@ -49,5 +49,22 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   const mineColumn = page.locator('[data-column-id="mine"]')
   await expect(mineColumn.locator('span').filter({ hasText: /^#11$/ })).toBeVisible({ timeout: 10000 })
 
+  // UI de programación: calendario temático, acceso por teclado y horas rápidas.
+  // No guardamos la tarea aquí; el fixture de pruebas de planificación lo hace.
+  const assignedCard = mineColumn.getByText('#11', { exact: true }).first().locator('xpath=ancestor::div[.//button][1]')
+  await assignedCard.hover()
+  await assignedCard.getByRole('button', { name: /Planificar/i }).first().click()
+  const planDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  await expect(planDialog.getByTestId('plan-start')).toBeVisible()
+  const start = await planDialog.getByTestId('plan-start').inputValue()
+  await planDialog.locator('#plan-start-calendar').click()
+  await expect(page.locator('[data-calendar-popover="true"]')).toBeVisible()
+  await page.locator(`[data-calendar-popover="true"] [data-date="${start.slice(0, 10)}"]`).click()
+  await page.getByRole('button', { name: 'Aplicar' }).click()
+  await expect(planDialog).toBeVisible()
+  await planDialog.getByRole('button', { name: 'Elegir 17:00 para fecha y hora de inicio' }).click()
+  await expect(planDialog.getByTestId('plan-start')).toHaveValue(/T17:00$/)
+  await planDialog.getByRole('button', { name: 'Cancelar' }).click()
+
   expect(consoleErrors).toEqual([])
 })

@@ -263,7 +263,20 @@ export function Detail() {
 
         {/* Columna Derecha (1/3): Cambiar estado y Detalles */}
         <div className="space-y-4">
-          {/* Card: Cambiar estado con validación visual idéntica a Kanban */}
+          {/* Solicitantes consultan el estado nativo; no pueden mutar el ciclo de vida. */}
+          {role === 'solicitante' ? (
+            <Card className="rounded-2xl border-primary/20 bg-primary/5 shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Estado del ticket en GLPI</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Badge className={status.badgeClass}>{status.label}</Badge>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  El equipo de soporte actualiza este estado. Aquí podés consultar el avance y la solución.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
           <Card className="border-border/60 shadow-xs backdrop-blur-md bg-card/90 rounded-2xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold">Cambiar estado</CardTitle>
@@ -399,6 +412,7 @@ export function Detail() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Card: Metadatos y Detalles con tiempo real relativo */}
           <Card className="border-border/60 shadow-xs backdrop-blur-md bg-card/90 rounded-2xl">

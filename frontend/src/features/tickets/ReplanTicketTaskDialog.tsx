@@ -4,7 +4,6 @@ import { Clock, User } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useReplanTicketTaskMutation } from '@/hooks/useTickets'
@@ -13,6 +12,7 @@ import { getApiErrorMessage, getApiErrorTitle } from '@/lib/api/errors'
 import { toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
 import { localDateTime, parseUnambiguousLocal } from './planningDates'
+import { PlanningDateTimeField } from './PlanningDateTimeField'
 
 export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   ticketId: number
@@ -91,17 +91,9 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         </div>
 
         {/* Nuevo Horario */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="task-replan-start">Inicio</Label>
-            <Input id="task-replan-start" type="datetime-local" required value={start}
-              onChange={(event) => setStart(event.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="task-replan-end">Fin</Label>
-            <Input id="task-replan-end" type="datetime-local" required value={end}
-              onChange={(event) => setEnd(event.target.value)} />
-          </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <PlanningDateTimeField id="task-replan-start" label="Nuevo inicio" value={start} onChange={setStart} disabled={mutation.isPending} />
+          <PlanningDateTimeField id="task-replan-end" label="Nuevo fin" value={end} onChange={setEnd} disabled={mutation.isPending} />
         </div>
 
         {/* Atajos de duración */}

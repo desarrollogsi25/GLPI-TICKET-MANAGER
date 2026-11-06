@@ -175,6 +175,11 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await app.waitForURL(/tickets/)
   await app.goto(`${DESK}/kanban`)
   await expect(app).toHaveURL(/\/tickets$/)
+  await expect(app.getByText(/registrados por vos, incluidos los resueltos y cerrados/i)).toBeVisible()
+  await app.locator('a[href^="/tickets/"]').first().click()
+  await expect(app.getByText('Estado del ticket en GLPI')).toBeVisible()
+  await expect(app.getByText('Cambiar estado')).toHaveCount(0)
+  await expect(app.getByRole('button', { name: 'Poner en pendiente' })).toHaveCount(0)
 
   // Realtime: technician and GLPI requester are separate browser contexts.
   // Submit another native GLPI form while the technician observes the queue.

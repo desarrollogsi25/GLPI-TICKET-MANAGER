@@ -3,13 +3,13 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { usePlanTicketMutation } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { useToastStore } from '@/store/toastStore'
 import { localDateTime, parseUnambiguousLocal } from './planningDates'
+import { PlanningDateTimeField } from './PlanningDateTimeField'
 
 export function PlanTicketDialog({ ticketId, open, onOpenChange }: {
   ticketId: number
@@ -85,15 +85,9 @@ export function PlanTicketDialog({ ticketId, open, onOpenChange }: {
     <Dialog open={open} onClose={close} title={`Planificar ticket #${ticketId}`}
       description="Se creará una tarea pendiente y programada en GLPI. El ticket pasará a En proceso (planificado) cuando GLPI lo confirme.">
       <form onSubmit={submit} className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="plan-start">Fecha y hora de inicio</Label>
-            <Input id="plan-start" type="datetime-local" required value={start} onChange={(event) => setStart(event.target.value)} data-testid="plan-start" />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="plan-end">Fecha y hora de fin</Label>
-            <Input id="plan-end" type="datetime-local" required value={end} onChange={(event) => setEnd(event.target.value)} data-testid="plan-end" />
-          </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <PlanningDateTimeField id="plan-start" label="Fecha y hora de inicio" value={start} onChange={setStart} testId="plan-start" disabled={planning.isPending} />
+          <PlanningDateTimeField id="plan-end" label="Fecha y hora de fin" value={end} onChange={setEnd} testId="plan-end" disabled={planning.isPending} />
         </div>
 
         {/* Atajos de duración estimada */}

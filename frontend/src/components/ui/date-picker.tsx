@@ -17,6 +17,7 @@ interface DatePickerProps {
   placeholder?: string
   min?: string
   max?: string
+  disabled?: boolean
   'data-testid'?: string
 }
 
@@ -32,7 +33,7 @@ const toValue = (day?: Date) => (day ? format(day, 'yyyy-MM-dd') : '')
  * The calendar only edits a local draft. `onChange` fires when the user confirms,
  * so selecting a day never writes the URL (or the parent filter state) mid-render.
  */
-function DatePickerBase({ value, onChange, label, id, className, placeholder, min, max, ...rest }: DatePickerProps) {
+function DatePickerBase({ value, onChange, label, id, className, placeholder, min, max, disabled = false, ...rest }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Date | undefined>(() => localDate(value))
   const generatedId = useId()
@@ -57,18 +58,18 @@ function DatePickerBase({ value, onChange, label, id, className, placeholder, mi
   const selected = localDate(value)
   const earliest = localDate(min)
   const latest = localDate(max)
-  const disabled: Matcher[] = []
-  if (earliest) disabled.push({ before: earliest })
-  if (latest) disabled.push({ after: latest })
+  const disabledDates: Matcher[] = []
+  if (earliest) disabledDates.push({ before: earliest })
+  if (latest) disabledDates.push({ after: latest })
   const today = new Date()
   const initialDate = draft ?? (earliest && today < earliest ? earliest : latest && today > latest ? latest : today)
 
   return (
     <Popover
-      open={open}
+      open={open && !disabled}
       onOpenChange={handleOpenChange}
       label={label}
-      triggerProps={{ id: id || generatedId, className: cn('justify-start', className), 'data-testid': rest['data-testid'] }}
+      triggerProps={{ id: id || generatedId, disabled, className: cn('justify-start', className), 'data-testid': rest['data-testid'] }}
       trigger={
         <>
           <CalendarDays className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -88,7 +89,7 @@ function DatePickerBase({ value, onChange, label, id, className, placeholder, mi
             // A wider default range turns the year listbox into 200+ rows.
             startMonth={earliest ?? new Date(2000, 0, 1)}
             endMonth={latest ?? new Date(today.getFullYear() + 10, 11, 1)}
-            disabled={disabled}
+            disabled={disabledDates}
             aria-label={`Calendario: ${label}`}
             onSelect={handleSelect}
           />

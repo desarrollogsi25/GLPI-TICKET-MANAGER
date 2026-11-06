@@ -58,35 +58,35 @@ const COLUMNS: ColumnDef[] = [
     id: 'queue',
     title: 'Cola del grupo',
     description: 'Sin asignar',
-    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
   {
     id: 'mine',
     title: 'Asignado',
     description: 'Mis tickets · GLPI 2',
-    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 font-semibold',
   },
   {
     id: 'in_progress',
     title: 'En proceso',
     description: 'En proceso (planificado) · GLPI 3',
-    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-blue-500/15 text-blue-900 dark:text-blue-300 font-semibold',
   },
   {
     id: 'pending',
     title: 'Pendiente',
     description: 'En espera · GLPI 4',
-    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold',
   },
   {
     id: 'resolved',
     title: 'Resuelto',
-    description: 'Solucionado · GLPI 5',
-    bgClass: 'bg-muted/30 border-0 shadow-xs',
+    description: 'Resueltos y cerrados · GLPI 5/6',
+    bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
 ]
@@ -150,8 +150,8 @@ const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: 
     icon: '⏳',
   },
   resolved: {
-    title: 'No hay tickets resueltos',
-    subtitle: 'Los tickets que soluciones aparecerán listados aquí.',
+    title: 'No hay tickets finalizados',
+    subtitle: 'Los tickets resueltos o cerrados aparecerán aquí.',
     icon: '✅',
   },
 }
@@ -202,7 +202,7 @@ function KanbanColumn({
     <div
       data-column-id={column.id}
       data-testid={`kanban-column-${column.id}`}
-      className="flex flex-col h-full max-h-full min-w-[190px] w-full overflow-hidden"
+      className="flex flex-col h-full max-h-full min-w-[250px] w-full overflow-hidden"
     >
       <div className="mb-2 flex items-center justify-between px-1.5 shrink-0">
         <div className="min-w-0">
@@ -220,13 +220,13 @@ function KanbanColumn({
               <span className="size-2 rounded-full bg-amber-500 shrink-0" title="En espera · GLPI 4" />
             )}
             {column.id === 'resolved' && (
-              <span className="size-2 rounded-full bg-emerald-600/70 shrink-0" title="Solucionados · GLPI 5" />
+              <span className="size-2 rounded-full bg-emerald-600/70 shrink-0" title="Resueltos o cerrados · GLPI 5/6" />
             )}
-            <span className="text-xs font-semibold tracking-tight text-foreground truncate block">
+            <span className="text-sm font-semibold tracking-tight text-foreground truncate block">
               {column.title}
             </span>
           </div>
-          <p className="text-[10px] text-muted-foreground truncate">{column.description}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{column.description}</p>
         </div>
         <span
           className={cn(
@@ -241,7 +241,7 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 overflow-y-auto min-h-0 no-scrollbar p-2 space-y-3 rounded-2xl border-0 transition-all duration-150 bg-muted/30 shadow-xs',
+          'flex-1 overflow-y-auto min-h-0 no-scrollbar p-2.5 space-y-3 rounded-2xl border border-border/40 transition-all duration-150 bg-muted/30 shadow-xs',
           column.bgClass,
           isOver
             ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
@@ -571,8 +571,9 @@ export function Kanban() {
       mine: all.filter((t) => t.status === 1 || t.status === 2),
       in_progress: all.filter((t) => t.status === 3),
       pending: all.filter((t) => t.status === 4),
-      // Closed tickets remain accessible through the list/history, outside the board.
-      resolved: all.filter((t) => t.status === 5),
+      // GLPI can close a solved ticket immediately through its native closeticket action.
+      // Keep it visible here so a successful resolution never appears to vanish.
+      resolved: all.filter((t) => t.status === 5 || t.status === 6),
     }
   }, [myTicketsQuery.data])
 
@@ -1020,9 +1021,9 @@ export function Kanban() {
       ) : null}
 
       {/* =========================================================================
-          VISTA MÓVIL (< md): Segmented Tabs + Lista Vertical + Gestos Swipe
+          VISTA MÓVIL/TABLET (< xl): Segmented Tabs + Lista Vertical + Gestos Swipe
          ========================================================================= */}
-      <div className="md:hidden flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar space-y-3 pb-6">
+      <div className="xl:hidden flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar space-y-3 pb-6">
         {/* Segmented Tabs Bar */}
         <KanbanSegmentedTabs
           columns={segmentedTabColumns}
@@ -1170,19 +1171,19 @@ export function Kanban() {
       </div>
 
       {/* =========================================================================
-          VISTA DESKTOP (md:+): EXACTAMENTE 5 COLUMNAS PRINCIPALES E INDEPENDIENTES
+          VISTA DESKTOP (xl:+): EXACTAMENTE 5 COLUMNAS PRINCIPALES E INDEPENDIENTES
           1. Cola del grupo (queue)
           2. Asignado (mine · GLPI 2)
           3. En proceso (in_progress · GLPI 3 planificado)
           4. Pendiente (pending · GLPI 4 en espera)
-          5. Resuelto (resolved · GLPI 5)
+          5. Resuelto/Cerrado (resolved · GLPI 5 y 6)
           + Drag & Drop @dnd-kit con DragOverlay renderizado en Portal (document.body)
          ========================================================================= */}
-      <div className="hidden md:flex flex-1 h-full min-h-0 overflow-x-auto overflow-y-hidden" ref={boardContainerRef}>
+      <div className="hidden xl:flex flex-1 h-full min-h-0 overflow-x-auto overflow-y-hidden" ref={boardContainerRef}>
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div
             data-testid="kanban-desktop-grid"
-            className="grid grid-cols-5 gap-3 w-full h-full min-h-0 min-w-[1000px]"
+            className="grid grid-cols-5 gap-4 w-full h-full min-h-0 min-w-[1370px]"
             role="region"
             aria-label="Tablero Kanban"
             tabIndex={0}
@@ -1255,7 +1256,7 @@ export function Kanban() {
               invalidDropTicketId={invalidDropTicketId}
             />
 
-            {/* Columna 5: Resuelto (GLPI 5). El estado 6 Cerrado vive solo en el histórico. */}
+            {/* Columna 5: Resuelto/Cerrado (GLPI 5 y 6), con estado real en cada tarjeta. */}
             <KanbanColumn
               column={COLUMNS[4]}
               tickets={ticketsByColumn.resolved}
