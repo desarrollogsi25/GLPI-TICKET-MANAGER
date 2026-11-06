@@ -76,8 +76,9 @@ export async function listTicketTasks(ticketId: number): Promise<TicketTask[]> {
 
 export interface ResolveEligibility {
   canResolve: boolean
-  reasonCode: string
-  reason: string
+  code?: string
+  reasonCode?: string
+  reason?: string
 }
 
 export async function getTicketResolveEligibility(ticketId: number): Promise<ResolveEligibility> {

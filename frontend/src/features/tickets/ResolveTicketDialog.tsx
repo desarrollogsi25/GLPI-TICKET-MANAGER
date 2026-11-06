@@ -31,7 +31,7 @@ export function ResolveTicketDialog({
   const resolveTicket = useResolveTicketMutation()
   const completeTask = useCompleteTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
-  const { data: eligibility, isLoading: checkingEligibility } = useTicketResolveEligibilityQuery(
+  const { data: eligibility } = useTicketResolveEligibilityQuery(
     ticketId,
     open && ticketId > 0,
   )
@@ -218,8 +218,8 @@ export function ResolveTicketDialog({
             type="submit"
             disabled={
               pending ||
-              checkingEligibility ||
-              (eligibility != null && !eligibility.canResolve && (pendingTasks.length === 0 || !completeTasksOnResolve))
+              (pendingTasks.length > 0 && !completeTasksOnResolve) ||
+              (eligibility != null && !eligibility.canResolve && (eligibility.code ?? eligibility.reasonCode) !== 'pending_tasks')
             }
           >
             {pending ? 'Guardando...' : 'Resolver'}

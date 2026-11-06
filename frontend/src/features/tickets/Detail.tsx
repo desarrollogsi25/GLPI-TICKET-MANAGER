@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { RichContent } from '@/components/ui/rich-content'
 import { useTicketQuery, useTicketTasksQuery, useUpdateTicketStatusMutation,
   useCompleteTicketTaskMutation, useCancelTicketTaskMutation,
-  useTicketResolveEligibilityQuery, useTechniciansQuery } from '@/hooks/useTickets'
+  useTechniciansQuery } from '@/hooks/useTickets'
 import type { TicketTask } from '@/lib/api/tickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, formatRelative } from '@/lib/format'
@@ -29,7 +29,6 @@ export function Detail() {
   const ticketId = Number(id)
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
-  const { data: resolveEligibility } = useTicketResolveEligibilityQuery(ticketId)
   const { data: technicians } = useTechniciansQuery()
 
   const techMap = useMemo(() => {
@@ -48,9 +47,6 @@ export function Detail() {
   }
 
   const hasActionableTask = Boolean(tasks?.some((t) => t.state === 1 || t.state === 2))
-  const canResolveTicket = resolveEligibility
-    ? resolveEligibility.canResolve
-    : (ticket ? (ticket.status === 3 || (ticket.status === 2 && hasActionableTask)) : false)
   const updateStatus = useUpdateTicketStatusMutation()
   const completeTask = useCompleteTicketTaskMutation()
   const cancelTask = useCancelTicketTaskMutation()
@@ -335,15 +331,19 @@ export function Detail() {
                   variant="default"
                   className="rounded-xl"
                   disabled={
-                    !canResolveTicket ||
-                    ticket.status === 5 ||
-                    ticket.status === 6 ||
+                    (ticket.status !== 2 && ticket.status !== 3) ||
                     updateStatus.isPending
                   }
                   title={
-                    !canResolveTicket
-                      ? (resolveEligibility?.reason || 'Primero debes programar y realizar una tarea en GLPI para resolverlo.')
-                      : undefined
+                    ticket.status === 4
+                      ? 'No se puede resolver desde Pendiente. Primero debe reanudarse o replanificarse una tarea.'
+                      : ticket.status === 1
+                        ? 'Primero debes asignarte el ticket para poder resolverlo.'
+                        : ticket.status === 5
+                          ? 'El ticket ya fue resuelto.'
+                          : ticket.status === 6
+                            ? 'El ticket está cerrado.'
+                            : undefined
                   }
                   onClick={() => setResolveOpen(true)}
                 >
@@ -383,7 +383,7 @@ export function Detail() {
                     ticket.status === 4 && option.value !== 2
 
                   const isAssigneeDirectResolveBlocked =
-                    option.value === 5 && !canResolveTicket
+                    option.value === 5 && (ticket.status !== 2 && ticket.status !== 3)
 
                   const isRewindToNewBlocked =
                     role !== 'admin' && ticket.status > 1 && option.value === 1
@@ -409,7 +409,7 @@ export function Detail() {
                       disabled={isDisabled}
                       title={
                         isAssigneeDirectResolveBlocked
-                          ? 'Primero debes programar una tarea para resolverlo.'
+                          ? 'Primero debes asignarte el ticket para resolverlo.'
                           : isPendingInvalidTransition
                             ? 'Primero reanuda el ticket a Asignado; GLPI confirma la planificación mediante tareas nativas.'
                             : isBackwardBlocked
