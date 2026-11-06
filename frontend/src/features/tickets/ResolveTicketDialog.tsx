@@ -86,7 +86,7 @@ export function ResolveTicketDialog({
       const result = await resolveTicket.mutateAsync({
         ticketId,
         content: trimmed,
-        completePendingTasks: pendingTasks.length > 0 ? completeTasksOnResolve : false,
+        completePendingTasks: completeTasksOnResolve,
       })
       resolvedStatus = result.status
     } catch (err) {
