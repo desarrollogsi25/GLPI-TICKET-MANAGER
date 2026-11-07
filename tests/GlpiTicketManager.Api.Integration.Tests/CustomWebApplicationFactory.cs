@@ -141,6 +141,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public void SetTaskState(int taskId, int state)
+    {
+        lock (_stateLock)
+        {
+            foreach (var items in _nativeTasks.Values)
+            {
+                var index = items.FindIndex(item => item.Id == taskId);
+                if (index >= 0)
+                {
+                    items[index] = items[index] with { State = state };
+                    break;
+                }
+            }
+        }
+    }
+
     /// <summary>The status GLPI currently reports for a ticket, or null if unknown.</summary>
     public int? GetGlpiReportedStatus(int ticketId)
     {

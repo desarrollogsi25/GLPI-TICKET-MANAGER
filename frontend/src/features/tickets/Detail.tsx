@@ -391,6 +391,9 @@ export function Detail() {
                   const isCloseAdminOnly =
                     role !== 'admin' && option.value === 6
 
+                  const isCloseUnsolvedBlocked =
+                    option.value === 6 && ticket.status !== 5
+
                   const isDisabled =
                     option.value === ticket.status ||
                     updateStatus.isPending ||
@@ -398,7 +401,8 @@ export function Detail() {
                     isPendingInvalidTransition ||
                     isAssigneeDirectResolveBlocked ||
                     isRewindToNewBlocked ||
-                    isCloseAdminOnly
+                    isCloseAdminOnly ||
+                    isCloseUnsolvedBlocked
 
                   return (
                     <Button
@@ -408,13 +412,15 @@ export function Detail() {
                       className="rounded-xl text-xs"
                       disabled={isDisabled}
                       title={
-                        isAssigneeDirectResolveBlocked
-                          ? 'Primero debes asignarte el ticket para resolverlo.'
-                          : isPendingInvalidTransition
-                            ? 'Primero reanuda el ticket a Asignado; GLPI confirma la planificación mediante tareas nativas.'
-                            : isBackwardBlocked
-                              ? 'No se puede retroceder el estado de este ticket.'
-                              : undefined
+                        isCloseUnsolvedBlocked
+                          ? 'El ticket debe ser resuelto antes de poder cerrarse.'
+                          : isAssigneeDirectResolveBlocked
+                            ? 'Primero debes asignarte el ticket para resolverlo.'
+                            : isPendingInvalidTransition
+                              ? 'Primero reanuda el ticket a Asignado; GLPI confirma la planificación mediante tareas nativas.'
+                              : isBackwardBlocked
+                                ? 'No se puede retroceder el estado de este ticket.'
+                                : undefined
                       }
                       onClick={() => {
                         if (option.value === 3) {

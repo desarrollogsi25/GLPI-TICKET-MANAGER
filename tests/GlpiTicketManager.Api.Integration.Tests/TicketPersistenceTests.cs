@@ -59,6 +59,7 @@ public class TicketPersistenceTests : IClassFixture<CustomWebApplicationFactory>
 
     private async Task<HttpResponseMessage> ResolveAsync(int ticketId, string content, string token)
     {
+        _factory.SetTaskState(8012, 2);
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{ticketId}/resolve");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = JsonContent.Create(new { content });

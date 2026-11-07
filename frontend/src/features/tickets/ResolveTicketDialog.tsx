@@ -37,7 +37,6 @@ export function ResolveTicketDialog({
   )
   const { data: tasks } = useTicketTasksQuery(ticketId, open && ticketId > 0)
   const pendingTasks = (tasks ?? []).filter((t) => t.state === 1)
-  const [completeTasksOnResolve, setCompleteTasksOnResolve] = useState(true)
 
   /**
    * Synchronous in-flight guard. `resolveTicket.isPending` only becomes true after
@@ -86,7 +85,7 @@ export function ResolveTicketDialog({
       const result = await resolveTicket.mutateAsync({
         ticketId,
         content: trimmed,
-        completePendingTasks: completeTasksOnResolve,
+        completePendingTasks: false,
       })
       resolvedStatus = result.status
     } catch (err) {
@@ -136,7 +135,7 @@ export function ResolveTicketDialog({
           <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
             <p className="font-semibold">Tareas pendientes por hacer ({pendingTasks.length})</p>
             <p className="text-muted-foreground">
-              Un ticket no debe finalizar con tareas inconclusas. Puedes completarlas individualmente o marcarlas al resolver.
+              Un ticket no puede finalizar con tareas inconclusas. Completa cada tarea pendiente antes de registrar la solución.
             </p>
             <div className="space-y-1.5 pt-1">
               {pendingTasks.map((task) => (
@@ -165,15 +164,6 @@ export function ResolveTicketDialog({
                 </div>
               ))}
             </div>
-            <label className="flex items-center gap-2 cursor-pointer font-medium pt-1 text-foreground">
-              <input
-                type="checkbox"
-                checked={completeTasksOnResolve}
-                onChange={(e) => setCompleteTasksOnResolve(e.target.checked)}
-                className="rounded border-amber-400"
-              />
-              Completar tareas pendientes al registrar esta solución
-            </label>
           </div>
         ) : eligibility && !eligibility.canResolve ? (
           <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
@@ -218,8 +208,8 @@ export function ResolveTicketDialog({
             type="submit"
             disabled={
               pending ||
-              (pendingTasks.length > 0 && !completeTasksOnResolve) ||
-              (eligibility != null && !eligibility.canResolve && (eligibility.code ?? eligibility.reasonCode) !== 'pending_tasks')
+              pendingTasks.length > 0 ||
+              (eligibility != null && !eligibility.canResolve)
             }
           >
             {pending ? 'Guardando...' : 'Resolver'}

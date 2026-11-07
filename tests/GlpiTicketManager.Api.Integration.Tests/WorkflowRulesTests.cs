@@ -171,6 +171,7 @@ public class WorkflowRulesTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Resolve_PreservesSolvedStatus_ForSeparateClosure()
     {
         ArrangeTicket((int)TicketStatus.Planned);
+        _factory.SetTaskState(8012, 2);
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "OK");
 
         var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);

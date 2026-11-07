@@ -280,18 +280,15 @@ public sealed class TicketService : ITicketService
     /// <summary>Server-side enforcement of <see cref="ResolveRule"/> before any solution is written.</summary>
     private async Task EnsureResolvableByTasksAsync(int ticketId, int currentStatus, CancellationToken cancellationToken)
     {
-        IReadOnlyList<TicketTaskDto>? tasks = Array.Empty<TicketTaskDto>();
-        if (currentStatus is (int)TicketStatus.Assigned or (int)TicketStatus.Planned)
+        IReadOnlyList<TicketTaskDto>? tasks = null;
+        try
         {
-            try
-            {
-                tasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to retrieve GLPI tasks for ticket {TicketId} during resolve validation", ticketId);
-                tasks = null; // Forces fail-closed
-            }
+            tasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to retrieve GLPI tasks for ticket {TicketId} during resolve validation", ticketId);
+            tasks = null; // Forces fail-closed
         }
 
         var decision = ResolveRule.Evaluate(currentStatus, tasks);
@@ -667,22 +664,23 @@ public sealed class TicketService : ITicketService
             throw new UnprocessableEntityException(PendingResolveBlockedMessage);
         }
 
+        // Business-rule transition authorization evaluation returns a clear, operator-facing reason on rejection
+        var decision = await _accessPolicy.EvaluateStatusTransitionAsync(userId, role, ticketId, status, cancellationToken);
+        if (!decision.Allowed)
+        {
+            throw new ForbiddenException(
+                decision.Reason ?? $"User {userId} cannot modify status of ticket {ticketId} to {status}");
+        }
+
+        // QA-01 / QA-08: A ticket cannot jump directly to Closed (6) without first being Solved (5)
+        // with documented solution and completed tasks.
+        if (currentTicket is not null && status == (int)TicketStatus.Closed && currentTicket.Status != (int)TicketStatus.Solved)
+        {
+            throw new UnprocessableEntityException("No se puede cerrar directamente un ticket que no ha sido resuelto previamente.");
+        }
+
         if (currentTicket is not null && status == (int)TicketStatus.Solved && currentTicket.Status != (int)TicketStatus.Solved)
         {
-            try
-            {
-                var existingTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
-                foreach (var task in existingTasks.Where(t => t.State == ResolveRule.TaskTodo))
-                {
-                    await _glpi.UpdateTicketTaskAsync(task.Id, ResolveRule.TaskDone, cancellationToken);
-                    _logger.LogInformation("Task {TaskId} completed as part of status patch on ticket {TicketId}", task.Id, ticketId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to complete pending tasks before patching status on ticket {TicketId}", ticketId);
-            }
-
             await EnsureResolvableByTasksAsync(ticketId, currentTicket.Status, cancellationToken);
         }
 
@@ -719,14 +717,6 @@ public sealed class TicketService : ITicketService
                     throw new UnprocessableEntityException("Ticket no puede marcarse como resuelto sin solución escrita.");
                 }
             }
-        }
-
-        // Business-rule evaluation returns a clear, operator-facing reason on rejection
-        var decision = await _accessPolicy.EvaluateStatusTransitionAsync(userId, role, ticketId, status, cancellationToken);
-        if (!decision.Allowed)
-        {
-            throw new ForbiddenException(
-                decision.Reason ?? $"User {userId} cannot modify status of ticket {ticketId} to {status}");
         }
 
         try
@@ -1336,23 +1326,8 @@ public sealed class TicketService : ITicketService
                 transition.Reason ?? $"User {userId} cannot resolve ticket {ticketId}");
         }
 
-        if (completePendingTasks && (ticket.Status is (int)TicketStatus.Assigned or (int)TicketStatus.Planned))
-        {
-            try
-            {
-                var existingTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
-                foreach (var task in existingTasks.Where(t => t.State == ResolveRule.TaskTodo))
-                {
-                    await _glpi.UpdateTicketTaskAsync(task.Id, ResolveRule.TaskDone, cancellationToken);
-                    _logger.LogInformation("Task {TaskId} completed as part of resolve on ticket {TicketId}", task.Id, ticketId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to complete pending tasks before resolve on ticket {TicketId}", ticketId);
-            }
-        }
-
+        // QA-01 / QA-02: Tasks must be explicitly completed by the technician beforehand.
+        // Auto-completing tasks server-side violates task integrity and can leave false progress.
         await EnsureResolvableByTasksAsync(ticketId, ticket.Status, cancellationToken);
 
         try
@@ -1523,20 +1498,7 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot add solution to ticket {ticketId}");
         }
 
-        try
-        {
-            var existingTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken);
-            foreach (var task in existingTasks.Where(t => t.State == ResolveRule.TaskTodo))
-            {
-                await _glpi.UpdateTicketTaskAsync(task.Id, ResolveRule.TaskDone, cancellationToken);
-                _logger.LogInformation("Task {TaskId} completed as part of solution on ticket {TicketId}", task.Id, ticketId);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to complete pending tasks before adding solution on ticket {TicketId}", ticketId);
-        }
-
+        // QA-01 / QA-02: Tasks must be explicitly completed by the technician beforehand.
         await EnsureResolvableByTasksAsync(ticketId, ticket.Status, cancellationToken);
 
         int solutionId;

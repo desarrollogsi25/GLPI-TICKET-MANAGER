@@ -43,19 +43,24 @@ public static class ResolveRule
         }
 
         // 1. Un ticket no puede finalizar con tareas obligatorias inconclusas.
-        // Si existen tareas pendientes ("Por hacer"), deben completarse o cancelarse antes de resolver.
+        // Si existen tareas pendientes ("Por hacer"), deben completarse antes de resolver.
         var open = tasks.Count(t => t.State == TaskTodo);
         if (open > 0)
         {
             return new(false, "pending_tasks",
-                $"El ticket tiene {open} tarea(s) pendiente(s) por hacer. Completa o cancela las tareas antes de resolverlo.");
+                $"El ticket tiene {open} tarea(s) pendiente(s) por hacer. Completa las tareas antes de resolverlo.");
         }
 
-        // 2. Evidencia de trabajo completado: el ticket tuvo tareas y todas fueron finalizadas.
+        // 2. Exigencia de trabajo completado (QA-01): al menos una tarea GLPI realizada (State == TaskDone).
+        // Las tareas informativas (State == 0), inexistentes o canceladas no acreditan trabajo técnico ejecutado.
         var done = tasks.Count(t => t.State == TaskDone);
-        if (done > 0) return new(true, "completed_task", null);
+        if (done > 0)
+        {
+            return new(true, "completed_task", null);
+        }
 
-        // 3. Resolución directa: ticket asignado sin tareas planificadas.
-        return new(true, "direct", null);
+        // 3. Un ticket sin tareas realizadas no puede resolverse ni cerrarse directamente.
+        return new(false, "no_completed_tasks",
+            "El ticket no tiene ninguna tarea realizada. Para resolver el ticket se requiere registrar y completar al menos una tarea técnica en GLPI.");
     }
 }

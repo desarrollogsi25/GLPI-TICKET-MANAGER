@@ -57,6 +57,7 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
 
     private async Task<HttpResponseMessage> ResolveAsync(int ticketId, string content, string token)
     {
+        _factory.SetTaskState(8012, 2);
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{ticketId}/resolve");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = JsonContent.Create(new { content });
@@ -253,6 +254,7 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Resolve_AfterTheLegacyEndpointAlreadySolvedTheTicket_Returns409()
     {
+        _factory.SetTaskState(8012, 2);
         var token = await AuthenticateAsTech1Async();
 
         using var legacy = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
@@ -270,5 +272,19 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
             token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Resolve_WhenTicketHasOpenTasks_Returns422()
+    {
+        _factory.SetTaskState(8012, 1); // Open task
+        var token = await AuthenticateAsTech1Async();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/resolve");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Solucion intentada con tareas pendientes" });
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 }
