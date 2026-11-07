@@ -87,6 +87,31 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task SetPending_WithInvalidReasonId_Returns422()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+
+        using var response = await SetPendingAsync(CustomWebApplicationFactory.Ticket12Id, 99, "Motivo inválido", token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task GetPendingReasons_Returns200WithCatalog()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/tickets/pending-reasons");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var reasons = await response.Content.ReadFromJsonAsync<IReadOnlyList<PendingReasonDto>>();
+        reasons.Should().NotBeNull();
+        reasons!.Count.Should().Be(5);
+    }
+
+    [Fact]
     public async Task SetPending_Successful_Returns200AndWritesToGlpi()
     {
         var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);

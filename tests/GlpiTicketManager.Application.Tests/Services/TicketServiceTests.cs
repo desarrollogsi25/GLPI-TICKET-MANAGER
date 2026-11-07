@@ -412,6 +412,8 @@ public class TicketServiceTests
     [Fact]
     public async Task UpdateStatusAsync_WhenClosingDirectlyFromAssigned_ThrowsUnprocessableEntity()
     {
+        _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Admin, 10, (int)TicketStatus.Closed, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Ticket { Id = 10, Name = "Ticket 10", Status = 2 });
 

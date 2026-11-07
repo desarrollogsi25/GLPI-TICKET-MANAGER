@@ -63,8 +63,11 @@ function DatePickerBase({ value, onChange, label, id, className, placeholder, mi
   const handleSelect = useCallback(
     (day?: Date) => {
       setDraft(day ?? selected)
+      if (day) {
+        onChange(toValue(day))
+      }
     },
-    [selected],
+    [selected, onChange],
   )
 
   return (

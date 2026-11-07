@@ -99,6 +99,11 @@ export async function listTechnicians(groupId?: number): Promise<TechnicianSumma
   return data
 }
 
+export async function listPendingReasons(): Promise<Array<{ id: number; label: string }>> {
+  const { data } = await apiClient.get<Array<{ id: number; label: string }>>('/tickets/pending-reasons')
+  return data
+}
+
 
 export type ReplanTicketTaskRequest = PlanTicketRequest
 

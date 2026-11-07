@@ -25,6 +25,7 @@ import {
   useGroupQueueQuery,
   useGroupsQuery,
   useTicketsQuery,
+  useTechniciansQuery,
 } from '@/hooks/useTickets'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useRole } from '@/hooks/useRole'
@@ -32,6 +33,7 @@ import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useUiStore } from '@/store/uiStore'
 import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -488,9 +490,12 @@ export function Kanban() {
   useCurrentTime()
   const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
+  const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const { isTechnician } = useRole()
   const currentUser = useAuthStore((state) => state.user)
-  const currentUserId = selectedAssignee ?? currentUser?.userId ?? null
+  // QA-03 / QA-18: Admins y supervisores con "Todos los técnicos" deben consultar sin assigneeId (null),
+  // nunca reemplazar null por su propio userId de admin, lo cual dejaba las columnas vacías.
+  const currentAssigneeFilter = isTechnician ? (currentUser?.userId ?? null) : selectedAssignee
 
   const groupsQuery = useGroupsQuery()
   const hasNoGroups = Boolean(groupsQuery.data && groupsQuery.data.length === 0)
@@ -514,7 +519,8 @@ export function Kanban() {
   // slow poll (30 s) while the realtime connection is down, so the board no longer
   // doubles the rate limit quota of `GET /tickets/by-group`.
   const queueQuery = useGroupQueueQuery(currentGroupId)
-  const myTicketsQuery = useTicketsQuery(currentUserId)
+  const myTicketsQuery = useTicketsQuery({ assigneeId: currentAssigneeFilter })
+  const { data: groupTechnicians } = useTechniciansQuery(currentGroupId)
 
   const claimMutation = useClaimTicketMutation()
   const pushToast = useToastStore((state) => state.push)
@@ -566,7 +572,17 @@ export function Kanban() {
   const queueTickets = useMemo(() => queueQuery.data?.items ?? [], [queueQuery.data])
 
   const myTicketsByColumn = useMemo(() => {
-    const all = myTicketsQuery.data?.items ?? []
+    const rawAll = myTicketsQuery.data?.items ?? []
+    // QA-03: Cuando un supervisor/admin selecciona "Todos los técnicos" para un grupo concreto,
+    // filtrar los tickets cuyos técnicos pertenecen a dicho grupo.
+    const all =
+      !isTechnician && currentAssigneeFilter == null && currentGroupId != null && groupTechnicians && groupTechnicians.length > 0
+        ? (() => {
+            const groupTechIds = new Set(groupTechnicians.map((t: { id: number }) => Number(t.id)))
+            return rawAll.filter((t) => t.assigneeIds && t.assigneeIds.some((id) => groupTechIds.has(Number(id))))
+          })()
+        : rawAll
+
     return {
       mine: all.filter((t) => t.status === 1 || t.status === 2),
       in_progress: all.filter((t) => t.status === 3),
@@ -575,7 +591,7 @@ export function Kanban() {
       // Keep it visible here so a successful resolution never appears to vanish.
       resolved: all.filter((t) => t.status === 5 || t.status === 6),
     }
-  }, [myTicketsQuery.data])
+  }, [myTicketsQuery.data, isTechnician, currentAssigneeFilter, currentGroupId, groupTechnicians])
 
   const ticketsByColumn: Record<ColumnId, TicketSummary[]> = useMemo(
     () => ({
@@ -988,7 +1004,10 @@ export function Kanban() {
                   aria-label="Seleccionar grupo de soporte"
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                   value={currentGroupId ?? ''}
-                  onChange={(event) => setSelectedGroupId(Number(event.target.value))}
+                  onChange={(event) => {
+                    setSelectedGroupId(Number(event.target.value))
+                    setSelectedAssigneeId(null) // QA-17: limpiar filtro incompatible al cambiar de grupo
+                  }}
                 >
                   {groupsQuery.data?.map((group) => (
                     <option key={group.id} value={group.id}>{group.name}</option>
@@ -996,7 +1015,7 @@ export function Kanban() {
                 </select>
               ) : null}
               <div className="hidden md:block">
-                <TechnicianFilter />
+                <TechnicianFilter groupId={currentGroupId} />
               </div>
             </div>
           )

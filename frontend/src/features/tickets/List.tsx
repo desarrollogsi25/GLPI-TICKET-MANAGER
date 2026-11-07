@@ -370,7 +370,9 @@ export function List() {
                   ? `${data.total} ticket(s) asignados a vos.`
                   : 'Tus tickets asignados'
                 : data
-                  ? `${data.total} ticket(s) para el técnico seleccionado.`
+                  ? assigneeId != null
+                    ? `${data.total} ticket(s) para el técnico seleccionado.`
+                    : `${data.total} ticket(s) de todos los técnicos.`
                   : 'Listado de tickets'
         }
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: isRequester ? 'Mis tickets' : 'Tickets' }]}

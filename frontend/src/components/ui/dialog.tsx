@@ -20,6 +20,25 @@ export function Dialog({ open, onClose, title, description, children, className 
   const prefersReduced = useReducedMotion()
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
+  const previousActiveElementRef = useRef<HTMLElement | null>(null)
+
+  // QA-11: Guardar el elemento activo antes de abrir y restaurar el foco al cerrar el modal
+  useEffect(() => {
+    if (open) {
+      previousActiveElementRef.current = document.activeElement as HTMLElement | null
+    } else if (previousActiveElementRef.current) {
+      previousActiveElementRef.current.focus()
+      previousActiveElementRef.current = null
+    }
+  }, [open])
+
+  useEffect(() => {
+    return () => {
+      if (previousActiveElementRef.current) {
+        previousActiveElementRef.current.focus()
+      }
+    }
+  }, [])
 
   // Keep the latest onClose reference without triggering effect re-runs
   useEffect(() => {

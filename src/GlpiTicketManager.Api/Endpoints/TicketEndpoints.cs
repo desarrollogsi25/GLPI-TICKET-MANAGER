@@ -37,6 +37,18 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // GET /api/tickets/pending-reasons -> catálogo de motivos de espera (QA-07)
+        group.MapGet("pending-reasons", () => Results.Ok(PendingReasons.All))
+            .WithName("GetPendingReasons")
+            .WithSummary("List official reasons for placing a ticket into pending/waiting status")
+            .Produces<IReadOnlyList<PendingReasonDto>>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        app.MapGet("/api/pending-reasons", () => Results.Ok(PendingReasons.All))
+            .RequireAuthorization()
+            .WithTags("Tickets")
+            .Produces<IReadOnlyList<PendingReasonDto>>(StatusCodes.Status200OK);
+
 
         // GET /api/tickets?groupId=X&unassigned=true -> cola del grupo (sin asignar)
         group.MapGet("by-group", GetUnassignedByGroup)

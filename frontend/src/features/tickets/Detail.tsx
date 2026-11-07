@@ -472,11 +472,19 @@ export function Detail() {
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Técnicos asignados</span>
-                <span className="font-medium text-xs text-foreground">{ticket.assigneeIds.map((userId) => userId === currentUser?.userId ? `Vos (#${userId})` : `#${userId}`).join(', ') || '—'}</span>
+                <span className="font-medium text-xs text-foreground">{ticket.assigneeIds.map((userId) => getTechName(userId)).join(', ') || '—'}</span>
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Solicitantes</span>
-                <span className="font-medium text-xs text-foreground">{ticket.requesterIds.map((userId) => `#${userId}`).join(', ') || '—'}</span>
+                <span className="font-medium text-xs text-foreground">
+                  {ticket.requesterIds
+                    .map((userId) =>
+                      userId === currentUser?.userId
+                        ? `${currentUser.displayName || currentUser.username} (yo)`
+                        : (techMap.get(userId) ?? `Solicitante #${userId}`)
+                    )
+                    .join(', ') || '—'}
+                </span>
               </div>
             </CardContent>
           </Card>

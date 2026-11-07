@@ -1813,6 +1813,11 @@ public sealed class TicketService : ITicketService
             throw Invalid("userId", "userId must be a positive integer.");
         }
 
+        if (!PendingReasons.IsValid(reasonId))
+        {
+            throw new UnprocessableEntityException($"El motivo de pendiente {reasonId} no es válido.");
+        }
+
         if (string.IsNullOrWhiteSpace(comment?.Trim()))
         {
             throw new UnprocessableEntityException("El comentario es obligatorio para poner el ticket en pendiente.");

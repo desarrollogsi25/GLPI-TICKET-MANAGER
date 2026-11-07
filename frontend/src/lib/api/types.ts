@@ -14,6 +14,11 @@ export interface UserProfile {
   role?: AppRole
 }
 
+export interface PendingReason {
+  id: number
+  label: string
+}
+
 export interface LoginResponse {
   accessToken: string
   tokenType: string

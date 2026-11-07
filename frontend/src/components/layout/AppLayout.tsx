@@ -4,7 +4,7 @@ import { ChevronRight, Moon, Search, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserQuery } from '@/hooks/useAuth'
-import { showNativeNotification, useAutomaticNotificationPermission } from '@/hooks/useAutomaticNotificationPermission'
+import { showNativeNotification } from '@/hooks/useAutomaticNotificationPermission'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
@@ -53,7 +53,7 @@ export function AppLayout() {
   }
   const currentPage = routeLabels[pathSegments[0]] ?? 'Inicio'
 
-  useAutomaticNotificationPermission()
+  // QA-13: Push notification permission is only requested upon explicit user action in Preferences
   // One native-notification listener for both desktop and mobile headers.
   const { connectionState } = useRealtimeTicketHub({
     onNotificationReceived: () => {

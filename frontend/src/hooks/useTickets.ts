@@ -21,6 +21,7 @@ import {
   putPendingTicket,
   getTicketResolveEligibility,
   listTechnicians,
+  listPendingReasons,
   getTeamDashboard,
   getAdminDashboard,
   getAdminWatcherStatus,
@@ -326,5 +327,15 @@ export function useTechniciansQuery(groupId?: number | null) {
     queryFn: () => listTechnicians(groupId ?? undefined),
     enabled: sessionValid,
     staleTime: 60_000,
+  })
+}
+
+export function usePendingReasonsQuery() {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: queryKeys.tickets.pendingReasons,
+    queryFn: listPendingReasons,
+    enabled: sessionValid,
+    staleTime: 5 * 60_000,
   })
 }

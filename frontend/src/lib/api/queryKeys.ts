@@ -19,6 +19,7 @@ export const queryKeys = {
     tasks: (id: number) => ['tickets', 'tasks', id] as const,
     resolveEligibility: (id: number) => ['tickets', 'resolve-eligibility', id] as const,
     technicians: (groupId?: number | null) => ['tickets', 'technicians', groupId ?? null] as const,
+    pendingReasons: ['tickets', 'pending-reasons'] as const,
     byGroupQueue: (groupId: number) => ['tickets', 'group-queue', groupId] as const,
   },
   groups: {

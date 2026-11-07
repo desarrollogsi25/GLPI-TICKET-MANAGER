@@ -95,6 +95,9 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             react: ['react', 'react-dom', 'react-router-dom'],
             tanstack: ['@tanstack/react-query', '@tanstack/react-table'],
+            motion: ['motion', 'gsap', '@gsap/react'],
+            dnd: ['@dnd-kit/core', '@dnd-kit/sortable'],
+            date: ['date-fns'],
           },
         },
       },

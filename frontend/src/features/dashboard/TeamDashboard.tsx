@@ -100,7 +100,7 @@ export function TeamDashboard() {
             }, 0) / resolvedTickets.length,
           ),
         )
-      : 2
+      : null
 
   // 3. Section A KPI Cards
   const kpiCards = [
@@ -138,6 +138,7 @@ export function TeamDashboard() {
       id: 'mttr',
       label: 'Tiempo Medio (MTTR)',
       value: mttrHours,
+      emptyLabel: 'Sin datos',
       suffix: 'h',
       icon: Timer,
       iconColor: 'text-sky-600 dark:text-sky-400 bg-sky-500/10',
@@ -261,7 +262,7 @@ export function TeamDashboard() {
                   </div>
                   {isLoading ? (
                     <Skeleton className="mt-2.5 h-7 w-14" />
-                  ) : (
+                  ) : card.value != null ? (
                     <p className="mt-2 text-2xl font-bold tracking-tight text-foreground flex items-baseline">
                       <NumberTicker value={card.value} />
                       {card.suffix && (
@@ -269,6 +270,10 @@ export function TeamDashboard() {
                           {card.suffix}
                         </span>
                       )}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-lg font-medium text-muted-foreground flex items-baseline">
+                      {(card as any).emptyLabel ?? '—'}
                     </p>
                   )}
                 </CardContent>
