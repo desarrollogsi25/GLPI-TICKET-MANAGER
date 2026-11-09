@@ -60,6 +60,48 @@ public sealed class TicketService : ITicketService
             }
         }
     }
+
+    public static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return LocalTimeZone;
+        }
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            var normalized = timeZoneId.Trim();
+            if (normalized.Equals("Europe/Madrid", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("Europe/Paris", StringComparison.OrdinalIgnoreCase))
+            {
+                return TryFindTz("Romance Standard Time") ?? LocalTimeZone;
+            }
+            if (normalized.Equals("America/Lima", StringComparison.OrdinalIgnoreCase))
+            {
+                return TryFindTz("SA Pacific Standard Time") ?? LocalTimeZone;
+            }
+            if (normalized.Equals("SA Pacific Standard Time", StringComparison.OrdinalIgnoreCase))
+            {
+                return TryFindTz("America/Lima") ?? LocalTimeZone;
+            }
+            if (normalized.Equals("Romance Standard Time", StringComparison.OrdinalIgnoreCase))
+            {
+                return TryFindTz("Europe/Madrid") ?? LocalTimeZone;
+            }
+
+            return LocalTimeZone;
+        }
+    }
+
+    private static TimeZoneInfo? TryFindTz(string id)
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
+        catch { return null; }
+    }
     private readonly ITicketPlanningRequestStore _planningRequests;
 
     public TicketService(
@@ -1663,13 +1705,13 @@ public sealed class TicketService : ITicketService
 
     /// <summary>
     /// Normalizes a date filter bound to UTC. Values without an explicit kind (typical when
-    /// bound from a `yyyy-MM-dd` query string) are interpreted in the operational local timezone
-    /// (Europe/Madrid) and converted to UTC bounds so tickets created near midnight and across
-    /// daylight saving transitions are properly included.
+    /// bound from a `yyyy-MM-dd` query string) are interpreted in the specified or operational timezone
+    /// (e.g. Europe/Madrid, Europe/Paris, America/Lima) and converted to UTC bounds so tickets created
+    /// near midnight and across daylight saving transitions are properly included.
     /// When <paramref name="endOfDay"/> is set and the bound is a date-only
     /// value, it is pushed to 23:59:59.999 local before converting to UTC.
     /// </summary>
-    private static DateTime? ToUtcBound(DateTime? value, bool endOfDay)
+    public static DateTime? ToUtcBound(DateTime? value, bool endOfDay, string? timeZoneId = null)
     {
         if (!value.HasValue)
         {
@@ -1686,24 +1728,26 @@ public sealed class TicketService : ITicketService
             return raw;
         }
 
+        var tz = ResolveTimeZone(timeZoneId);
+
         if (raw.Kind == DateTimeKind.Local)
         {
             if (endOfDay && raw.TimeOfDay == TimeSpan.Zero)
             {
                 var endLocal = raw.Date.AddDays(1).AddTicks(-1);
-                return endLocal.ToUniversalTime();
+                return TimeZoneInfo.ConvertTimeToUtc(endLocal, tz);
             }
-            return raw.ToUniversalTime();
+            return TimeZoneInfo.ConvertTimeToUtc(raw, tz);
         }
 
         // Unspecified kind: bound from query string "yyyy-MM-dd"
         if (endOfDay && raw.TimeOfDay == TimeSpan.Zero)
         {
             var endLocal = raw.Date.AddDays(1).AddTicks(-1);
-            return TimeZoneInfo.ConvertTimeToUtc(endLocal, LocalTimeZone);
+            return TimeZoneInfo.ConvertTimeToUtc(endLocal, tz);
         }
 
-        return TimeZoneInfo.ConvertTimeToUtc(raw, LocalTimeZone);
+        return TimeZoneInfo.ConvertTimeToUtc(raw, tz);
     }
 
     public Task<int> CreateTicketAsync(
@@ -1898,22 +1942,45 @@ public sealed class TicketService : ITicketService
         // 1. Llama a GLPI REST: actualiza estado a 4 (Pendiente) PRIMERO para asegurar que la transición es válida y autorizada
         await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Waiting, cancellationToken);
 
-        // 2. Solo tras confirmar el cambio de estado, crea el seguimiento privado (ITILFollowup con is_private: 1) con el comentario
-        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, userId, cancellationToken);
+        // 2. Solo tras confirmar el cambio de estado, crea el seguimiento privado con reintentos (QA-08)
+        bool followupCreated = false;
+        string? followupError = null;
+        for (int attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, userId, cancellationToken);
+                followupCreated = true;
+                break;
+            }
+            catch (Exception ex) when (attempt < 2 && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(ex, "Reintento {Attempt} de crear seguimiento privado en ticket {TicketId}", attempt, ticketId);
+                await Task.Delay(50, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                followupError = ex.Message;
+                _logger.LogError(ex, "Fallo persistente al crear seguimiento privado para ticket {TicketId} tras cambio de estado a Pendiente.", ticketId);
+            }
+        }
 
         // 3. Lee de vuelta el ticket (GET /Ticket/{id}) para confirmar
         var finalState = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
         var effectiveStatus = finalState?.Status ?? (int)TicketStatus.Waiting;
 
-        // 4. Guarda auditoría en PostgreSQL
+        // 4. Guarda auditoría en PostgreSQL — GARANTIZANDO que la razón operativa se preserva y es reconciliable
         try
         {
             var auditDetails = System.Text.Json.JsonSerializer.Serialize(new
             {
                 reasonId,
-                comment = comment.Trim()
+                comment = comment.Trim(),
+                followupCreated,
+                followupError,
+                requiresReconciliation = !followupCreated
             });
-            await _audit.LogAsync(userId, "pending", ticketId, auditDetails, cancellationToken);
+            await _audit.LogAsync(userId, followupCreated ? "pending" : "pending_followup_unreconciled", ticketId, auditDetails, cancellationToken);
         }
         catch (Exception ex)
         {

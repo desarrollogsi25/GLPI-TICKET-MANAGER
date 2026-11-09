@@ -240,4 +240,51 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
             It.IsAny<int?>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task SetPending_WhenGlpiFollowupFails_PreservesAuditAndRetries()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        const string comment = "Piezas agotadas en almacén";
+
+        _factory.GlpiMock.Invocations.Clear();
+        _factory.AuditMock.Invocations.Clear();
+
+        // Setup: UpdateTicketStatusAsync succeeds, but CreateFollowupAsync throws transient exception
+        _factory.GlpiMock.Setup(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("GLPI transient network error"));
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            2,
+            comment,
+            token);
+
+        // Status update succeeded in GLPI
+        _factory.GlpiMock.Verify(g => g.UpdateTicketStatusAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            (int)TicketStatus.Waiting,
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Retried 2 times
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+
+        // Audit was preserved in PostgreSQL for reconciliation
+        _factory.AuditMock.Verify(a => a.LogAsync(
+            It.IsAny<int>(),
+            "pending_followup_unreconciled",
+            CustomWebApplicationFactory.Ticket12Id,
+            It.Is<string>(details => details.Contains("\"reasonId\":2") && details.Contains("Piezas agotadas")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

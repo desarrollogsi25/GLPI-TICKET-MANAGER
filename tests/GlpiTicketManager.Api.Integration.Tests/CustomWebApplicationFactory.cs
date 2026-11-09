@@ -87,6 +87,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     private Mock<ITicketNotificationService>? _notificationMock;
     private Mock<IGlpiApiClient>? _glpiMock;
+    private Mock<IAuditRepository>? _auditMock;
+
+    public Mock<IAuditRepository> AuditMock =>
+        _auditMock ?? throw new InvalidOperationException(
+            "The test host has not been created yet. Call CreateClient() before using AuditMock.");
 
     /// <summary>
     /// The GLPI REST double, so a test can assert that the application really reads
@@ -634,6 +639,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var auditMock = new Mock<IAuditRepository>();
             auditMock.Setup(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1L);
+            _auditMock = auditMock;
 
             // Mock IGlpiApiClient
             // Shared in-memory stand-in for the PostgreSQL unique request-id constraint.

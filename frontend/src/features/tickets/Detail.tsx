@@ -43,13 +43,23 @@ export function Detail() {
     return map
   }, [technicians])
 
+  const KNOWN_ROLES_MAP: Record<number, string> = {
+    2: 'Administrador del Sistema',
+    3: 'Líder de Service Desk',
+    4: 'Líder de Desarrollo',
+    5: 'Líder de Business Intelligence',
+    6: 'Técnico Especialista de Desarrollo',
+    7: 'Técnico de Service Desk',
+    8: 'Técnico de Business Intelligence',
+  }
+
   const getTechName = (techId?: number | null) => {
     if (!techId) return '—'
     if (currentUser?.userId === techId) return `${currentUser.displayName || currentUser.username} (yo)`
-    if (techId === 2) return 'Administrador GLPI (Sistema)'
     const known = techMap.get(techId)
     if (known) return known
-    return isRequester ? `Técnico de soporte (#${techId})` : `Técnico #${techId}`
+    if (KNOWN_ROLES_MAP[techId]) return KNOWN_ROLES_MAP[techId]
+    return isRequester ? 'Especialista de Soporte Técnico Asignado' : `Técnico #${techId}`
   }
 
   const hasActionableTask = Boolean(tasks?.some((t) => t.state === 1 || t.state === 2))
