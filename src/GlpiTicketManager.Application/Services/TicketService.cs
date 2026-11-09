@@ -1310,57 +1310,63 @@ public sealed class TicketService : ITicketService
             throw new ForbiddenException($"User {userId} cannot claim ticket {ticketId}");
         }
 
-        // A ticket routed to a group by a GLPI business rule is stored as
-        // "Assigned" (2) even though no technician owns it yet, so both 1 and 2
-        // are claimable as long as there is no technician link (checked below).
-        if (ticket.Status is not (int)TicketStatus.New and not (int)TicketStatus.Assigned)
+        // P1 remediation: serialize claims across API replicas using a PostgreSQL advisory lock
+        // and mutate through native GLPI REST API preserving rules, audit logs and notifications.
+        await using (await _planningRequests.AcquireTicketClaimLockAsync(ticketId, cancellationToken))
         {
-            throw new ConflictException("El ticket debe estar en estado 'Nuevo' o 'Asignado' y sin técnico.");
-        }
+            ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+            if (ticket is null)
+            {
+                throw new NotFoundException($"Ticket {ticketId} not found.");
+            }
 
-        var links = await _tickets.GetUsersForTicketsAsync(
-            new[] { ticketId },
-            cancellationToken);
+            // A ticket routed to a group by a GLPI business rule is stored as
+            // "Assigned" (2) even though no technician owns it yet, so both 1 and 2
+            // are claimable as long as there is no technician link (checked below).
+            if (ticket.Status is not (int)TicketStatus.New and not (int)TicketStatus.Assigned)
+            {
+                throw new ConflictException("El ticket debe estar en estado 'Nuevo' o 'Asignado' y sin técnico.");
+            }
 
-        if (links != null && links.Any(l => l.Type == (int)TicketUserType.Assigned))
-        {
-            throw new ConflictException("El ticket ya está asignado a un técnico.");
-        }
+            var links = await _tickets.GetUsersForTicketsAsync(
+                new[] { ticketId },
+                cancellationToken);
 
-        var claimed = await _tickets.ClaimAsync(ticketId, userId, userId, cancellationToken);
+            if (links != null && links.Any(l => l.Type == (int)TicketUserType.Assigned))
+            {
+                throw new ConflictException("El ticket ya está asignado a un técnico.");
+            }
 
-        if (!claimed)
-        {
-            throw new ConflictException("Ticket ya no está disponible.");
-        }
+            await _glpi.AssignTicketAsync(ticketId, userId, cancellationToken);
 
-        try
-        {
-            await _audit.LogAsync(userId, "claim", ticketId, null, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to record audit log for claim on ticket {TicketId}", ticketId);
-        }
+            try
+            {
+                await _audit.LogAsync(userId, "claim", ticketId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to record audit log for claim on ticket {TicketId}", ticketId);
+            }
 
-        try
-        {
-            var groupIds = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
-            var groupId = groupIds.FirstOrDefault();
-            await _notifications.NotifyTicketClaimedAsync(ticketId, userId, groupId, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to emit TicketClaimed notification for ticket {TicketId}", ticketId);
-        }
+            try
+            {
+                var groupIds = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
+                var groupId = groupIds.FirstOrDefault();
+                await _notifications.NotifyTicketClaimedAsync(ticketId, userId, groupId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to emit TicketClaimed notification for ticket {TicketId}", ticketId);
+            }
 
-        var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
-        if (updated is null)
-        {
-            throw new NotFoundException($"Ticket {ticketId} not found.");
-        }
+            var updated = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+            if (updated is null)
+            {
+                throw new NotFoundException($"Ticket {ticketId} not found.");
+            }
 
-        return updated.ToDetail();
+            return updated.ToDetail();
+        }
     }
 
     public async Task<bool> SolutionExistsAsync(int ticketId, CancellationToken cancellationToken)

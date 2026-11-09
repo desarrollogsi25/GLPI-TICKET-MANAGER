@@ -6,6 +6,7 @@ using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
+using GlpiTicketManager.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -64,6 +65,49 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 cancellationToken);
 
             _logger.LogInformation("Updated GLPI ticket {TicketId} to status {Status}", ticketId, status);
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    public async Task AssignTicketAsync(int ticketId, int technicianId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var actorPayload = new
+            {
+                input = new
+                {
+                    tickets_id = ticketId,
+                    users_id = technicianId,
+                    type = 2,
+                    use_notification = 1
+                }
+            };
+
+            using var actorResponse = await SendAsync(
+                HttpMethod.Post,
+                $"Ticket/{ticketId}/Ticket_User",
+                sessionToken,
+                actorPayload,
+                cancellationToken);
+
+            var statusPayload = new { input = new { status = (int)TicketStatus.Assigned } };
+
+            using var statusResponse = await SendAsync(
+                HttpMethod.Put,
+                $"Ticket/{ticketId}",
+                sessionToken,
+                statusPayload,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Assigned GLPI ticket {TicketId} to technician {TechnicianId} and set status to Assigned",
+                ticketId, technicianId);
         }
         finally
         {

@@ -16,6 +16,13 @@ public interface ITicketPlanningRequestStore
     /// </summary>
     Task<IAsyncDisposable> AcquireTechnicianScheduleLockAsync(int technicianId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A PostgreSQL advisory lock serializes claim checks and GLPI writes for the
+    /// same ticket across all API replicas. Releases when disposed, including on failure.
+    /// </summary>
+    Task<IAsyncDisposable> AcquireTicketClaimLockAsync(int ticketId,
+        CancellationToken cancellationToken);
     Task<PlanningRequestClaim> ClaimAsync(
         Guid requestId, int ticketId, int userId, string payloadHash, CancellationToken cancellationToken);
 

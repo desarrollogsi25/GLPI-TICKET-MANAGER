@@ -43,6 +43,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly Dictionary<int, string> _ticketSolutions = new();
     private readonly Dictionary<int, List<TicketTaskDto>> _nativeTasks = new();
     private readonly ConcurrentDictionary<int, SemaphoreSlim> _technicianScheduleGates = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _ticketClaimGates = new();
 
     private sealed class ScheduleGateLease(SemaphoreSlim gate) : IAsyncDisposable
     {
@@ -666,6 +667,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     await gate.WaitAsync(ct);
                     return (IAsyncDisposable)new ScheduleGateLease(gate);
                 });
+            planningStoreMock.Setup(s => s.AcquireTicketClaimLockAsync(
+                    It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns(async (int ticketId, CancellationToken ct) =>
+                {
+                    var gate = _ticketClaimGates.GetOrAdd(ticketId, _ => new SemaphoreSlim(1, 1));
+                    await gate.WaitAsync(ct);
+                    return (IAsyncDisposable)new ScheduleGateLease(gate);
+                });
             planningStoreMock.Setup(s => s.ClaimAsync(It.IsAny<Guid>(), It.IsAny<int>(),
                     It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Guid id, int ticketId, int userId, string hash, CancellationToken _) =>
@@ -704,6 +713,42 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             var glpiMock = new Mock<IGlpiApiClient>();
             _glpiMock = glpiMock;
+            glpiMock.Setup(g => g.AssignTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, int technicianId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (SimulateInsertFailure)
+                        {
+                            throw new InvalidOperationException("Simulated failure during GLPI assignment.");
+                        }
+
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = ticket.Id,
+                                Name = ticket.Name,
+                                Content = ticket.Content,
+                                Status = (int)TicketStatus.Assigned,
+                                Type = ticket.Type,
+                                Priority = ticket.Priority,
+                                Urgency = ticket.Urgency,
+                                Impact = ticket.Impact,
+                                CategoryId = ticket.CategoryId,
+                                CreatedAt = ticket.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow,
+                                SolvedAt = ticket.SolvedAt,
+                                ClosedAt = ticket.ClosedAt,
+                                IsDeleted = ticket.IsDeleted,
+                                HasSolution = ticket.HasSolution
+                            };
+                        }
+                        _ticketUsers.Add(new TicketUser { TicketId = ticketId, UserId = technicianId, Type = (int)TicketUserType.Assigned });
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, (int)TicketStatus.Assigned);
+                    }
+                    return Task.CompletedTask;
+                });
             glpiMock.Setup(g => g.GetTicketTasksAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int ticketId, CancellationToken _) =>
                 {

@@ -43,6 +43,12 @@ public class TicketServiceTests
         _planningRequests.Setup(s => s.AcquireTechnicianScheduleLockAsync(
                 It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EmptyScheduleLease());
+        _planningRequests.Setup(s => s.AcquireTicketClaimLockAsync(
+                It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EmptyScheduleLease());
+        _glpi.Setup(g => g.AssignTicketAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         // Default: the caller passed the identity gate; individual tests override the
         // transition graph through EvaluateStatusTransitionAsync as before.
         _accessPolicy.Setup(p => p.CanAttemptStatusChangeAsync(
@@ -715,18 +721,19 @@ public class TicketServiceTests
 
         _repo.SetupSequence(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ticketBefore)
+            .ReturnsAsync(ticketBefore)
             .ReturnsAsync(ticketAfter);
         _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TicketUser>());
         _accessPolicy.Setup(a => a.CanClaimAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _repo.Setup(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var result = await _svc.ClaimAsync(10, 7, CancellationToken.None);
 
         result.Should().NotBeNull();
         result.Id.Should().Be(10);
         result.Status.Should().Be((int)TicketStatus.Assigned);
-        _repo.Verify(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>()), Times.Once);
+        _planningRequests.Verify(s => s.AcquireTicketClaimLockAsync(10, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.AssignTicketAsync(10, 7, It.IsAny<CancellationToken>()), Times.Once);
         _audit.Verify(a => a.LogAsync(7, "claim", 10, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -738,11 +745,11 @@ public class TicketServiceTests
 
         _repo.SetupSequence(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ticketBefore)
+            .ReturnsAsync(ticketBefore)
             .ReturnsAsync(ticketAfter);
         _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TicketUser>());
         _accessPolicy.Setup(a => a.CanClaimAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _repo.Setup(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _audit.Setup(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
@@ -751,7 +758,27 @@ public class TicketServiceTests
         result.Should().NotBeNull();
         result.Id.Should().Be(10);
         result.Status.Should().Be((int)TicketStatus.Assigned);
-        _repo.Verify(r => r.ClaimAsync(10, 7, 7, It.IsAny<CancellationToken>()), Times.Once);
+        _glpi.Verify(g => g.AssignTicketAsync(10, 7, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ClaimAsync_WhenConcurrentWinnerAlreadyAssignedTicket_ThrowsConflict()
+    {
+        var ticketBefore = new Ticket { Id = 10, Name = "Ticket 10", Status = (int)TicketStatus.New };
+
+        // Before entering lock: unassigned. Inside lock: concurrent winner already claimed it.
+        _repo.SetupSequence(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ticketBefore)
+            .ReturnsAsync(ticketBefore);
+        _repo.Setup(r => r.GetUsersForTicketsAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new TicketUser { TicketId = 10, UserId = 99, Type = (int)TicketUserType.Assigned } });
+        _accessPolicy.Setup(a => a.CanClaimAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var act = async () => await _svc.ClaimAsync(10, 7, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("El ticket ya está asignado a un técnico.");
+        _glpi.Verify(g => g.AssignTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

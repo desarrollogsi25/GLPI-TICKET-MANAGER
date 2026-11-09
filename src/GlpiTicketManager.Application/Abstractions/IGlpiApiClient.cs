@@ -11,6 +11,12 @@ public interface IGlpiApiClient
 {
     Task UpdateTicketStatusAsync(int ticketId, int status, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Assigns a ticket to a technician and sets status to Assigned (2) via native GLPI REST API.
+    /// Preserves GLPI history, notifications, and business rules.
+    /// </summary>
+    Task AssignTicketAsync(int ticketId, int technicianId, CancellationToken cancellationToken);
+
     Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
     Task<int> CreateSolutionAsync(int ticketId, string content, int? userId, CancellationToken cancellationToken);
 

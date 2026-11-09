@@ -11,6 +11,7 @@ namespace GlpiTicketManager.Infrastructure.Repositories;
 public sealed class TicketPlanningRequestStore : ITicketPlanningRequestStore
 {
     private const int ScheduleLockNamespace = 0x474C5049; // "GLPI", scoped per technician
+    private const int ClaimLockNamespace = 0x434C414D;    // "CLAM", scoped per ticket
     private readonly IAppDbConnectionFactory _factory;
 
     public TicketPlanningRequestStore(IAppDbConnectionFactory factory) => _factory = factory;
@@ -34,6 +35,54 @@ public sealed class TicketPlanningRequestStore : ITicketPlanningRequestStore
         {
             await connection.DisposeAsync();
             throw;
+        }
+    }
+
+    public async Task<IAsyncDisposable> AcquireTicketClaimLockAsync(
+        int ticketId, CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0) throw new ArgumentOutOfRangeException(nameof(ticketId));
+        var connection = (DbConnection)await _factory.CreateAsync(cancellationToken);
+        try
+        {
+            // Session-level lock spans the claim status verification and GLPI REST
+            // write; it works across API replicas sharing this PostgreSQL server.
+            await connection.ExecuteAsync(new CommandDefinition(
+                "SELECT pg_advisory_lock(@Namespace, @TicketId)",
+                new { Namespace = ClaimLockNamespace, TicketId = ticketId },
+                cancellationToken: cancellationToken));
+            return new TicketClaimLock(connection, ticketId);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    private sealed class TicketClaimLock : IAsyncDisposable
+    {
+        private readonly DbConnection _connection;
+        private readonly int _ticketId;
+
+        public TicketClaimLock(DbConnection connection, int ticketId)
+        {
+            _connection = connection;
+            _ticketId = ticketId;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await _connection.ExecuteAsync(new CommandDefinition(
+                    "SELECT pg_advisory_unlock(@Namespace, @TicketId)",
+                    new { Namespace = ClaimLockNamespace, TicketId = _ticketId }));
+            }
+            finally
+            {
+                await _connection.DisposeAsync();
+            }
         }
     }
 
