@@ -1942,13 +1942,25 @@ public sealed class TicketService : ITicketService
         // 1. Llama a GLPI REST: actualiza estado a 4 (Pendiente) PRIMERO para asegurar que la transición es válida y autorizada
         await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Waiting, cancellationToken);
 
-        // 2. Solo tras confirmar el cambio de estado, crea el seguimiento privado con reintentos (QA-08)
+        // 2. Solo tras confirmar el cambio de estado, crea el seguimiento privado con reintentos y deduplicación (QA-08)
         bool followupCreated = false;
         string? followupError = null;
         for (int attempt = 1; attempt <= 2; attempt++)
         {
             try
             {
+                if (attempt > 1)
+                {
+                    // Deduplicación segura: si GLPI registró el seguimiento en el intento anterior
+                    // pero la respuesta se perdió por timeout, no creamos un duplicado.
+                    var existing = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+                    if (existing?.Followups != null && existing.Followups.Any(f => f.Content?.Trim() == comment.Trim()))
+                    {
+                        followupCreated = true;
+                        break;
+                    }
+                }
+
                 await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, userId, cancellationToken);
                 followupCreated = true;
                 break;

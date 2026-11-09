@@ -287,4 +287,59 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
             It.Is<string>(details => details.Contains("\"reasonId\":2") && details.Contains("Piezas agotadas")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task SetPending_WhenFirstAttemptSucceedsInGlpiButTimesOut_DeduplicatesAndAvoidsDoublePost()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        const string comment = "Esperando validación externa con timeout";
+
+        _factory.GlpiMock.Invocations.Clear();
+        _factory.AuditMock.Invocations.Clear();
+
+        // Simulate: First attempt throws TaskCanceledException / HttpRequestException,
+        // but before attempt 2 the followup is already visible in the ticket read model.
+        _factory.GlpiMock.Setup(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                // Simulate GLPI actually wrote the followup before the socket was cut
+                _factory.AddFollowupToTicket(CustomWebApplicationFactory.Ticket12Id, new()
+                {
+                    Id = 999,
+                    Content = comment,
+                    IsPrivate = true,
+                    CreatedAt = DateTime.UtcNow
+                });
+            })
+            .ThrowsAsync(new HttpRequestException("Socket timeout reading HTTP response from GLPI"));
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            2,
+            comment,
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify GLPI CreateFollowup was only called once, avoiding duplicate followup insertion on retry
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Audited as successfully pending (not unreconciled)
+        _factory.AuditMock.Verify(a => a.LogAsync(
+            It.IsAny<int>(),
+            "pending",
+            CustomWebApplicationFactory.Ticket12Id,
+            It.Is<string>(details => details.Contains("\"reasonId\":2") && details.Contains("\"followupCreated\":true")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

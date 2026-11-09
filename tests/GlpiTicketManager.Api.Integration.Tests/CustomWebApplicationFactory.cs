@@ -232,6 +232,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public void AddFollowupToTicket(int ticketId, GlpiTicketManager.Domain.Entities.TicketFollowup followup)
+    {
+        lock (_stateLock)
+        {
+            if (_allTickets.TryGetValue(ticketId, out var ticket))
+            {
+                var list = ticket.Followups.ToList();
+                list.Add(followup);
+                ticket.Followups = list;
+            }
+        }
+    }
+
     public CustomWebApplicationFactory()
     {
         ResetState();
