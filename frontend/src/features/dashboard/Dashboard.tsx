@@ -124,10 +124,15 @@ export function Dashboard() {
   const ticketsProximos = dbStats?.dueSoonTickets ?? 0
   const tareasProgramadas = dbStats?.scheduledTasksCount ?? 0
 
-  const today = new Date().toISOString().slice(0, 10)
-  const solvedToday = assignedItems.filter(
-    (t) => t.solvedAt && t.solvedAt.slice(0, 10) === today,
-  )
+  const now = new Date()
+  const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const solvedToday = assignedItems.filter((t) => {
+    if (!t.solvedAt) return false
+    const d = new Date(t.solvedAt)
+    if (isNaN(d.getTime())) return false
+    const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return dLocal === todayLocal
+  })
 
   const queueCount = groupQueue.data?.total ?? 0
   const groupItems = groupQueue.data?.items ?? []

@@ -157,6 +157,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public void ClearTasks(int ticketId)
+    {
+        lock (_stateLock)
+        {
+            _nativeTasks[ticketId] = [];
+        }
+    }
+
+    public void SetTasks(int ticketId, List<TicketTaskDto> tasks)
+    {
+        lock (_stateLock)
+        {
+            _nativeTasks[ticketId] = tasks;
+        }
+    }
+
     /// <summary>The status GLPI currently reports for a ticket, or null if unknown.</summary>
     public int? GetGlpiReportedStatus(int ticketId)
     {

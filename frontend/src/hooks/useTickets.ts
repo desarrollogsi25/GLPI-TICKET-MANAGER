@@ -28,6 +28,7 @@ import {
   recoverAdminWatcherTicket,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
+import { useAuthStore } from '@/store/authStore'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
 import { collectPages } from '@/lib/api/pagination'
 
@@ -322,10 +323,11 @@ export function useTicketResolveEligibilityQuery(ticketId: number, enabled = tru
 }
 export function useTechniciansQuery(groupId?: number | null) {
   const sessionValid = useIsSessionValid()
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
   return useQuery({
     queryKey: queryKeys.tickets.technicians(groupId),
     queryFn: () => listTechnicians(groupId ?? undefined),
-    enabled: sessionValid,
+    enabled: sessionValid && role !== 'solicitante',
     staleTime: 60_000,
   })
 }

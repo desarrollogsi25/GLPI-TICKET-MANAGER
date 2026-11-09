@@ -287,4 +287,64 @@ public class ResolveTests : IClassFixture<CustomWebApplicationFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
+
+    [Fact]
+    public async Task Resolve_WhenTicketHasNoTasks_Returns422()
+    {
+        _factory.ClearTasks(CustomWebApplicationFactory.Ticket12Id);
+        var token = await AuthenticateAsTech1Async();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/resolve");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Solucion intentada sin ninguna tarea" });
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task Resolve_WhenTicketHasOnlyCanceledTasks_Returns422()
+    {
+        _factory.ClearTasks(CustomWebApplicationFactory.Ticket12Id);
+        _factory.SetTasks(CustomWebApplicationFactory.Ticket12Id,
+        [
+            new TicketTaskDto(9991, CustomWebApplicationFactory.Ticket12Id, 1, "Tarea cancelada", 0, false, null, null, 0)
+        ]);
+        var token = await AuthenticateAsTech1Async();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/resolve");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Solucion intentada con solo tareas canceladas" });
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task LegacySolutions_WhenTicketHasNoTasks_Returns422()
+    {
+        _factory.ClearTasks(CustomWebApplicationFactory.Ticket12Id);
+        var token = await AuthenticateAsTech1Async();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Solucion intentada por endpoint legacy sin tareas" });
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ToSolved_WhenTicketHasNoTasks_Returns422()
+    {
+        _factory.ClearTasks(CustomWebApplicationFactory.Ticket12Id);
+        var token = await AuthenticateAsTech1Async();
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/status");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { status = (int)TicketStatus.Solved });
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
 }

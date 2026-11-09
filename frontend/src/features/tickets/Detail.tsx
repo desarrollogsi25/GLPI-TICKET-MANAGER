@@ -31,6 +31,10 @@ export function Detail() {
   const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
   const { data: technicians } = useTechniciansQuery()
 
+  const currentUser = useAuthStore((state) => state.user)
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
+  const isRequester = role === 'solicitante'
+
   const techMap = useMemo(() => {
     const map = new Map<number, string>()
     for (const t of technicians ?? []) {
@@ -40,10 +44,12 @@ export function Detail() {
   }, [technicians])
 
   const getTechName = (techId?: number | null) => {
-    if (!techId) return '-'
+    if (!techId) return '—'
     if (currentUser?.userId === techId) return `${currentUser.displayName || currentUser.username} (yo)`
     if (techId === 2) return 'Administrador GLPI (Sistema)'
-    return techMap.get(techId) ?? `Técnico #${techId}`
+    const known = techMap.get(techId)
+    if (known) return known
+    return isRequester ? `Técnico de soporte (#${techId})` : `Técnico #${techId}`
   }
 
   const hasActionableTask = Boolean(tasks?.some((t) => t.state === 1 || t.state === 2))
@@ -51,8 +57,6 @@ export function Detail() {
   const completeTask = useCompleteTicketTaskMutation()
   const cancelTask = useCancelTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
-  const currentUser = useAuthStore((state) => state.user)
-  const role = useAuthStore((state) => state.user?.role ?? state.role)
   const currentTime = useCurrentTime()
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
@@ -472,7 +476,13 @@ export function Detail() {
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Técnicos asignados</span>
-                <span className="font-medium text-xs text-foreground">{ticket.assigneeIds.map((userId) => getTechName(userId)).join(', ') || '—'}</span>
+                <span className="font-medium text-xs text-foreground">
+                  {ticket.assigneeIds.length > 0 ? (
+                    ticket.assigneeIds.map((userId) => getTechName(userId)).join(', ')
+                  ) : (
+                    <span className="italic text-muted-foreground">En cola del grupo (sin técnico asignado)</span>
+                  )}
+                </span>
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Solicitantes</span>

@@ -199,4 +199,45 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task SetPending_WhenTicketSolved_Returns409_AndDoesNotCreateFollowup()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        _factory.SetTicketStatus(CustomWebApplicationFactory.Ticket12Id, (int)TicketStatus.Solved);
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            1,
+            "Intento de pausar ticket resuelto",
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<bool>(),
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetPending_WhenUserNotAssigned_DoesNotCreateFollowup()
+    {
+        var token = await AuthenticateAsAsync("tech2", TestCredentials.Tech2);
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            1,
+            "Intento de pausar ticket no asignado",
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<bool>(),
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

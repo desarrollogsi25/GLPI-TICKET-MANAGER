@@ -39,6 +39,27 @@ public sealed class TicketService : ITicketService
     private readonly INotificationService? _persistentNotifications;
     private readonly IDashboardRepository? _dashboard;
     private readonly ILogger<TicketService> _logger;
+
+    private static readonly TimeZoneInfo LocalTimeZone = ResolveLocalTimeZone();
+
+    private static TimeZoneInfo ResolveLocalTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Romance Standard Time");
+            }
+            catch
+            {
+                return TimeZoneInfo.Local;
+            }
+        }
+    }
     private readonly ITicketPlanningRequestStore _planningRequests;
 
     public TicketService(
@@ -1642,9 +1663,11 @@ public sealed class TicketService : ITicketService
 
     /// <summary>
     /// Normalizes a date filter bound to UTC. Values without an explicit kind (typical when
-    /// bound from a `yyyy-MM-dd` query string) are treated as UTC, matching how GLPI stores
-    /// ticket dates. When <paramref name="endOfDay"/> is set and the bound is a date-only
-    /// value, it is pushed to 23:59:59.999 so a single-day range includes the whole day.
+    /// bound from a `yyyy-MM-dd` query string) are interpreted in the operational local timezone
+    /// (Europe/Madrid) and converted to UTC bounds so tickets created near midnight and across
+    /// daylight saving transitions are properly included.
+    /// When <paramref name="endOfDay"/> is set and the bound is a date-only
+    /// value, it is pushed to 23:59:59.999 local before converting to UTC.
     /// </summary>
     private static DateTime? ToUtcBound(DateTime? value, bool endOfDay)
     {
@@ -1653,19 +1676,34 @@ public sealed class TicketService : ITicketService
             return null;
         }
 
-        var bound = value.Value.Kind switch
+        var raw = value.Value;
+        if (raw.Kind == DateTimeKind.Utc)
         {
-            DateTimeKind.Utc => value.Value,
-            DateTimeKind.Local => value.Value.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
-        };
-
-        if (endOfDay && bound.TimeOfDay == TimeSpan.Zero)
-        {
-            bound = bound.Date.AddDays(1).AddTicks(-1);
+            if (endOfDay && raw.TimeOfDay == TimeSpan.Zero)
+            {
+                return raw.Date.AddDays(1).AddTicks(-1);
+            }
+            return raw;
         }
 
-        return bound;
+        if (raw.Kind == DateTimeKind.Local)
+        {
+            if (endOfDay && raw.TimeOfDay == TimeSpan.Zero)
+            {
+                var endLocal = raw.Date.AddDays(1).AddTicks(-1);
+                return endLocal.ToUniversalTime();
+            }
+            return raw.ToUniversalTime();
+        }
+
+        // Unspecified kind: bound from query string "yyyy-MM-dd"
+        if (endOfDay && raw.TimeOfDay == TimeSpan.Zero)
+        {
+            var endLocal = raw.Date.AddDays(1).AddTicks(-1);
+            return TimeZoneInfo.ConvertTimeToUtc(endLocal, LocalTimeZone);
+        }
+
+        return TimeZoneInfo.ConvertTimeToUtc(raw, LocalTimeZone);
     }
 
     public Task<int> CreateTicketAsync(
@@ -1834,38 +1872,34 @@ public sealed class TicketService : ITicketService
             throw new ConflictException($"El ticket {ticketId} ya está cerrado.");
         }
 
-        // Valida permisos (técnico asignado o supervisor)
-        if (role == AppRole.Admin)
+        if (ticket.Status == (int)TicketStatus.Solved)
         {
-            // Admin siempre tiene acceso
-        }
-        else if (role == AppRole.Supervisor)
-        {
-            var userGroups = await _tickets.GetGroupIdsForUserAsync(userId, cancellationToken);
-            var ticketGroups = await _tickets.GetGroupIdsForTicketAsync(ticketId, cancellationToken);
-            if (!userGroups.Intersect(ticketGroups).Any())
-            {
-                throw new ForbiddenException("El supervisor no pertenece al grupo asignado a este ticket.");
-            }
-        }
-        else if (role == AppRole.Technician)
-        {
-            var isAssigned = await _tickets.IsUserAssignedToTicketAsync(userId, ticketId, cancellationToken);
-            if (!isAssigned)
-            {
-                throw new ForbiddenException("Solo el técnico asignado puede poner el ticket en pendiente.");
-            }
-        }
-        else
-        {
-            throw new ForbiddenException("No tienes permisos para poner este ticket en pendiente.");
+            throw new ConflictException($"El ticket {ticketId} ya está resuelto y no puede pasarse a pendiente directamente.");
         }
 
-        // 1. Llama a GLPI REST: crea un seguimiento privado (ITILFollowup con is_private: 1) con el comentario
-        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, userId, cancellationToken);
+        if (ticket.Status == (int)TicketStatus.Waiting)
+        {
+            throw new ConflictException($"El ticket {ticketId} ya se encuentra en espera (pendiente).");
+        }
 
-        // 2. Llama a GLPI REST: actualiza estado a 4 (Pendiente)
+        if (ticket.Status == (int)TicketStatus.New)
+        {
+            throw new ConflictException($"El ticket {ticketId} es nuevo y debe asignarse antes de pasarse a pendiente.");
+        }
+
+        // Valida autorización y transición de estado según la matriz de ciclo de vida (QA-08)
+        var transition = await _accessPolicy.EvaluateStatusTransitionAsync(
+            userId, role, ticketId, (int)TicketStatus.Waiting, cancellationToken);
+        if (!transition.Allowed)
+        {
+            throw new ForbiddenException(transition.Reason ?? "No tienes permisos para poner este ticket en pendiente.");
+        }
+
+        // 1. Llama a GLPI REST: actualiza estado a 4 (Pendiente) PRIMERO para asegurar que la transición es válida y autorizada
         await _glpi.UpdateTicketStatusAsync(ticketId, (int)TicketStatus.Waiting, cancellationToken);
+
+        // 2. Solo tras confirmar el cambio de estado, crea el seguimiento privado (ITILFollowup con is_private: 1) con el comentario
+        await _glpi.CreateFollowupAsync(ticketId, comment.Trim(), isPrivate: true, userId, cancellationToken);
 
         // 3. Lee de vuelta el ticket (GET /Ticket/{id}) para confirmar
         var finalState = await ReadStateFromGlpiAsync(ticketId, cancellationToken);
