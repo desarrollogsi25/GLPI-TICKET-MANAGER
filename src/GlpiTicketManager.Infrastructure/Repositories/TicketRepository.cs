@@ -78,8 +78,21 @@ public sealed class TicketRepository : ITicketRepository
         int limit,
         int offset,
         CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, limit, offset, null, null, cancellationToken);
+
+    public Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
         GetFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate,
-            endDate, limit, offset, supervisorId: null, allowedGroupIds: null, cancellationToken);
+            endDate, limit, offset, supervisorId: null, allowedGroupIds: null, groupId, unassignedOnly, cancellationToken);
 
     public async Task<bool> HasOverlappingScheduledTaskAsync(int technicianId,
         DateTime startUtc, DateTime endUtc, int? excludingTaskId, CancellationToken cancellationToken)
@@ -146,13 +159,20 @@ public sealed class TicketRepository : ITicketRepository
         int supervisorId, IReadOnlyList<int> allowedGroupIds,
         int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
         int limit, int offset, CancellationToken cancellationToken) =>
+        GetSupervisorFilteredAsync(supervisorId, allowedGroupIds, assigneeId, serviceId, startDate, endDate, limit, offset, null, null, cancellationToken);
+
+    public Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int limit, int offset, int? groupId, bool? unassignedOnly, CancellationToken cancellationToken) =>
         GetFilteredCoreAsync(assigneeId, serviceId, null, startDate, endDate,
-            limit, offset, supervisorId, allowedGroupIds, cancellationToken);
+            limit, offset, supervisorId, allowedGroupIds, groupId, unassignedOnly, cancellationToken);
 
     private async Task<IReadOnlyList<Ticket>> GetFilteredCoreAsync(
         int? assigneeId, int? serviceId, int? requesterId,
         DateTime? startDate, DateTime? endDate, int limit, int offset,
         int? supervisorId, IReadOnlyList<int>? allowedGroupIds,
+        int? groupId, bool? unassignedOnly,
         CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -167,7 +187,9 @@ public sealed class TicketRepository : ITicketRepository
             limit,
             offset,
             supervisorId,
-            allowedGroupIds);
+            allowedGroupIds,
+            groupId,
+            unassignedOnly);
 
         var command = new CommandDefinition(
             sql,
@@ -207,20 +229,39 @@ public sealed class TicketRepository : ITicketRepository
         DateTime? startDate,
         DateTime? endDate,
         CancellationToken cancellationToken) =>
+        CountFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, null, null, cancellationToken);
+
+    public Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
         CountFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate,
-            endDate, supervisorId: null, allowedGroupIds: null, cancellationToken);
+            endDate, supervisorId: null, allowedGroupIds: null, groupId, unassignedOnly, cancellationToken);
 
     public Task<long> CountSupervisorFilteredAsync(
         int supervisorId, IReadOnlyList<int> allowedGroupIds,
         int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
         CancellationToken cancellationToken) =>
+        CountSupervisorFilteredAsync(supervisorId, allowedGroupIds, assigneeId, serviceId, startDate, endDate, null, null, cancellationToken);
+
+    public Task<long> CountSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int? groupId, bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
         CountFilteredCoreAsync(assigneeId, serviceId, null, startDate, endDate,
-            supervisorId, allowedGroupIds, cancellationToken);
+            supervisorId, allowedGroupIds, groupId, unassignedOnly, cancellationToken);
 
     private async Task<long> CountFilteredCoreAsync(
         int? assigneeId, int? serviceId, int? requesterId,
         DateTime? startDate, DateTime? endDate,
         int? supervisorId, IReadOnlyList<int>? allowedGroupIds,
+        int? groupId, bool? unassignedOnly,
         CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -235,7 +276,9 @@ public sealed class TicketRepository : ITicketRepository
             limit: null,
             offset: null,
             supervisorId,
-            allowedGroupIds);
+            allowedGroupIds,
+            groupId,
+            unassignedOnly);
 
         var command = new CommandDefinition(
             sql,
@@ -256,7 +299,9 @@ public sealed class TicketRepository : ITicketRepository
         int? limit,
         int? offset,
         int? supervisorId,
-        IReadOnlyList<int>? allowedGroupIds)
+        IReadOnlyList<int>? allowedGroupIds,
+        int? groupId = null,
+        bool? unassignedOnly = null)
     {
         var parameters = new DynamicParameters();
         var sql = new StringBuilder(baseSql);
@@ -278,6 +323,17 @@ public sealed class TicketRepository : ITicketRepository
         if (assigneeId.HasValue)
         {
             conditions.Add("tu.users_id = @AssigneeId");
+        }
+
+        if (unassignedOnly == true)
+        {
+            conditions.Add("NOT EXISTS (SELECT 1 FROM glpi_tickets_users tu_unassigned WHERE tu_unassigned.tickets_id = t.id AND tu_unassigned.type = 2)");
+        }
+
+        if (groupId.HasValue && groupId.Value > 0)
+        {
+            conditions.Add("EXISTS (SELECT 1 FROM glpi_groups_tickets gt_filter WHERE gt_filter.tickets_id = t.id AND gt_filter.groups_id = @GroupId AND gt_filter.type = 2)");
+            parameters.Add("GroupId", groupId.Value);
         }
 
         if (requesterId.HasValue)

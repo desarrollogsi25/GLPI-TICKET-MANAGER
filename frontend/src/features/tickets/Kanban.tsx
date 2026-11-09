@@ -25,7 +25,6 @@ import {
   useGroupQueueQuery,
   useGroupsQuery,
   useTicketsQuery,
-  useTechniciansQuery,
 } from '@/hooks/useTickets'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useRole } from '@/hooks/useRole'
@@ -519,8 +518,11 @@ export function Kanban() {
   // slow poll (30 s) while the realtime connection is down, so the board no longer
   // doubles the rate limit quota of `GET /tickets/by-group`.
   const queueQuery = useGroupQueueQuery(currentGroupId)
-  const myTicketsQuery = useTicketsQuery({ assigneeId: currentAssigneeFilter })
-  const { data: groupTechnicians } = useTechniciansQuery(currentGroupId)
+  const myTicketsQuery = useTicketsQuery({
+    assigneeId: currentAssigneeFilter === 0 ? null : currentAssigneeFilter,
+    groupId: currentGroupId,
+    unassignedOnly: currentAssigneeFilter === 0,
+  })
 
   const claimMutation = useClaimTicketMutation()
   const pushToast = useToastStore((state) => state.push)
@@ -573,15 +575,20 @@ export function Kanban() {
 
   const myTicketsByColumn = useMemo(() => {
     const rawAll = myTicketsQuery.data?.items ?? []
-    // QA-03: Cuando un supervisor/admin selecciona "Todos los técnicos" para un grupo concreto,
-    // filtrar los tickets cuyos técnicos pertenecen a dicho grupo.
-    const all =
-      !isTechnician && currentAssigneeFilter == null && currentGroupId != null && groupTechnicians && groupTechnicians.length > 0
-        ? (() => {
-            const groupTechIds = new Set(groupTechnicians.map((t: { id: number }) => Number(t.id)))
-            return rawAll.filter((t) => t.assigneeIds && t.assigneeIds.some((id) => groupTechIds.has(Number(id))))
-          })()
-        : rawAll
+    const all = rawAll.filter((t) => {
+      // QA-01: Excluir estrictamente tickets de otros grupos
+      if (currentGroupId != null && t.groupId != null && t.groupId !== currentGroupId) {
+        return false
+      }
+      // QA-02: Filtro por técnico o 'Sin asignar'
+      if (currentAssigneeFilter === 0) {
+        return !t.assigneeIds || t.assigneeIds.length === 0
+      }
+      if (currentAssigneeFilter != null && !isTechnician) {
+        return t.assigneeIds && t.assigneeIds.some((id) => Number(id) === Number(currentAssigneeFilter))
+      }
+      return true
+    })
 
     return {
       mine: all.filter((t) => t.status === 1 || t.status === 2),
@@ -591,7 +598,7 @@ export function Kanban() {
       // Keep it visible here so a successful resolution never appears to vanish.
       resolved: all.filter((t) => t.status === 5 || t.status === 6),
     }
-  }, [myTicketsQuery.data, isTechnician, currentAssigneeFilter, currentGroupId, groupTechnicians])
+  }, [myTicketsQuery.data, isTechnician, currentAssigneeFilter, currentGroupId])
 
   const ticketsByColumn: Record<ColumnId, TicketSummary[]> = useMemo(
     () => ({

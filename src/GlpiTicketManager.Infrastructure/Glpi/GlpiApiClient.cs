@@ -124,6 +124,26 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    public async Task UpdateSolutionStatusAsync(int solutionId, int status, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Put, $"ITILSolution/{solutionId}", sessionToken,
+                new { input = new { status } }, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Failed to update ITILSolution {SolutionId} status to {Status}: {StatusCode} - {Body}",
+                    solutionId, status, response.StatusCode, body);
+            }
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
     public async Task<int> CreatePlannedTaskAsync(
         int ticketId, int technicianId, string content, DateTimeOffset startAt,
         DateTimeOffset endAt, CancellationToken cancellationToken)

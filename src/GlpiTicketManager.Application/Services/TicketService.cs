@@ -161,25 +161,50 @@ public sealed class TicketService : ITicketService
         int limit,
         int offset,
         CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, limit, offset, null, null, cancellationToken);
+
+    public Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
         GetFilteredCoreAsync(assigneeId, serviceId, requesterId, startDate, endDate,
-            limit, offset, supervisorId: null, allowedGroupIds: null, cancellationToken);
+            limit, offset, supervisorId: null, allowedGroupIds: null, groupId, unassignedOnly, cancellationToken);
+
+    public Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
+        int supervisorId, int? assigneeId, int? serviceId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        CancellationToken cancellationToken) =>
+        GetSupervisorFilteredAsync(supervisorId, assigneeId, serviceId, startDate, endDate, limit, offset, null, null, cancellationToken);
 
     public async Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
         int supervisorId, int? assigneeId, int? serviceId,
         DateTime? startDate, DateTime? endDate, int limit, int offset,
+        int? groupId, bool? unassignedOnly,
         CancellationToken cancellationToken)
     {
         if (supervisorId <= 0) throw new ForbiddenException("Supervisor no válido.");
         // Groups come from GLPI for every request, not a JWT/client-provided list.
         var groups = await _tickets.GetGroupIdsForUserAsync(supervisorId, cancellationToken);
+        if (groupId.HasValue && !groups.Contains(groupId.Value))
+        {
+            throw new ForbiddenException($"Supervisor no tiene acceso al grupo {groupId.Value}.");
+        }
         return await GetFilteredCoreAsync(assigneeId, serviceId, null, startDate, endDate,
-            limit, offset, supervisorId, groups, cancellationToken);
+            limit, offset, supervisorId, groups, groupId, unassignedOnly, cancellationToken);
     }
 
     private async Task<PagedResult<TicketSummaryDto>> GetFilteredCoreAsync(
         int? assigneeId, int? serviceId, int? requesterId,
         DateTime? startDate, DateTime? endDate, int limit, int offset,
         int? supervisorId, IReadOnlyList<int>? allowedGroupIds,
+        int? groupId, bool? unassignedOnly,
         CancellationToken cancellationToken)
     {
         if (assigneeId.HasValue && assigneeId.Value <= 0)
@@ -211,18 +236,35 @@ public sealed class TicketService : ITicketService
         var effectiveLimit = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
         var effectiveOffset = Math.Max(offset, 0);
 
+        var hasExtendedFilter = groupId.HasValue || unassignedOnly.HasValue;
+
         var rows = supervisorId.HasValue
-            ? await _tickets.GetSupervisorFilteredAsync(supervisorId.Value,
-                allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
-                startUtc, endUtc, effectiveLimit, effectiveOffset, cancellationToken)
-            : await _tickets.GetFilteredAsync(assigneeId, serviceId, requesterId,
-                startUtc, endUtc, effectiveLimit, effectiveOffset, cancellationToken);
+            ? (hasExtendedFilter
+                ? await _tickets.GetSupervisorFilteredAsync(supervisorId.Value,
+                    allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
+                    startUtc, endUtc, effectiveLimit, effectiveOffset, groupId, unassignedOnly, cancellationToken)
+                : await _tickets.GetSupervisorFilteredAsync(supervisorId.Value,
+                    allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
+                    startUtc, endUtc, effectiveLimit, effectiveOffset, cancellationToken))
+            : (hasExtendedFilter
+                ? await _tickets.GetFilteredAsync(assigneeId, serviceId, requesterId,
+                    startUtc, endUtc, effectiveLimit, effectiveOffset, groupId, unassignedOnly, cancellationToken)
+                : await _tickets.GetFilteredAsync(assigneeId, serviceId, requesterId,
+                    startUtc, endUtc, effectiveLimit, effectiveOffset, cancellationToken));
+
         var total = supervisorId.HasValue
-            ? await _tickets.CountSupervisorFilteredAsync(supervisorId.Value,
-                allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
-                startUtc, endUtc, cancellationToken)
-            : await _tickets.CountFilteredAsync(assigneeId, serviceId, requesterId,
-                startUtc, endUtc, cancellationToken);
+            ? (hasExtendedFilter
+                ? await _tickets.CountSupervisorFilteredAsync(supervisorId.Value,
+                    allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
+                    startUtc, endUtc, groupId, unassignedOnly, cancellationToken)
+                : await _tickets.CountSupervisorFilteredAsync(supervisorId.Value,
+                    allowedGroupIds ?? Array.Empty<int>(), assigneeId, serviceId,
+                    startUtc, endUtc, cancellationToken))
+            : (hasExtendedFilter
+                ? await _tickets.CountFilteredAsync(assigneeId, serviceId, requesterId,
+                    startUtc, endUtc, groupId, unassignedOnly, cancellationToken)
+                : await _tickets.CountFilteredAsync(assigneeId, serviceId, requesterId,
+                    startUtc, endUtc, cancellationToken));
 
         // Only the date-aware overload is called here, so the repository is free to return
         // `null` for a result set that has no rows (e.g. mocked/empty implementations).
@@ -1469,6 +1511,109 @@ public sealed class TicketService : ITicketService
             SolvedAt = finalState?.SolvedAt ?? detail.SolvedAt,
             ClosedAt = finalState?.ClosedAt ?? detail.ClosedAt
         };
+    }
+
+    public async Task<TicketDetailDto> ApproveSolutionAsync(
+        int ticketId,
+        int solutionId,
+        int userId,
+        AppRole role,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0) throw Invalid("ticketId", "ticketId must be positive.");
+        if (solutionId <= 0) throw Invalid("solutionId", "solutionId must be positive.");
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} no encontrado.");
+
+        if (role == AppRole.Solicitante && !ticket.RequesterIds.Contains(userId))
+        {
+            throw new ForbiddenException("Solo el solicitante asignado puede aprobar la solución.");
+        }
+
+        await _glpi.UpdateSolutionStatusAsync(solutionId, 3, cancellationToken);
+
+        try
+        {
+            await _audit.LogAsync(userId, "approve_solution", ticketId, $"Solution {solutionId} approved", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to audit solution approval for ticket {TicketId}", ticketId);
+        }
+
+        var latest = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        var effectiveStatus = latest?.Status ?? (int)TicketStatus.Closed;
+
+        try
+        {
+            var assigneeId = (latest ?? ticket).AssigneeIds?.FirstOrDefault();
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId, effectiveStatus, assigneeId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit notification for ticket {TicketId}", ticketId);
+        }
+
+        return (latest ?? ticket).ToDetail();
+    }
+
+    public async Task<TicketDetailDto> RejectSolutionAsync(
+        int ticketId,
+        int solutionId,
+        int userId,
+        AppRole role,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0) throw Invalid("ticketId", "ticketId must be positive.");
+        if (solutionId <= 0) throw Invalid("solutionId", "solutionId must be positive.");
+
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} no encontrado.");
+
+        if (role == AppRole.Solicitante && !ticket.RequesterIds.Contains(userId))
+        {
+            throw new ForbiddenException("Solo el solicitante asignado puede rechazar la solución.");
+        }
+
+        await _glpi.UpdateSolutionStatusAsync(solutionId, 4, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            try
+            {
+                await _glpi.CreateFollowupAsync(ticketId, $"[Solución rechazada]: {reason.Trim()}", isPrivate: false, userId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to add followup for rejected solution on ticket {TicketId}", ticketId);
+            }
+        }
+
+        try
+        {
+            await _audit.LogAsync(userId, "reject_solution", ticketId, $"Solution {solutionId} rejected: {reason}", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to audit solution rejection for ticket {TicketId}", ticketId);
+        }
+
+        var latest = await _tickets.GetByIdAsync(ticketId, cancellationToken);
+        var effectiveStatus = latest?.Status ?? (int)TicketStatus.Assigned;
+
+        try
+        {
+            var assigneeId = (latest ?? ticket).AssigneeIds?.FirstOrDefault();
+            await _notifications.NotifyTicketStatusChangedAsync(ticketId, effectiveStatus, assigneeId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit notification for ticket {TicketId}", ticketId);
+        }
+
+        return (latest ?? ticket).ToDetail();
     }
 
     /// <summary>

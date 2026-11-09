@@ -61,6 +61,8 @@ export interface TicketSummary {
   nextPlannedTechnicianId?: number | null
   nextPlannedDuration?: number | null
   nextPlannedComment?: string | null
+  groupId?: number | null
+  groupName?: string | null
 }
 
 export interface TicketFollowup {
@@ -99,6 +101,8 @@ export interface TicketDetail {
   requesterIds: number[]
   followups: TicketFollowup[]
   solutions?: TicketSolution[]
+  groupId?: number | null
+  groupName?: string | null
 }
 
 export interface TicketListParams {

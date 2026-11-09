@@ -59,7 +59,16 @@ public static class TicketQueries
                AND tt.is_private = 0
                AND tt.`begin` IS NOT NULL
              ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedComment
+             LIMIT 1) AS NextPlannedComment,
+            (SELECT gt.groups_id
+             FROM glpi_groups_tickets gt
+             WHERE gt.tickets_id = t.id AND gt.type = 2
+             LIMIT 1) AS GroupId,
+            (SELECT g.name
+             FROM glpi_groups_tickets gt
+             JOIN glpi_groups g ON g.id = gt.groups_id
+             WHERE gt.tickets_id = t.id AND gt.type = 2
+             LIMIT 1) AS GroupName
         FROM glpi_tickets t
         """ + "\n";
 

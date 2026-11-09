@@ -9,6 +9,8 @@ import type {
 
 export interface TicketListParams {
   assigneeId?: number
+  groupId?: number
+  unassignedOnly?: boolean
   serviceId?: number
   /** UTC lower bound (inclusive) over the ticket creation date, as `yyyy-MM-dd`. */
   startDate?: string
@@ -161,6 +163,16 @@ export async function resolveTicket(id: number, content: string, completePending
 }
 export async function reopenTicket(id: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {
   const { data } = await apiClient.post(`/tickets/${id}/reopen`, reason ? { reason } : {})
+  return data
+}
+
+export async function approveSolution(ticketId: number, solutionId: number): Promise<import('@/lib/api/types').TicketDetail> {
+  const { data } = await apiClient.post(`/tickets/${ticketId}/solutions/${solutionId}/approve`)
+  return data
+}
+
+export async function rejectSolution(ticketId: number, solutionId: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {
+  const { data } = await apiClient.post(`/tickets/${ticketId}/solutions/${solutionId}/reject`, reason ? { reason } : {})
   return data
 }
 export interface PutPendingRequest {

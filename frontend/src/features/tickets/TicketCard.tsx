@@ -58,8 +58,11 @@ function TicketCardComponent({
   const getTechLabel = useCallback((id?: number | null) => {
     if (!id) return null
     if (currentUser?.userId === id) return `${currentUser.displayName || currentUser.username} (yo)`
-    return techMap.get(id) ?? `Técnico #${id}`
-  }, [currentUser, techMap])
+    const known = techMap.get(id)
+    if (known) return known
+    if (ticket.groupName) return `Especialista (${ticket.groupName})`
+    return 'Especialista de Soporte'
+  }, [currentUser, techMap, ticket.groupName])
 
   const assignee = useMemo(() => {
     const ids = ticket.assigneeIds ?? []
@@ -67,13 +70,13 @@ function TicketCardComponent({
       return { initials: '—', label: 'Sin asignar', assigned: false }
     }
     const firstId = ids[0]
-    const label = getTechLabel(firstId) ?? `Técnico #${firstId}`
+    const label = getTechLabel(firstId) ?? (ticket.groupName ? `Equipo ${ticket.groupName}` : 'Especialista asignado')
     const initials =
       firstId === currentUser?.userId && currentUser?.username
         ? currentUser.username.slice(0, 2).toUpperCase()
-        : techMap.get(firstId)?.slice(0, 2).toUpperCase() || `T${firstId}`
+        : techMap.get(firstId)?.slice(0, 2).toUpperCase() || 'ST'
     return { initials, label, assigned: true }
-  }, [ticket.assigneeIds, currentUser, techMap, getTechLabel])
+  }, [ticket.assigneeIds, ticket.groupName, currentUser, techMap, getTechLabel])
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
     disabled: !draggable,
@@ -174,7 +177,7 @@ function TicketCardComponent({
               <span className="inline-flex items-center gap-0.5">
                 <User className="size-2.5" />
                 {ticket.nextPlannedTechnicianId
-                  ? (getTechLabel(ticket.nextPlannedTechnicianId) ?? `Técnico #${ticket.nextPlannedTechnicianId}`)
+                  ? (getTechLabel(ticket.nextPlannedTechnicianId) ?? (ticket.groupName ? `Especialista (${ticket.groupName})` : 'Especialista asignado'))
                   : assignee.assigned
                     ? assignee.label
                     : 'Técnico asignado'}
@@ -327,7 +330,7 @@ function TicketCardComponent({
             <span className="inline-flex items-center gap-1">
               <User className="size-3" />
               {ticket.nextPlannedTechnicianId
-                ? (getTechLabel(ticket.nextPlannedTechnicianId) ?? `Técnico #${ticket.nextPlannedTechnicianId}`)
+                ? (getTechLabel(ticket.nextPlannedTechnicianId) ?? (ticket.groupName ? `Especialista (${ticket.groupName})` : 'Especialista asignado'))
                 : assignee.assigned
                   ? assignee.label
                   : 'Técnico asignado'}

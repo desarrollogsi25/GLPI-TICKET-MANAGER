@@ -47,6 +47,7 @@ export function TechnicianFilter({ groupId }: TechnicianFilterProps = {}) {
 
   const options = [
     { value: '', label: 'Todos los técnicos' },
+    { value: '0', label: 'Sin asignar' },
     ...(currentUserId != null
       ? [{ value: String(currentUserId), label: 'Mis tickets' }]
       : []),

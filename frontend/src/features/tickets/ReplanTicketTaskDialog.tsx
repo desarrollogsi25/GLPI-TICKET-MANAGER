@@ -47,7 +47,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   const techName = task?.technicianId
     ? technicians?.find((t) => t.id === task.technicianId)?.displayName ||
       technicians?.find((t) => t.id === task.technicianId)?.username ||
-      `Técnico #${task.technicianId}`
+      'Especialista de Soporte'
     : '—'
 
   useEffect(() => {

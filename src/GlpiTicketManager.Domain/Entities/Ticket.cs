@@ -58,6 +58,12 @@ public sealed class Ticket
     /// <summary>Content/comment of the upcoming planned task, if any.</summary>
     public string? NextPlannedComment { get; set; }
 
+    /// <summary>ID of the assigned group (glpi_groups_tickets type = 2), if any.</summary>
+    public int? GroupId { get; set; }
+
+    /// <summary>Name of the assigned group, if any.</summary>
+    public string? GroupName { get; set; }
+
     public IReadOnlyList<TicketFollowup> Followups { get; set; } = [];
     public IReadOnlyList<TicketSolution> Solutions { get; set; } = [];
 }

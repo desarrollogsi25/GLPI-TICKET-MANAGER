@@ -49,11 +49,31 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, limit, offset, cancellationToken);
+
     /// <summary>Supervisor list constrained to their current GLPI groups or own assignments.</summary>
     Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
         int supervisorId, int? assigneeId, int? serviceId,
         DateTime? startDate, DateTime? endDate, int limit, int offset,
         CancellationToken cancellationToken);
+
+    Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
+        int supervisorId, int? assigneeId, int? serviceId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        int? groupId, bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        GetSupervisorFilteredAsync(supervisorId, assigneeId, serviceId, startDate, endDate, limit, offset, cancellationToken);
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
@@ -141,6 +161,10 @@ public interface ITicketService
         AppRole role,
         bool completePendingTasks,
         CancellationToken cancellationToken);
+
+    Task<TicketDetailDto> ApproveSolutionAsync(int ticketId, int solutionId, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<TicketDetailDto> RejectSolutionAsync(int ticketId, int solutionId, int userId, AppRole role, string? reason, CancellationToken cancellationToken);
 
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 

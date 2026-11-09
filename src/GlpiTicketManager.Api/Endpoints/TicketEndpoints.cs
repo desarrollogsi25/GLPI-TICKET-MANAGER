@@ -184,6 +184,25 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .RequireRateLimiting(RateLimitPolicies.PerUser);
 
+        group.MapPost("/{id:int}/solutions/{solutionId:int}/approve", ApproveSolution)
+            .WithName("ApproveSolution")
+            .WithSummary("Approve a proposed solution, closing the ticket")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/{id:int}/solutions/{solutionId:int}/reject", RejectSolution)
+            .WithName("RejectSolution")
+            .WithSummary("Reject a proposed solution with optional reason, reopening the ticket")
+            .Accepts<RejectSolutionRequest>("application/json")
+            .Produces<TicketDetailDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         // POST /api/tickets/{id}/pending -> pone ticket en pendiente con seguimiento privado (H-34)
         group.MapPost("/{id:int}/pending", SetPending)
             .WithName("SetPendingTicket")
@@ -205,6 +224,8 @@ public static class TicketEndpoints
     private static async Task<IResult> GetTickets(
         int? assigneeId,
         int? serviceId,
+        int? groupId,
+        bool? unassignedOnly,
         ITicketService ticketService,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken,
@@ -222,6 +243,7 @@ public static class TicketEndpoints
         var role = principal.GetRole();
         int? effectiveAssigneeId = null;
         int? effectiveRequesterId = null;
+        bool effectiveUnassignedOnly = unassignedOnly == true;
 
         if (role == AppRole.Solicitante)
         {
@@ -229,7 +251,14 @@ public static class TicketEndpoints
         }
         else if (role == AppRole.Admin || role == AppRole.Supervisor)
         {
-            effectiveAssigneeId = assigneeId;
+            if (assigneeId == 0)
+            {
+                effectiveUnassignedOnly = true;
+            }
+            else
+            {
+                effectiveAssigneeId = assigneeId;
+            }
         }
         else
         {
@@ -247,10 +276,11 @@ public static class TicketEndpoints
             var result = role == AppRole.Supervisor
                 ? await ticketService.GetSupervisorFilteredAsync(userId.Value,
                     effectiveAssigneeId, serviceId, startDate, endDate,
-                    limit ?? 0, offset ?? 0, cancellationToken)
+                    limit ?? 0, offset ?? 0, groupId, effectiveUnassignedOnly ? true : null, cancellationToken)
                 : await ticketService.GetFilteredAsync(
                     effectiveAssigneeId, serviceId, effectiveRequesterId,
-                    startDate, endDate, limit ?? 0, offset ?? 0, cancellationToken);
+                    startDate, endDate, limit ?? 0, offset ?? 0,
+                    groupId, effectiveUnassignedOnly ? true : null, cancellationToken);
 
             return Results.Ok(result);
         }
@@ -833,6 +863,61 @@ public static class TicketEndpoints
                 statusCode: StatusCodes.Status422UnprocessableEntity,
                 title: "Operación no válida",
                 detail: ex.Message);
+        }
+    }
+
+    public sealed record RejectSolutionRequest(string? Reason);
+
+    private static async Task<IResult> ApproveSolution(
+        int id,
+        int solutionId,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+        var role = principal.GetRole();
+
+        try
+        {
+            var ticket = await ticketService.ApproveSolutionAsync(id, solutionId, userId.Value, role, cancellationToken);
+            return Results.Ok(ticket);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "No encontrado", detail: ex.Message);
+        }
+    }
+
+    private static async Task<IResult> RejectSolution(
+        int id,
+        int solutionId,
+        RejectSolutionRequest? request,
+        ITicketService ticketService,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+        var role = principal.GetRole();
+
+        try
+        {
+            var ticket = await ticketService.RejectSolutionAsync(id, solutionId, userId.Value, role, request?.Reason, cancellationToken);
+            return Results.Ok(ticket);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "No encontrado", detail: ex.Message);
         }
     }
 }
