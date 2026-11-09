@@ -35,6 +35,11 @@ public class TicketServiceTests
 
     public TicketServiceTests()
     {
+        _accessPolicy.Setup(policy => policy.CanPlanAsync(7, AppRole.Technician, 10, 7,
+                It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repo.Setup(repo => repo.GetTechniciansAsync(It.IsAny<int?>(), null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new UserSummaryDto(7, "tech", "Técnico responsable") });
         _planningRequests.Setup(s => s.AcquireTechnicianScheduleLockAsync(
                 It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EmptyScheduleLease());
@@ -96,6 +101,173 @@ public class TicketServiceTests
         await act.Should().ThrowAsync<UnprocessableEntityException>().WithMessage("*tarea*");
         _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(AppRole.Admin)]
+    [InlineData(AppRole.Supervisor)]
+    public async Task PlanAsync_SupervisorBooksAndLocksExecutorsCalendarRatherThanCreators(AppRole role)
+    {
+        var request = ValidPlan() with { TechnicianId = 7 };
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7, 8 } });
+        _accessPolicy.Setup(policy => policy.EvaluateStatusTransitionAsync(99, role, 10, 3,
+            It.IsAny<CancellationToken>())).ReturnsAsync(StatusTransitionDecision.Allow());
+        _accessPolicy.Setup(policy => policy.CanPlanAsync(99, role, 10, 7,
+            It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _planningRequests.Setup(store => store.ClaimAsync(request.RequestId, 10, 99,
+            It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _glpi.SetupSequence(glpi => glpi.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 2)).ReturnsAsync(new GlpiTicketState(10, 2))
+            .ReturnsAsync(new GlpiTicketState(10, 3));
+        _glpi.Setup(glpi => glpi.CreatePlannedTaskAsync(10, 7, request.Content!, request.StartAt,
+            request.EndAt, It.IsAny<CancellationToken>())).ReturnsAsync(49);
+
+        var result = await _svc.PlanAsync(10, request, 99, role, CancellationToken.None);
+
+        result.TaskId.Should().Be(49);
+        _planningRequests.Verify(store => store.AcquireTechnicianScheduleLockAsync(7,
+            It.IsAny<CancellationToken>()), Times.Once);
+        _planningRequests.Verify(store => store.AcquireTechnicianScheduleLockAsync(99,
+            It.IsAny<CancellationToken>()), Times.Never);
+        _repo.Verify(repo => repo.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
+            request.EndAt.UtcDateTime, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlanAsync_MultipleExecutorsRequireExplicitChoiceBeforeReservation()
+    {
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7, 8 } });
+        _accessPolicy.Setup(policy => policy.EvaluateStatusTransitionAsync(99, AppRole.Admin, 10, 3,
+            It.IsAny<CancellationToken>())).ReturnsAsync(StatusTransitionDecision.Allow());
+        var act = () => _svc.PlanAsync(10, ValidPlan(), 99, AppRole.Admin, CancellationToken.None);
+        await act.Should().ThrowAsync<ValidationException>();
+        _planningRequests.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task PlanAsync_UnassignedExecutorIsDeniedBeforeEffects()
+    {
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
+        _accessPolicy.Setup(policy => policy.EvaluateStatusTransitionAsync(99, AppRole.Admin, 10, 3,
+            It.IsAny<CancellationToken>())).ReturnsAsync(StatusTransitionDecision.Allow());
+        var act = () => _svc.PlanAsync(10, ValidPlan() with { TechnicianId = 99 },
+            99, AppRole.Admin, CancellationToken.None);
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _planningRequests.VerifyNoOtherCalls();
+        _glpi.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Availability_ReportsBusyWithoutPrivateIdentifiersAndSuggestsAdjacentSlot()
+    {
+        var request = ValidPlan();
+        _accessPolicy.Setup(policy => policy.CanViewAsync(7, AppRole.Technician, 10,
+            It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
+        _repo.Setup(repo => repo.GetScheduledTaskConflictsAsync(7, It.IsAny<DateTime>(),
+            It.IsAny<DateTime>(), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new ScheduledTaskConflict(49, 1027,
+                request.StartAt.UtcDateTime, request.EndAt.UtcDateTime) });
+        var result = await _svc.GetAvailabilityAsync(10, 7, request.StartAt, request.EndAt,
+            null, 7, AppRole.Technician, CancellationToken.None);
+        result.Available.Should().BeFalse();
+        result.SuggestedStart.Should().Be(request.EndAt);
+        var json = JsonSerializer.Serialize(result);
+        json.Should().NotContain("TicketId").And.NotContain("TaskId").And.NotContain("Content");
+        _glpi.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Availability_CannotExcludeTaskFromAnotherTicket()
+    {
+        var request = ValidPlan();
+        _accessPolicy.Setup(policy => policy.CanViewAsync(7, AppRole.Technician, 10,
+            It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
+        var act = () => _svc.GetAvailabilityAsync(10, 7, request.StartAt, request.EndAt,
+            999, 7, AppRole.Technician, CancellationToken.None);
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _repo.Verify(repo => repo.GetScheduledTaskConflictsAsync(It.IsAny<int>(), It.IsAny<DateTime>(),
+            It.IsAny<DateTime>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_DeniedCallerCannotReadParticipantNames()
+    {
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, RequesterIds = new[] { 17 } });
+        var act = () => _svc.GetByIdAsync(10, 99, AppRole.Technician, CancellationToken.None);
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _repo.Verify(repo => repo.GetParticipantNamesAsync(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Availability_ExcludesOnlyOwnTaskButKeepsOtherCollisions()
+    {
+        var request = ValidPlan();
+        _accessPolicy.Setup(policy => policy.CanViewAsync(7, AppRole.Technician, 10,
+            It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3, AssigneeIds = new[] { 7 } });
+        _glpi.Setup(glpi => glpi.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new TicketTaskDto(49, 10, 7, "Own task", 1, false,
+                request.StartAt, request.EndAt, 3600) });
+        _repo.Setup(repo => repo.GetScheduledTaskConflictsAsync(7, It.IsAny<DateTime>(),
+            It.IsAny<DateTime>(), 49, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new ScheduledTaskConflict(50, 11,
+                request.StartAt.UtcDateTime, request.EndAt.UtcDateTime) });
+        var result = await _svc.GetAvailabilityAsync(10, 7, request.StartAt, request.EndAt,
+            49, 7, AppRole.Technician, CancellationToken.None);
+        result.Available.Should().BeFalse();
+        result.Busy.Should().HaveCount(1);
+        result.SuggestedStart.Should().Be(request.EndAt);
+    }
+
+    [Theory]
+    [InlineData("replan")]
+    [InlineData("complete")]
+    [InlineData("cancel")]
+    public async Task TaskMutation_AdminCannotUsePreviousExecutorsLeaseAfterReassignment(string action)
+    {
+        var request = ValidPlan();
+        var original = new TicketTaskDto(49, 10, 7, "Original", 1, false,
+            request.StartAt, request.EndAt, 3600);
+        _repo.Setup(repo => repo.GetByIdAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3, AssigneeIds = new[] { 7, 8 } });
+        _accessPolicy.Setup(policy => policy.CanViewAsync(99, AppRole.Admin, 10,
+            It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _accessPolicy.Setup(policy => policy.EvaluateStatusTransitionAsync(99, AppRole.Admin,
+            10, 3, It.IsAny<CancellationToken>())).ReturnsAsync(StatusTransitionDecision.Allow());
+        _glpi.Setup(glpi => glpi.GetTicketStateAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(10, 3));
+        _glpi.SetupSequence(glpi => glpi.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { original })
+            .ReturnsAsync(new[] { original with { TechnicianId = 8 } });
+        _planningRequests.Setup(store => store.ClaimAsync(request.RequestId, 10, 99,
+            It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+
+        Func<Task> mutate = action switch
+        {
+            "replan" => async () => await _svc.ReplanTaskAsync(10, 49,
+                new ReplanTicketTaskRequest(request.RequestId, "Changed", request.StartAt, request.EndAt),
+                99, AppRole.Admin, CancellationToken.None),
+            "complete" => async () => await _svc.CompleteTaskAsync(10, 49, 99, AppRole.Admin, CancellationToken.None),
+            _ => async () => await _svc.CancelTaskAsync(10, 49, 99, AppRole.Admin, CancellationToken.None)
+        };
+        await mutate.Should().ThrowAsync<ConflictException>().WithMessage("*responsable*");
+        _glpi.Verify(glpi => glpi.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+        _glpi.Verify(glpi => glpi.UpdateTicketTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        _glpi.Verify(glpi => glpi.DeleteTicketTaskAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        if (action == "replan")
+            _planningRequests.Verify(store => store.CancelAsync(request.RequestId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static PlanTicketRequest ValidPlan() => new()
@@ -223,7 +395,7 @@ public class TicketServiceTests
     {
         var request = ValidPlan();
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Ticket { Id = 10, Status = 3 });
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
                 10, 3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(StatusTransitionDecision.Allow());
@@ -245,7 +417,7 @@ public class TicketServiceTests
     {
         var request = ValidPlan();
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Ticket { Id = 10, Status = 2 });
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
                 10, 3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(StatusTransitionDecision.Deny("No eres el técnico asignado."));
@@ -263,7 +435,7 @@ public class TicketServiceTests
     {
         var request = ValidPlan();
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Ticket { Id = 10, Status = 2 });
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
                 10, 3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(StatusTransitionDecision.Allow());
@@ -285,7 +457,7 @@ public class TicketServiceTests
     {
         var request = ValidPlan();
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Ticket { Id = 10, Status = 2 });
+            .ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
                 10, 3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(StatusTransitionDecision.Allow());
@@ -606,7 +778,7 @@ public class TicketServiceTests
     public async Task SolutionInsertAsync_DelegatesToGlpiApiClient()
     {
         const string validSolution = "solucion valida para prueba";
-        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(new Ticket { Id = 10, Status = 2 });
+        _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(new Ticket { Id = 10, Status = 2, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.CanAddSolutionAsync(7, It.IsAny<AppRole>(), 10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _glpi.Setup(g => g.GetTicketTasksAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { new TicketTaskDto(1, 10, 7, "Tarea realizada", 2, false, null, null, 0) });
@@ -840,15 +1012,19 @@ public class TicketServiceTests
                 request.EndAt.UtcDateTime, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { conflict });
         _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
-                request.StartAt.UtcDateTime.AddDays(7), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                request.EndAt.UtcDateTime.AddDays(7), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { conflict });
 
         var act = () => _svc.PlanAsync(10, request, 7, AppRole.Technician, CancellationToken.None);
 
         var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
         exception.Code.Should().Be("schedule_conflict");
-        exception.Message.Should().Contain("#55").And.Contain("#901");
+        exception.Message.Should().Contain("zona horaria").And.NotContain("UTC");
         exception.Details.Should().ContainKey("conflicts");
+        var intervals = JsonSerializer.SerializeToElement(exception.Details!["conflicts"]);
+        intervals[0].GetProperty("ticketId").GetInt32().Should().Be(conflict.TicketId);
+        intervals[0].GetProperty("taskId").GetInt32().Should().Be(conflict.TaskId);
+        intervals[0].GetProperty("startAt").GetDateTime().Should().Be(conflict.StartUtc);
         exception.Details!["suggestedStart"].Should().NotBeNull();
         _planningRequests.Verify(s => s.CancelAsync(request.RequestId, It.IsAny<CancellationToken>()), Times.Once);
         _glpi.Verify(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
@@ -910,7 +1086,7 @@ public class TicketServiceTests
                 request.EndAt.UtcDateTime, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { conflict });
         _repo.Setup(r => r.GetScheduledTaskConflictsAsync(7, request.StartAt.UtcDateTime,
-                request.StartAt.UtcDateTime.AddDays(7), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+                request.EndAt.UtcDateTime.AddDays(7), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { conflict });
 
         var act = () => _svc.PlanAsync(10, request, 7, AppRole.Technician, CancellationToken.None);
@@ -972,7 +1148,7 @@ public class TicketServiceTests
             new DateTimeOffset(2026, 11, 4, 8, 0, 0, TimeSpan.FromHours(-3)),
             new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(-3)));
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Ticket { Id = 10, Status = 3 });
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.CanViewAsync(7, AppRole.Technician, 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,
@@ -1037,7 +1213,7 @@ public class TicketServiceTests
             new DateTimeOffset(2026, 11, 4, 8, 0, 0, TimeSpan.FromHours(-3)),
             new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(-3)));
         _repo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Ticket { Id = 10, Status = 3 });
+            .ReturnsAsync(new Ticket { Id = 10, Status = 3, AssigneeIds = new[] { 7 } });
         _accessPolicy.Setup(a => a.CanViewAsync(7, AppRole.Technician, 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         _accessPolicy.Setup(a => a.EvaluateStatusTransitionAsync(7, AppRole.Technician,

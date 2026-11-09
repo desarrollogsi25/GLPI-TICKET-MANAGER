@@ -55,7 +55,9 @@ export function Login() {
         // The default landing depends on the role returned by this login, not on
         // the pre-login store value (which is still the previous session's role).
         const destination = data.user.role === 'solicitante' ? '/tickets' : '/kanban'
-        navigate(state?.from ?? destination, { replace: true })
+        // A fresh session never inherits another identity's list filters.
+        const from = state?.from?.split('?')[0]
+        navigate(from?.startsWith('/') && !from.startsWith('//') ? from : destination, { replace: true })
       },
     })
   })

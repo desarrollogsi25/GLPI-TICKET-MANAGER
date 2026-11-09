@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -8,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RichContent } from '@/components/ui/rich-content'
 import { useTicketQuery, useTicketTasksQuery, useUpdateTicketStatusMutation,
-  useCompleteTicketTaskMutation, useCancelTicketTaskMutation,
-  useTechniciansQuery } from '@/hooks/useTickets'
+  useCompleteTicketTaskMutation, useCancelTicketTaskMutation } from '@/hooks/useTickets'
 import type { TicketTask } from '@/lib/api/tickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, formatRelative } from '@/lib/format'
@@ -29,36 +28,16 @@ export function Detail() {
   const ticketId = Number(id)
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
-  const { data: technicians } = useTechniciansQuery()
 
   const currentUser = useAuthStore((state) => state.user)
   const role = useAuthStore((state) => state.user?.role ?? state.role)
   const isRequester = role === 'solicitante'
 
-  const techMap = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const t of technicians ?? []) {
-      map.set(t.id, t.displayName || t.username)
-    }
-    return map
-  }, [technicians])
-
-  const KNOWN_ROLES_MAP: Record<number, string> = {
-    2: 'Administrador del Sistema',
-    3: 'Líder de Service Desk',
-    4: 'Líder de Desarrollo',
-    5: 'Líder de Business Intelligence',
-    6: 'Técnico Especialista de Desarrollo',
-    7: 'Técnico de Service Desk',
-    8: 'Técnico de Business Intelligence',
-  }
-
   const getTechName = (techId?: number | null) => {
     if (!techId) return '—'
     if (currentUser?.userId === techId) return `${currentUser.displayName || currentUser.username} (yo)`
-    const known = techMap.get(techId)
+    const known = ticket?.participantNames?.[techId]
     if (known) return known
-    if (KNOWN_ROLES_MAP[techId]) return KNOWN_ROLES_MAP[techId]
     return isRequester ? 'Especialista de Soporte Técnico Asignado' : `Técnico #${techId}`
   }
 
@@ -333,8 +312,9 @@ export function Detail() {
                     size="sm"
                     variant="outline"
                     className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
-                    disabled={updateStatus.isPending}
+                    disabled={ticket.assigneeIds.length === 0 || updateStatus.isPending}
                     data-testid="start-ticket-btn"
+                    title={ticket.assigneeIds.length === 0 ? 'Asigna un técnico antes de planificar.' : undefined}
                     onClick={() => setPlanOpen(true)}
                   >
                     Planificar tarea
@@ -345,7 +325,7 @@ export function Detail() {
                   variant="default"
                   className="rounded-xl"
                   disabled={
-                    (ticket.status !== 2 && ticket.status !== 3) ||
+                    ticket.assigneeIds.length === 0 || (ticket.status !== 2 && ticket.status !== 3) ||
                     updateStatus.isPending
                   }
                   title={
@@ -367,7 +347,7 @@ export function Detail() {
                   size="sm"
                   variant="outline"
                   className="rounded-xl"
-                  disabled={ticket.status === 4 || ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                  disabled={ticket.assigneeIds.length === 0 || ticket.status === 4 || ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
                   onClick={() => setPendingOpen(true)}
                   data-testid="pending-ticket-btn"
                 >
@@ -501,7 +481,7 @@ export function Detail() {
                     .map((userId) =>
                       userId === currentUser?.userId
                         ? `${currentUser.displayName || currentUser.username} (yo)`
-                        : (techMap.get(userId) ?? `Solicitante #${userId}`)
+                        : (ticket.participantNames?.[userId] ?? `Usuario no disponible (#${userId})`)
                     )
                     .join(', ') || '—'}
                 </span>

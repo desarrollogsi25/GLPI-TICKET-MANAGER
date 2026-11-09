@@ -33,6 +33,7 @@ export async function updateTicketStatus(id: number, status: number): Promise<vo
 }
 
 export interface PlanTicketRequest {
+  technicianId?: number
   requestId: string
   content: string
   startAt: string
@@ -55,6 +56,20 @@ export interface PlanTicketResponse {
 
 export async function planTicket(id: number, payload: PlanTicketRequest): Promise<PlanTicketResponse> {
   const { data } = await apiClient.post<PlanTicketResponse>(`/tickets/${id}/plan`, payload)
+  return data
+}
+
+export interface PlanningAvailability {
+  available: boolean
+  busy: Array<{ startAt: string; endAt: string }>
+  suggestedStart: string | null
+}
+
+export async function getPlanningAvailability(ticketId: number, technicianId: number,
+  startAt: string, endAt: string, excludeTaskId?: number, signal?: AbortSignal): Promise<PlanningAvailability> {
+  const { data } = await apiClient.get<PlanningAvailability>(`/tickets/${ticketId}/availability`, {
+    params: { technicianId, startAt, endAt, excludeTaskId }, signal,
+  })
   return data
 }
 

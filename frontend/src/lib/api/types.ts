@@ -81,6 +81,7 @@ export interface TicketSolution {
 }
 
 export interface TicketDetail {
+  participantNames?: Record<number, string>
   id: number
   title: string
   content: string | null

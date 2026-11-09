@@ -407,6 +407,33 @@ public sealed class TicketRepository : ITicketRepository
         return (sql.ToString(), parameters);
     }
 
+    public async Task<IReadOnlyDictionary<int, string>> GetParticipantNamesAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = """
+            SELECT DISTINCT CAST(u.id AS SIGNED) AS Id, u.name AS Username,
+                COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''), u.name) AS DisplayName
+            FROM glpi_users u
+            WHERE u.id IN (
+                SELECT tu.users_id FROM glpi_tickets_users tu
+                WHERE tu.tickets_id = @TicketId AND tu.type IN (1, 2)
+                UNION
+                SELECT task.users_id_tech FROM glpi_tickettasks task
+                WHERE task.tickets_id = @TicketId AND (@CanSeePrivate = 1 OR task.is_private = 0)
+                UNION
+                SELECT f.users_id FROM glpi_itilfollowups f
+                WHERE f.itemtype = 'Ticket' AND f.items_id = @TicketId AND (@CanSeePrivate = 1 OR f.is_private = 0)
+                UNION
+                SELECT s.users_id FROM glpi_itilsolutions s
+                WHERE s.itemtype = 'Ticket' AND s.items_id = @TicketId
+            )
+            """;
+        var rows = await connection.QueryAsync<UserSummaryDto>(new CommandDefinition(sql,
+            new { TicketId = ticketId, CanSeePrivate = canSeePrivate ? 1 : 0 }, commandTimeout: _options.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+        return rows.ToDictionary(user => checked((int)user.Id), user => user.DisplayName);
+    }
+
     public Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken) =>
         GetByIdAsync(ticketId, true, cancellationToken);
 

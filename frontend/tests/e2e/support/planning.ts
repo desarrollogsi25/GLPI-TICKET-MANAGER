@@ -1,9 +1,20 @@
 import { expect, type Page } from '@playwright/test'
 import { randomInt } from 'node:crypto'
 
+/** Completing a task is an explicit native operation before resolving its ticket. */
+export async function completeSinglePendingTask(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog')
+  const complete = dialog.getByRole('button', { name: '✓ Completar', exact: true })
+  await expect(complete).toHaveCount(1)
+  await expect(complete).toBeEnabled()
+  await complete.click()
+  await expect(complete).toHaveCount(0, { timeout: 30_000 })
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+}
+
 /** Completes the native GLPI TicketTask scheduling form after it was opened. */
 export async function confirmPlanning(page: Page): Promise<void> {
-  const dialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  const dialog = page.getByRole('dialog', { name: /Planificación asistida|Planificar ticket/i })
   await expect(dialog).toBeVisible()
   // The dialog stays read-only until GLPI returns the ticket's tasks. A fresh
   // fixture pays the first REST session handshake (measured 3.7 s warm, more on

@@ -310,7 +310,11 @@ public sealed class TicketService : ITicketService
             if (ticket is null) return null;
         }
 
-        return ticket.ToDetail();
+        return ticket.ToDetail() with
+        {
+            ParticipantNames = await _tickets.GetParticipantNamesAsync(ticketId, canSeePrivate, cancellationToken)
+                ?? new Dictionary<int, string>()
+        };
     }
 
     public async Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken)
@@ -485,13 +489,19 @@ public sealed class TicketService : ITicketService
 
         // The PostgreSQL advisory lock closes the check-then-write race between
         // API replicas for this technician (external GLPI writers bypass it).
+        var lockedTechnicianId = task.TechnicianId;
         await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
-            task.TechnicianId, cancellationToken);
+            lockedTechnicianId, cancellationToken);
         task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken) ?? [])
             .FirstOrDefault(item => item.Id == taskId && item.TicketId == ticketId)
             ?? throw new ConflictException("La tarea cambió mientras se adquiría el bloqueo; actualiza la vista.", "task_modified");
         if (role == AppRole.Technician && task.TechnicianId != userId)
             throw new ForbiddenException("La tarea ya no está asignada al técnico autenticado.");
+        if (task.TechnicianId != lockedTechnicianId)
+        {
+            await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
+            throw new ConflictException("El responsable cambió mientras esperabas. Actualiza la tarea para bloquear su agenda actual.", "task_modified");
+        }
         var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
         if (current?.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Planned and not (int)TicketStatus.Waiting)
         {
@@ -514,7 +524,7 @@ public sealed class TicketService : ITicketService
         if (conflicts.Count > 0)
         {
             var lookahead = await _tickets.GetScheduledTaskConflictsAsync(task.TechnicianId,
-                request.StartAt.UtcDateTime, request.StartAt.UtcDateTime.AddDays(7), taskId,
+                request.StartAt.UtcDateTime, request.EndAt.UtcDateTime.AddDays(7), taskId,
                 cancellationToken) ?? conflicts;
             await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
             throw BuildScheduleConflict(conflicts, lookahead, request.StartAt, request.EndAt, ownTaskId: null, ticketId);
@@ -544,13 +554,16 @@ public sealed class TicketService : ITicketService
         int userId, AppRole role, CancellationToken cancellationToken)
     {
         var (ticket, task, state) = await GetEditableTaskAsync(ticketId, taskId, userId, role, cancellationToken);
+        var lockedTechnicianId = task.TechnicianId;
         await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
-            task.TechnicianId, cancellationToken);
+            lockedTechnicianId, cancellationToken);
         task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
             .FirstOrDefault(item => item.Id == taskId)
             ?? throw new NotFoundException("La tarea ya no existe en GLPI.");
         if (role == AppRole.Technician && task.TechnicianId != userId)
             throw new ForbiddenException("La tarea ya no está asignada al técnico autenticado.");
+        if (task.TechnicianId != lockedTechnicianId)
+            throw new ConflictException("El responsable cambió mientras esperabas. Actualiza la tarea antes de completarla.", "task_modified");
         var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
         if (current?.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Planned and not (int)TicketStatus.Waiting)
             throw new ConflictException("El ticket dejó de estar activo; actualiza la vista.");
@@ -573,13 +586,16 @@ public sealed class TicketService : ITicketService
         int userId, AppRole role, CancellationToken cancellationToken)
     {
         var (ticket, task, _) = await GetEditableTaskAsync(ticketId, taskId, userId, role, cancellationToken);
+        var lockedTechnicianId = task.TechnicianId;
         await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
-            task.TechnicianId, cancellationToken);
+            lockedTechnicianId, cancellationToken);
         task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
             .FirstOrDefault(item => item.Id == taskId)
             ?? throw new NotFoundException("La tarea ya no existe en GLPI.");
         if (role == AppRole.Technician && task.TechnicianId != userId)
             throw new ForbiddenException("La tarea ya no está asignada al técnico autenticado.");
+        if (task.TechnicianId != lockedTechnicianId)
+            throw new ConflictException("El responsable cambió mientras esperabas. Actualiza la tarea antes de cancelarla.", "task_modified");
         var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
         if (current?.Status is not (int)TicketStatus.Assigned and not (int)TicketStatus.Planned and not (int)TicketStatus.Waiting)
             throw new ConflictException("El ticket dejó de estar activo; actualiza la vista.");
@@ -607,12 +623,10 @@ public sealed class TicketService : ITicketService
         int ticketId)
     {
         var ordered = conflicts.OrderBy(conflict => conflict.StartUtc).ToArray();
-        var intervals = ordered.Select(conflict =>
-            $"ticket #{conflict.TicketId} (tarea #{conflict.TaskId}): {FormatUtc(conflict.StartUtc)} – {FormatUtc(conflict.EndUtc)} UTC");
         var sameTicket = ordered.All(conflict => conflict.TicketId == ticketId);
         var message = sameTicket
             ? $"La tarea #{ordered[0].TaskId} de este ticket ya ocupa ese horario. Reprograma esa tarea en lugar de crear otra."
-            : $"El técnico ya tiene otra tarea programada durante ese horario: {string.Join("; ", intervals)}. Elige otro intervalo.";
+            : "El técnico ya tiene otra tarea programada durante ese horario. Consulta los intervalos en tu zona horaria y elige uno libre.";
         var suggestion = SuggestFreeStart(startAt, endAt - startAt, lookahead);
         return new ConflictException(message, "schedule_conflict", new Dictionary<string, object?>
         {
@@ -630,17 +644,14 @@ public sealed class TicketService : ITicketService
         });
     }
 
-    private static string FormatUtc(DateTime value) =>
-        DateTime.SpecifyKind(value, DateTimeKind.Utc)
-            .ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-
     /// <summary>First quarter-hour aligned slot of the same duration that does not overlap.</summary>
     private static DateTimeOffset? SuggestFreeStart(DateTimeOffset start, TimeSpan duration,
         IReadOnlyList<ScheduledTaskConflict> lookahead)
     {
         var candidate = RoundUpToQuarter(start);
-        for (var attempt = 0; attempt < 12; attempt++)
+        for (var attempt = 0; attempt <= lookahead.Count; attempt++)
         {
+            if (candidate > start.AddDays(7)) return null;
             var candidateEnd = candidate + duration;
             DateTimeOffset? blockingEnd = null;
             foreach (var conflict in lookahead)
@@ -894,6 +905,55 @@ public sealed class TicketService : ITicketService
         return true;
     }
 
+    private async Task<int> RequirePlanningTechnicianAsync(Ticket ticket, int requestedId,
+        int userId, AppRole role, CancellationToken ct)
+    {
+        var technicianId = requestedId > 0 ? requestedId
+            : role == AppRole.Technician ? userId
+            : ticket.AssigneeIds.Count == 1 ? ticket.AssigneeIds[0] : 0;
+        if (technicianId <= 0)
+            throw Invalid("technicianId", "Selecciona explícitamente el técnico responsable asignado al ticket.");
+        if (!ticket.AssigneeIds.Contains(technicianId) ||
+            !await _accessPolicy.CanPlanAsync(userId, role, ticket.Id, technicianId, ct))
+            throw new ForbiddenException("El responsable debe ser un técnico asignado al ticket dentro de tu ámbito autorizado.");
+        var active = await _tickets.GetTechniciansAsync(ticket.GroupId, null, ct) ?? [];
+        if (!active.Any(technician => technician.Id == technicianId))
+            throw new ForbiddenException("El técnico responsable ya no está activo o no pertenece al grupo del ticket.");
+        return technicianId;
+    }
+
+    public async Task<PlanningAvailabilityDto> GetAvailabilityAsync(int ticketId, int technicianId,
+        DateTimeOffset startAt, DateTimeOffset endAt, int? excludeTaskId,
+        int userId, AppRole role, CancellationToken cancellationToken)
+    {
+        if (startAt == default || endAt <= startAt || endAt - startAt < TimeSpan.FromMinutes(1)
+            || endAt - startAt > TimeSpan.FromDays(30))
+            throw Invalid("startAt", "Elige un intervalo válido de entre 1 minuto y 30 días.");
+        if (!await _accessPolicy.CanViewAsync(userId, role, ticketId, cancellationToken))
+            throw new ForbiddenException("No tienes acceso a este ticket.");
+        var ticket = await _tickets.GetByIdAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException("Ticket no encontrado.");
+        technicianId = await RequirePlanningTechnicianAsync(ticket, technicianId, userId, role, cancellationToken);
+        if (excludeTaskId is not null)
+        {
+            var task = (await _glpi.GetTicketTasksAsync(ticketId, cancellationToken))
+                .FirstOrDefault(task => task.Id == excludeTaskId && task.TicketId == ticketId);
+            if (task is null || task.TechnicianId != technicianId || task.State != 1)
+                throw new ForbiddenException("Solo puedes excluir la tarea pendiente del técnico en este ticket.");
+        }
+        // Include the whole local day (the offset was supplied by the date selector),
+        // plus a bounded lookahead so suggestions account for subsequent bookings.
+        var dayStart = new DateTimeOffset(startAt.Date, startAt.Offset);
+        var busy = await _tickets.GetScheduledTaskConflictsAsync(technicianId,
+            dayStart.UtcDateTime, endAt.UtcDateTime.AddDays(7), excludeTaskId, cancellationToken) ?? [];
+        var available = !busy.Any(period => period.StartUtc < endAt.UtcDateTime && period.EndUtc > startAt.UtcDateTime);
+        return new PlanningAvailabilityDto(available,
+            busy.OrderBy(period => period.StartUtc).Select(period => new BusyPeriodDto(
+                DateTime.SpecifyKind(period.StartUtc, DateTimeKind.Utc),
+                DateTime.SpecifyKind(period.EndUtc, DateTimeKind.Utc))).ToArray(),
+            SuggestFreeStart(startAt, endAt - startAt, busy));
+    }
+
     /// <summary>
     /// Native GLPI workflow: creating a scheduled TODO TicketTask moves the ticket
     /// from Assigned to Processing (planned). PATCH status=3 is never used.
@@ -929,12 +989,14 @@ public sealed class TicketService : ITicketService
         }
         if (!decision.Allowed) throw new ForbiddenException(decision.Reason ?? "No tienes permisos para planificar el ticket.");
 
+        var technicianId = await RequirePlanningTechnicianAsync(ticket, request.TechnicianId, userId, role, cancellationToken);
+
         // Read from GLPI, not the eventually-consistent MariaDB projection.
         var current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken)
             ?? throw new NotFoundException($"Ticket {ticketId} not found in GLPI.");
 
         var canonical = string.Join("|", ticketId.ToString(CultureInfo.InvariantCulture),
-            userId.ToString(CultureInfo.InvariantCulture), content,
+            userId.ToString(CultureInfo.InvariantCulture), technicianId.ToString(CultureInfo.InvariantCulture), content,
             request.StartAt.UtcTicks.ToString(CultureInfo.InvariantCulture),
             request.EndAt.UtcTicks.ToString(CultureInfo.InvariantCulture));
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
@@ -951,7 +1013,11 @@ public sealed class TicketService : ITicketService
             return new PlanTicketResponse(ticketId, claim.TaskId!.Value, current.Status);
 
         await using var scheduleLock = await _planningRequests.AcquireTechnicianScheduleLockAsync(
-            userId, cancellationToken);
+            technicianId, cancellationToken);
+        // Assignment can change while another API replica holds the schedule lease.
+        var freshTicket = await _tickets.GetByIdAsync(ticketId, cancellationToken)
+            ?? throw new NotFoundException($"Ticket {ticketId} not found.");
+        await RequirePlanningTechnicianAsync(freshTicket, technicianId, userId, role, cancellationToken);
         // The ticket may have changed while we waited for another API replica.
         current = await _glpi.GetTicketStateAsync(ticketId, cancellationToken)
             ?? throw new NotFoundException($"Ticket {ticketId} not found in GLPI.");
@@ -971,7 +1037,7 @@ public sealed class TicketService : ITicketService
         // in place, preserving the GLPI task id and its history.
         var ticketTasks = await _glpi.GetTicketTasksAsync(ticketId, cancellationToken) ?? [];
         var ownOverlap = ticketTasks
-            .Where(item => item.TechnicianId == userId
+            .Where(item => item.TechnicianId == technicianId
                 && item.State == 1
                 && item.StartAt is not null && item.EndAt is not null
                 && item.StartAt.Value < request.EndAt && item.EndAt.Value > request.StartAt)
@@ -987,13 +1053,13 @@ public sealed class TicketService : ITicketService
                 "state_conflict");
         }
 
-        var conflicts = await _tickets.GetScheduledTaskConflictsAsync(userId,
+        var conflicts = await _tickets.GetScheduledTaskConflictsAsync(technicianId,
             request.StartAt.UtcDateTime, request.EndAt.UtcDateTime,
             rescheduleTarget?.Id, cancellationToken) ?? [];
         if (conflicts.Count > 0)
         {
-            var lookahead = await _tickets.GetScheduledTaskConflictsAsync(userId,
-                request.StartAt.UtcDateTime, request.StartAt.UtcDateTime.AddDays(7),
+            var lookahead = await _tickets.GetScheduledTaskConflictsAsync(technicianId,
+                request.StartAt.UtcDateTime, request.EndAt.UtcDateTime.AddDays(7),
                 rescheduleTarget?.Id, cancellationToken) ?? conflicts;
             await _planningRequests.CancelAsync(request.RequestId, cancellationToken);
             throw BuildScheduleConflict(conflicts, lookahead, request.StartAt, request.EndAt,
@@ -1084,7 +1150,7 @@ public sealed class TicketService : ITicketService
         // Reservation happens before GLPI's non-idempotent POST. Do not automatically
         // release it on timeout / 5xx: GLPI may have persisted the task already.
         var taskId = await _glpi.CreatePlannedTaskAsync(
-            ticketId, userId, content, request.StartAt, request.EndAt, cancellationToken);
+            ticketId, technicianId, content, request.StartAt, request.EndAt, cancellationToken);
         await _planningRequests.CompleteAsync(request.RequestId, taskId, cancellationToken);
 
         var updated = await _glpi.GetTicketStateAsync(ticketId, cancellationToken);
@@ -1101,7 +1167,7 @@ public sealed class TicketService : ITicketService
         {
             await _audit.LogAsync(userId, "plan", ticketId, JsonSerializer.Serialize(new
             {
-                taskId, startAt = request.StartAt, endAt = request.EndAt,
+                taskId, technicianId, startAt = request.StartAt, endAt = request.EndAt,
                 previousStatus = current.Status
             }), cancellationToken);
         }

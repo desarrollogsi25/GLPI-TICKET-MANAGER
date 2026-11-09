@@ -93,6 +93,10 @@ public interface ITicketService
 
     Task<PlanTicketResponse> PlanAsync(int ticketId, PlanTicketRequest request, int userId, AppRole role, CancellationToken cancellationToken);
 
+    Task<PlanningAvailabilityDto> GetAvailabilityAsync(int ticketId, int technicianId,
+        DateTimeOffset startAt, DateTimeOffset endAt, int? excludeTaskId,
+        int userId, AppRole role, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<TicketTaskDto>> GetTasksAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<ResolveEligibilityDto> GetResolveEligibilityAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);

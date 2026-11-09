@@ -43,6 +43,7 @@ import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
 import { KanbanMobileSheet } from './KanbanMobileSheet'
+import { ticketColumn } from './kanbanColumns'
 
 type ColumnId = 'queue' | 'mine' | 'in_progress' | 'pending' | 'resolved'
 
@@ -283,11 +284,13 @@ function KanbanColumn({
                 >
                   <TicketCard
                     ticket={ticket}
-                    draggable={column.id !== 'resolved'}
+                    draggable={column.id !== 'resolved' && (column.id === 'queue' || ticket.assigneeIds.length > 0)}
                     highlight={recentlyUpdatedIds?.has(ticket.id)}
                     shake={invalidDropTicketId === ticket.id}
                     actionButton={
-                      column.id === 'queue' ? (
+                      column.id !== 'queue' && column.id !== 'resolved' && !ticket.assigneeIds.length ? (
+                        <span className="text-xs text-muted-foreground">Asigna un técnico antes de continuar.</span>
+                      ) : column.id === 'queue' ? (
                         <Button
                           size="sm"
                           variant="default"
@@ -571,13 +574,19 @@ export function Kanban() {
   // Pointer sensor with distance prevents click conflict on buttons and links
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const queueTickets = useMemo(() => queueQuery.data?.items ?? [], [queueQuery.data])
+  const queueTickets = useMemo(() => {
+    const merged = new Map((queueQuery.data?.items ?? []).map(ticket => [ticket.id, ticket]))
+    // The general read is authoritative when a queue poll still contains a claimed ticket.
+    for (const ticket of myTicketsQuery.data?.items ?? []) merged.set(ticket.id, ticket)
+    return [...merged.values()].filter(ticket => ticketColumn(ticket) === 'queue' &&
+      (currentGroupId == null || ticket.groupId === currentGroupId))
+  }, [queueQuery.data, myTicketsQuery.data, currentGroupId])
 
   const myTicketsByColumn = useMemo(() => {
     const rawAll = myTicketsQuery.data?.items ?? []
     const all = rawAll.filter((t) => {
       // QA-01: Excluir estrictamente tickets de otros grupos
-      if (currentGroupId != null && t.groupId != null && t.groupId !== currentGroupId) {
+      if (currentGroupId != null && t.groupId !== currentGroupId) {
         return false
       }
       // QA-02: Filtro por técnico o 'Sin asignar'
@@ -591,12 +600,12 @@ export function Kanban() {
     })
 
     return {
-      mine: all.filter((t) => t.status === 1 || t.status === 2),
-      in_progress: all.filter((t) => t.status === 3),
-      pending: all.filter((t) => t.status === 4),
+      mine: all.filter((t) => ticketColumn(t) === 'mine'),
+      in_progress: all.filter((t) => ticketColumn(t) === 'in_progress'),
+      pending: all.filter((t) => ticketColumn(t) === 'pending'),
       // GLPI can close a solved ticket immediately through its native closeticket action.
       // Keep it visible here so a successful resolution never appears to vanish.
-      resolved: all.filter((t) => t.status === 5 || t.status === 6),
+      resolved: all.filter((t) => ticketColumn(t) === 'resolved'),
     }
   }, [myTicketsQuery.data, isTechnician, currentAssigneeFilter, currentGroupId])
 
@@ -858,6 +867,8 @@ export function Kanban() {
       : myTicketsQuery.isLoading
 
   const getMobileActionButton = (colId: ColumnId, ticket: TicketSummary) => {
+    if (colId !== 'queue' && colId !== 'resolved' && !ticket.assigneeIds.length)
+      return <span className="text-xs text-muted-foreground">Asigna un técnico antes de continuar.</span>
     switch (colId) {
       case 'queue':
         return (

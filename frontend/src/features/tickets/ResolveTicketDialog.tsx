@@ -10,6 +10,7 @@ import { useCompleteTicketTaskMutation, useResolveTicketMutation, useTicketResol
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
+import { useAuthStore } from '@/store/authStore'
 
 export function ResolveTicketDialog({
   ticketId,
@@ -27,6 +28,8 @@ export function ResolveTicketDialog({
   })
   const content = watch('content')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [taskError, setTaskError] = useState('')
+  const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
   const resolveTicket = useResolveTicketMutation()
   const completeTask = useCompleteTicketTaskMutation()
@@ -48,7 +51,7 @@ export function ResolveTicketDialog({
   const submittingRef = useRef(false)
 
   const trimmed = content.trim()
-  const pending = resolveTicket.isPending || isSubmitting
+  const pending = resolveTicket.isPending || isSubmitting || completeTask.isPending
   // Short solutions are valid ("OK", "Listo"); only an empty one blocks the ticket.
   const hasError = Boolean(errors.content)
 
@@ -131,6 +134,7 @@ export function ResolveTicketDialog({
       description="Escribí la solución. Puede ser breve (por ejemplo «OK»), pero no puede quedar vacía: sin solución el ticket no puede marcarse como resuelto."
     >
       <form onSubmit={handleSubmit(submit)} noValidate>
+        {taskError && <p role="alert" className="mb-3 text-sm text-red-700 dark:text-red-400">{taskError}</p>}
         {pendingTasks.length > 0 ? (
           <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
             <p className="font-semibold">Tareas pendientes por hacer ({pendingTasks.length})</p>
@@ -147,15 +151,21 @@ export function ResolveTicketDialog({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-6 px-2 text-[11px]"
-                    disabled={completeTask.isPending}
+                    className="min-h-11 shrink-0 px-2 text-xs"
+                    disabled={pending || !(user?.role === 'admin' || user?.role === 'supervisor' || user?.userId === task.technicianId)}
+                    title={user?.role === 'technician' && user.userId !== task.technicianId
+                      ? 'Esta tarea pertenece a otro técnico. Solicita al supervisor que revise el responsable.' : undefined}
                     onClick={async () => {
+                      setTaskError('')
                       try {
                         await completeTask.mutateAsync({ ticketId, taskId: task.id })
                         void queryClient.invalidateQueries({ queryKey: ['tickets', 'tasks', ticketId] })
                         void queryClient.invalidateQueries({ queryKey: ['tickets', 'resolve-eligibility', ticketId] })
-                      } catch {
-                        // error handled
+                        pushToast({ title: `Tarea #${task.id} completada`, variant: 'success' })
+                      } catch (err) {
+                        setTaskError(getApiErrorMessage(err))
+                        pushToast({ title: getApiErrorTitle(err, 'No se pudo completar la tarea'),
+                          description: getApiErrorMessage(err), variant: 'destructive' })
                       }
                     }}
                   >
@@ -184,7 +194,7 @@ export function ResolveTicketDialog({
           />
           <div className="flex items-center justify-between text-xs">
             {hasError ? (
-              <p id="solution-error" role="alert" className="text-destructive">
+              <p id="solution-error" role="alert" className="text-red-700 dark:text-red-400">
                 La solución no puede estar vacía.
               </p>
             ) : (

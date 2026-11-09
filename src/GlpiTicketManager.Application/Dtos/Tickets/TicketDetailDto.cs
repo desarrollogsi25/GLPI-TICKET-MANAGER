@@ -29,4 +29,7 @@ public sealed record TicketDetailDto(
     int? NextPlannedDuration = null,
     string? NextPlannedComment = null,
     int? GroupId = null,
-    string? GroupName = null);
+    string? GroupName = null)
+{
+    public IReadOnlyDictionary<int, string> ParticipantNames { get; init; } = new Dictionary<int, string>();
+}

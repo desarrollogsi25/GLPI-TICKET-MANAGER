@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { useQuery } from '@tanstack/react-query'
 import { CalendarClock, Clock, User } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -7,7 +8,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useReplanTicketTaskMutation, useTechniciansQuery } from '@/hooks/useTickets'
-import type { TicketTask } from '@/lib/api/tickets'
+import { getPlanningAvailability, type TicketTask } from '@/lib/api/tickets'
 import {
   getApiConflictDetails,
   getApiErrorMessage,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/api/errors'
 import { toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
-import { localDateTime, parseUnambiguousLocal } from './planningDates'
+import { localDateTime, offsetDateTime, parseUnambiguousLocal } from './planningDates'
 import { PlanningDateTimeField } from './PlanningDateTimeField'
 
 const NO_CHANGES =
@@ -24,7 +25,7 @@ const NO_CHANGES =
 
 function formatInterval(startAt: string | null, endAt: string | null) {
   if (!startAt || !endAt) return 'sin horario'
-  const format = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  const format = new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short' })
   return `${format.format(new Date(startAt))} → ${format.format(new Date(endAt))}`
 }
 
@@ -37,12 +38,26 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false)
   const [conflict, setConflict] = useState<ApiConflictDetails | null>(null)
   const requestId = useRef<string | null>(null)
   const submitting = useRef(false)
   const mutation = useReplanTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
   const { data: technicians } = useTechniciansQuery()
+  const busy = mutation.isPending || checking
+  const startDate = parseUnambiguousLocal(start)
+  const endDate = parseUnambiguousLocal(end)
+  const startIso = startDate ? offsetDateTime(startDate) : ''
+  const endIso = endDate ? offsetDateTime(endDate) : ''
+  const availability = useQuery({
+    queryKey: ['tickets', 'availability', ticketId, task?.technicianId, startIso, endIso, task?.id],
+    queryFn: ({ signal }) => getPlanningAvailability(ticketId, task!.technicianId, startIso, endIso, task!.id, signal),
+    enabled: !!task && !!startDate && !!endDate && endDate > startDate,
+    staleTime: 0,
+    refetchInterval: task ? 15_000 : false,
+    retry: false,
+  })
 
   const techName = task?.technicianId
     ? technicians?.find((t) => t.id === task.technicianId)?.displayName ||
@@ -97,7 +112,14 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
     setError('')
     setConflict(null)
     submitting.current = true
+    setChecking(true)
     try {
+      const checked = await availability.refetch()
+      if (checked.isError) throw checked.error
+      if (!checked.data?.available) {
+        setError('El horario está ocupado. Selecciona un intervalo libre.')
+        return
+      }
       await mutation.mutateAsync({ ticketId, taskId: task.id, payload: {
         requestId: requestId.current ?? uuidv4(),
         content: effectiveContent,
@@ -118,6 +140,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         description: getApiErrorMessage(mutationError), variant: 'destructive' })
     } finally {
       submitting.current = false
+      setChecking(false)
     }
   }
 
@@ -125,7 +148,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   const prevEnd = task?.endAt ? new Date(task.endAt).toLocaleString() : 'No definida'
 
   return (
-    <Dialog open={task !== null} onClose={() => { if (!mutation.isPending) onClose() }}
+    <Dialog open={task !== null} onClose={() => { if (!busy) onClose() }}
       title={`Reprogramar tarea #${task?.id ?? ''}`}
       description="Actualiza la planificación de la intervención técnica en GLPI conservando auditoría e idempotencia. Si el ticket está Pendiente, GLPI lo reanudará a En proceso.">
       <form onSubmit={submit} className="space-y-4">
@@ -150,12 +173,28 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         </div>
 
         {/* Nuevo Horario */}
-        <div className="grid gap-3 lg:grid-cols-2">
-          <PlanningDateTimeField id="task-replan-start" label="Nuevo inicio" value={start} onChange={setStart} disabled={mutation.isPending} />
-          <PlanningDateTimeField id="task-replan-end" label="Nuevo fin" value={end} onChange={setEnd} disabled={mutation.isPending} />
+        <div className="grid gap-3">
+          <PlanningDateTimeField id="task-replan-start" label="Nuevo inicio" value={start} onChange={setStart} disabled={busy} />
+          <PlanningDateTimeField id="task-replan-end" label="Nuevo fin" value={end} onChange={setEnd} disabled={busy} />
         </div>
 
         {/* Atajos de duración */}
+        <section aria-label="Disponibilidad del técnico" aria-live="polite" className="space-y-2 rounded-xl border border-border p-3 text-sm">
+          <p className="font-medium">Agenda · {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
+          {availability.isFetching ? <p role="status">Comprobando disponibilidad…</p>
+            : availability.isError ? <div role="alert"><p>{getApiErrorMessage(availability.error)}</p>
+                <Button type="button" variant="outline" onClick={() => void availability.refetch()}>Reintentar disponibilidad</Button></div>
+            : availability.data ? <>
+                <p>{availability.data.available ? 'La franja seleccionada está libre.' : 'La franja seleccionada está ocupada.'}</p>
+                {!availability.data.available && availability.data.suggestedStart &&
+                  <Button type="button" variant="outline" disabled={busy} className="min-h-11"
+                    onClick={() => applySuggestedStart(availability.data!.suggestedStart!)}>Usar horario libre</Button>}
+                <div className="max-h-32 overflow-y-auto text-xs text-muted-foreground">
+                  {availability.data.busy.map((period, index) => <p key={index}>{formatInterval(period.startAt, period.endAt)} · Intervención programada</p>)}
+                </div>
+              </> : <p>Indica un inicio y fin válidos.</p>}
+        </section>
+
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-medium text-muted-foreground mr-1">Ajustar duración:</span>
           {[
@@ -167,6 +206,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
             <button
               key={d.label}
               type="button"
+              disabled={busy}
               onClick={() => {
                 const s = parseUnambiguousLocal(start) ?? new Date()
                 setEnd(localDateTime(new Date(s.getTime() + d.minutes * 60_000)))
@@ -187,6 +227,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           <Textarea
             id="task-replan-content"
             value={content}
+            disabled={busy}
             maxLength={4000}
             placeholder="Opcional: detalles del trabajo a realizar o motivo de reprogramación..."
             onChange={(event) => setContent(event.target.value)}
@@ -195,7 +236,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
         </div>
 
         {error && (
-          <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+          <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-red-700 dark:text-red-400">
             <p className="font-medium">{error}</p>
             {conflict && conflict.conflicts.length > 0 && (
               <>
@@ -215,9 +256,9 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
             )}
           </div>
         )}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>Cancelar</Button>
-          <Button type="submit" disabled={mutation.isPending}>
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={onClose}>Cancelar</Button>
+          <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={busy || availability.isFetching || availability.isError || !availability.data?.available}>
             {mutation.isPending ? 'Reprogramando...' : 'Guardar nueva programación'}
           </Button>
         </div>

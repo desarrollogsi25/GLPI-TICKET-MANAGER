@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { useQuery } from '@tanstack/react-query'
 import {
   CalendarClock,
   PlusCircle,
   RefreshCw,
   Clock,
-  Sparkles,
   AlertTriangle,
   Calendar,
   Layers,
@@ -21,7 +21,8 @@ import {
   useTicketTasksQuery,
   useTicketQuery,
 } from '@/hooks/useTickets'
-import type { TicketTask } from '@/lib/api/tickets'
+import { getPlanningAvailability, type TicketTask } from '@/lib/api/tickets'
+import { useAuthStore } from '@/store/authStore'
 import {
   getApiConflictDetails,
   getApiErrorMessage,
@@ -30,7 +31,7 @@ import {
 } from '@/lib/api/errors'
 import { toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
-import { localDateTime, parseUnambiguousLocal } from './planningDates'
+import { localDateTime, offsetDateTime, parseUnambiguousLocal } from './planningDates'
 import { PlanningDateTimeField } from './PlanningDateTimeField'
 
 type PlanMode = 'reschedule' | 'new'
@@ -49,12 +50,8 @@ const DURATIONS = [
 
 function formatInterval(startAt: string | null, endAt: string | null) {
   if (!startAt || !endAt) return 'sin horario'
-  const format = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  const format = new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short' })
   return `${format.format(new Date(startAt))} → ${format.format(new Date(endAt))}`
-}
-
-function formatTimeOnly(date: Date) {
-  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
 function pickInitialTask(tasks: TicketTask[]): TicketTask | null {
@@ -73,12 +70,16 @@ export function PlanTicketDialog({
   open: boolean
   onOpenChange: (value: boolean) => void
 }) {
+  const [technicianId, setTechnicianId] = useState(0)
+  const user = useAuthStore((state) => state.user)
   const [mode, setMode] = useState<PlanMode>('new')
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
   const [content, setContent] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [ready, setReady] = useState(false)
   const [conflict, setConflict] = useState<ApiConflictDetails | null>(null)
   const requestId = useRef<string | null>(null)
   const submitting = useRef(false)
@@ -96,13 +97,15 @@ export function PlanTicketDialog({
     [tasksQuery.data],
   )
   const selectedTask = openTasks.find((task) => task.id === selectedTaskId) ?? null
-  const busy = planning.isPending || replanning.isPending
+  const busy = planning.isPending || replanning.isPending || checking
 
   useEffect(() => {
     if (!open) {
       initialized.current = false
+      setReady(false)
       submitting.current = false
       setContent('')
+      setTechnicianId(0)
       setError('')
       setConflict(null)
       return
@@ -131,10 +134,11 @@ export function PlanTicketDialog({
     setConflict(null)
     requestId.current = uuidv4()
     initialized.current = true
+    setReady(true)
   }, [open, openTasks, tasksQuery.isLoading, tasksQuery.isError])
 
   const switchMode = (next: PlanMode) => {
-    if (busy || next === mode) return
+    if (busy || tasksUnavailable || next === mode) return
     setMode(next)
     setError('')
     setConflict(null)
@@ -154,13 +158,6 @@ export function PlanTicketDialog({
   const applyDuration = (minutes: number) => {
     const base = parseUnambiguousLocal(start) ?? new Date()
     setEnd(localDateTime(new Date(base.getTime() + minutes * 60_000)))
-  }
-
-  const applySlot = (slotDate: Date, minutes = 60) => {
-    setStart(localDateTime(slotDate))
-    setEnd(localDateTime(new Date(slotDate.getTime() + minutes * 60_000)))
-    setConflict(null)
-    setError('')
   }
 
   const applySuggestedStart = (iso: string) => {
@@ -189,46 +186,37 @@ export function PlanTicketDialog({
     if (task.endAt) setEnd(localDateTime(new Date(task.endAt)))
   }
 
-  // Quick assisted smart slots
-  const smartSlots = useMemo(() => {
-    const now = new Date()
-    // 1. Next immediate slot (now + 15 min rounded to nearest 15m)
-    const slot1 = new Date(Math.ceil((now.getTime() + 15 * 60_000) / (15 * 60_000)) * (15 * 60_000))
-
-    // 2. Later today (2 hours from slot 1 or 15:00)
-    const slot2 = new Date(slot1)
-    if (slot1.getHours() < 14) {
-      slot2.setHours(15, 0, 0, 0)
-    } else {
-      slot2.setTime(slot1.getTime() + 120 * 60_000)
-    }
-
-    // 3. Tomorrow morning at 09:00
-    const slot3 = new Date(now)
-    slot3.setDate(slot3.getDate() + 1)
-    slot3.setHours(9, 0, 0, 0)
-
-    return [
-      { label: `Hoy ${formatTimeOnly(slot1)}`, date: slot1, desc: 'Inmediato' },
-      { label: `Hoy ${formatTimeOnly(slot2)}`, date: slot2, desc: 'Tarde' },
-      { label: `Mañana 09:00`, date: slot3, desc: 'Próxima jornada' },
-    ]
-  }, [])
-
+  const responsibleId = mode === 'reschedule' ? selectedTask?.technicianId ?? 0
+    : technicianId || (ticket?.assigneeIds.length === 1 ? ticket.assigneeIds[0] : 0)
   const startDateObj = parseUnambiguousLocal(start)
   const endDateObj = parseUnambiguousLocal(end)
   const isEndBeforeStart = Boolean(startDateObj && endDateObj && endDateObj <= startDateObj)
   const isPastStart = Boolean(startDateObj && startDateObj.getTime() < Date.now() - 5 * 60_000)
+  const startIso = startDateObj ? offsetDateTime(startDateObj) : ''
+  const endIso = endDateObj ? offsetDateTime(endDateObj) : ''
+  const excludeTaskId = mode === 'reschedule' ? selectedTask?.id : undefined
+  const availability = useQuery({
+    queryKey: ['tickets', 'availability', ticketId, responsibleId, startIso, endIso, excludeTaskId],
+    queryFn: ({ signal }) => getPlanningAvailability(ticketId, responsibleId, startIso, endIso, excludeTaskId, signal),
+    enabled: open && ready && responsibleId > 0 && !!startIso && !!endIso && !isEndBeforeStart,
+    staleTime: 0,
+    refetchInterval: open ? 15_000 : false,
+    retry: false,
+  })
 
   const close = () => {
     if (!busy) onOpenChange(false)
   }
 
-  const tasksUnavailable = tasksQuery.isLoading || tasksQuery.isError
+  const tasksUnavailable = tasksQuery.isLoading || tasksQuery.isError || !ready
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (submitting.current || busy) return
+    if (!responsibleId) {
+      setError('Selecciona un técnico asignado al ticket antes de planificar.')
+      return
+    }
     if (tasksQuery.isError) {
       setError(
         'No se pudieron leer las tareas GLPI del ticket. Reintenta la carga antes de guardar para no duplicar la tarea existente.',
@@ -280,12 +268,20 @@ export function PlanTicketDialog({
     setError('')
     setConflict(null)
     submitting.current = true
+    setChecking(true)
     try {
+      const checked = await availability.refetch()
+      if (checked.isError) throw checked.error
+      if (!checked.data?.available) {
+        setError('El horario está ocupado. Elige un intervalo libre antes de confirmar.')
+        return
+      }
       if (mode === 'reschedule' && selectedTask) {
         await replanning.mutateAsync({
           ticketId,
           taskId: selectedTask.id,
           payload: {
+            technicianId: responsibleId,
             requestId: requestId.current ?? uuidv4(),
             content: effectiveContent,
             startAt: startDate.toISOString(),
@@ -301,6 +297,7 @@ export function PlanTicketDialog({
         const result = await planning.mutateAsync({
           ticketId,
           payload: {
+            technicianId: responsibleId,
             requestId: requestId.current ?? uuidv4(),
             content: effectiveContent,
             startAt: startDate.toISOString(),
@@ -327,6 +324,7 @@ export function PlanTicketDialog({
       })
     } finally {
       submitting.current = false
+      setChecking(false)
     }
   }
 
@@ -335,7 +333,7 @@ export function PlanTicketDialog({
       open={open}
       onClose={close}
       title={`Planificación asistida · Ticket #${ticketId}`}
-      description="Programa intervenciones con prevención de colisiones de agenda y sincronización bidireccional nativa en GLPI."
+      description="Elige al responsable, revisa su agenda y confirma una franja libre."
     >
       <form onSubmit={submit} className="space-y-4">
         {/* Ticket Context Header Card */}
@@ -363,7 +361,7 @@ export function PlanTicketDialog({
         {tasksQuery.isError && (
           <div
             role="alert"
-            className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive"
+            className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-red-700 dark:text-red-400"
           >
             <p className="font-medium">No se pudieron cargar las tareas GLPI de este ticket.</p>
             <p className="text-foreground/80">
@@ -375,8 +373,8 @@ export function PlanTicketDialog({
           </div>
         )}
 
-        {tasksQuery.isLoading && (
-          <p className="text-[11px] text-muted-foreground">Cargando tareas GLPI del ticket…</p>
+        {(tasksQuery.isLoading || !ready) && !tasksQuery.isError && (
+          <p role="status" className="text-xs text-muted-foreground">Preparando formulario y tareas GLPI del ticket…</p>
         )}
 
         {/* Mode Selector */}
@@ -385,6 +383,7 @@ export function PlanTicketDialog({
             <button
               type="button"
               onClick={() => switchMode('reschedule')}
+              disabled={busy || tasksUnavailable}
               className={`flex items-start gap-2 rounded-xl border p-3 text-left transition-colors cursor-pointer ${
                 mode === 'reschedule'
                   ? 'border-primary bg-primary/10 shadow-xs'
@@ -402,6 +401,7 @@ export function PlanTicketDialog({
             <button
               type="button"
               onClick={() => switchMode('new')}
+              disabled={busy || tasksUnavailable}
               className={`flex items-start gap-2 rounded-xl border p-3 text-left transition-colors cursor-pointer ${
                 mode === 'new'
                   ? 'border-primary bg-primary/10 shadow-xs'
@@ -425,6 +425,7 @@ export function PlanTicketDialog({
             <select
               id="plan-task"
               value={selectedTaskId ?? ''}
+              disabled={busy || tasksUnavailable}
               onChange={(event) => {
                 const task = openTasks.find((item) => item.id === Number(event.target.value))
                 if (!task) return
@@ -457,36 +458,31 @@ export function PlanTicketDialog({
           </div>
         )}
 
-        {/* Quick Smart Slots Suggestions */}
-        <div className="space-y-1.5 pt-0.5">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Sparkles className="size-3.5 text-amber-500" />
-            <span>Horarios recomendados:</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {smartSlots.map((slot) => (
-              <button
-                key={slot.label}
-                type="button"
-                onClick={() => applySlot(slot.date, 60)}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-border/70 bg-card hover:bg-muted/50 hover:border-primary/50 transition-all text-center cursor-pointer shadow-2xs"
-              >
-                <span className="text-xs font-semibold text-foreground">{slot.label}</span>
-                <span className="text-[10px] text-muted-foreground">{slot.desc}</span>
-              </button>
-            ))}
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="plan-technician">Técnico responsable</Label>
+          <select id="plan-technician" value={responsibleId || ''}
+            disabled={busy || tasksUnavailable || mode === 'reschedule'}
+            onChange={(event) => { setTechnicianId(Number(event.target.value)); setError(''); setConflict(null) }}
+            className="min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <option value="">Selecciona un técnico asignado</option>
+            {[...new Set([...(ticket?.assigneeIds ?? []), ...(selectedTask && mode === 'reschedule' ? [selectedTask.technicianId] : [])])]
+              .filter(id => user?.role !== 'technician' || id === user.userId)
+              .map(id => <option key={id} value={id}>{ticket?.participantNames?.[id]
+                ?? (id === user?.userId ? user.displayName || user.username : `Usuario no disponible (#${id})`)}</option>)}
+          </select>
+          {!ticket?.assigneeIds.length && <p role="alert" className="text-sm text-red-700 dark:text-red-400">Asigna un técnico al ticket antes de programar.</p>}
+          {mode === 'reschedule' && <p className="text-xs text-muted-foreground">Se conserva el responsable de la tarea existente.</p>}
         </div>
 
         {/* Date and Time Fields */}
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3">
           <PlanningDateTimeField
             id="plan-start"
             label="Fecha y hora de inicio"
             value={start}
             onChange={setStart}
             testId="plan-start"
-            disabled={busy}
+            disabled={busy || tasksUnavailable}
           />
           <PlanningDateTimeField
             id="plan-end"
@@ -494,13 +490,39 @@ export function PlanTicketDialog({
             value={end}
             onChange={setEnd}
             testId="plan-end"
-            disabled={busy}
+            disabled={busy || tasksUnavailable}
           />
         </div>
 
+        <section aria-label="Disponibilidad del técnico" aria-live="polite" className="space-y-2 rounded-xl border border-border p-3 text-sm">
+          <p className="font-medium">Agenda del técnico · {zone}</p>
+          {availability.isFetching ? <p role="status">Comprobando disponibilidad…</p>
+            : availability.isError ? <div role="alert" className="space-y-2 text-red-700 dark:text-red-400">
+                <p>{getApiErrorMessage(availability.error)}</p>
+                <Button type="button" variant="outline" onClick={() => void availability.refetch()}>Reintentar disponibilidad</Button>
+              </div>
+            : availability.data ? <>
+                <p className={availability.data.available ? 'text-foreground' : 'text-red-700 dark:text-red-400'}>
+                  {availability.data.available ? 'La franja seleccionada está libre.' : 'La franja seleccionada está ocupada.'}
+                </p>
+                {availability.data.suggestedStart && !availability.data.available &&
+                  <Button type="button" variant="outline" disabled={busy || tasksUnavailable} className="h-auto min-h-11 whitespace-normal text-left"
+                    onClick={() => applySuggestedStart(availability.data!.suggestedStart!)}>
+                    Usar horario libre · {formatInterval(availability.data.suggestedStart,
+                      new Date(new Date(availability.data.suggestedStart).getTime() + (endDateObj!.getTime() - startDateObj!.getTime())).toISOString())}
+                  </Button>}
+                {availability.data.busy.length > 0 && <div className="max-h-32 overflow-y-auto space-y-1 text-xs text-muted-foreground">
+                  <p className="font-medium">Ocupados · próximas fechas consultadas</p>
+                  {availability.data.busy.map((period, index) => <p key={index}>
+                    {formatInterval(period.startAt, period.endAt)} · Intervención programada
+                  </p>)}
+                </div>}
+              </> : <p>Selecciona técnico, inicio y duración para consultar su agenda.</p>}
+        </section>
+
         {/* Immediate validation indicators */}
         {isEndBeforeStart && (
-          <div className="flex items-center gap-1.5 text-xs text-destructive">
+          <div className="flex items-center gap-1.5 text-xs text-red-700 dark:text-red-400">
             <AlertTriangle className="size-3.5 shrink-0" />
             <span>La fecha de fin debe ser posterior a la fecha de inicio.</span>
           </div>
@@ -520,7 +542,8 @@ export function PlanTicketDialog({
               key={duration.label}
               type="button"
               onClick={() => applyDuration(duration.minutes)}
-              className="text-[11px] px-2.5 py-0.5 rounded-full border border-border/80 bg-muted/40 hover:bg-muted hover:border-primary/60 text-foreground transition-colors cursor-pointer"
+              disabled={busy || tasksUnavailable}
+              className="min-h-11 text-xs px-2.5 py-0.5 rounded-full border border-border/80 bg-muted/40 hover:bg-muted hover:border-primary/60 text-foreground transition-colors cursor-pointer"
             >
               +{duration.label}
             </button>
@@ -555,6 +578,7 @@ export function PlanTicketDialog({
             id="plan-content"
             maxLength={4000}
             value={content}
+            disabled={busy || tasksUnavailable}
             onChange={(event) => setContent(event.target.value)}
             placeholder="Opcional: detalles del trabajo a realizar o instrucciones especiales..."
             data-testid="plan-content"
@@ -563,13 +587,16 @@ export function PlanTicketDialog({
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Zona horaria: {zone}. La programación se sincroniza nativamente con GLPI TicketTask sin generar registros huérfanos.
+          Zona horaria: {zone}. La disponibilidad se vuelve a validar al confirmar.
         </p>
+        {responsibleId > 0 && <p className="rounded-lg bg-muted/30 p-3 text-sm">
+          {ticket?.participantNames?.[responsibleId] ?? 'Técnico seleccionado'} · {formatInterval(startIso, endIso)}
+        </p>}
 
         {error && (
           <div
             role="alert"
-            className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive"
+            className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-red-700 dark:text-red-400"
           >
             <p className="font-medium">{error}</p>
             {conflict && (
@@ -608,13 +635,14 @@ export function PlanTicketDialog({
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" disabled={busy} onClick={close}>
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={close}>
             Cancelar
           </Button>
           <Button
             type="submit"
-            disabled={busy || tasksUnavailable || isEndBeforeStart}
+            className="min-h-11 w-full sm:w-auto"
+            disabled={busy || tasksUnavailable || isEndBeforeStart || !responsibleId || availability.isFetching || !availability.data?.available || availability.isError}
             data-testid="plan-confirm-btn"
           >
             {busy

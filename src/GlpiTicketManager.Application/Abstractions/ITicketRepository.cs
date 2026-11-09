@@ -12,6 +12,9 @@ namespace GlpiTicketManager.Application.Abstractions;
 /// </summary>
 public interface ITicketRepository
 {
+    /// <summary>Display names of this ticket's participants. Call only after ticket authorization.</summary>
+    Task<IReadOnlyDictionary<int, string>> GetParticipantNamesAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Ticket>> GetByAssigneeAsync(
         int assigneeId,
         int limit,

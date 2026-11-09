@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 import { resetFixtureTicket } from './support/ticket-fixtures'
-import { confirmPlanning } from './support/planning'
+import { completeSinglePendingTask, confirmPlanning } from './support/planning'
 
 /**
  * QA audit spec for the pending-ticket flow (H-34 / H-36).
@@ -164,7 +164,7 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
   // The Pending ticket already has a scheduled GLPI task: the dialog must offer
   // reprogramming it in place (traceability, no duplicate task) instead of
   // failing with an opaque 409.
-  const resumeDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  const resumeDialog = page.getByRole('dialog', { name: /Planificación asistida|Planificar ticket/i })
   await expect(resumeDialog.getByText('Reprogramar tarea existente')).toBeVisible({ timeout: 30_000 })
   await expect(resumeDialog.getByRole('alert')).toHaveCount(0)
 
@@ -187,6 +187,7 @@ test('flujo pendiente: asignar -> pendiente (con comentario) -> verificar histor
 
   const resolveDialog = page.getByRole('dialog')
   await expect(resolveDialog).toBeVisible({ timeout: 10000 })
+  await completeSinglePendingTask(page)
 
   const resolveTextarea = resolveDialog.locator('textarea').first()
   await expect(resolveTextarea).toBeVisible({ timeout: 10000 })

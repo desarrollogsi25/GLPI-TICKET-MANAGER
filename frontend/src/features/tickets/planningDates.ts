@@ -3,6 +3,13 @@ export function localDateTime(date: Date): string {
   return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}`
 }
 
+/** Preserve the selected local day's UTC offset for availability queries. */
+export function offsetDateTime(date: Date): string {
+  const offset = -date.getTimezoneOffset()
+  const part = (value: number) => String(value).padStart(2, '0')
+  return `${localDateTime(date)}:00${offset >= 0 ? '+' : '-'}${part(Math.floor(Math.abs(offset) / 60))}:${part(Math.abs(offset) % 60)}`
+}
+
 /** Reject DST gaps/overlaps instead of scheduling at an unintended local time. */
 export function parseUnambiguousLocal(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null

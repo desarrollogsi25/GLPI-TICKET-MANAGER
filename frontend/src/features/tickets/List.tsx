@@ -354,25 +354,27 @@ export function List() {
     (startDate ? 1 : 0) +
     (endDate ? 1 : 0)
 
+  const visibleTotal = table.getFilteredRowModel().rows.length
+
   return (
     <div className="space-y-4">
       <PageHeader
         title={isRequester ? 'Mis tickets' : 'Tickets'}
         description={
           serviceId
-            ? `${data?.total ?? 0} ticket(s) para el servicio ${serviceName || ''}.`
+            ? `${visibleTotal} ticket(s) para el servicio ${serviceName || ''}.`
             : isRequester
               ? data
-                ? `${data.total} ticket(s) registrados por vos, incluidos los resueltos y cerrados.`
+                ? `${visibleTotal} ticket(s) registrados por vos, incluidos los resueltos y cerrados.`
                 : 'Tickets que abriste en GLPI'
               : isTechnician
                 ? data
-                  ? `${data.total} ticket(s) asignados a vos.`
+                  ? `${visibleTotal} ticket(s) asignados a vos.`
                   : 'Tus tickets asignados'
                 : data
                   ? assigneeId != null
-                    ? `${data.total} ticket(s) para el técnico seleccionado.`
-                    : `${data.total} ticket(s) de todos los técnicos.`
+                    ? `${visibleTotal} ticket(s) para el técnico seleccionado.`
+                    : `${visibleTotal} ticket(s) de todos los técnicos.`
                   : 'Listado de tickets'
         }
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: isRequester ? 'Mis tickets' : 'Tickets' }]}

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { confirmPlanning } from './support/planning'
+import { completeSinglePendingTask, confirmPlanning } from './support/planning'
 import { fixtureUrl } from './support/fixture-url'
 import { selectNativeCategory } from './support/glpi-form'
 
@@ -113,6 +113,7 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
   await expect(timeline.getByText('Intervención técnica reprogramada por prueba E2E')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: /^Resolver$/ }).first().click()
   const dialog = page.getByRole('dialog')
+  await completeSinglePendingTask(page)
   await dialog.locator('textarea').fill('Solución aplicada durante la prueba automatizada.')
   await dialog.getByRole('button', { name: /^Resolver$/ }).last().click()
   await expect(dialog).not.toBeVisible({ timeout: 15000 })

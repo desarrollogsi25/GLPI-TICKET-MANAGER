@@ -69,6 +69,11 @@ public static class TicketEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapGet("/{id:int}/availability", GetAvailability)
+            .WithName("GetPlanningAvailability")
+            .Produces<PlanningAvailabilityDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
         group.MapGet("/{id:int}/tasks", GetTasks)
             .WithName("GetTicketTasks")
             .WithSummary("Native GLPI TicketTasks timeline, scoped by ticket access and private-task permissions")
@@ -420,6 +425,31 @@ public static class TicketEndpoints
                 title: "Acceso denegado", detail: ex.Message);
         }
     }
+    private static async Task<IResult> GetAvailability(int id, int technicianId,
+        DateTimeOffset startAt, DateTimeOffset endAt, int? excludeTaskId,
+        ITicketService ticketService, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+        try
+        {
+            return Results.Ok(await ticketService.GetAvailabilityAsync(id, technicianId, startAt, endAt,
+                excludeTaskId, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: 400, title: "Horario inválido", detail: ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: 403, title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: 404, title: "No encontrado", detail: ex.Message);
+        }
+    }
+
     private static async Task<IResult> GetTasks(
         int id,
         ITicketService ticketService,
