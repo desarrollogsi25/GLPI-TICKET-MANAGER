@@ -152,7 +152,7 @@ export function Dialog({ open, onClose, title, description, children, className 
                 : { duration: 0.2, ease: [0.23, 1, 0.32, 1] }
             }
             className={cn(
-              'relative z-10 max-h-[92vh] max-sm:max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl sm:rounded-xl border border-border bg-card p-4 sm:p-6 shadow-xl',
+              'relative z-10 max-h-[92vh] max-sm:max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl sm:rounded-xl border border-border bg-card p-3 sm:p-6 shadow-xl',
               className,
             )}
             onClick={(event) => event.stopPropagation()}

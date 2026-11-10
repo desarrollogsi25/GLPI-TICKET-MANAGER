@@ -230,9 +230,9 @@ export function VisualScheduleSelector({
     <div className="space-y-3.5 rounded-2xl border border-border/80 bg-card/60 p-3.5 sm:p-4 shadow-xs backdrop-blur-xs">
       {/* Header: Date navigation & Timezone */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 max-w-[65%] sm:max-w-none">
           <Calendar className="size-4 text-primary shrink-0" />
-          <span className="font-semibold text-sm capitalize text-foreground truncate">{dateLabel}</span>
+          <span className="font-semibold text-xs sm:text-sm capitalize text-foreground truncate">{dateLabel}</span>
           {isToday && (
             <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4.5 bg-primary/10 text-primary shrink-0">
               Hoy
@@ -328,11 +328,11 @@ export function VisualScheduleSelector({
             type="button"
             size="sm"
             variant="outline"
-            disabled={disabled}
+            disabled={disabled || isFetchingAvailability}
             onClick={() => onSlotSelect(recommendedSlot.start, durationMinutes)}
             className="h-7 text-xs border-primary/50 text-primary hover:bg-primary/10 shrink-0 self-start sm:self-auto"
           >
-            Seleccionar recomendada
+            {isFetchingAvailability ? 'Comprobando…' : 'Seleccionar recomendada'}
           </Button>
         </div>
       )}
@@ -364,48 +364,68 @@ export function VisualScheduleSelector({
           </div>
         </div>
 
-        {/* Removed max-h-48 overflow-y-auto to eliminate nested scroll trap */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 p-1 border border-border/40 rounded-xl bg-muted/10">
-          {slots.map((slot) => {
-            const isClickable = !slot.isBusy && !slot.isAfterHours && !disabled
-            return (
-              <button
-                key={slot.timeLabel}
-                type="button"
-                disabled={!isClickable}
-                onClick={() => onSlotSelect(slot.start, durationMinutes)}
-                className={`relative flex flex-col items-center justify-center min-h-[46px] p-1.5 sm:p-2 rounded-lg text-xs transition-all cursor-pointer ${
-                  slot.isSelected
-                    ? 'bg-primary text-primary-foreground font-semibold ring-2 ring-primary ring-offset-1 shadow-sm'
-                    : slot.isBusy
-                      ? 'bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-400 cursor-not-allowed opacity-75'
-                      : slot.isAfterHours
-                        ? 'bg-muted/20 border border-border/30 text-muted-foreground/50 cursor-not-allowed'
-                        : slot.isPast
-                          ? 'bg-muted/30 border border-border/40 text-muted-foreground/60 hover:bg-muted/50'
-                          : 'bg-background/90 border border-border/70 text-foreground hover:border-primary/60 hover:bg-primary/5'
-                }`}
-              >
-                <span className="font-mono text-xs sm:text-sm font-semibold leading-none">{slot.timeLabel}</span>
-                <span className="text-[10px] opacity-75 leading-tight mt-0.5">
-                  → {slot.endLabel}
-                </span>
-                {slot.isSelected && (
-                  <Check className="size-3 absolute top-1 right-1 text-primary-foreground" />
-                )}
-                {slot.isBusy && !slot.isSelected && (
-                  <span className="text-[9px] text-rose-600 dark:text-rose-400 font-medium leading-none mt-0.5">
-                    Ocupado
+        <div className="relative">
+          {isFetchingAvailability && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/70 backdrop-blur-xs transition-opacity duration-150"
+            >
+              <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 shadow-sm border border-border/70 text-xs font-medium text-foreground">
+                <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span>Consultando disponibilidad…</span>
+              </div>
+            </div>
+          )}
+
+          {/* Time slots grid with disabled state while fetching */}
+          <div
+            aria-busy={isFetchingAvailability}
+            className={`grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 p-1 border border-border/40 rounded-xl bg-muted/10 transition-opacity duration-150 ${
+              isFetchingAvailability ? 'opacity-50 pointer-events-none' : ''
+            }`}
+          >
+            {slots.map((slot) => {
+              const isClickable = !slot.isBusy && !slot.isAfterHours && !disabled && !isFetchingAvailability
+              return (
+                <button
+                  key={slot.timeLabel}
+                  type="button"
+                  disabled={!isClickable}
+                  onClick={() => onSlotSelect(slot.start, durationMinutes)}
+                  className={`relative flex flex-col items-center justify-center min-h-[46px] p-1.5 sm:p-2 rounded-lg text-xs transition-all cursor-pointer ${
+                    slot.isSelected
+                      ? 'bg-primary text-primary-foreground font-semibold ring-2 ring-primary ring-offset-1 shadow-sm'
+                      : slot.isBusy
+                        ? 'bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-400 cursor-not-allowed opacity-75'
+                        : slot.isAfterHours
+                          ? 'bg-muted/20 border border-border/30 text-muted-foreground/50 cursor-not-allowed'
+                          : slot.isPast
+                            ? 'bg-muted/30 border border-border/40 text-muted-foreground/60 hover:bg-muted/50'
+                            : 'bg-background/90 border border-border/70 text-foreground hover:border-primary/60 hover:bg-primary/5'
+                  }`}
+                >
+                  <span className="font-mono text-xs sm:text-sm font-semibold leading-none">{slot.timeLabel}</span>
+                  <span className="text-[10px] opacity-75 leading-tight mt-0.5">
+                    → {slot.endLabel}
                   </span>
-                )}
-                {slot.isAfterHours && !slot.isBusy && (
-                  <span className="text-[9px] text-muted-foreground/60 font-medium leading-none mt-0.5">
-                    Excede 19h
-                  </span>
-                )}
-              </button>
-            )
-          })}
+                  {slot.isSelected && (
+                    <Check className="size-3 absolute top-1 right-1 text-primary-foreground" />
+                  )}
+                  {slot.isBusy && !slot.isSelected && (
+                    <span className="text-[9px] text-rose-600 dark:text-rose-400 font-medium leading-none mt-0.5">
+                      Ocupado
+                    </span>
+                  )}
+                  {slot.isAfterHours && !slot.isBusy && (
+                    <span className="text-[9px] text-muted-foreground/60 font-medium leading-none mt-0.5">
+                      Excede 19h
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 

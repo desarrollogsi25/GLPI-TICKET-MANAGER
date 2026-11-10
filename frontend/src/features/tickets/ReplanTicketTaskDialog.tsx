@@ -287,7 +287,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           </div>
         )}
 
-        <div className="sticky bottom-0 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 bg-card/95 backdrop-blur-sm border-t border-border/40 p-3 sm:p-4 flex flex-wrap justify-end gap-2 mt-4">
+        <div className="sticky bottom-0 -mx-3 -mb-3 sm:-mx-6 sm:-mb-6 bg-card/95 backdrop-blur-sm border-t border-border/40 p-3 sm:p-4 flex flex-wrap justify-end gap-2 mt-4">
           <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={onClose}>Cancelar</Button>
           <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={busy || !startDate || !endDate || isSame || availability.isFetching || availability.isError || !availability.data?.available}>
             {mutation.isPending ? 'Reprogramando...' : 'Guardar nueva programación'}

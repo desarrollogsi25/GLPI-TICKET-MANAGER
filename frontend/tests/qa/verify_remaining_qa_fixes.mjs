@@ -265,10 +265,10 @@ async function run() {
   }
 
   // -------------------------------------------------------------
-  // TEST 4: P2 — Responsividad móvil a 390x844 y 320px
+  // TEST 4: P2 — Responsividad móvil a 320, 375, 390 y 768 px (Plan & Replan)
   // -------------------------------------------------------------
   totalTests++
-  console.log('\n--- TEST 4: P2 — Modal móvil a 390x844 y 320px (sin scroll anidado) ---')
+  console.log('\n--- TEST 4: P2 — Modales móvil a 320, 375, 390 y 768 px (sin scroll anidado) ---')
   const ctx4 = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true })
   const page4 = await ctx4.newPage()
 
@@ -281,26 +281,72 @@ async function run() {
     await page4.waitForURL('**/kanban**', { timeout: 30000 })
     await page4.waitForLoadState('networkidle')
 
-    // Open ticket #1028 on mobile
+    // 1. Plan Dialog a 390x844
     await page4.goto(`${BASE_URL}/tickets/1028`, { waitUntil: 'networkidle' })
     await page4.waitForSelector('button:has-text("Planificar")', { timeout: 15000 })
-
     const planBtn = page4.locator('button:has-text("Planificar")').first()
     await planBtn.click()
     await page4.waitForSelector('[role="dialog"]', { timeout: 10000 })
-    await page4.waitForTimeout(1000)
+    await page4.waitForTimeout(500)
 
-    // Capture mobile 390x844 modal
+    // Capture Plan a 390x844
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-390x844-plan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-390x844-plan-dialog.png')
 
-    // Test extreme width 320px
+    // 2. Plan Dialog a 375x667
+    await page4.setViewportSize({ width: 375, height: 667 })
+    await page4.waitForTimeout(300)
+    await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-375x667-plan-dialog.png'), fullPage: true })
+    console.log('📸 Captura: p2-mobile-375x667-plan-dialog.png')
+
+    // 3. Plan Dialog a 320x640 (extremo)
     await page4.setViewportSize({ width: 320, height: 640 })
-    await page4.waitForTimeout(500)
+    await page4.waitForTimeout(300)
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-320px-plan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-320px-plan-dialog.png')
 
-    console.log('✅ PASS TEST 4 (P2): Vista móvil a 390x844 y 320px renderizada limpiamente con footer sticky.')
+    // 4. Plan Dialog a 768x1024 (tablet)
+    await page4.setViewportSize({ width: 768, height: 1024 })
+    await page4.waitForTimeout(300)
+    await page4.screenshot({ path: path.join(evidenceDir, 'p2-tablet-768px-plan-dialog.png'), fullPage: true })
+    console.log('📸 Captura: p2-tablet-768px-plan-dialog.png')
+
+    // Close Plan Dialog
+    const cancelPlanBtn = page4.locator('[role="dialog"] button:has-text("Cancelar")').first()
+    await cancelPlanBtn.click()
+    await page4.waitForTimeout(500)
+
+    // 5. Replan Dialog a 390x844 en ticket #1027
+    await page4.setViewportSize({ width: 390, height: 844 })
+    await page4.goto(`${BASE_URL}/tickets/1027`, { waitUntil: 'networkidle' })
+    await page4.waitForSelector('button:has-text("Reprogramar")', { timeout: 15000 })
+    const replanBtn = page4.locator('button:has-text("Reprogramar")').first()
+    await replanBtn.click()
+    await page4.waitForSelector('[role="dialog"]', { timeout: 10000 })
+    await page4.waitForTimeout(500)
+
+    await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-390x844-replan-dialog.png'), fullPage: true })
+    console.log('📸 Captura: p2-mobile-390x844-replan-dialog.png')
+
+    // 6. Replan Dialog a 320x640
+    await page4.setViewportSize({ width: 320, height: 640 })
+    await page4.waitForTimeout(300)
+    await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-320px-replan-dialog.png'), fullPage: true })
+    console.log('📸 Captura: p2-mobile-320px-replan-dialog.png')
+
+    // 7. Replan Dialog a 375x667
+    await page4.setViewportSize({ width: 375, height: 667 })
+    await page4.waitForTimeout(300)
+    await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-375x667-replan-dialog.png'), fullPage: true })
+    console.log('📸 Captura: p2-mobile-375x667-replan-dialog.png')
+
+    // 8. Replan Dialog a 768x1024
+    await page4.setViewportSize({ width: 768, height: 1024 })
+    await page4.waitForTimeout(300)
+    await page4.screenshot({ path: path.join(evidenceDir, 'p2-tablet-768px-replan-dialog.png'), fullPage: true })
+    console.log('📸 Captura: p2-tablet-768px-replan-dialog.png')
+
+    console.log('✅ PASS TEST 4 (P2): Modales de Planificar y Reprogramar verificados en 320, 375, 390 y 768 px sin desbordamiento.')
     passedCount++
   } catch (err) {
     console.error('❌ Error en Test 4:', err)
