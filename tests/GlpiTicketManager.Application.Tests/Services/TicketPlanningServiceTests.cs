@@ -15,6 +15,11 @@ namespace GlpiTicketManager.Application.Tests.Services;
 
 public sealed class TicketPlanningServiceTests
 {
+    private sealed class ScheduleLease : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+    private readonly Mock<ITicketPlanningRequestStore> _scheduleRequests = new();
     private readonly Mock<ITicketRepository> _tickets = new();
     private readonly Mock<ITicketTaskRepository> _tasks = new();
     private readonly Mock<IPlanningIdempotencyRepository> _idempotency = new();
@@ -24,6 +29,8 @@ public sealed class TicketPlanningServiceTests
 
     public TicketPlanningServiceTests()
     {
+        _scheduleRequests.Setup(store => store.AcquireTechnicianScheduleLockAsync(
+            It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ScheduleLease());
         _service = new TicketPlanningService(
             _tickets.Object,
             _tasks.Object,
@@ -31,7 +38,7 @@ public sealed class TicketPlanningServiceTests
             _glpi.Object,
             _policy.Object,
             TimeProvider.System,
-            NullLogger<TicketPlanningService>.Instance);
+            NullLogger<TicketPlanningService>.Instance, _scheduleRequests.Object);
     }
 
     [Fact]
@@ -251,7 +258,7 @@ public sealed class TicketPlanningServiceTests
             _glpi.Object,
             _policy.Object,
             TimeProvider.System,
-            NullLogger<TicketPlanningService>.Instance);
+            NullLogger<TicketPlanningService>.Instance, _scheduleRequests.Object);
         var request = new PlanTicketRequest(
             "Intervención", 30,
             new DateTimeOffset(begin, TimeSpan.Zero),

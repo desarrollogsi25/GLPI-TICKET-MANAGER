@@ -24,4 +24,6 @@ public sealed record TicketSummaryDto(
     DateTime? NextPlannedAt = null,
     int? NextPlannedTechnicianId = null,
     int? NextPlannedDuration = null,
-    string? NextPlannedComment = null);
+    string? NextPlannedComment = null,
+    int? GroupId = null,
+    string? GroupName = null);

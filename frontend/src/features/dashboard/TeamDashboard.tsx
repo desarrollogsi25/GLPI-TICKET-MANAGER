@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -60,6 +60,17 @@ export function TeamDashboard() {
   const summary = data?.summary
   const allTickets: GroupTicketDetail[] = useMemo(() => data?.tickets ?? [], [data?.tickets])
 
+  // QA-17: When group changes or technicians list changes, ensure techFilter does not persist
+  // from a previous group (e.g. BI -> Service Desk)
+  useEffect(() => {
+    if (techFilter !== 'all' && techFilter !== 'unassigned') {
+      const exists = technicians.some((t) => String(t.id) === techFilter)
+      if (!exists) {
+        setTechFilter('all')
+      }
+    }
+  }, [groupId, technicians, techFilter])
+
   // 1. Stalled ticket criteria (>24h without updates in active/pending status)
   const ONE_DAY_MS = 24 * 60 * 60 * 1000
   const isTicketStalled = (t: GroupTicketDetail) => {
@@ -100,7 +111,7 @@ export function TeamDashboard() {
             }, 0) / resolvedTickets.length,
           ),
         )
-      : 2
+      : null
 
   // 3. Section A KPI Cards
   const kpiCards = [
@@ -138,6 +149,7 @@ export function TeamDashboard() {
       id: 'mttr',
       label: 'Tiempo Medio (MTTR)',
       value: mttrHours,
+      emptyLabel: 'Sin datos',
       suffix: 'h',
       icon: Timer,
       iconColor: 'text-sky-600 dark:text-sky-400 bg-sky-500/10',
@@ -182,6 +194,15 @@ export function TeamDashboard() {
 
   // 4. Section C Filtered Tickets (memoizado para máximo rendimiento H-62)
   const filteredTickets = useMemo(() => {
+    const toLocalDateStr = (iso: string) => {
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return iso.slice(0, 10)
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+
     return allTickets.filter((t) => {
       if (techFilter !== 'all') {
         if (techFilter === 'unassigned') {
@@ -195,12 +216,12 @@ export function TeamDashboard() {
       }
       if (startDate) {
         if (!t.createdAt) return false
-        const ticketDate = t.createdAt.slice(0, 10)
+        const ticketDate = toLocalDateStr(t.createdAt)
         if (ticketDate < startDate) return false
       }
       if (endDate) {
         if (!t.createdAt) return false
-        const ticketDate = t.createdAt.slice(0, 10)
+        const ticketDate = toLocalDateStr(t.createdAt)
         if (ticketDate > endDate) return false
       }
       return true
@@ -219,7 +240,10 @@ export function TeamDashboard() {
               <DropdownSelect
                 aria-label="Seleccionar grupo"
                 value={groupId ? String(groupId) : ''}
-                onChange={(v) => setSelectedGroupId(Number(v))}
+                onChange={(v) => {
+                  setSelectedGroupId(Number(v))
+                  setTechFilter('all')
+                }}
                 options={(groups.data ?? []).map((g) => ({ value: String(g.id), label: g.name }))}
                 className="w-44 sm:w-48"
                 data-testid="team-group-select"
@@ -261,7 +285,7 @@ export function TeamDashboard() {
                   </div>
                   {isLoading ? (
                     <Skeleton className="mt-2.5 h-7 w-14" />
-                  ) : (
+                  ) : card.value != null ? (
                     <p className="mt-2 text-2xl font-bold tracking-tight text-foreground flex items-baseline">
                       <NumberTicker value={card.value} />
                       {card.suffix && (
@@ -269,6 +293,10 @@ export function TeamDashboard() {
                           {card.suffix}
                         </span>
                       )}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-lg font-medium text-muted-foreground flex items-baseline">
+                      {(card as any).emptyLabel ?? '—'}
                     </p>
                   )}
                 </CardContent>

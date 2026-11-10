@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchCurrentUser, login, logout } from '@/lib/api/auth'
 import { queryKeys } from '@/lib/api/queryKeys'
 import { useAuthStore } from '@/store/authStore'
+import { useUiStore } from '@/store/uiStore'
 
 export function useLoginMutation() {
   const setSession = useAuthStore((state) => state.setSession)
@@ -12,6 +13,8 @@ export function useLoginMutation() {
   return useMutation({
     mutationFn: login,
     onSuccess: (data) => {
+      queryClient.clear()
+      useUiStore.getState().setSelectedAssigneeId(null)
       setSession(data.accessToken, data.user)
       queryClient.setQueryData(queryKeys.auth.me, data.user)
     },
@@ -42,6 +45,7 @@ export function useLogout() {
       // local es lo importante.
     } finally {
       clearAuth()
+      useUiStore.getState().setSelectedAssigneeId(null)
       queryClient.clear()
       navigate('/login', { replace: true })
     }

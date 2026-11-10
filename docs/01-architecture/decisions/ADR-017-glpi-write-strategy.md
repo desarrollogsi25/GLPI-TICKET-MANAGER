@@ -5,7 +5,12 @@
 
 
 ## Estado
-Accepted
+Accepted (enmendado por resolución de hallazgo P1 — 2026-11-09)
+
+> [!IMPORTANT]
+> **Enmienda de Concurrencia y API Nativa (2026-11-09):**
+> La asignación (`Claim`) ha sido migrada de SQL directo a la **API REST oficial de GLPI** (`POST /Ticket/{id}/Ticket_User` y `PUT /Ticket/{id}`), eliminando la omisión de `glpi_logs`, reglas de negocio y notificaciones nativas de GLPI.
+> La atomicidad y protección contra condiciones de carrera concurrentes entre réplicas de la API se garantiza mediante un **bloqueo consultivo distribuido de PostgreSQL** (`pg_advisory_lock` en namespace exclusivo de Claim sobre `ticketId`), validando estado y asignación antes de invocar a GLPI.
 
 ## Contexto
 ADR-002 estableció que las escrituras deben ir vía GLPI REST API para preservar sus reglas de negocio (notificaciones, hooks, plugins, logs). Sin embargo, la implementación inicial mezclaba API REST con SQL directo en endpoints mutables.
@@ -17,7 +22,7 @@ Se define una estrategia híbrida explícita por operación:
 |---|---|---|
 | Cambio de estado del ticket | GLPI REST (`PUT /Ticket/{id}`) | Sin concurrencia crítica; GLPI maneja las reglas y transiciones |
 | Creación de solución | GLPI REST (`POST /ITILSolution`) | Sin concurrencia crítica; GLPI maneja validación, autor y ciclo de vida de la solución |
-| **Claim (asignación)** | **SQL directo** | **GLPI REST no garantiza atomicidad (permite múltiples técnicos concurrentes). Requerimos "asignar solo si el ticket está libre" en una sola operación atómica con UPDATE condicional.** |
+| **Claim (asignación)** | **GLPI REST (`POST /Ticket/{id}/Ticket_User` + `PUT /Ticket/{id}`)** | **Protegido con `pg_advisory_lock` en PostgreSQL. Preserva `glpi_logs`, notificaciones nativas, reglas de negocio y SLA de GLPI.** |
 | Lecturas (listas, detalle, dashboard) | SQL directo (Dapper) | Rendimiento; no hay reglas de negocio a preservar en lecturas |
 
 ## Trade-offs

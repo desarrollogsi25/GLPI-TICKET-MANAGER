@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ShieldAlert, ArrowLeft } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,8 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RichContent } from '@/components/ui/rich-content'
 import { useTicketQuery, useTicketTasksQuery, useUpdateTicketStatusMutation,
-  useCompleteTicketTaskMutation, useCancelTicketTaskMutation,
-  useTechniciansQuery } from '@/hooks/useTickets'
+  useCompleteTicketTaskMutation, useCancelTicketTaskMutation } from '@/hooks/useTickets'
 import type { TicketTask } from '@/lib/api/tickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, formatRelative } from '@/lib/format'
@@ -27,23 +27,20 @@ import { ResolveTicketDialog } from './ResolveTicketDialog'
 export function Detail() {
   const { id } = useParams<{ id: string }>()
   const ticketId = Number(id)
+  const navigate = useNavigate()
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
-  const { data: technicians } = useTechniciansQuery()
 
-  const techMap = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const t of technicians ?? []) {
-      map.set(t.id, t.displayName || t.username)
-    }
-    return map
-  }, [technicians])
+  const currentUser = useAuthStore((state) => state.user)
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
+  const isRequester = role === 'solicitante'
 
   const getTechName = (techId?: number | null) => {
-    if (!techId) return '-'
+    if (!techId) return '—'
     if (currentUser?.userId === techId) return `${currentUser.displayName || currentUser.username} (yo)`
-    if (techId === 2) return 'Administrador GLPI (Sistema)'
-    return techMap.get(techId) ?? `Técnico #${techId}`
+    const known = ticket?.participantNames?.[techId]
+    if (known) return known
+    return isRequester ? 'Especialista de Soporte Técnico Asignado' : `Técnico #${techId}`
   }
 
   const hasActionableTask = Boolean(tasks?.some((t) => t.state === 1 || t.state === 2))
@@ -51,8 +48,6 @@ export function Detail() {
   const completeTask = useCompleteTicketTaskMutation()
   const cancelTask = useCancelTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
-  const currentUser = useAuthStore((state) => state.user)
-  const role = useAuthStore((state) => state.user?.role ?? state.role)
   const currentTime = useCurrentTime()
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
@@ -102,14 +97,48 @@ export function Detail() {
   }
 
   if (isError || !ticket) {
+    const isForbidden =
+      (error && typeof error === 'object' && ('status' in error || 'statusCode' in error) &&
+        ((error as any).status === 403 || (error as any).statusCode === 403)) ||
+      getApiErrorMessage(error).toLowerCase().includes('permiso') ||
+      getApiErrorMessage(error).toLowerCase().includes('denegado')
+
+    const homePath = role === 'solicitante' ? '/tickets' : '/kanban'
+
     return (
-      <div className="space-y-4">
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          {getApiErrorMessage(error)}
-        </p>
-        <Link to="/tickets" className="text-sm underline">
-          Volver al listado
-        </Link>
+      <div className="mx-auto max-w-lg py-12 px-4 text-center">
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-md space-y-4">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <ShieldAlert className="size-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-foreground">
+              {isForbidden ? `Acceso restringido al ticket #${ticketId}` : 'Ticket no disponible'}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {isForbidden
+                ? 'No tienes permisos para consultar este ticket porque pertenece a otro grupo o técnico.'
+                : getApiErrorMessage(error) || 'No fue posible cargar los detalles del ticket.'}
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row justify-center gap-2">
+            <Button
+              type="button"
+              onClick={() => navigate(homePath)}
+              className="gap-2"
+            >
+              <ArrowLeft className="size-4" />
+              Ir a la vista principal
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/tickets')}
+            >
+              Ver mis tickets
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -245,16 +274,30 @@ export function Detail() {
                           {formatDateTime(task.startAt)} – {formatDateTime(task.endAt)}
                         </p>
                       )}
+                      {task.state === 1 && ticket.status >= 5 && (
+                        <p className="mt-2 text-xs text-muted-foreground italic">
+                          Ticket finalizado; la tarea es de sólo lectura.
+                        </p>
+                      )}
+                      {task.state === 1 && ticket.status === 1 && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Asigna el ticket antes de interactuar con sus tareas.
+                        </p>
+                      )}
+                      {task.state === 1 && ticket.status >= 2 && ticket.status <= 4 &&
+                        role === 'technician' && currentUser?.userId !== task.technicianId && (
+                          <p className="mt-2 text-xs text-muted-foreground italic">
+                            Tarea asignada a {getTechName(task.technicianId)}. Solo el técnico responsable o un supervisor/administrador pueden completarla.
+                          </p>
+                        )}
                       {task.state === 1 && ticket.status >= 2 && ticket.status <= 4 &&
                         (role === 'admin' || role === 'supervisor' ||
                           (currentUser?.userId === task.technicianId &&
                             ticket.assigneeIds.includes(task.technicianId))) && (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {ticket.status !== 4 && (
-                              <Button size="sm" variant="outline" onClick={() => setReplanTask(task)}>
-                                Reprogramar
-                              </Button>
-                            )}
+                            <Button size="sm" variant="outline" onClick={() => setReplanTask(task)}>
+                              Reprogramar
+                            </Button>
                             <Button size="sm" variant="outline"
                               onClick={() => setTaskAction({ taskId: task.id, action: 'complete' })}>
                               Completar
@@ -319,8 +362,9 @@ export function Detail() {
                     size="sm"
                     variant="outline"
                     className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
-                    disabled={updateStatus.isPending}
+                    disabled={ticket.assigneeIds.length === 0 || updateStatus.isPending}
                     data-testid="start-ticket-btn"
+                    title={ticket.assigneeIds.length === 0 ? 'Asigna un técnico antes de planificar.' : undefined}
                     onClick={() => setPlanOpen(true)}
                   >
                     Planificar tarea
@@ -331,7 +375,7 @@ export function Detail() {
                   variant="default"
                   className="rounded-xl"
                   disabled={
-                    (ticket.status !== 2 && ticket.status !== 3) ||
+                    ticket.assigneeIds.length === 0 || (ticket.status !== 2 && ticket.status !== 3) ||
                     updateStatus.isPending
                   }
                   title={
@@ -353,7 +397,7 @@ export function Detail() {
                   size="sm"
                   variant="outline"
                   className="rounded-xl"
-                  disabled={ticket.status === 4 || ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
+                  disabled={ticket.assigneeIds.length === 0 || ticket.status === 4 || ticket.status === 5 || ticket.status === 6 || updateStatus.isPending}
                   onClick={() => setPendingOpen(true)}
                   data-testid="pending-ticket-btn"
                 >
@@ -391,6 +435,9 @@ export function Detail() {
                   const isCloseAdminOnly =
                     role !== 'admin' && option.value === 6
 
+                  const isCloseUnsolvedBlocked =
+                    option.value === 6 && ticket.status !== 5
+
                   const isDisabled =
                     option.value === ticket.status ||
                     updateStatus.isPending ||
@@ -398,7 +445,8 @@ export function Detail() {
                     isPendingInvalidTransition ||
                     isAssigneeDirectResolveBlocked ||
                     isRewindToNewBlocked ||
-                    isCloseAdminOnly
+                    isCloseAdminOnly ||
+                    isCloseUnsolvedBlocked
 
                   return (
                     <Button
@@ -408,13 +456,15 @@ export function Detail() {
                       className="rounded-xl text-xs"
                       disabled={isDisabled}
                       title={
-                        isAssigneeDirectResolveBlocked
-                          ? 'Primero debes asignarte el ticket para resolverlo.'
-                          : isPendingInvalidTransition
-                            ? 'Primero reanuda el ticket a Asignado; GLPI confirma la planificación mediante tareas nativas.'
-                            : isBackwardBlocked
-                              ? 'No se puede retroceder el estado de este ticket.'
-                              : undefined
+                        isCloseUnsolvedBlocked
+                          ? 'El ticket debe ser resuelto antes de poder cerrarse.'
+                          : isAssigneeDirectResolveBlocked
+                            ? 'Primero debes asignarte el ticket para resolverlo.'
+                            : isPendingInvalidTransition
+                              ? 'Primero reanuda el ticket a Asignado; GLPI confirma la planificación mediante tareas nativas.'
+                              : isBackwardBlocked
+                                ? 'No se puede retroceder el estado de este ticket.'
+                                : undefined
                       }
                       onClick={() => {
                         if (option.value === 3) {
@@ -466,11 +516,25 @@ export function Detail() {
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Técnicos asignados</span>
-                <span className="font-medium text-xs text-foreground">{ticket.assigneeIds.map((userId) => userId === currentUser?.userId ? `Vos (#${userId})` : `#${userId}`).join(', ') || '—'}</span>
+                <span className="font-medium text-xs text-foreground">
+                  {ticket.assigneeIds.length > 0 ? (
+                    ticket.assigneeIds.map((userId) => getTechName(userId)).join(', ')
+                  ) : (
+                    <span className="italic text-muted-foreground">En cola del grupo (sin técnico asignado)</span>
+                  )}
+                </span>
               </div>
               <div className="flex justify-between gap-4 pt-2">
                 <span className="text-muted-foreground text-xs">Solicitantes</span>
-                <span className="font-medium text-xs text-foreground">{ticket.requesterIds.map((userId) => `#${userId}`).join(', ') || '—'}</span>
+                <span className="font-medium text-xs text-foreground">
+                  {ticket.requesterIds
+                    .map((userId) =>
+                      userId === currentUser?.userId
+                        ? `${currentUser.displayName || currentUser.username} (yo)`
+                        : (ticket.participantNames?.[userId] ?? `Usuario no disponible (#${userId})`)
+                    )
+                    .join(', ') || '—'}
+                </span>
               </div>
             </CardContent>
           </Card>

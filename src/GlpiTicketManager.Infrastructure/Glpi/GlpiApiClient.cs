@@ -6,6 +6,7 @@ using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Tickets;
 using GlpiTicketManager.Application.Exceptions;
 using GlpiTicketManager.Application.Models;
+using GlpiTicketManager.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -64,6 +65,49 @@ public sealed class GlpiApiClient : IGlpiApiClient
                 cancellationToken);
 
             _logger.LogInformation("Updated GLPI ticket {TicketId} to status {Status}", ticketId, status);
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
+    public async Task AssignTicketAsync(int ticketId, int technicianId, CancellationToken cancellationToken)
+    {
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var actorPayload = new
+            {
+                input = new
+                {
+                    tickets_id = ticketId,
+                    users_id = technicianId,
+                    type = 2,
+                    use_notification = 1
+                }
+            };
+
+            using var actorResponse = await SendAsync(
+                HttpMethod.Post,
+                $"Ticket/{ticketId}/Ticket_User",
+                sessionToken,
+                actorPayload,
+                cancellationToken);
+
+            var statusPayload = new { input = new { status = (int)TicketStatus.Assigned } };
+
+            using var statusResponse = await SendAsync(
+                HttpMethod.Put,
+                $"Ticket/{ticketId}",
+                sessionToken,
+                statusPayload,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Assigned GLPI ticket {TicketId} to technician {TechnicianId} and set status to Assigned",
+                ticketId, technicianId);
         }
         finally
         {
@@ -243,7 +287,7 @@ public sealed class GlpiApiClient : IGlpiApiClient
     }
 
     public async Task ReplanTicketTaskAsync(int taskId, string content,
-        DateTimeOffset startAt, DateTimeOffset endAt, CancellationToken cancellationToken)
+        DateTimeOffset startAt, DateTimeOffset endAt, CancellationToken cancellationToken, int? technicianId = null)
     {
         var sessionToken = await InitSessionAsync(cancellationToken);
         try
@@ -251,16 +295,22 @@ public sealed class GlpiApiClient : IGlpiApiClient
             // `pending = 0` is GLPI's own "no longer pending" input. On a Waiting
             // ticket the TicketTask post-update hook reopens it and derives Planned
             // from the planned task, so the API never writes status 3 directly.
+            var input = new Dictionary<string, object?>
+            {
+                ["content"] = content,
+                ["state"] = 1,
+                ["begin"] = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                ["end"] = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                ["actiontime"] = (int)(endAt - startAt).TotalSeconds,
+                ["pending"] = 0
+            };
+            if (technicianId.HasValue && technicianId.Value > 0)
+            {
+                input["users_id_tech"] = technicianId.Value;
+            }
+
             using var response = await SendAsync(HttpMethod.Put, $"TicketTask/{taskId}", sessionToken,
-                new { input = new
-                {
-                    content,
-                    state = 1,
-                    begin = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    end = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    actiontime = (int)(endAt - startAt).TotalSeconds,
-                    pending = 0
-                } }, cancellationToken);
+                new { input }, cancellationToken);
         }
         finally { await KillSessionAsync(sessionToken, cancellationToken); }
     }

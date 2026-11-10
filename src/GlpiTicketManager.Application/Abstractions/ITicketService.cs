@@ -49,11 +49,31 @@ public interface ITicketService
         int offset,
         CancellationToken cancellationToken);
 
+    Task<PagedResult<TicketSummaryDto>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, limit, offset, cancellationToken);
+
     /// <summary>Supervisor list constrained to their current GLPI groups or own assignments.</summary>
     Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
         int supervisorId, int? assigneeId, int? serviceId,
         DateTime? startDate, DateTime? endDate, int limit, int offset,
         CancellationToken cancellationToken);
+
+    Task<PagedResult<TicketSummaryDto>> GetSupervisorFilteredAsync(
+        int supervisorId, int? assigneeId, int? serviceId,
+        DateTime? startDate, DateTime? endDate, int limit, int offset,
+        int? groupId, bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        GetSupervisorFilteredAsync(supervisorId, assigneeId, serviceId, startDate, endDate, limit, offset, cancellationToken);
 
     Task<TicketDetailDto?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
 
@@ -72,6 +92,10 @@ public interface ITicketService
     Task<bool> UpdateStatusAsync(int ticketId, int status, int userId, AppRole role, string? solution, CancellationToken cancellationToken);
 
     Task<PlanTicketResponse> PlanAsync(int ticketId, PlanTicketRequest request, int userId, AppRole role, CancellationToken cancellationToken);
+
+    Task<PlanningAvailabilityDto> GetAvailabilityAsync(int ticketId, int technicianId,
+        DateTimeOffset startAt, DateTimeOffset endAt, int? excludeTaskId,
+        int userId, AppRole role, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<TicketTaskDto>> GetTasksAsync(int ticketId, int userId, AppRole role, CancellationToken cancellationToken);
 

@@ -158,7 +158,7 @@ public static class DashboardQueries
             CAST(tu.users_id AS SIGNED) AS AssigneeId,
             COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''), u.name) AS AssigneeName,
             CAST(t.priority AS INT)     AS Priority,
-            t.date                      AS CreatedAt,
+            COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), NULLIF(t.date, '0000-00-00 00:00:00'), t.date_mod) AS CreatedAt,
             t.date_mod                  AS UpdatedAt,
             COALESCE(
                 (SELECT f.content FROM glpi_itilfollowups f WHERE f.itemtype = 'Ticket' AND f.items_id = t.id ORDER BY f.date_creation DESC, f.id DESC LIMIT 1),

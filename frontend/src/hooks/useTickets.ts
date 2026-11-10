@@ -21,17 +21,21 @@ import {
   putPendingTicket,
   getTicketResolveEligibility,
   listTechnicians,
+  listPendingReasons,
   getTeamDashboard,
   getAdminDashboard,
   getAdminWatcherStatus,
   recoverAdminWatcherTicket,
 } from '@/lib/api/tickets'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
+import { useAuthStore } from '@/store/authStore'
 import { useRealtimeConnectionState } from '@/hooks/useRealtimeTicketHub'
 import { collectPages } from '@/lib/api/pagination'
 
 export interface TicketFilters {
   assigneeId?: number | null
+  groupId?: number | null
+  unassignedOnly?: boolean | null
   serviceId?: number | null
   startDate?: string | null
   endDate?: string | null
@@ -45,12 +49,12 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
       ? filtersOrAssigneeId
       : { assigneeId: filtersOrAssigneeId }
 
-  const { assigneeId, serviceId, startDate, endDate, enabled = true } = filters
+  const { assigneeId, groupId, unassignedOnly, serviceId, startDate, endDate, enabled = true } = filters
 
-  // Any extra filter (service or date range) or unassigned scope (assigneeId == null, e.g. for admin)
+  // Any extra filter (service, group, date range) or unassigned scope (assigneeId == null, e.g. for admin)
   // switches the cache key to the generic list key so date ranges and global views never collide
   // with the plain per-assignee entry.
-  const usesListKey = serviceId != null || startDate != null || endDate != null || assigneeId == null
+  const usesListKey = serviceId != null || startDate != null || endDate != null || assigneeId == null || groupId != null || unassignedOnly != null
 
   const queryKey = usesListKey
     ? queryKeys.tickets.list(filters)
@@ -61,6 +65,8 @@ export function useTicketsQuery(filtersOrAssigneeId: number | null | TicketFilte
     queryFn: ({ signal }) => collectPages((limit, offset) =>
       listTickets({
         assigneeId: assigneeId ?? undefined,
+        groupId: groupId ?? undefined,
+        unassignedOnly: unassignedOnly ?? undefined,
         serviceId: serviceId ?? undefined,
         startDate: startDate ?? undefined,
         endDate: endDate ?? undefined,
@@ -321,10 +327,21 @@ export function useTicketResolveEligibilityQuery(ticketId: number, enabled = tru
 }
 export function useTechniciansQuery(groupId?: number | null) {
   const sessionValid = useIsSessionValid()
+  const role = useAuthStore((state) => state.user?.role ?? state.role)
   return useQuery({
     queryKey: queryKeys.tickets.technicians(groupId),
     queryFn: () => listTechnicians(groupId ?? undefined),
-    enabled: sessionValid,
+    enabled: sessionValid && role !== 'solicitante',
     staleTime: 60_000,
+  })
+}
+
+export function usePendingReasonsQuery() {
+  const sessionValid = useIsSessionValid()
+  return useQuery({
+    queryKey: queryKeys.tickets.pendingReasons,
+    queryFn: listPendingReasons,
+    enabled: sessionValid,
+    staleTime: 5 * 60_000,
   })
 }

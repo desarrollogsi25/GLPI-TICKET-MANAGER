@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 import { resetFixtureTicket } from './support/ticket-fixtures'
-import { confirmPlanning } from './support/planning'
+import { completePendingTasks, confirmPlanning } from './support/planning'
 
 /**
  * QA audit spec for the resolve-dialog hotfix.
@@ -89,6 +89,9 @@ test('resolver ticket: el modal se cierra y el ticket pasa a Resuelto', async ({
   await expect(dialog).toBeVisible({ timeout: 10000 })
   const textarea = dialog.locator('textarea').first()
   await expect(textarea).toBeVisible({ timeout: 10000 })
+
+  // 5b. La tarea planificada debe completarse antes de resolver (regla de dominio).
+  await completePendingTasks(page)
 
   const confirmButton = dialog.getByRole('button', { name: /^Resolver$/ }).last()
   await expect(confirmButton).toBeEnabled()

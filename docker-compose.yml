@@ -72,6 +72,10 @@ services:
       CORS_ALLOWED_ORIGIN: "${CORS_ALLOWED_ORIGIN:-}"
     ports:
       - "127.0.0.1:8080:8080"
+    networks:
+      default:
+        aliases:
+          - api
 
   # React 19 + Vite dev server (hot reload). The container talks to the API by its
   # service name too: the browser calls same-origin `/api`, Vite proxies to api:8080.

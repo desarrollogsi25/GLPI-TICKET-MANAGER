@@ -21,7 +21,7 @@ public static class TicketQueries
             t.urgency           AS Urgency,
             t.impact            AS Impact,
             t.itilcategories_id AS CategoryId,
-            COALESCE(NULLIF(t.date, '0000-00-00 00:00:00'), t.date_mod) AS CreatedAt,
+            COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), NULLIF(t.date, '0000-00-00 00:00:00'), t.date_mod) AS CreatedAt,
             t.date_mod          AS UpdatedAt,
             t.solvedate         AS SolvedAt,
             t.closedate         AS ClosedAt,
@@ -59,7 +59,16 @@ public static class TicketQueries
                AND tt.is_private = 0
                AND tt.`begin` IS NOT NULL
              ORDER BY tt.`begin` ASC, tt.id ASC
-             LIMIT 1) AS NextPlannedComment
+             LIMIT 1) AS NextPlannedComment,
+            (SELECT gt.groups_id
+             FROM glpi_groups_tickets gt
+             WHERE gt.tickets_id = t.id AND gt.type = 2
+             LIMIT 1) AS GroupId,
+            (SELECT g.name
+             FROM glpi_groups_tickets gt
+             JOIN glpi_groups g ON g.id = gt.groups_id
+             WHERE gt.tickets_id = t.id AND gt.type = 2
+             LIMIT 1) AS GroupName
         FROM glpi_tickets t
         """ + "\n";
 
@@ -74,7 +83,7 @@ public static class TicketQueries
         WHERE tu.users_id = @AssigneeId
           AND tu.type = 2
           AND t.is_deleted = 0
-        ORDER BY t.date ASC, t.id ASC
+        ORDER BY COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date) ASC, t.id ASC
         LIMIT @Limit OFFSET @Offset;
         """;
 
@@ -89,7 +98,7 @@ public static class TicketQueries
             SELECT 1 FROM glpi_tickets_users tu
             WHERE tu.tickets_id = t.id AND tu.type = 2
           )
-        ORDER BY t.date DESC, t.id DESC
+        ORDER BY COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date) DESC, t.id DESC
         LIMIT @Limit OFFSET @Offset;
         """;
 
@@ -186,8 +195,8 @@ public static class TicketQueries
                            AND t.time_to_resolve IS NOT NULL
                            AND t.time_to_resolve >= NOW()
                            AND t.time_to_resolve <= DATE_ADD(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END), 0) AS SIGNED) AS DueSoonTickets,
-            CAST(COALESCE((SELECT COUNT(1) FROM glpi_tickettasks tk INNER JOIN glpi_tickets tt ON tt.id = tk.tickets_id WHERE tt.is_deleted = 0 AND tk.state = 1), 0) AS SIGNED) AS ScheduledTasksCount,
-            AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, t.date, t.solvedate) END)   AS AverageResolutionHours
+            CAST(COALESCE((SELECT COUNT(1) FROM glpi_tickettasks tk INNER JOIN glpi_tickets tt ON tt.id = tk.tickets_id WHERE tt.is_deleted = 0 AND tt.status NOT IN (5, 6) AND tk.state = 1), 0) AS SIGNED) AS ScheduledTasksCount,
+            AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date), t.solvedate) END)   AS AverageResolutionHours
         FROM glpi_tickets t
         WHERE t.is_deleted = 0;
         """;
@@ -318,8 +327,8 @@ public static class TicketQueries
                                AND t.time_to_resolve IS NOT NULL
                                AND t.time_to_resolve >= NOW()
                                AND t.time_to_resolve <= DATE_ADD(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END), 0) AS SIGNED) AS DueSoonTickets,
-                CAST(COALESCE((SELECT COUNT(1) FROM glpi_tickettasks tk INNER JOIN glpi_tickets tt ON tt.id = tk.tickets_id WHERE tt.is_deleted = 0 AND tk.state = 1 {taskFilter}), 0) AS SIGNED) AS ScheduledTasksCount,
-                AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, t.date, t.solvedate) END)   AS AverageResolutionHours
+                CAST(COALESCE((SELECT COUNT(1) FROM glpi_tickettasks tk INNER JOIN glpi_tickets tt ON tt.id = tk.tickets_id WHERE tt.is_deleted = 0 AND tt.status NOT IN (5, 6) AND tk.state = 1 {taskFilter}), 0) AS SIGNED) AS ScheduledTasksCount,
+                AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(HOUR, COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date), t.solvedate) END)   AS AverageResolutionHours
             FROM glpi_tickets t
             WHERE t.is_deleted = 0 {filter};
             """;

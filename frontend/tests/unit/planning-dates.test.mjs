@@ -4,7 +4,12 @@ import test from 'node:test'
 // The planning dialog works in browser-local wall-clock time. The backend and the
 // GLPI service session store UTC. These tests pin that conversion for a DST zone.
 process.env.TZ = 'Europe/Paris'
-const { localDateTime, parseUnambiguousLocal } = await import('../../src/features/tickets/planningDates.ts')
+const { localDateTime, offsetDateTime, parseUnambiguousLocal } = await import('../../src/features/tickets/planningDates.ts')
+
+test('availability carries the selected local offset, including DST', () => {
+  assert.equal(offsetDateTime(parseUnambiguousLocal('2026-11-10T09:00')), '2026-11-10T09:00:00+01:00')
+  assert.equal(offsetDateTime(parseUnambiguousLocal('2026-07-10T09:00')), '2026-07-10T09:00:00+02:00')
+})
 
 test('winter local 13:00 is the 12:00 UTC instant (no fixed offset)', () => {
   assert.equal(parseUnambiguousLocal('2026-11-09T13:00').toISOString(), '2026-11-09T12:00:00.000Z')

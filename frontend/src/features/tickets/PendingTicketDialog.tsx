@@ -6,7 +6,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { usePutPendingMutation } from '@/hooks/useTickets'
+import { usePendingReasonsQuery, usePutPendingMutation } from '@/hooks/useTickets'
 import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
 import { useToastStore } from '@/store/toastStore'
@@ -16,7 +16,7 @@ import { useToastStore } from '@/store/toastStore'
  * backend, se usan valores mock. Cuando `GET /api/pending-reasons` exista, reemplazar
  * por la carga real (React Query).
  */
-const MOCK_PENDING_REASONS = [
+const FALLBACK_PENDING_REASONS = [
   { id: 1, label: 'Esperando respuesta del usuario' },
   { id: 2, label: 'Esperando pieza / repuesto' },
   { id: 3, label: 'Escalado a otro equipo' },
@@ -39,6 +39,8 @@ export function PendingTicketDialog({
     defaultValues: { reasonId: '', comment: '' },
   })
   const putPending = usePutPendingMutation()
+  const { data: serverReasons } = usePendingReasonsQuery()
+  const reasons = serverReasons && serverReasons.length > 0 ? serverReasons : FALLBACK_PENDING_REASONS
   const pushToast = useToastStore((state) => state.push)
 
   const pending = putPending.isPending || isSubmitting
@@ -108,7 +110,7 @@ export function PendingTicketDialog({
               data-testid="pending-reason-select"
             >
               <option value="">Seleccioná un motivo…</option>
-              {MOCK_PENDING_REASONS.map((r) => (
+              {reasons.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.label}
                 </option>

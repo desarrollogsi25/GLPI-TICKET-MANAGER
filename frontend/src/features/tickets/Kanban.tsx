@@ -32,6 +32,7 @@ import { getApiErrorTitle, getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useUiStore } from '@/store/uiStore'
 import { useToastStore } from '@/store/toastStore'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -42,6 +43,7 @@ import { ResolveTicketDialog } from './ResolveTicketDialog'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketCard } from './TicketCard'
 import { KanbanMobileSheet } from './KanbanMobileSheet'
+import { ticketColumn } from './kanbanColumns'
 
 type ColumnId = 'queue' | 'mine' | 'in_progress' | 'pending' | 'resolved'
 
@@ -282,11 +284,13 @@ function KanbanColumn({
                 >
                   <TicketCard
                     ticket={ticket}
-                    draggable={column.id !== 'resolved'}
+                    draggable={column.id !== 'resolved' && (column.id === 'queue' || ticket.assigneeIds.length > 0)}
                     highlight={recentlyUpdatedIds?.has(ticket.id)}
                     shake={invalidDropTicketId === ticket.id}
                     actionButton={
-                      column.id === 'queue' ? (
+                      column.id !== 'queue' && column.id !== 'resolved' && !ticket.assigneeIds.length ? (
+                        <span className="text-xs text-muted-foreground">Asigna un técnico antes de continuar.</span>
+                      ) : column.id === 'queue' ? (
                         <Button
                           size="sm"
                           variant="default"
@@ -488,9 +492,12 @@ export function Kanban() {
   useCurrentTime()
   const queryClient = useQueryClient()
   const selectedAssignee = useSelectedAssignee()
+  const setSelectedAssigneeId = useUiStore((state) => state.setSelectedAssigneeId)
   const { isTechnician } = useRole()
   const currentUser = useAuthStore((state) => state.user)
-  const currentUserId = selectedAssignee ?? currentUser?.userId ?? null
+  // QA-03 / QA-18: Admins y supervisores con "Todos los técnicos" deben consultar sin assigneeId (null),
+  // nunca reemplazar null por su propio userId de admin, lo cual dejaba las columnas vacías.
+  const currentAssigneeFilter = isTechnician ? (currentUser?.userId ?? null) : selectedAssignee
 
   const groupsQuery = useGroupsQuery()
   const hasNoGroups = Boolean(groupsQuery.data && groupsQuery.data.length === 0)
@@ -514,7 +521,11 @@ export function Kanban() {
   // slow poll (30 s) while the realtime connection is down, so the board no longer
   // doubles the rate limit quota of `GET /tickets/by-group`.
   const queueQuery = useGroupQueueQuery(currentGroupId)
-  const myTicketsQuery = useTicketsQuery(currentUserId)
+  const myTicketsQuery = useTicketsQuery({
+    assigneeId: currentAssigneeFilter === 0 ? null : currentAssigneeFilter,
+    groupId: currentGroupId,
+    unassignedOnly: currentAssigneeFilter === 0,
+  })
 
   const claimMutation = useClaimTicketMutation()
   const pushToast = useToastStore((state) => state.push)
@@ -563,19 +574,40 @@ export function Kanban() {
   // Pointer sensor with distance prevents click conflict on buttons and links
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const queueTickets = useMemo(() => queueQuery.data?.items ?? [], [queueQuery.data])
+  const queueTickets = useMemo(() => {
+    const merged = new Map((queueQuery.data?.items ?? []).map(ticket => [ticket.id, ticket]))
+    // The general read is authoritative when a queue poll still contains a claimed ticket.
+    for (const ticket of myTicketsQuery.data?.items ?? []) merged.set(ticket.id, ticket)
+    return [...merged.values()].filter(ticket => ticketColumn(ticket) === 'queue' &&
+      (currentGroupId == null || ticket.groupId === currentGroupId))
+  }, [queueQuery.data, myTicketsQuery.data, currentGroupId])
 
   const myTicketsByColumn = useMemo(() => {
-    const all = myTicketsQuery.data?.items ?? []
+    const rawAll = myTicketsQuery.data?.items ?? []
+    const all = rawAll.filter((t) => {
+      // QA-01: Excluir estrictamente tickets de otros grupos
+      if (currentGroupId != null && t.groupId !== currentGroupId) {
+        return false
+      }
+      // QA-02: Filtro por técnico o 'Sin asignar'
+      if (currentAssigneeFilter === 0) {
+        return !t.assigneeIds || t.assigneeIds.length === 0
+      }
+      if (currentAssigneeFilter != null && !isTechnician) {
+        return t.assigneeIds && t.assigneeIds.some((id) => Number(id) === Number(currentAssigneeFilter))
+      }
+      return true
+    })
+
     return {
-      mine: all.filter((t) => t.status === 1 || t.status === 2),
-      in_progress: all.filter((t) => t.status === 3),
-      pending: all.filter((t) => t.status === 4),
+      mine: all.filter((t) => ticketColumn(t) === 'mine'),
+      in_progress: all.filter((t) => ticketColumn(t) === 'in_progress'),
+      pending: all.filter((t) => ticketColumn(t) === 'pending'),
       // GLPI can close a solved ticket immediately through its native closeticket action.
       // Keep it visible here so a successful resolution never appears to vanish.
-      resolved: all.filter((t) => t.status === 5 || t.status === 6),
+      resolved: all.filter((t) => ticketColumn(t) === 'resolved'),
     }
-  }, [myTicketsQuery.data])
+  }, [myTicketsQuery.data, isTechnician, currentAssigneeFilter, currentGroupId])
 
   const ticketsByColumn: Record<ColumnId, TicketSummary[]> = useMemo(
     () => ({
@@ -835,6 +867,8 @@ export function Kanban() {
       : myTicketsQuery.isLoading
 
   const getMobileActionButton = (colId: ColumnId, ticket: TicketSummary) => {
+    if (colId !== 'queue' && colId !== 'resolved' && !ticket.assigneeIds.length)
+      return <span className="text-xs text-muted-foreground">Asigna un técnico antes de continuar.</span>
     switch (colId) {
       case 'queue':
         return (
@@ -988,7 +1022,10 @@ export function Kanban() {
                   aria-label="Seleccionar grupo de soporte"
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                   value={currentGroupId ?? ''}
-                  onChange={(event) => setSelectedGroupId(Number(event.target.value))}
+                  onChange={(event) => {
+                    setSelectedGroupId(Number(event.target.value))
+                    setSelectedAssigneeId(null) // QA-17: limpiar filtro incompatible al cambiar de grupo
+                  }}
                 >
                   {groupsQuery.data?.map((group) => (
                     <option key={group.id} value={group.id}>{group.name}</option>
@@ -996,7 +1033,7 @@ export function Kanban() {
                 </select>
               ) : null}
               <div className="hidden md:block">
-                <TechnicianFilter />
+                <TechnicianFilter groupId={currentGroupId} />
               </div>
             </div>
           )

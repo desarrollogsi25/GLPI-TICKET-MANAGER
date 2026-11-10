@@ -14,6 +14,11 @@ export interface UserProfile {
   role?: AppRole
 }
 
+export interface PendingReason {
+  id: number
+  label: string
+}
+
 export interface LoginResponse {
   accessToken: string
   tokenType: string
@@ -56,6 +61,8 @@ export interface TicketSummary {
   nextPlannedTechnicianId?: number | null
   nextPlannedDuration?: number | null
   nextPlannedComment?: string | null
+  groupId?: number | null
+  groupName?: string | null
 }
 
 export interface TicketFollowup {
@@ -74,6 +81,7 @@ export interface TicketSolution {
 }
 
 export interface TicketDetail {
+  participantNames?: Record<number, string>
   id: number
   title: string
   content: string | null
@@ -94,6 +102,8 @@ export interface TicketDetail {
   requesterIds: number[]
   followups: TicketFollowup[]
   solutions?: TicketSolution[]
+  groupId?: number | null
+  groupName?: string | null
 }
 
 export interface TicketListParams {

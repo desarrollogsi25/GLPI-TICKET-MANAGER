@@ -49,15 +49,17 @@ public sealed class ResolveRuleTests
     }
 
     [Fact]
-    public void Assigned_ticket_without_tasks_can_be_resolved_directly()
+    public void Ticket_without_completed_tasks_is_blocked_from_resolution()
     {
-        // Case 1: Direct resolution by assigned technician
+        // QA-01: Tickets cannot be resolved without at least one completed task.
         var none = ResolveRule.Evaluate(2, Array.Empty<TicketTaskDto>());
-        Assert.True(none.CanResolve);
-        Assert.Equal("direct", none.Code);
+        Assert.False(none.CanResolve);
+        Assert.Equal("no_completed_tasks", none.Code);
+        Assert.Contains("no tiene ninguna tarea realizada", none.Reason);
 
         var infoOnly = ResolveRule.Evaluate(2, new[] { Task(ResolveRule.TaskInformation) });
-        Assert.True(infoOnly.CanResolve);
+        Assert.False(infoOnly.CanResolve);
+        Assert.Equal("no_completed_tasks", infoOnly.Code);
     }
 
     [Fact]

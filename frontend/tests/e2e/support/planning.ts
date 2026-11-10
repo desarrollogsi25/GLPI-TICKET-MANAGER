@@ -1,14 +1,41 @@
 import { expect, type Page } from '@playwright/test'
 import { randomInt } from 'node:crypto'
 
+/** Completing a task is an explicit native operation before resolving its ticket. */
+export async function completeSinglePendingTask(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog')
+  const complete = dialog.getByRole('button', { name: '✓ Completar', exact: true })
+  await expect(complete).toHaveCount(1)
+  await expect(complete).toBeEnabled()
+  await complete.click()
+  await expect(complete).toHaveCount(0, { timeout: 30_000 })
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+}
+
+/**
+ * A ticket cannot be resolved while it still has pending tasks, so the resolve
+ * dialog disables "Resolver" and lists them with a per-task button. Complete every
+ * listed task in place (0..n, whatever the fixture scheduled) before submitting.
+ */
+export async function completePendingTasks(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog')
+  const complete = dialog.getByRole('button', { name: /Completar/ })
+  while ((await complete.count()) > 0) {
+    const remaining = await complete.count()
+    await complete.first().click()
+    await expect(complete).toHaveCount(remaining - 1, { timeout: 30_000 })
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+  }
+}
+
 /** Completes the native GLPI TicketTask scheduling form after it was opened. */
 export async function confirmPlanning(page: Page): Promise<void> {
-  const dialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  const dialog = page.getByRole('dialog', { name: /Planificación asistida|Planificar ticket/i })
   await expect(dialog).toBeVisible()
   // The dialog stays read-only until GLPI returns the ticket's tasks. A fresh
   // fixture pays the first REST session handshake (measured 3.7 s warm, more on
   // a cold GLPI), so allow well beyond the default 5 s expect timeout.
-  await expect(dialog.getByTestId('plan-start')).not.toHaveValue('', { timeout: 30_000 })
+  await expect(dialog.getByTestId('plan-start')).toBeVisible({ timeout: 30_000 })
   // E2E exercises a *shared* GLPI technician calendar. After enforcing real
   // overlap rejection, unrelated sequential tests must not all schedule the
   // default "now + 15 min" slot. Choose a high-entropy 2-hour block within

@@ -9,6 +9,7 @@ import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useIsSessionValid } from '@/hooks/useSessionValidity'
+import { requestBrowserNotificationPermission } from '@/hooks/useAutomaticNotificationPermission'
 import { formatRelative } from '@/lib/format'
 
 interface Notification {
@@ -158,6 +159,7 @@ export function NotificationBell({
     const nextOpen = !open
     setOpen(nextOpen)
     if (nextOpen) {
+      requestBrowserNotificationPermission()
       void refetchNotifications()
     }
   }

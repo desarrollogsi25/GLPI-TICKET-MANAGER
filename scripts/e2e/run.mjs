@@ -234,7 +234,9 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
     progress('verify GLPI API authentication using synthetic credentials')
     const sessionResponse = await fetch(`${manifest.glpiUrl}/apirest.php/initSession`, {
       headers: { 'App-Token': secrets.E2E_GLPI_APP_TOKEN, Authorization: `user_token ${secrets.E2E_GLPI_USER_TOKEN}` },
-      signal: AbortSignal.timeout(10_000),
+      // A clean GLPI install initializes its PHP/API caches on this first request.
+      // Keep a finite startup allowance without weakening fixture identity checks.
+      signal: AbortSignal.timeout(30_000),
     })
     if (!sessionResponse.ok) throw new Error('Synthetic GLPI API credentials failed the fixture readiness check')
     let session
@@ -260,6 +262,20 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
 } catch (error) {
   failed = true
   console.error(`[e2e] Failed phase: ${phase}. ${error instanceof Error ? error.message : 'Fixture failed'}`)
+  // Capture bounded server diagnostics before the verified cleanup removes the API.
+  // Never include generated credentials, bearer values or connection settings.
+  if (manifest?.containers?.api && phase.startsWith('run Playwright')) {
+    try {
+      let diagnostic = docker(['logs', '--tail', '200', manifest.containers.api])
+      for (const value of Object.values(secrets)) diagnostic = diagnostic.split(value).join('[redacted]')
+      diagnostic = diagnostic.replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [redacted]')
+        .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[redacted JWT]')
+      const lines = diagnostic.split(/\r?\n/).filter(line =>
+        !/token|password|secret|authorization|connectionstring/i.test(line) &&
+        /HttpClient\.IGlpiApiClient|\/plan\b|advisory|Timeout|Exception|Created GLPI planned|Failed|error/i.test(line))
+      if (lines.length) console.error('[e2e] API diagnostics (redacted):\n' + lines.slice(-25).join('\n'))
+    } catch { console.error('[e2e] API diagnostics unavailable; cleanup remains mandatory') }
+  }
 } finally {
   try { cleanup() } catch (error) { failed = true; console.error(`[e2e] ${error instanceof Error ? error.message : 'Cleanup failed'}`) }
 }

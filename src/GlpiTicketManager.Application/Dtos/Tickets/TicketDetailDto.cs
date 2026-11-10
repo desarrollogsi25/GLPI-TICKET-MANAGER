@@ -27,4 +27,9 @@ public sealed record TicketDetailDto(
     DateTime? NextPlannedAt = null,
     int? NextPlannedTechnicianId = null,
     int? NextPlannedDuration = null,
-    string? NextPlannedComment = null);
+    string? NextPlannedComment = null,
+    int? GroupId = null,
+    string? GroupName = null)
+{
+    public IReadOnlyDictionary<int, string> ParticipantNames { get; init; } = new Dictionary<int, string>();
+}

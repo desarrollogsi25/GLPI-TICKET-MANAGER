@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { format, isValid, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CalendarClock, Clock3 } from 'lucide-react'
@@ -21,17 +22,52 @@ interface PlanningDateTimeFieldProps {
  * date/time input. Keeping that input available preserves keyboard, screen-reader
  * and mobile automation support instead of hiding an inaccessible test control.
  * All edits remain local wall-clock values and are validated for DST by the form.
+ * QA-22: preserves interactive typing state without clearing or reverting in Chrome.
  */
 export function PlanningDateTimeField({ id, label, value, onChange, testId, disabled }: PlanningDateTimeFieldProps) {
-  const [date = '', time = ''] = value.split('T')
-  const parsed = value ? parseISO(value) : null
+  const [localValue, setLocalValue] = useState(value)
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  const [date = '', time = ''] = (localValue || value).split('T')
+  const activeValue = localValue || value
+  const parsed = activeValue ? parseISO(activeValue) : null
   const preview = parsed && isValid(parsed)
     ? format(parsed, "EEEE d 'de' MMMM, HH:mm", { locale: es })
     : 'Selecciona una fecha y una hora válidas'
 
-  const setDate = (nextDate: string) => onChange(nextDate ? `${nextDate}T${time || '09:00'}` : '')
+  const setDate = (nextDate: string) => {
+    const nextVal = nextDate ? `${nextDate}T${time || '09:00'}` : ''
+    setLocalValue(nextVal)
+    onChange(nextVal)
+  }
+
   const setTime = (nextTime: string) => {
-    if (date) onChange(`${date}T${nextTime}`)
+    if (date) {
+      const nextVal = `${date}T${nextTime}`
+      setLocalValue(nextVal)
+      onChange(nextVal)
+    }
+  }
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVal = event.target.value
+    setLocalValue(nextVal)
+    // In Chromium, partial typing in datetime-local can emit empty string.
+    // Propagate when complete or when explicitly cleared.
+    if (!nextVal) {
+      onChange('')
+    } else if (nextVal.includes('T') && nextVal.length >= 16) {
+      onChange(nextVal)
+    }
+  }
+
+  const handleBlur = () => {
+    if (localValue && localValue.includes('T') && localValue.length >= 16 && localValue !== value) {
+      onChange(localValue)
+    }
   }
 
   return (
@@ -51,8 +87,9 @@ export function PlanningDateTimeField({ id, label, value, onChange, testId, disa
           type="datetime-local"
           required
           disabled={disabled}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          value={localValue}
+          onChange={handleInputChange}
+          onBlur={handleBlur}
           data-testid={testId}
           className="min-h-11 min-w-0 flex-1 rounded-xl border-border/80 bg-background/85 px-3 text-sm font-medium shadow-xs [color-scheme:light] dark:[color-scheme:dark]"
         />

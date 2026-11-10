@@ -87,6 +87,31 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task SetPending_WithInvalidReasonId_Returns422()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+
+        using var response = await SetPendingAsync(CustomWebApplicationFactory.Ticket12Id, 99, "Motivo inválido", token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task GetPendingReasons_Returns200WithCatalog()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/tickets/pending-reasons");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var reasons = await response.Content.ReadFromJsonAsync<IReadOnlyList<PendingReasonDto>>();
+        reasons.Should().NotBeNull();
+        reasons!.Count.Should().Be(5);
+    }
+
+    [Fact]
     public async Task SetPending_Successful_Returns200AndWritesToGlpi()
     {
         var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
@@ -173,5 +198,148 @@ public class PendingTests : IClassFixture<CustomWebApplicationFactory>
             token);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task SetPending_WhenTicketSolved_Returns409_AndDoesNotCreateFollowup()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        _factory.SetTicketStatus(CustomWebApplicationFactory.Ticket12Id, (int)TicketStatus.Solved);
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            1,
+            "Intento de pausar ticket resuelto",
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<bool>(),
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetPending_WhenUserNotAssigned_DoesNotCreateFollowup()
+    {
+        var token = await AuthenticateAsAsync("tech2", TestCredentials.Tech2);
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            1,
+            "Intento de pausar ticket no asignado",
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<bool>(),
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetPending_WhenGlpiFollowupFails_PreservesAuditAndRetries()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        const string comment = "Piezas agotadas en almacén";
+
+        _factory.GlpiMock.Invocations.Clear();
+        _factory.AuditMock.Invocations.Clear();
+
+        // Setup: UpdateTicketStatusAsync succeeds, but CreateFollowupAsync throws transient exception
+        _factory.GlpiMock.Setup(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("GLPI transient network error"));
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            2,
+            comment,
+            token);
+
+        // Status update succeeded in GLPI
+        _factory.GlpiMock.Verify(g => g.UpdateTicketStatusAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            (int)TicketStatus.Waiting,
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Retried 2 times
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+
+        // Audit was preserved in PostgreSQL for reconciliation
+        _factory.AuditMock.Verify(a => a.LogAsync(
+            It.IsAny<int>(),
+            "pending_followup_unreconciled",
+            CustomWebApplicationFactory.Ticket12Id,
+            It.Is<string>(details => details.Contains("\"reasonId\":2") && details.Contains("Piezas agotadas")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetPending_WhenFirstAttemptSucceedsInGlpiButTimesOut_DeduplicatesAndAvoidsDoublePost()
+    {
+        var token = await AuthenticateAsAsync("tech1", TestCredentials.Tech1);
+        const string comment = "Esperando validación externa con timeout";
+
+        _factory.GlpiMock.Invocations.Clear();
+        _factory.AuditMock.Invocations.Clear();
+
+        // Simulate: First attempt throws TaskCanceledException / HttpRequestException,
+        // but before attempt 2 the followup is already visible in the ticket read model.
+        _factory.GlpiMock.Setup(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                // Simulate GLPI actually wrote the followup before the socket was cut
+                _factory.AddFollowupToTicket(CustomWebApplicationFactory.Ticket12Id, new()
+                {
+                    Id = 999,
+                    Content = comment,
+                    IsPrivate = true,
+                    CreatedAt = DateTime.UtcNow
+                });
+            })
+            .ThrowsAsync(new HttpRequestException("Socket timeout reading HTTP response from GLPI"));
+
+        using var response = await SetPendingAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            2,
+            comment,
+            token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify GLPI CreateFollowup was only called once, avoiding duplicate followup insertion on retry
+        _factory.GlpiMock.Verify(g => g.CreateFollowupAsync(
+            CustomWebApplicationFactory.Ticket12Id,
+            comment,
+            true,
+            It.IsAny<int?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Audited as successfully pending (not unreconciled)
+        _factory.AuditMock.Verify(a => a.LogAsync(
+            It.IsAny<int>(),
+            "pending",
+            CustomWebApplicationFactory.Ticket12Id,
+            It.Is<string>(details => details.Contains("\"reasonId\":2") && details.Contains("\"followupCreated\":true")),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

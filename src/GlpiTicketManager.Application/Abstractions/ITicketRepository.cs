@@ -12,6 +12,9 @@ namespace GlpiTicketManager.Application.Abstractions;
 /// </summary>
 public interface ITicketRepository
 {
+    /// <summary>Display names of this ticket's participants. Call only after ticket authorization.</summary>
+    Task<IReadOnlyDictionary<int, string>> GetParticipantNamesAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Ticket>> GetByAssigneeAsync(
         int assigneeId,
         int limit,
@@ -49,10 +52,31 @@ public interface ITicketRepository
         int offset,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Ticket>> GetFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int limit,
+        int offset,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        GetFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, limit, offset, cancellationToken);
+
     Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
         int supervisorId, IReadOnlyList<int> allowedGroupIds,
         int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
         int limit, int offset, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Ticket>> GetSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int limit, int offset,
+        int? groupId, bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        GetSupervisorFilteredAsync(supervisorId, allowedGroupIds, assigneeId, serviceId, startDate, endDate, limit, offset, cancellationToken);
 
     Task<long> CountFilteredAsync(
         int? assigneeId,
@@ -77,10 +101,28 @@ public interface ITicketRepository
         DateTime? endDate,
         CancellationToken cancellationToken);
 
+    Task<long> CountFilteredAsync(
+        int? assigneeId,
+        int? serviceId,
+        int? requesterId,
+        DateTime? startDate,
+        DateTime? endDate,
+        int? groupId,
+        bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        CountFilteredAsync(assigneeId, serviceId, requesterId, startDate, endDate, cancellationToken);
+
     Task<long> CountSupervisorFilteredAsync(
         int supervisorId, IReadOnlyList<int> allowedGroupIds,
         int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
         CancellationToken cancellationToken);
+
+    Task<long> CountSupervisorFilteredAsync(
+        int supervisorId, IReadOnlyList<int> allowedGroupIds,
+        int? assigneeId, int? serviceId, DateTime? startDate, DateTime? endDate,
+        int? groupId, bool? unassignedOnly,
+        CancellationToken cancellationToken) =>
+        CountSupervisorFilteredAsync(supervisorId, allowedGroupIds, assigneeId, serviceId, startDate, endDate, cancellationToken);
 
     Task<Ticket?> GetByIdAsync(int ticketId, CancellationToken cancellationToken);
     Task<Ticket?> GetByIdAsync(int ticketId, bool canSeePrivate, CancellationToken cancellationToken);

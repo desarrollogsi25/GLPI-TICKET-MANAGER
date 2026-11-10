@@ -1,6 +1,6 @@
 import { fixtureUrl } from './support/fixture-url'
 import { test, expect } from '@playwright/test'
-import { confirmPlanning } from './support/planning'
+import { completePendingTasks, confirmPlanning } from './support/planning'
 
 const DESK = fixtureUrl('desk')
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
@@ -47,6 +47,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
 
   const textareaSolution = page.locator('textarea').first()
   await expect(textareaSolution).toBeVisible({ timeout: 10000 })
+  await completePendingTasks(page)
   await textareaSolution.fill('Primera solución aplicada para resolver la incidencia inicial')
 
   const confirmResolve = page.locator('button', { hasText: /^Resolver$/ }).last()
@@ -119,6 +120,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
 
   const textareaNewSolution = page.locator('textarea').first()
   await expect(textareaNewSolution).toBeVisible({ timeout: 10000 })
+  await completePendingTasks(page)
   await textareaNewSolution.fill('Segunda solución definitiva tras corregir la causa raíz')
 
   const confirmResolve2 = page.locator('button', { hasText: /^Resolver$/ }).last()

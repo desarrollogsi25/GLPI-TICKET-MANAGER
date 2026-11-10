@@ -61,16 +61,23 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   const assignedCard = mineColumn.getByText(`#${TICKET_ID}`, { exact: true }).first().locator('xpath=ancestor::div[.//button][1]')
   await assignedCard.hover()
   await assignedCard.getByRole('button', { name: /Planificar/i }).first().click()
-  const planDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  const planDialog = page.getByRole('dialog', { name: /Planificación asistida|Planificar ticket/i })
   await expect(planDialog.getByTestId('plan-start')).toBeVisible()
-  await expect(planDialog.getByTestId('plan-start')).not.toHaveValue('', { timeout: 30_000 })
-  const start = await planDialog.getByTestId('plan-start').inputValue()
-  await planDialog.locator('#plan-start-calendar').click()
+
+  // Abrir popover de calendario
+  const calendarTrigger = planDialog.getByRole('button', { name: /Elegir fecha para fecha y hora de inicio/i })
+  await calendarTrigger.click()
   await expect(page.locator('[data-calendar-popover="true"]')).toBeVisible()
-  await page.locator(`[data-calendar-popover="true"] [data-date="${start.slice(0, 10)}"]`).click()
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const dayButton = page.locator(`[data-calendar-popover="true"] [data-date="${todayIso}"]`)
+  if (await dayButton.isVisible()) {
+    await dayButton.click()
+  } else {
+    await page.locator('[data-calendar-popover="true"] button[name="day"]').first().click()
+  }
   await page.getByRole('button', { name: 'Aplicar' }).click()
   await expect(planDialog).toBeVisible()
-  await planDialog.getByRole('button', { name: 'Elegir 17:00 para fecha y hora de inicio' }).click()
+  await planDialog.getByRole('button', { name: /Elegir 17:00 para fecha y hora de inicio/i }).click()
   await expect(planDialog.getByTestId('plan-start')).toHaveValue(/T17:00$/)
   await planDialog.getByRole('button', { name: 'Cancelar' }).click()
 

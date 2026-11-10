@@ -25,6 +25,15 @@ interface LocationState {
 
 const EASE = [0.23, 1, 0.32, 1] as const
 
+const isAllowedRouteForRole = (path: string, userRole?: string): boolean => {
+  if (['/tickets', '/preferences', '/ayuda', '/services'].some(p => path === p || path.startsWith(p + '/'))) return true
+  if (!userRole || userRole === 'solicitante') return false
+  if (['/kanban', '/queue', '/dashboard'].some(p => path === p || path.startsWith(p + '/'))) return true
+  if (path === '/equipo' || path.startsWith('/equipo/')) return userRole === 'supervisor' || userRole === 'admin'
+  if (path === '/administracion' || path.startsWith('/administracion/')) return userRole === 'admin'
+  return false
+}
+
 export function Login() {
   const token = useAuthStore((state) => state.token)
   const role = useAuthStore((state) => state.user?.role ?? state.role)
@@ -55,7 +64,39 @@ export function Login() {
         // The default landing depends on the role returned by this login, not on
         // the pre-login store value (which is still the previous session's role).
         const destination = data.user.role === 'solicitante' ? '/tickets' : '/kanban'
-        navigate(state?.from ?? destination, { replace: true })
+
+        // Check if identity changed between sessions
+        const lastUser = localStorage.getItem('glpi_last_username')
+        localStorage.setItem('glpi_last_username', data.user.username)
+        const isDifferentUser = Boolean(lastUser && lastUser.toLowerCase() !== data.user.username.toLowerCase())
+
+        const rawFrom = state?.from?.split('?')[0]
+        const isResourceDetail = rawFrom ? /^\/tickets\/\d+/i.test(rawFrom) : false
+
+        // Discard residual route from previous session if identity changed or if it points to a specific ticket resource
+        let target = destination
+        if (
+          !isDifferentUser &&
+          !isResourceDetail &&
+          rawFrom &&
+          rawFrom.startsWith('/') &&
+          !rawFrom.startsWith('//') &&
+          isAllowedRouteForRole(rawFrom, data.user.role)
+        ) {
+          target = rawFrom
+        } else if (
+          isDifferentUser &&
+          rawFrom &&
+          rawFrom.startsWith('/') &&
+          !rawFrom.startsWith('//') &&
+          !isResourceDetail &&
+          isAllowedRouteForRole(rawFrom, data.user.role)
+        ) {
+          // P3-07: another identity keeps the base view (e.g. /tickets) without inheriting query params
+          target = rawFrom
+        }
+
+        navigate(target, { replace: true })
       },
     })
   })

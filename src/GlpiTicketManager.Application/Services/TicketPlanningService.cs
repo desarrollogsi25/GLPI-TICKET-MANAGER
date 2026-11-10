@@ -66,6 +66,7 @@ public sealed class TicketPlanningService : ITicketPlanningService
     private readonly ITicketAccessPolicy _policy;
     private readonly TimeProvider _time;
     private readonly ILogger<TicketPlanningService> _logger;
+    private readonly ITicketPlanningRequestStore _scheduleRequests;
 
     public TicketPlanningService(
         ITicketRepository tickets,
@@ -74,7 +75,8 @@ public sealed class TicketPlanningService : ITicketPlanningService
         IGlpiApiClient glpi,
         ITicketAccessPolicy policy,
         TimeProvider time,
-        ILogger<TicketPlanningService> logger)
+        ILogger<TicketPlanningService> logger,
+        ITicketPlanningRequestStore scheduleRequests)
     {
         _tickets = tickets;
         _tasks = tasks;
@@ -83,6 +85,7 @@ public sealed class TicketPlanningService : ITicketPlanningService
         _policy = policy;
         _time = time;
         _logger = logger;
+        _scheduleRequests = scheduleRequests;
     }
 
     public async Task<TicketPlanningDto> GetPlanningAsync(
@@ -142,6 +145,8 @@ public sealed class TicketPlanningService : ITicketPlanningService
             request.IsPrivate,
             uuid);
 
+        await using var scheduleLock = await _scheduleRequests.AcquireTechnicianScheduleLockAsync(
+            request.TechnicianId, cancellationToken);
         PlanningReservation? reservation = null;
         if (idempotencyKey is not null)
         {
@@ -268,6 +273,8 @@ public sealed class TicketPlanningService : ITicketPlanningService
         }
 
         var technicianId = request.TechnicianId ?? task.TechnicianId;
+        if (role == AppRole.Technician && task.TechnicianId != userId)
+            throw new ForbiddenException("Solo el técnico responsable puede reprogramar esta tarea.");
         if (technicianId != task.TechnicianId
             && !await _policy.CanPlanAsync(userId, role, ticketId, technicianId, cancellationToken))
         {
@@ -275,6 +282,17 @@ public sealed class TicketPlanningService : ITicketPlanningService
                 "No tienes permiso para asignar la tarea a ese técnico.");
         }
 
+        // All scheduling endpoints share the same persistent per-technician lease.
+        // Transfer locks are acquired in ID order to avoid deadlocks.
+        await using var firstLock = await _scheduleRequests.AcquireTechnicianScheduleLockAsync(
+            Math.Min(task.TechnicianId, technicianId), cancellationToken);
+        await using var secondLock = technicianId == task.TechnicianId ? null
+            : await _scheduleRequests.AcquireTechnicianScheduleLockAsync(
+                Math.Max(task.TechnicianId, technicianId), cancellationToken);
+        var refreshedTask = await RequireTaskAsync(ticketId, taskId, cancellationToken);
+        if (refreshedTask.TechnicianId != task.TechnicianId || refreshedTask.State != task.State)
+            throw new ConflictException("La tarea cambió mientras esperabas; actualiza la planificación.");
+        task = refreshedTask;
         var content = request.Content is null ? task.Content : NormalizeContent(request.Content);
 
         DateTime? beginUtc = null;
@@ -353,6 +371,14 @@ public sealed class TicketPlanningService : ITicketPlanningService
         {
             throw new ForbiddenException("No tienes permiso para completar tareas de este ticket.");
         }
+        if (role == AppRole.Technician && task.TechnicianId != userId)
+            throw new ForbiddenException("Solo el técnico responsable puede completar esta tarea.");
+        await using var scheduleLock = await _scheduleRequests.AcquireTechnicianScheduleLockAsync(
+            task.TechnicianId, cancellationToken);
+        var refreshedTask = await RequireTaskAsync(ticketId, taskId, cancellationToken);
+        if (refreshedTask.TechnicianId != task.TechnicianId)
+            throw new ConflictException("El responsable de la tarea cambió; actualiza la planificación.");
+        task = refreshedTask;
 
         if (task.State == (int)TicketTaskState.Done)
         {
@@ -383,6 +409,14 @@ public sealed class TicketPlanningService : ITicketPlanningService
         {
             throw new ForbiddenException("No tienes permiso para cancelar tareas de este ticket.");
         }
+        if (role == AppRole.Technician && task.TechnicianId != userId)
+            throw new ForbiddenException("Solo el técnico responsable puede cancelar esta tarea.");
+        await using var scheduleLock = await _scheduleRequests.AcquireTechnicianScheduleLockAsync(
+            task.TechnicianId, cancellationToken);
+        var refreshedTask = await RequireTaskAsync(ticketId, taskId, cancellationToken);
+        if (refreshedTask.TechnicianId != task.TechnicianId)
+            throw new ConflictException("El responsable de la tarea cambió; actualiza la planificación.");
+        task = refreshedTask;
 
         await _glpi.DeleteTicketTaskAsync(taskId, cancellationToken);
 

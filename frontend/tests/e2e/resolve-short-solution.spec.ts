@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { resetFixtureTicket } from './support/ticket-fixtures'
-import { confirmPlanning } from './support/planning'
+import { completePendingTasks, confirmPlanning } from './support/planning'
 
 /**
  * BUG-031 (H-31) — regression spec for the "short solution" defect.
@@ -48,19 +48,44 @@ test('API: una solucion corta ("OK") permite marcar el ticket como resuelto', as
   await page.goto('/queue')
   const token = await readAuthToken(page)
   const headers = { Authorization: `Bearer ${token}` }
+  const technicianId = await page.evaluate(() => {
+    const raw = localStorage.getItem('glpi-ticket-manager.auth')
+    return (JSON.parse(raw ?? '{}') as { state?: { user?: { userId?: number } } }).state?.user?.userId
+  })
+  expect(technicianId).toBeTruthy()
 
   // 1. El tecnico se hace cargo del ticket de la cola del grupo.
   const claim = await page.request.post(`/api/tickets/${API_TICKET_ID}/claim`, { headers })
   expect(claim.status()).toBe(200)
 
-  // 2. La solucion corta se acepta (201).
+  // 2. Regla de dominio: no se resuelve un ticket con tareas pendientes. El fixture
+  //    planifica y completa su tarea antes de escribir la solución corta.
+  const startAt = new Date(Date.now() + 24 * 3_600_000)
+  const plan = await page.request.post(`/api/tickets/${API_TICKET_ID}/plan`, {
+    headers,
+    data: {
+      requestId: crypto.randomUUID(),
+      technicianId,
+      content: 'Tarea previa a la resolución corta (fixture E2E)',
+      startAt: startAt.toISOString(),
+      endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
+    },
+  })
+  expect(plan.status(), await plan.text()).toBe(200)
+  const { taskId } = (await plan.json()) as { taskId: number }
+  const complete = await page.request.post(`/api/tickets/${API_TICKET_ID}/tasks/${taskId}/complete`, {
+    headers,
+  })
+  expect(complete.status(), await complete.text()).toBe(200)
+
+  // 3. La solucion corta se acepta (201).
   const solution = await page.request.post(`/api/tickets/${API_TICKET_ID}/solutions`, {
     headers,
     data: { content: 'OK' },
   })
   expect(solution.status()).toBe(201)
 
-  // 3. El cambio de estado a Resuelto ya NO puede respond 422
+  // 4. El cambio de estado a Resuelto ya NO puede respond 422
   //    ("Ticket no puede marcarse como resuelto sin solución escrita"): la solucion
   //    escrita existe aunque sea de dos caracteres. Antes de BUG-031 contestaba 422.
   const status = await page.request.patch(`/api/tickets/${API_TICKET_ID}/status`, {
@@ -123,6 +148,9 @@ test('UI: resolver con la solucion corta "OK" deja el ticket en Resuelto', async
   await expect(dialog).toBeVisible({ timeout: 10000 })
   const textarea = dialog.locator('textarea').first()
   await expect(textarea).toBeVisible({ timeout: 10000 })
+
+  // La tarea planificada debe completarse antes de resolver (regla de dominio).
+  await completePendingTasks(page)
 
   const confirmButton = dialog.getByRole('button', { name: /^Resolver$/ }).last()
   await textarea.focus()

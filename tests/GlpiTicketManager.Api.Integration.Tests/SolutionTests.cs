@@ -48,6 +48,7 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task AddSolution_UsingGlpiApi_CreatesITILSolution()
     {
+        _factory.SetTaskState(8012, 2);
         var token = await AuthenticateAsTech1Async();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -59,6 +60,20 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
         var body = await response.Content.ReadFromJsonAsync<SolutionResponse>();
         body.Should().NotBeNull();
         body!.Id.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task AddSolution_WhenTicketHasOpenTasks_Returns422()
+    {
+        _factory.SetTaskState(8012, 1);
+        var token = await AuthenticateAsTech1Async();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(new { content = "Solucion con tareas pendientes" });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]
@@ -90,6 +105,7 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task AddSolution_WithShortContent_Returns201()
     {
+        _factory.SetTaskState(8012, 2);
         var token = await AuthenticateAsTech1Async();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -117,6 +133,7 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task AddSolution_WithValidContent_Returns201()
     {
+        _factory.SetTaskState(8012, 2);
         var token = await AuthenticateAsTech1Async();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tickets/{CustomWebApplicationFactory.Ticket12Id}/solutions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -133,6 +150,7 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task PatchStatus5_WhenSolutionContentEmpty_Returns422()
     {
+        _factory.SetTaskState(8012, 2);
         var token = await AuthenticateAsTech1Async();
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "   ");
 
@@ -148,6 +166,7 @@ public class SolutionTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task PatchStatus5_WhenSolutionContentShort_Succeeds()
     {
+        _factory.SetTaskState(8012, 2);
         var token = await AuthenticateAsTech1Async();
         _factory.SetTicketSolution(CustomWebApplicationFactory.Ticket12Id, "OK");
 

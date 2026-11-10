@@ -119,7 +119,10 @@ export function KanbanMobileSheet({
                 </Button>
               )}
 
-              {currentColumn === 'mine' && (
+              {currentColumn !== 'queue' && currentColumn !== 'resolved' && ticket.assigneeIds.length === 0 && (
+                <p className="text-sm text-muted-foreground">Asigna un técnico antes de continuar.</p>
+              )}
+              {currentColumn === 'mine' && ticket.assigneeIds.length > 0 && (
                 <div className="flex flex-col gap-2 w-full">
                   <Button
                     className="w-full h-12 text-sm font-medium justify-center gap-2"
@@ -157,7 +160,7 @@ export function KanbanMobileSheet({
                 </div>
               )}
 
-              {currentColumn === 'in_progress' && (
+              {currentColumn === 'in_progress' && ticket.assigneeIds.length > 0 && (
                 <>
                   <Button
                     variant="outline"
@@ -188,7 +191,7 @@ export function KanbanMobileSheet({
                 </>
               )}
 
-              {currentColumn === 'pending' && (
+              {currentColumn === 'pending' && ticket.assigneeIds.length > 0 && (
                 <>
                   <Button
                     className="w-full h-12 text-sm font-medium justify-center gap-2"

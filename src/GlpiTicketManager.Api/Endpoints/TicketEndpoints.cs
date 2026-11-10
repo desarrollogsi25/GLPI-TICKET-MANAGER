@@ -37,6 +37,18 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // GET /api/tickets/pending-reasons -> catálogo de motivos de espera (QA-07)
+        group.MapGet("pending-reasons", () => Results.Ok(PendingReasons.All))
+            .WithName("GetPendingReasons")
+            .WithSummary("List official reasons for placing a ticket into pending/waiting status")
+            .Produces<IReadOnlyList<PendingReasonDto>>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        app.MapGet("/api/pending-reasons", () => Results.Ok(PendingReasons.All))
+            .RequireAuthorization()
+            .WithTags("Tickets")
+            .Produces<IReadOnlyList<PendingReasonDto>>(StatusCodes.Status200OK);
+
 
         // GET /api/tickets?groupId=X&unassigned=true -> cola del grupo (sin asignar)
         group.MapGet("by-group", GetUnassignedByGroup)
@@ -56,6 +68,11 @@ public static class TicketEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapGet("/{id:int}/availability", GetAvailability)
+            .WithName("GetPlanningAvailability")
+            .Produces<PlanningAvailabilityDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
 
         group.MapGet("/{id:int}/tasks", GetTasks)
             .WithName("GetTicketTasks")
@@ -193,6 +210,8 @@ public static class TicketEndpoints
     private static async Task<IResult> GetTickets(
         int? assigneeId,
         int? serviceId,
+        int? groupId,
+        bool? unassignedOnly,
         ITicketService ticketService,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken,
@@ -210,6 +229,7 @@ public static class TicketEndpoints
         var role = principal.GetRole();
         int? effectiveAssigneeId = null;
         int? effectiveRequesterId = null;
+        bool effectiveUnassignedOnly = unassignedOnly == true;
 
         if (role == AppRole.Solicitante)
         {
@@ -217,7 +237,14 @@ public static class TicketEndpoints
         }
         else if (role == AppRole.Admin || role == AppRole.Supervisor)
         {
-            effectiveAssigneeId = assigneeId;
+            if (assigneeId == 0)
+            {
+                effectiveUnassignedOnly = true;
+            }
+            else
+            {
+                effectiveAssigneeId = assigneeId;
+            }
         }
         else
         {
@@ -235,10 +262,11 @@ public static class TicketEndpoints
             var result = role == AppRole.Supervisor
                 ? await ticketService.GetSupervisorFilteredAsync(userId.Value,
                     effectiveAssigneeId, serviceId, startDate, endDate,
-                    limit ?? 0, offset ?? 0, cancellationToken)
+                    limit ?? 0, offset ?? 0, groupId, effectiveUnassignedOnly ? true : null, cancellationToken)
                 : await ticketService.GetFilteredAsync(
                     effectiveAssigneeId, serviceId, effectiveRequesterId,
-                    startDate, endDate, limit ?? 0, offset ?? 0, cancellationToken);
+                    startDate, endDate, limit ?? 0, offset ?? 0,
+                    groupId, effectiveUnassignedOnly ? true : null, cancellationToken);
 
             return Results.Ok(result);
         }
@@ -378,6 +406,31 @@ public static class TicketEndpoints
                 title: "Acceso denegado", detail: ex.Message);
         }
     }
+    private static async Task<IResult> GetAvailability(int id, int technicianId,
+        DateTimeOffset startAt, DateTimeOffset endAt, int? excludeTaskId,
+        ITicketService ticketService, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    {
+        var userId = principal.GetUserId();
+        if (userId is null) return Results.Unauthorized();
+        try
+        {
+            return Results.Ok(await ticketService.GetAvailabilityAsync(id, technicianId, startAt, endAt,
+                excludeTaskId, userId.Value, principal.GetRole(), cancellationToken));
+        }
+        catch (ValidationException ex)
+        {
+            return Results.Problem(statusCode: 400, title: "Horario inválido", detail: ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.Problem(statusCode: 403, title: "Acceso denegado", detail: ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.Problem(statusCode: 404, title: "No encontrado", detail: ex.Message);
+        }
+    }
+
     private static async Task<IResult> GetTasks(
         int id,
         ITicketService ticketService,

@@ -8,6 +8,12 @@ namespace GlpiTicketManager.Application.Mapping;
 /// </summary>
 public static class TicketMapper
 {
+    private static DateTime AsUtc(DateTime dt) =>
+        dt.Kind == DateTimeKind.Utc ? dt : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+
+    private static DateTime? AsUtc(DateTime? dt) =>
+        dt.HasValue ? AsUtc(dt.Value) : null;
+
     public static TicketSummaryDto ToSummary(this Ticket ticket) => new(
         ticket.Id,
         ticket.Name,
@@ -20,16 +26,18 @@ public static class TicketMapper
         ticket.Urgency,
         ticket.Impact,
         ticket.CategoryId,
-        ticket.CreatedAt,
-        ticket.UpdatedAt,
-        ticket.SolvedAt,
+        AsUtc(ticket.CreatedAt),
+        AsUtc(ticket.UpdatedAt),
+        AsUtc(ticket.SolvedAt),
         ticket.HasSolution,
         ticket.AssigneeIds,
         ticket.RequesterIds,
-        ticket.NextPlannedAt,
+        AsUtc(ticket.NextPlannedAt),
         ticket.NextPlannedTechnicianId,
         ticket.NextPlannedDuration,
-        ticket.NextPlannedComment);
+        ticket.NextPlannedComment,
+        ticket.GroupId,
+        ticket.GroupName);
 
     public static TicketDetailDto ToDetail(this Ticket ticket) => new(
         ticket.Id,
@@ -44,29 +52,31 @@ public static class TicketMapper
         ticket.Urgency,
         ticket.Impact,
         ticket.CategoryId,
-        ticket.CreatedAt,
-        ticket.UpdatedAt,
-        ticket.SolvedAt,
-        ticket.ClosedAt,
+        AsUtc(ticket.CreatedAt),
+        AsUtc(ticket.UpdatedAt),
+        AsUtc(ticket.SolvedAt),
+        AsUtc(ticket.ClosedAt),
         ticket.AssigneeIds,
         ticket.RequesterIds,
         ticket.Followups.Select(ToDto).ToArray(),
         ticket.Solutions.Select(ToDto).ToArray(),
-        ticket.NextPlannedAt,
+        AsUtc(ticket.NextPlannedAt),
         ticket.NextPlannedTechnicianId,
         ticket.NextPlannedDuration,
-        ticket.NextPlannedComment);
+        ticket.NextPlannedComment,
+        ticket.GroupId,
+        ticket.GroupName);
 
     public static TicketFollowupDto ToDto(this TicketFollowup followup) => new(
         followup.Id,
         followup.UserId,
         followup.Content,
-        followup.CreatedAt,
+        AsUtc(followup.CreatedAt),
         followup.IsPrivate);
 
     public static TicketSolutionDto ToDto(this TicketSolution solution) => new(
         solution.Id,
         solution.UserId,
         solution.Content,
-        solution.CreatedAt);
+        AsUtc(solution.CreatedAt));
 }

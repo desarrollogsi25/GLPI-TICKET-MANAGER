@@ -25,7 +25,7 @@ export function KanbanSegmentedTabs({
     <div
       role="tablist"
       aria-label="Columnas del Kanban"
-      className="flex gap-1.5 overflow-x-auto p-1 bg-muted/60 rounded-xl border border-border/60 scrollbar-none snap-x"
+      className="flex gap-1.5 overflow-x-auto p-1 bg-muted/60 rounded-xl border border-border/60 scrollbar-none snap-x md:grid md:grid-cols-5 md:overflow-visible"
     >
       {columns.map((col) => {
         const isActive = activeId === col.id
@@ -39,7 +39,7 @@ export function KanbanSegmentedTabs({
             data-testid={`kanban-tab-${col.id}`}
             onClick={() => onSelect(col.id)}
             className={cn(
-              'relative flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap min-h-[44px] transition-colors select-none snap-start shrink-0 cursor-pointer',
+              'relative flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap min-h-[44px] transition-colors select-none snap-start shrink-0 cursor-pointer md:w-full md:shrink',
               isActive
                 ? 'text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/40',

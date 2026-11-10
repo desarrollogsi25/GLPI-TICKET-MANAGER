@@ -43,6 +43,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private readonly Dictionary<int, string> _ticketSolutions = new();
     private readonly Dictionary<int, List<TicketTaskDto>> _nativeTasks = new();
     private readonly ConcurrentDictionary<int, SemaphoreSlim> _technicianScheduleGates = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _ticketClaimGates = new();
 
     private sealed class ScheduleGateLease(SemaphoreSlim gate) : IAsyncDisposable
     {
@@ -87,6 +88,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     private Mock<ITicketNotificationService>? _notificationMock;
     private Mock<IGlpiApiClient>? _glpiMock;
+    private Mock<IAuditRepository>? _auditMock;
+
+    public Mock<IAuditRepository> AuditMock =>
+        _auditMock ?? throw new InvalidOperationException(
+            "The test host has not been created yet. Call CreateClient() before using AuditMock.");
 
     /// <summary>
     /// The GLPI REST double, so a test can assert that the application really reads
@@ -141,6 +147,38 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         }
     }
 
+    public void SetTaskState(int taskId, int state)
+    {
+        lock (_stateLock)
+        {
+            foreach (var items in _nativeTasks.Values)
+            {
+                var index = items.FindIndex(item => item.Id == taskId);
+                if (index >= 0)
+                {
+                    items[index] = items[index] with { State = state };
+                    break;
+                }
+            }
+        }
+    }
+
+    public void ClearTasks(int ticketId)
+    {
+        lock (_stateLock)
+        {
+            _nativeTasks[ticketId] = [];
+        }
+    }
+
+    public void SetTasks(int ticketId, List<TicketTaskDto> tasks)
+    {
+        lock (_stateLock)
+        {
+            _nativeTasks[ticketId] = tasks;
+        }
+    }
+
     /// <summary>The status GLPI currently reports for a ticket, or null if unknown.</summary>
     public int? GetGlpiReportedStatus(int ticketId)
     {
@@ -191,6 +229,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     RequesterIds = ticket.RequesterIds,
                     Followups = ticket.Followups
                 };
+            }
+        }
+    }
+
+    public void AddFollowupToTicket(int ticketId, GlpiTicketManager.Domain.Entities.TicketFollowup followup)
+    {
+        lock (_stateLock)
+        {
+            if (_allTickets.TryGetValue(ticketId, out var ticket))
+            {
+                var list = ticket.Followups.ToList();
+                list.Add(followup);
+                ticket.Followups = list;
             }
         }
     }
@@ -602,6 +653,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var auditMock = new Mock<IAuditRepository>();
             auditMock.Setup(a => a.LogAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1L);
+            _auditMock = auditMock;
 
             // Mock IGlpiApiClient
             // Shared in-memory stand-in for the PostgreSQL unique request-id constraint.
@@ -612,6 +664,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 .Returns(async (int technicianId, CancellationToken ct) =>
                 {
                     var gate = _technicianScheduleGates.GetOrAdd(technicianId, _ => new SemaphoreSlim(1, 1));
+                    await gate.WaitAsync(ct);
+                    return (IAsyncDisposable)new ScheduleGateLease(gate);
+                });
+            planningStoreMock.Setup(s => s.AcquireTicketClaimLockAsync(
+                    It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns(async (int ticketId, CancellationToken ct) =>
+                {
+                    var gate = _ticketClaimGates.GetOrAdd(ticketId, _ => new SemaphoreSlim(1, 1));
                     await gate.WaitAsync(ct);
                     return (IAsyncDisposable)new ScheduleGateLease(gate);
                 });
@@ -653,6 +713,42 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             var glpiMock = new Mock<IGlpiApiClient>();
             _glpiMock = glpiMock;
+            glpiMock.Setup(g => g.AssignTicketAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int ticketId, int technicianId, CancellationToken _) =>
+                {
+                    lock (_stateLock)
+                    {
+                        if (SimulateInsertFailure)
+                        {
+                            throw new InvalidOperationException("Simulated failure during GLPI assignment.");
+                        }
+
+                        if (_allTickets.TryGetValue(ticketId, out var ticket))
+                        {
+                            _allTickets[ticketId] = new Ticket
+                            {
+                                Id = ticket.Id,
+                                Name = ticket.Name,
+                                Content = ticket.Content,
+                                Status = (int)TicketStatus.Assigned,
+                                Type = ticket.Type,
+                                Priority = ticket.Priority,
+                                Urgency = ticket.Urgency,
+                                Impact = ticket.Impact,
+                                CategoryId = ticket.CategoryId,
+                                CreatedAt = ticket.CreatedAt,
+                                UpdatedAt = DateTime.UtcNow,
+                                SolvedAt = ticket.SolvedAt,
+                                ClosedAt = ticket.ClosedAt,
+                                IsDeleted = ticket.IsDeleted,
+                                HasSolution = ticket.HasSolution
+                            };
+                        }
+                        _ticketUsers.Add(new TicketUser { TicketId = ticketId, UserId = technicianId, Type = (int)TicketUserType.Assigned });
+                        _glpiTicketStates[ticketId] = new GlpiTicketState(ticketId, (int)TicketStatus.Assigned);
+                    }
+                    return Task.CompletedTask;
+                });
             glpiMock.Setup(g => g.GetTicketTasksAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int ticketId, CancellationToken _) =>
                 {
@@ -672,8 +768,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     return Task.CompletedTask;
                 });
             glpiMock.Setup(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-                    It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
-                .Returns((int taskId, string content, DateTimeOffset start, DateTimeOffset end, CancellationToken _) =>
+                    It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()))
+                .Returns((int taskId, string content, DateTimeOffset start, DateTimeOffset end, CancellationToken _, int? techId) =>
                 {
                     lock (_stateLock)
                         foreach (var items in _nativeTasks.Values)
@@ -683,6 +779,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                             {
                                 var ownerTicketId = items[index].TicketId;
                                 items[index] = items[index] with { Content = content, State = 1,
+                                    TechnicianId = techId ?? items[index].TechnicianId,
                                     StartAt = start, EndAt = end,
                                     DurationSeconds = (int)(end - start).TotalSeconds };
                                 // Real GLPI reopens Waiting and derives Planned from the

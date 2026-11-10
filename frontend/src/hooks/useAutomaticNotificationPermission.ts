@@ -27,6 +27,23 @@ function canRequestPermission(): boolean {
   return (!isIos || installed) && Notification.permission === 'default'
 }
 
+/** Explicit request on user notification gesture (H-42/H-65). */
+export function requestBrowserNotificationPermission() {
+  if (wasPermissionRequested() || !canRequestPermission()) return
+
+  attemptedInThisPage = true
+  try {
+    localStorage.setItem(PERMISSION_ATTEMPT_KEY, 'true')
+  } catch {
+    // The in-memory guard still prevents repeated prompts when storage is unavailable.
+  }
+  try {
+    void Notification.requestPermission().catch(() => {})
+  } catch {
+    // Unsupported or browser-blocked requests remain silent and are not retried.
+  }
+}
+
 /** Request once, on the first trusted click after the authenticated layout mounts (H-65). */
 export function useAutomaticNotificationPermission() {
   const sessionValid = useIsSessionValid()

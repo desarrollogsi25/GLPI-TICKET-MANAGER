@@ -11,22 +11,28 @@ function toDate(value: string | null | undefined): Date | null {
     return null
   }
 
-  // Si no contiene indicador de zona horaria (Z o +/-), añadir 'Z' para parsear como UTC
-  const normalized = trimmed.replace(' ', 'T')
-  const hasTimezone = normalized.endsWith('Z') || /[+-]\d{2}(:?\d{2})?$/.test(normalized)
-  const utcString = hasTimezone ? normalized : `${normalized}Z`
+  // MariaDB y GLPI persisten los timestamps en UTC (NOW() == UTC_TIMESTAMP()).
+  // Si la cadena incluye hora pero carece de indicador de zona (Z o +/-), añadir 'Z'
+  // para que date-fns/browser la interprete como instante UTC y la convierta a la hora local
+  // del usuario (Europe/Madrid, Europe/Paris, America/Lima), evitando el desfase de "hace 1 hora".
+  let normalized = trimmed.replace(' ', 'T')
+  const hasTime = normalized.includes(':')
+  const hasZone = normalized.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(normalized)
+  if (hasTime && !hasZone) {
+    normalized = `${normalized}Z`
+  }
 
   // GLPI stores "no date" as 0000-00-00, which some drivers surface as year 1.
   // Rendering that as "hace 2027 años" is worse than showing the em dash.
-  const isUsable = (date: Date) => isValid(date) && date.getUTCFullYear() >= 1970
+  const isUsable = (date: Date) => isValid(date) && date.getFullYear() >= 1970
 
-  const parsed = parseISO(utcString)
+  const parsed = parseISO(normalized)
   if (isUsable(parsed)) {
     return parsed
   }
 
-  // Fallback directo a parseISO original
-  const direct = parseISO(trimmed)
+  // Fallback directo a new Date
+  const direct = new Date(trimmed)
   return isUsable(direct) ? direct : null
 }
 
