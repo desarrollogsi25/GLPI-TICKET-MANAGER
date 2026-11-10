@@ -45,6 +45,16 @@ export function Dialog({ open, onClose, title, description, children, className 
     onCloseRef.current = onClose
   }, [onClose])
 
+  // Lock background body scroll while dialog is open
+  useEffect(() => {
+    if (!open) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) {
       return
@@ -102,7 +112,7 @@ export function Dialog({ open, onClose, title, description, children, className 
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Backdrop with fast fade (< 200ms) */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -142,7 +152,7 @@ export function Dialog({ open, onClose, title, description, children, className 
                 : { duration: 0.2, ease: [0.23, 1, 0.32, 1] }
             }
             className={cn(
-              'relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl',
+              'relative z-10 max-h-[92vh] max-sm:max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-2xl sm:rounded-xl border border-border bg-card p-4 sm:p-6 shadow-xl',
               className,
             )}
             onClick={(event) => event.stopPropagation()}

@@ -225,6 +225,11 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           selectedStart={startDate}
           durationMinutes={durationMinutes}
           onSlotSelect={(newStart, newDuration) => {
+            if (!newStart) {
+              setStart('')
+              setEnd('')
+              return
+            }
             setStart(localDateTime(newStart))
             setEnd(localDateTime(new Date(newStart.getTime() + newDuration * 60_000)))
             setError('')
@@ -234,6 +239,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           suggestedStart={availability.data?.suggestedStart}
           isAvailable={availability.data?.available ?? true}
           isFetchingAvailability={availability.isFetching}
+          technicianName={techName}
           disabled={busy || effectiveTechId <= 0}
           manualInputSection={
             <div className="grid gap-2">
@@ -281,9 +287,9 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           </div>
         )}
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
+        <div className="sticky bottom-0 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 bg-card/95 backdrop-blur-sm border-t border-border/40 p-3 sm:p-4 flex flex-wrap justify-end gap-2 mt-4">
           <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={busy || isSame || availability.isFetching || availability.isError || !availability.data?.available}>
+          <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={busy || !startDate || !endDate || isSame || availability.isFetching || availability.isError || !availability.data?.available}>
             {mutation.isPending ? 'Reprogramando...' : 'Guardar nueva programación'}
           </Button>
         </div>

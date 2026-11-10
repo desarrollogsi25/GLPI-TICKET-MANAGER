@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ShieldAlert, ArrowLeft } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ import { ResolveTicketDialog } from './ResolveTicketDialog'
 export function Detail() {
   const { id } = useParams<{ id: string }>()
   const ticketId = Number(id)
+  const navigate = useNavigate()
   const { data: ticket, isLoading, isError, error } = useTicketQuery(ticketId)
   const { data: tasks, isLoading: tasksLoading, isError: tasksFailed, error: tasksError } = useTicketTasksQuery(ticketId)
 
@@ -95,14 +97,48 @@ export function Detail() {
   }
 
   if (isError || !ticket) {
+    const isForbidden =
+      (error && typeof error === 'object' && ('status' in error || 'statusCode' in error) &&
+        ((error as any).status === 403 || (error as any).statusCode === 403)) ||
+      getApiErrorMessage(error).toLowerCase().includes('permiso') ||
+      getApiErrorMessage(error).toLowerCase().includes('denegado')
+
+    const homePath = role === 'solicitante' ? '/tickets' : '/kanban'
+
     return (
-      <div className="space-y-4">
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          {getApiErrorMessage(error)}
-        </p>
-        <Link to="/tickets" className="text-sm underline">
-          Volver al listado
-        </Link>
+      <div className="mx-auto max-w-lg py-12 px-4 text-center">
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-md space-y-4">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <ShieldAlert className="size-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-foreground">
+              {isForbidden ? `Acceso restringido al ticket #${ticketId}` : 'Ticket no disponible'}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {isForbidden
+                ? 'No tienes permisos para consultar este ticket porque pertenece a otro grupo o técnico.'
+                : getApiErrorMessage(error) || 'No fue posible cargar los detalles del ticket.'}
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row justify-center gap-2">
+            <Button
+              type="button"
+              onClick={() => navigate(homePath)}
+              className="gap-2"
+            >
+              <ArrowLeft className="size-4" />
+              Ir a la vista principal
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/tickets')}
+            >
+              Ver mis tickets
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }

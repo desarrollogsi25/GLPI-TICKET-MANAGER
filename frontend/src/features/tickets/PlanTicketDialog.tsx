@@ -119,8 +119,8 @@ export function PlanTicketDialog({
       setMode('new')
       setSelectedTaskId(null)
       setContent('')
-      setStart(localDateTime(initial))
-      setEnd(localDateTime(new Date(initial.getTime() + 60 * 60_000)))
+      setStart('')
+      setEnd('')
     }
     setError('')
     setConflict(null)
@@ -137,6 +137,8 @@ export function PlanTicketDialog({
     if (next === 'new') {
       setSelectedTaskId(null)
       setContent('')
+      setStart('')
+      setEnd('')
       return
     }
     const task = openTasks.find((item) => item.id === selectedTaskId) ?? pickInitialTask(openTasks)
@@ -485,6 +487,11 @@ export function PlanTicketDialog({
           selectedStart={startDateObj}
           durationMinutes={durationMinutes}
           onSlotSelect={(newStart, newDuration) => {
+            if (!newStart) {
+              setStart('')
+              setEnd('')
+              return
+            }
             setStart(localDateTime(newStart))
             setEnd(localDateTime(new Date(newStart.getTime() + newDuration * 60_000)))
             setError('')
@@ -495,6 +502,7 @@ export function PlanTicketDialog({
           isAvailable={availability.data?.available ?? true}
           isFetchingAvailability={availability.isFetching}
           timeZone={zone}
+          technicianName={ticket?.participantNames?.[responsibleId] ?? (responsibleId === user?.userId ? user.displayName || user.username : undefined)}
           disabled={busy || tasksUnavailable || !responsibleId}
           manualInputSection={
             <div className="grid gap-2">
@@ -623,14 +631,14 @@ export function PlanTicketDialog({
           </p>
         )}
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
+        <div className="sticky bottom-0 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 bg-card/95 backdrop-blur-sm border-t border-border/40 p-3 sm:p-4 flex flex-wrap justify-end gap-2 mt-4">
           <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={close}>
             Cancelar
           </Button>
           <Button
             type="submit"
             className="min-h-11 w-full sm:w-auto"
-            disabled={busy || tasksUnavailable || isEndBeforeStart || !responsibleId || availability.isFetching || !availability.data?.available || availability.isError || isSameSchedule}
+            disabled={busy || tasksUnavailable || !startDateObj || !endDateObj || isEndBeforeStart || !responsibleId || availability.isFetching || !availability.data?.available || availability.isError || isSameSchedule}
             data-testid="plan-confirm-btn"
           >
             {busy

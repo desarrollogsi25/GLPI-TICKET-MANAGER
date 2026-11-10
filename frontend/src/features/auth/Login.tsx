@@ -64,11 +64,28 @@ export function Login() {
         // The default landing depends on the role returned by this login, not on
         // the pre-login store value (which is still the previous session's role).
         const destination = data.user.role === 'solicitante' ? '/tickets' : '/kanban'
-        // A fresh session never inherits another identity's list filters.
-        const from = state?.from?.split('?')[0]
-        const target = from && from.startsWith('/') && !from.startsWith('//') && isAllowedRouteForRole(from, data.user.role)
-          ? from
-          : destination
+
+        // Check if identity changed between sessions
+        const lastUser = localStorage.getItem('glpi_last_username')
+        localStorage.setItem('glpi_last_username', data.user.username)
+        const isDifferentUser = Boolean(lastUser && lastUser.toLowerCase() !== data.user.username.toLowerCase())
+
+        const rawFrom = state?.from?.split('?')[0]
+        const isResourceDetail = rawFrom ? /^\/tickets\/\d+/i.test(rawFrom) : false
+
+        // Discard residual route from previous session if identity changed or if it points to a specific ticket resource
+        let target = destination
+        if (
+          !isDifferentUser &&
+          !isResourceDetail &&
+          rawFrom &&
+          rawFrom.startsWith('/') &&
+          !rawFrom.startsWith('//') &&
+          isAllowedRouteForRole(rawFrom, data.user.role)
+        ) {
+          target = rawFrom
+        }
+
         navigate(target, { replace: true })
       },
     })
