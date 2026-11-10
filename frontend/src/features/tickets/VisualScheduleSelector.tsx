@@ -519,7 +519,7 @@ export function VisualScheduleSelector({
             }}
             className="shrink-0 border-primary/50 text-primary hover:bg-primary/10"
           >
-            Usar este horario
+            Usar horario libre ({formatHourMinute(new Date(suggestedStart))})
           </Button>
         </div>
       )}

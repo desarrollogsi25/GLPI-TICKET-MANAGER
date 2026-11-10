@@ -61,7 +61,7 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   const assignedCard = mineColumn.getByText(`#${TICKET_ID}`, { exact: true }).first().locator('xpath=ancestor::div[.//button][1]')
   await assignedCard.hover()
   await assignedCard.getByRole('button', { name: /Planificar/i }).first().click()
-  const planDialog = page.getByRole('dialog', { name: /Planificar ticket/i })
+  const planDialog = page.getByRole('dialog', { name: /Planificación asistida|Planificar ticket/i })
   await expect(planDialog.getByTestId('plan-start')).toBeVisible()
 
   // Abrir popover de calendario
