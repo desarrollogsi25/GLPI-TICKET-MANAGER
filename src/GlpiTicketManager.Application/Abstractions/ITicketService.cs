@@ -166,10 +166,6 @@ public interface ITicketService
         bool completePendingTasks,
         CancellationToken cancellationToken);
 
-    Task<TicketDetailDto> ApproveSolutionAsync(int ticketId, int solutionId, int userId, AppRole role, CancellationToken cancellationToken);
-
-    Task<TicketDetailDto> RejectSolutionAsync(int ticketId, int solutionId, int userId, AppRole role, string? reason, CancellationToken cancellationToken);
-
     Task<bool> IsUserInTicketGroupAsync(int ticketId, int userId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<int>> GetGroupIdsForUserAsync(int userId, CancellationToken cancellationToken);

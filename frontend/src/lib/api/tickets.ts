@@ -181,15 +181,6 @@ export async function reopenTicket(id: number, reason?: string): Promise<import(
   return data
 }
 
-export async function approveSolution(ticketId: number, solutionId: number): Promise<import('@/lib/api/types').TicketDetail> {
-  const { data } = await apiClient.post(`/tickets/${ticketId}/solutions/${solutionId}/approve`)
-  return data
-}
-
-export async function rejectSolution(ticketId: number, solutionId: number, reason?: string): Promise<import('@/lib/api/types').TicketDetail> {
-  const { data } = await apiClient.post(`/tickets/${ticketId}/solutions/${solutionId}/reject`, reason ? { reason } : {})
-  return data
-}
 export interface PutPendingRequest {
   reasonId: number
   comment: string

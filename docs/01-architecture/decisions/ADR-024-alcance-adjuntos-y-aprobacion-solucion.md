@@ -30,6 +30,7 @@ Durante la auditoría integral y pruebas de aceptación de GLPI Ticket Manager, 
 
 - **Fase Actual (v1.0):**
   - **Autoridad de GLPI:** La inserción de una solución por parte de un técnico autenticado (`POST /api/tickets/{id}/solutions` o `POST /api/tickets/{id}/resolve`) requiere obligatoriamente que todas las tareas del ticket estén completadas (`done > 0` y `open == 0`), y que el ticket no esté en espera.
+  - **Superficie retirada (2026-11-10):** los endpoints `POST /api/tickets/{id}/solutions/{solutionId}/approve` y `.../reject` se eliminaron por un hallazgo BOLA/IDOR (`solutionId` no se validaba contra el ticket) y porque ningún cliente los consumía. El ciclo de aprobación/rechazo queda explícitamente fuera de v1.0 y pertenece a GLPI.
   - **Reapertura de Soluciones Insuficientes:** Si un solicitante no está conforme con la solución brindada, el flujo operativo estándar de la v1.0 permite que el usuario se comunique vía seguimiento o que el equipo de soporte invoque `POST /api/tickets/{id}/reopen` (ADR-019), lo que invalida la solución previa para nuevos cómputos y reactiva el ticket en estado Asignado (2).
 - **Diseño para la Fase Siguiente (v1.1 - Hoja de Ruta):**
   - **Contrato de API Propuesto:**

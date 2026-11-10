@@ -57,5 +57,39 @@ La base de datos de pruebas `glpi-db` (MariaDB 10.11 alojada en el volumen Docke
 | P2: Responsividad móvil en modales (320, 375, 390, 768 px) | Dialog.tsx / VisualScheduleSelector.tsx | **PASS** (100% sin overflow horizontal, touch targets >= 32px) |
 | Backend Unit Tests | .NET 10 Solution | **PASS** (95/95) |
 | Backend Integration Tests | Api.Integration.Tests | **PASS** (248/248) |
-| Frontend Unit Tests | Vitest | **PASS** (24/24) |
+| Frontend Unit Tests | Node `--experimental-strip-types --test` (no Vitest) | **PASS** (24/24) |
 | Frontend Typecheck & Build | TypeScript / Vite | **PASS** (0 errores) |
+
+---
+
+## 4. Hallazgos detectados por la suite E2E de CI (run 42847891420) y corrección
+
+La ejecución E2E del 2026-11-10 (12 fallos / 38 pasadas) permitió identificar regresiones
+introducidas por el propio PR #55, no detectadas por unitarios ni por el build. Todas se
+corrigieron en la misma rama; la validación E2E completa se ejecuta en el pipeline aislado
+de CI (el runner local exige una fixture desechable verificada y no forma parte del
+criterio de aceptación).
+
+| ID | Severidad | Componente | Causa raíz | Evidencia | Corrección |
+|---|---|---|---|---|---|
+| QA-E2E-01 | P1 | `frontend/src/components/ui/date-picker.tsx` | `handleSelect` invocaba `onChange` al elegir día, rompiendo el contrato "borrador + Aplicar" y escribiendo la URL antes de confirmar | `date-filter.spec.ts` (2 fallos): la URL cambiaba con un filtro no aplicado | Se eliminó la llamada inmediata; `onChange` solo se dispara en **Aplicar**/**Borrar fecha** |
+| QA-E2E-02 | P1 | `frontend/src/features/tickets/VisualScheduleSelector.tsx` | La sección "Entrada manual" se renderizaba colapsada (`showManual=false`), ocultando `plan-start`/`plan-end` que existían visibles en `main` | `resolve-ticket`, `realtime-reopen`, `pending-ticket`, `self-assign`, `kanban-flow`, `qa-planning`, `full-user-journey` | `showManual` inicia en `true`, preservando el contrato de automatización y accesibilidad |
+| QA-E2E-03 | P1 | Regla "no resolver con tareas pendientes" (intencional) | Los specs resolvían sin completar la `TicketTask` planificada; el backend respondía 422 y la UI deshabilitaba **Resolver** | `resolve-short-solution` API (422) y UI; `resolve-ticket`, `self-assign`, `realtime-reopen` | Nuevo helper `completePendingTasks` en `tests/e2e/support/planning.ts`; el API fixture planifica y completa su tarea antes de la solución corta |
+| QA-E2E-04 | P2 | `frontend/tests/e2e/qa-planning-regressions.spec.ts` | `getByText(nombre, {exact:true})` no puede coincidir cuando `Detail.tsx` une todos los solicitantes en un único nodo de texto | Timeout del test de planificación | La aserción se acota a la fila "Solicitantes" con `toContainText` |
+
+---
+
+## 5. Hallazgo de seguridad: BOLA/IDOR en aprobación/rechazo de soluciones
+
+| Campo | Detalle |
+|---|---|
+| **ID** | SEC-2026-11-10-01 |
+| **Severidad** | Alta (P1) si se expusiera; **no explotable en v1.0** porque ningún cliente la invocaba |
+| **Clasificación** | OWASP API1:2023 Broken Object Level Authorization (BOLA/IDOR) |
+| **Ubicación original** | `POST /api/tickets/{id}/solutions/{solutionId}/approve` y `.../reject` |
+| **Causa raíz** | `TicketService.ApproveSolutionAsync`/`RejectSolutionAsync` validaban el acceso al `ticketId`, pero mutaban el `solutionId` recibido sin verificar que perteneciera a ese ticket. Un solicitante del ticket A podía aprobar/rechazar una solución del ticket B conociendo ambos identificadores. |
+| **Impacto** | Alteración de estado de una `ITILSolution` ajena (integridad) y emisión de notificaciones/auditoría engañosas. |
+| **Decisión** | Los endpoints no tenían consumidor en el frontend y el ADR-024 establece que el ciclo de aprobación/rechazo es alcance v1.1 y que **GLPI es la autoridad**. Se eliminaron endpoints, métodos de servicio, método de `IGlpiApiClient` y cliente TypeScript en lugar de mantener una superficie muerta y vulnerable. |
+| **Verificación** | `grep` sin referencias residuales; build .NET 10 con 0 warnings/errores; 95/95 unitarios y 248/248 integración; `pnpm lint`, `typecheck` y `build` correctos. |
+| **Riesgo residual** | Nulo sobre la superficie retirada. Si se implementa en v1.1 debe validarse `solution.itemtype='Ticket'` y `solution.items_id=ticketId` antes de cualquier mutación, además de autorización por rol. |
+
