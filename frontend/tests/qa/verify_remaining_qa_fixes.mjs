@@ -26,6 +26,85 @@ function getCred(user) {
   return ''
 }
 
+// Helper to programmatically assert responsive modal integrity (overflow, visibility, touch targets)
+async function assertResponsiveDialogIntegrity(page, expectedWidth, dialogType = 'plan') {
+  const actualViewport = page.viewportSize()
+  if (actualViewport.width !== expectedWidth) {
+    throw new Error(`Viewport width mismatch: expected ${expectedWidth}, got ${actualViewport.width}`)
+  }
+
+  // 1. Verify no document or body horizontal overflow
+  const docOverflow = await page.evaluate(() => {
+    const docEl = document.documentElement
+    const body = document.body
+    return {
+      docScrollWidth: docEl.scrollWidth,
+      docClientWidth: docEl.clientWidth,
+      bodyScrollWidth: body.scrollWidth,
+      bodyClientWidth: body.clientWidth,
+      hasOverflow: (docEl.scrollWidth > docEl.clientWidth + 1) || (body.scrollWidth > body.clientWidth + 1)
+    }
+  })
+  if (docOverflow.hasOverflow) {
+    throw new Error(
+      `Desbordamiento horizontal detectado a ${expectedWidth}px: docScroll=${docOverflow.docScrollWidth}, docClient=${docOverflow.docClientWidth}`
+    )
+  }
+
+  // 2. Dialog container visibility and bounding box
+  const dialog = page.locator('[role="dialog"]').first()
+  await dialog.waitFor({ state: 'visible', timeout: 5000 })
+  const dialogBox = await dialog.boundingBox()
+  if (!dialogBox || dialogBox.width <= 0 || dialogBox.height <= 0) {
+    throw new Error(`El diálogo no tiene dimensiones válidas a ${expectedWidth}px`)
+  }
+  if (dialogBox.width > expectedWidth + 2) {
+    throw new Error(`El contenedor del diálogo (${Math.round(dialogBox.width)}px) excede el ancho de la pantalla (${expectedWidth}px)`)
+  }
+
+  // 3. Modal header / title visibility
+  const title = dialog.locator('h2, h3, [class*="DialogTitle"]').first()
+  if (!(await title.isVisible())) {
+    throw new Error(`Título del diálogo no visible a ${expectedWidth}px`)
+  }
+
+  // 4. Date navigation controls visibility
+  const prevBtn = dialog.locator('button[aria-label="Día anterior"]').first()
+  const nextBtn = dialog.locator('button[aria-label="Día siguiente"]').first()
+  if (!(await prevBtn.isVisible()) || !(await nextBtn.isVisible())) {
+    throw new Error(`Controles de navegación de fecha no visibles a ${expectedWidth}px`)
+  }
+
+  // 5. Time slots grid visibility
+  const slotButtons = dialog.locator('button:has-text(":")')
+  const slotCount = await slotButtons.count()
+  if (slotCount < 4) {
+    throw new Error(`Pocos o ningún slot horario encontrado (${slotCount}) a ${expectedWidth}px`)
+  }
+
+  // 6. Action buttons visibility and minimum touch target size (>= 32px height, >= 50px width)
+  const cancelBtn = dialog.locator('button:has-text("Cancelar")').first()
+  if (!(await cancelBtn.isVisible())) {
+    throw new Error(`Botón Cancelar no visible a ${expectedWidth}px`)
+  }
+  const cancelBox = await cancelBtn.boundingBox()
+  if (!cancelBox || cancelBox.height < 32 || cancelBox.width < 50) {
+    throw new Error(`Botón Cancelar no cumple target touch mínimo a ${expectedWidth}px: ${JSON.stringify(cancelBox)}`)
+  }
+
+  const actionBtnText = dialogType === 'plan' ? 'Confirmar' : 'Guardar'
+  const actionBtn = dialog.locator(`button:has-text("${actionBtnText}")`).first()
+  if (!(await actionBtn.isVisible())) {
+    throw new Error(`Botón de acción principal (${actionBtnText}) no visible a ${expectedWidth}px`)
+  }
+  const actionBox = await actionBtn.boundingBox()
+  if (!actionBox || actionBox.height < 32 || actionBox.width < 50) {
+    throw new Error(`Botón de acción principal no cumple target touch mínimo a ${expectedWidth}px: ${JSON.stringify(actionBox)}`)
+  }
+
+  console.log(`   ✔ Integridad responsive a ${expectedWidth}px (${dialogType}): Sin overflow (${docOverflow.docScrollWidth}<=${docOverflow.docClientWidth}), modal ancho=${Math.round(dialogBox.width)}px, ${slotCount} slots, botones accesibles.`)
+}
+
 async function run() {
   console.log('================================================================')
   console.log('VERIFICACIÓN AUTOMATIZADA: CORRECCIONES RESTANTES QA')
@@ -288,26 +367,28 @@ async function run() {
     await planBtn.click()
     await page4.waitForSelector('[role="dialog"]', { timeout: 10000 })
     await page4.waitForTimeout(500)
-
-    // Capture Plan a 390x844
+    await assertResponsiveDialogIntegrity(page4, 390, 'plan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-390x844-plan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-390x844-plan-dialog.png')
 
     // 2. Plan Dialog a 375x667
     await page4.setViewportSize({ width: 375, height: 667 })
     await page4.waitForTimeout(300)
+    await assertResponsiveDialogIntegrity(page4, 375, 'plan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-375x667-plan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-375x667-plan-dialog.png')
 
     // 3. Plan Dialog a 320x640 (extremo)
     await page4.setViewportSize({ width: 320, height: 640 })
     await page4.waitForTimeout(300)
+    await assertResponsiveDialogIntegrity(page4, 320, 'plan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-320px-plan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-320px-plan-dialog.png')
 
     // 4. Plan Dialog a 768x1024 (tablet)
     await page4.setViewportSize({ width: 768, height: 1024 })
     await page4.waitForTimeout(300)
+    await assertResponsiveDialogIntegrity(page4, 768, 'plan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-tablet-768px-plan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-tablet-768px-plan-dialog.png')
 
@@ -324,25 +405,28 @@ async function run() {
     await replanBtn.click()
     await page4.waitForSelector('[role="dialog"]', { timeout: 10000 })
     await page4.waitForTimeout(500)
-
+    await assertResponsiveDialogIntegrity(page4, 390, 'replan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-390x844-replan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-390x844-replan-dialog.png')
 
     // 6. Replan Dialog a 320x640
     await page4.setViewportSize({ width: 320, height: 640 })
     await page4.waitForTimeout(300)
+    await assertResponsiveDialogIntegrity(page4, 320, 'replan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-320px-replan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-320px-replan-dialog.png')
 
     // 7. Replan Dialog a 375x667
     await page4.setViewportSize({ width: 375, height: 667 })
     await page4.waitForTimeout(300)
+    await assertResponsiveDialogIntegrity(page4, 375, 'replan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-mobile-375x667-replan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-mobile-375x667-replan-dialog.png')
 
     // 8. Replan Dialog a 768x1024
     await page4.setViewportSize({ width: 768, height: 1024 })
     await page4.waitForTimeout(300)
+    await assertResponsiveDialogIntegrity(page4, 768, 'replan')
     await page4.screenshot({ path: path.join(evidenceDir, 'p2-tablet-768px-replan-dialog.png'), fullPage: true })
     console.log('📸 Captura: p2-tablet-768px-replan-dialog.png')
 
@@ -356,10 +440,15 @@ async function run() {
 
   // Summary
   console.log('\n================================================================')
-  console.log(`RESULTADOS FINALES: ${passedCount}/${totalTests} PRUEBAS SUPERADAS (100%)`)
+  console.log(`RESULTADOS FINALES: ${passedCount}/${totalTests} PRUEBAS SUPERADAS (${Math.round((passedCount / totalTests) * 100)}%)`)
   console.log('================================================================')
 
   await browser.close()
+
+  if (passedCount !== totalTests) {
+    console.error(`\n❌ ERROR: Se esperaba que todas las pruebas pasaran (${passedCount}/${totalTests}). Marcando salida con error.`)
+    process.exitCode = 1
+  }
 }
 
 run().catch((err) => {
