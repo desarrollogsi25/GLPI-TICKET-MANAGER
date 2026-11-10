@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { confirmPlanning } from './support/planning'
+import { completePendingTasks, confirmPlanning } from './support/planning'
 
 test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -35,6 +35,9 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
 
   const textarea = page.locator('textarea').first()
   await expect(textarea).toBeVisible({ timeout: 10000 })
+
+  // La tarea planificada debe completarse antes de resolver (regla de dominio).
+  await completePendingTasks(page)
 
   const confirmCandidate = page.locator('button', { hasText: /Resolver|Confirmar/ })
   const confirmButton = confirmCandidate.last()

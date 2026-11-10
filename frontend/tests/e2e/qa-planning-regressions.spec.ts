@@ -59,9 +59,12 @@ test('P1-01/P2-05: admin plans for technician, proactive conflict, adjacent slot
     expect(detailResponse.ok).toBeTruthy()
     const detail = await detailResponse.json()
     expect(detail.requesterIds.length).toBeGreaterThan(0)
+    // The detail card renders every requester in a single joined text node, so an
+    // exact per-name lookup can never match when a ticket has more than one requester.
+    const requestersRow = admin.getByText('Solicitantes', { exact: true }).locator('..')
     for (const id of detail.requesterIds) {
       expect(detail.participantNames[id]).toBeTruthy()
-      await expect(admin.getByText(detail.participantNames[id], { exact: true })).toBeVisible()
+      await expect(requestersRow).toContainText(detail.participantNames[id])
       await expect(admin.getByText(`Usuario no disponible (#${id})`, { exact: true })).toHaveCount(0)
     }
     await admin.getByTestId('start-ticket-btn').click()

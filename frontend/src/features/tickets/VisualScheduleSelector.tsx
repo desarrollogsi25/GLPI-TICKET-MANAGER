@@ -104,7 +104,7 @@ export function VisualScheduleSelector({
     today.setHours(0, 0, 0, 0)
     return today
   })
-  const [showManual, setShowManual] = useState(false)
+  const [showManual, setShowManual] = useState(true)
 
   // Sync activeDate with selectedStart whenever selectedStart points to a different day
   useEffect(() => {

@@ -12,6 +12,22 @@ export async function completeSinglePendingTask(page: Page): Promise<void> {
   await expect(dialog.getByRole('alert')).toHaveCount(0)
 }
 
+/**
+ * A ticket cannot be resolved while it still has pending tasks, so the resolve
+ * dialog disables "Resolver" and lists them with a per-task button. Complete every
+ * listed task in place (0..n, whatever the fixture scheduled) before submitting.
+ */
+export async function completePendingTasks(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog')
+  const complete = dialog.getByRole('button', { name: /Completar/ })
+  while ((await complete.count()) > 0) {
+    const remaining = await complete.count()
+    await complete.first().click()
+    await expect(complete).toHaveCount(remaining - 1, { timeout: 30_000 })
+    await expect(dialog.getByRole('alert')).toHaveCount(0)
+  }
+}
+
 /** Completes the native GLPI TicketTask scheduling form after it was opened. */
 export async function confirmPlanning(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog', { name: /Planificación asistida|Planificar ticket/i })
