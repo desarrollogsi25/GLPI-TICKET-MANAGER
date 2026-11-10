@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarClock, Clock, User } from 'lucide-react'
+import { Clock, User, CalendarClock } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useReplanTicketTaskMutation, useTechniciansQuery } from '@/hooks/useTickets'
+import { useReplanTicketTaskMutation, useTechniciansQuery, useTicketQuery } from '@/hooks/useTickets'
 import { getPlanningAvailability, type TicketTask } from '@/lib/api/tickets'
 import {
   getApiConflictDetails,
@@ -17,17 +17,13 @@ import {
 } from '@/lib/api/errors'
 import { toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
+import { useAuthStore } from '@/store/authStore'
 import { localDateTime, offsetDateTime, parseUnambiguousLocal } from './planningDates'
 import { PlanningDateTimeField } from './PlanningDateTimeField'
+import { VisualScheduleSelector } from './VisualScheduleSelector'
 
 const NO_CHANGES =
-  'El horario y el comentario no cambiaron. GLPI solo reanuda un ticket Pendiente cuando la tarea se modifica: ajusta la fecha, la duración o el comentario.'
-
-function formatInterval(startAt: string | null, endAt: string | null) {
-  if (!startAt || !endAt) return 'sin horario'
-  const format = new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short' })
-  return `${format.format(new Date(startAt))} → ${format.format(new Date(endAt))}`
-}
+  'El horario, el técnico y el comentario no cambiaron. GLPI solo reanuda un ticket Pendiente cuando la tarea se modifica: ajusta la fecha, la duración, el técnico o el comentario.'
 
 export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   ticketId: number
@@ -37,6 +33,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   const [content, setContent] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [selectedTechId, setSelectedTechId] = useState<number>(0)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
   const [conflict, setConflict] = useState<ApiConflictDetails | null>(null)
@@ -45,23 +42,30 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   const mutation = useReplanTicketTaskMutation()
   const pushToast = useToastStore((state) => state.push)
   const { data: technicians } = useTechniciansQuery()
+  const { data: ticket } = useTicketQuery(ticketId)
+  const user = useAuthStore((state) => state.user)
+
   const busy = mutation.isPending || checking
   const startDate = parseUnambiguousLocal(start)
   const endDate = parseUnambiguousLocal(end)
   const startIso = startDate ? offsetDateTime(startDate) : ''
   const endIso = endDate ? offsetDateTime(endDate) : ''
+
+  const effectiveTechId = selectedTechId || task?.technicianId || 0
+
   const availability = useQuery({
-    queryKey: ['tickets', 'availability', ticketId, task?.technicianId, startIso, endIso, task?.id],
-    queryFn: ({ signal }) => getPlanningAvailability(ticketId, task!.technicianId, startIso, endIso, task!.id, signal),
-    enabled: !!task && !!startDate && !!endDate && endDate > startDate,
+    queryKey: ['tickets', 'availability', ticketId, effectiveTechId, startIso, endIso, task?.id],
+    queryFn: ({ signal }) => getPlanningAvailability(ticketId, effectiveTechId, startIso, endIso, task!.id, signal),
+    enabled: !!task && effectiveTechId > 0 && !!startDate && !!endDate && endDate > startDate,
     staleTime: 0,
     refetchInterval: task ? 15_000 : false,
     retry: false,
   })
 
-  const techName = task?.technicianId
-    ? technicians?.find((t) => t.id === task.technicianId)?.displayName ||
-      technicians?.find((t) => t.id === task.technicianId)?.username ||
+  const techName = effectiveTechId
+    ? ticket?.participantNames?.[effectiveTechId] ||
+      technicians?.find((t) => t.id === effectiveTechId)?.displayName ||
+      technicians?.find((t) => t.id === effectiveTechId)?.username ||
       'Especialista de Soporte'
     : '—'
 
@@ -70,42 +74,57 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
     setContent(toPlainText(task.content))
     setStart(task.startAt ? localDateTime(new Date(task.startAt)) : '')
     setEnd(task.endAt ? localDateTime(new Date(task.endAt)) : '')
+    setSelectedTechId(task.technicianId)
     setError('')
     setConflict(null)
     requestId.current = uuidv4()
   }, [task])
 
-  const applySuggestedStart = (iso: string) => {
-    const suggested = new Date(iso)
-    const startDate = parseUnambiguousLocal(start)
-    const endDate = parseUnambiguousLocal(end)
-    const duration = startDate && endDate && endDate > startDate
-      ? endDate.getTime() - startDate.getTime()
-      : 60 * 60_000
-    setStart(localDateTime(suggested))
-    setEnd(localDateTime(new Date(suggested.getTime() + duration)))
-    setConflict(null)
-    setError('')
-  }
+  const durationMinutes = useMemo(() => {
+    if (!startDate || !endDate || endDate <= startDate) return 60
+    return Math.round((endDate.getTime() - startDate.getTime()) / 60_000)
+  }, [startDate, endDate])
+
+  const isSame = useMemo(() => {
+    if (!task || !startDate || !endDate) return false
+    const effectiveContent = content.trim() || 'Intervención planificada'
+    const origStart = task.startAt ? new Date(task.startAt).getTime() : 0
+    const origEnd = task.endAt ? new Date(task.endAt).getTime() : 0
+    return (
+      toPlainText(task.content).trim() === effectiveContent &&
+      origStart === startDate.getTime() &&
+      origEnd === endDate.getTime() &&
+      effectiveTechId === task.technicianId
+    )
+  }, [task, content, startDate, endDate, effectiveTechId])
+
+  const canReassignTech = user?.role === 'admin' || user?.role === 'supervisor'
+
+  const availableTechOptions = useMemo(() => {
+    const ids = new Set<number>()
+    if (task?.technicianId) ids.add(task.technicianId)
+    if (ticket?.assigneeIds) {
+      for (const id of ticket.assigneeIds) ids.add(id)
+    }
+    return Array.from(ids)
+  }, [task?.technicianId, ticket?.assigneeIds])
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!task || submitting.current || mutation.isPending) return
-    const startDate = parseUnambiguousLocal(start)
-    const endDate = parseUnambiguousLocal(end)
-    if (!startDate || !endDate || endDate.getTime() <= startDate.getTime()) {
+    const sDate = parseUnambiguousLocal(start)
+    const eDate = parseUnambiguousLocal(end)
+    if (!sDate || !eDate || eDate.getTime() <= sDate.getTime()) {
       setError('Indica fechas válidas, inequívocas y con el fin posterior al inicio.')
       return
     }
-    const duration = endDate.getTime() - startDate.getTime()
+    const duration = eDate.getTime() - sDate.getTime()
     if (duration < 60_000 || duration > 30 * 86_400_000 || content.trim().length > 4000) {
       setError('La duración debe ser de entre 1 minuto y 30 días (comentario máximo 4000 caracteres).')
       return
     }
     const effectiveContent = content.trim() || 'Intervención planificada'
-    if (toPlainText(task.content).trim() === effectiveContent
-      && task.startAt && new Date(task.startAt).getTime() === startDate.getTime()
-      && task.endAt && new Date(task.endAt).getTime() === endDate.getTime()) {
+    if (isSame) {
       setError(NO_CHANGES)
       return
     }
@@ -123,8 +142,9 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
       await mutation.mutateAsync({ ticketId, taskId: task.id, payload: {
         requestId: requestId.current ?? uuidv4(),
         content: effectiveContent,
-        startAt: startDate.toISOString(),
-        endAt: endDate.toISOString(),
+        startAt: sDate.toISOString(),
+        endAt: eDate.toISOString(),
+        technicianId: effectiveTechId !== task.technicianId ? effectiveTechId : undefined,
       } })
       pushToast({
         title: `Tarea #${task.id} reprogramada en GLPI`,
@@ -150,7 +170,7 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
   return (
     <Dialog open={task !== null} onClose={() => { if (!busy) onClose() }}
       title={`Reprogramar tarea #${task?.id ?? ''}`}
-      description="Actualiza la planificación de la intervención técnica en GLPI conservando auditoría e idempotencia. Si el ticket está Pendiente, GLPI lo reanudará a En proceso.">
+      description="Actualiza la planificación de la intervención técnica en GLPI conservando auditoría e idempotencia. Si el ticket está en espera o pausa, GLPI lo reanudará a En proceso.">
       <form onSubmit={submit} className="space-y-4">
         {/* Horario Anterior y Técnico */}
         <div className="rounded-xl border border-border/70 bg-muted/30 p-3 space-y-2 text-xs">
@@ -162,61 +182,66 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           </div>
           <div className="flex items-center justify-between text-muted-foreground pt-1 border-t border-border/40">
             <span className="flex items-center gap-1.5 font-medium text-foreground">
-              <User className="size-3.5 text-primary" /> Técnico asignado:
+              <User className="size-3.5 text-primary" /> Responsable actual:
             </span>
             <span>{techName}</span>
           </div>
           <div className="flex items-start gap-1.5 pt-1 border-t border-border/40 text-muted-foreground">
             <CalendarClock className="mt-0.5 size-3.5 shrink-0 text-primary" />
-            <span>Un cambio real de fecha, duración o comentario reanuda el ticket Pendiente sin duplicar tareas.</span>
+            <span>Un cambio real de fecha, duración, técnico o comentario reanuda el ticket y actualiza GLPI sin duplicar tareas.</span>
           </div>
         </div>
 
-        {/* Nuevo Horario */}
-        <div className="grid gap-3">
-          <PlanningDateTimeField id="task-replan-start" label="Nuevo inicio" value={start} onChange={setStart} disabled={busy} />
-          <PlanningDateTimeField id="task-replan-end" label="Nuevo fin" value={end} onChange={setEnd} disabled={busy} />
-        </div>
-
-        {/* Atajos de duración */}
-        <section aria-label="Disponibilidad del técnico" aria-live="polite" className="space-y-2 rounded-xl border border-border p-3 text-sm">
-          <p className="font-medium">Agenda · {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
-          {availability.isFetching ? <p role="status">Comprobando disponibilidad…</p>
-            : availability.isError ? <div role="alert"><p>{getApiErrorMessage(availability.error)}</p>
-                <Button type="button" variant="outline" onClick={() => void availability.refetch()}>Reintentar disponibilidad</Button></div>
-            : availability.data ? <>
-                <p>{availability.data.available ? 'La franja seleccionada está libre.' : 'La franja seleccionada está ocupada.'}</p>
-                {!availability.data.available && availability.data.suggestedStart &&
-                  <Button type="button" variant="outline" disabled={busy} className="min-h-11"
-                    onClick={() => applySuggestedStart(availability.data!.suggestedStart!)}>Usar horario libre</Button>}
-                <div className="max-h-32 overflow-y-auto text-xs text-muted-foreground">
-                  {availability.data.busy.map((period, index) => <p key={index}>{formatInterval(period.startAt, period.endAt)} · Intervención programada</p>)}
-                </div>
-              </> : <p>Indica un inicio y fin válidos.</p>}
-        </section>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-medium text-muted-foreground mr-1">Ajustar duración:</span>
-          {[
-            { label: '+30m', minutes: 30 },
-            { label: '+1h', minutes: 60 },
-            { label: '+2h', minutes: 120 },
-            { label: '+4h', minutes: 240 },
-          ].map((d) => (
-            <button
-              key={d.label}
-              type="button"
+        {/* Reasignar Técnico (Admin / Supervisor) */}
+        {canReassignTech && availableTechOptions.length > 1 && (
+          <div className="space-y-1">
+            <Label htmlFor="task-replan-tech">Técnico responsable asignado</Label>
+            <select
+              id="task-replan-tech"
+              value={effectiveTechId}
               disabled={busy}
-              onClick={() => {
-                const s = parseUnambiguousLocal(start) ?? new Date()
-                setEnd(localDateTime(new Date(s.getTime() + d.minutes * 60_000)))
+              onChange={(e) => {
+                setSelectedTechId(Number(e.target.value))
+                setError('')
+                setConflict(null)
               }}
-              className="text-[11px] px-2 py-0.5 rounded-full border border-border bg-muted/40 hover:bg-muted text-foreground transition-colors cursor-pointer"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              {d.label}
-            </button>
-          ))}
-        </div>
+              {availableTechOptions.map((id) => (
+                <option key={id} value={id}>
+                  {ticket?.participantNames?.[id] ||
+                    technicians?.find((t) => t.id === id)?.displayName ||
+                    technicians?.find((t) => t.id === id)?.username ||
+                    `Técnico #${id}`}
+                  {id === task?.technicianId ? ' (Actual)' : ' (Asignado al ticket)'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Visual interactive schedule selector with manual fallback */}
+        <VisualScheduleSelector
+          selectedStart={startDate}
+          durationMinutes={durationMinutes}
+          onSlotSelect={(newStart, newDuration) => {
+            setStart(localDateTime(newStart))
+            setEnd(localDateTime(new Date(newStart.getTime() + newDuration * 60_000)))
+            setError('')
+            setConflict(null)
+          }}
+          busyPeriods={availability.data?.busy}
+          suggestedStart={availability.data?.suggestedStart}
+          isAvailable={availability.data?.available ?? true}
+          isFetchingAvailability={availability.isFetching}
+          disabled={busy || effectiveTechId <= 0}
+          manualInputSection={
+            <div className="grid gap-2">
+              <PlanningDateTimeField id="task-replan-start" label="Nuevo inicio" value={start} onChange={setStart} disabled={busy} />
+              <PlanningDateTimeField id="task-replan-end" label="Nuevo fin" value={end} onChange={setEnd} disabled={busy} />
+            </div>
+          }
+        />
 
         {/* Comentario o motivo de replanificación */}
         <div className="space-y-1">
@@ -235,30 +260,30 @@ export function ReplanTicketTaskDialog({ ticketId, task, onClose }: {
           />
         </div>
 
+        {isSame && (
+          <p className="text-xs text-muted-foreground text-center">
+            Modifica la fecha, duración, técnico o comentario para guardar los cambios.
+          </p>
+        )}
+
         {error && (
           <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-red-700 dark:text-red-400">
             <p className="font-medium">{error}</p>
             {conflict && conflict.conflicts.length > 0 && (
-              <>
-                <ul className="space-y-0.5 text-foreground/80">
-                  {conflict.conflicts.map((item) => (
-                    <li key={`${item.ticketId}-${item.taskId}`}>
-                      Ticket #{item.ticketId} · tarea #{item.taskId} · {formatInterval(item.startAt, item.endAt)}
-                    </li>
-                  ))}
-                </ul>
-                {conflict.suggestedStart && (
-                  <Button type="button" size="sm" variant="outline" onClick={() => applySuggestedStart(conflict.suggestedStart!)}>
-                    Usar horario libre
-                  </Button>
-                )}
-              </>
+              <ul className="space-y-0.5 text-foreground/80">
+                {conflict.conflicts.map((item) => (
+                  <li key={`${item.ticketId}-${item.taskId}`}>
+                    Ticket #{item.ticketId} · tarea #{item.taskId}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}
+
         <div className="flex flex-wrap justify-end gap-2 pt-2">
           <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={busy || availability.isFetching || availability.isError || !availability.data?.available}>
+          <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={busy || isSame || availability.isFetching || availability.isError || !availability.data?.available}>
             {mutation.isPending ? 'Reprogramando...' : 'Guardar nueva programación'}
           </Button>
         </div>

@@ -25,6 +25,15 @@ interface LocationState {
 
 const EASE = [0.23, 1, 0.32, 1] as const
 
+const isAllowedRouteForRole = (path: string, userRole?: string): boolean => {
+  if (['/tickets', '/preferences', '/ayuda', '/services'].some(p => path === p || path.startsWith(p + '/'))) return true
+  if (!userRole || userRole === 'solicitante') return false
+  if (['/kanban', '/queue', '/dashboard'].some(p => path === p || path.startsWith(p + '/'))) return true
+  if (path === '/equipo' || path.startsWith('/equipo/')) return userRole === 'supervisor' || userRole === 'admin'
+  if (path === '/administracion' || path.startsWith('/administracion/')) return userRole === 'admin'
+  return false
+}
+
 export function Login() {
   const token = useAuthStore((state) => state.token)
   const role = useAuthStore((state) => state.user?.role ?? state.role)
@@ -57,7 +66,10 @@ export function Login() {
         const destination = data.user.role === 'solicitante' ? '/tickets' : '/kanban'
         // A fresh session never inherits another identity's list filters.
         const from = state?.from?.split('?')[0]
-        navigate(from?.startsWith('/') && !from.startsWith('//') ? from : destination, { replace: true })
+        const target = from && from.startsWith('/') && !from.startsWith('//') && isAllowedRouteForRole(from, data.user.role)
+          ? from
+          : destination
+        navigate(target, { replace: true })
       },
     })
   })

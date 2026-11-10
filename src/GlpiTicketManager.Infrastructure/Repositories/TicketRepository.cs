@@ -376,13 +376,13 @@ public sealed class TicketRepository : ITicketRepository
         // layer) so they line up with MariaDB's UTC session clock and GLPI's NOW().
         if (startDate.HasValue)
         {
-            conditions.Add("t.date >= @StartDate");
+            conditions.Add("COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date) >= @StartDate");
             parameters.Add("StartDate", startDate.Value);
         }
 
         if (endDate.HasValue)
         {
-            conditions.Add("t.date <= @EndDate");
+            conditions.Add("COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date) <= @EndDate");
             parameters.Add("EndDate", endDate.Value);
         }
 
@@ -394,7 +394,7 @@ public sealed class TicketRepository : ITicketRepository
             // Active work is listed oldest-first (FIFO); resolved/closed tickets are
             // pushed to the end and listed most-recent-first (LIFO). The Kanban re-sorts
             // per column, but this keeps the flat list predictable too.
-            sql.AppendLine("ORDER BY (t.status >= 5) ASC, CASE WHEN t.status >= 5 THEN 0 ELSE t.date END ASC, CASE WHEN t.status >= 5 THEN t.date ELSE NULL END DESC, t.id ASC");
+            sql.AppendLine("ORDER BY (t.status >= 5) ASC, CASE WHEN t.status >= 5 THEN 0 ELSE COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date) END ASC, CASE WHEN t.status >= 5 THEN COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), t.date) ELSE NULL END DESC, t.id ASC");
             sql.AppendLine("LIMIT @Limit OFFSET @Offset;");
             parameters.Add("Limit", limit.Value);
             parameters.Add("Offset", offset.Value);

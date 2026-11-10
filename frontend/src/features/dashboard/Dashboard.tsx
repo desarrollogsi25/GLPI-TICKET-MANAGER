@@ -223,7 +223,11 @@ export function Dashboard() {
         <StatCard
           title="Planificados"
           value={ticketsPlanificados}
-          subtitle={`${tareasProgramadas} tareas activas en GLPI`}
+          subtitle={
+            tareasProgramadas === 1
+              ? '1 tarea activa en tickets abiertos'
+              : `${tareasProgramadas} tareas activas en tickets abiertos`
+          }
           icon={Calendar}
           variant="default"
           onClick={() => navigateToTickets(3)}

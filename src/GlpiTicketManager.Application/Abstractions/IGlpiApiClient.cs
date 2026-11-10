@@ -33,7 +33,7 @@ public interface IGlpiApiClient
     Task UpdateTicketTaskAsync(int taskId, int state, CancellationToken cancellationToken);
 
     Task ReplanTicketTaskAsync(int taskId, string content, DateTimeOffset startAt,
-        DateTimeOffset endAt, CancellationToken cancellationToken);
+        DateTimeOffset endAt, CancellationToken cancellationToken, int? technicianId = null);
 
     Task DeleteTicketTaskAsync(int taskId, CancellationToken cancellationToken);
 

@@ -6,6 +6,7 @@ public sealed record ReplanTicketTaskRequest(
     Guid RequestId,
     string Content,
     [property: JsonConverter(typeof(ExplicitOffsetDateTimeConverter))] DateTimeOffset StartAt,
-    [property: JsonConverter(typeof(ExplicitOffsetDateTimeConverter))] DateTimeOffset EndAt);
+    [property: JsonConverter(typeof(ExplicitOffsetDateTimeConverter))] DateTimeOffset EndAt,
+    int? TechnicianId = null);
 
 public sealed record TicketTaskMutationResponse(int TicketId, int TaskId, int TicketStatus);

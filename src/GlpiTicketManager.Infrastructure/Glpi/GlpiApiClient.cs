@@ -307,7 +307,7 @@ public sealed class GlpiApiClient : IGlpiApiClient
     }
 
     public async Task ReplanTicketTaskAsync(int taskId, string content,
-        DateTimeOffset startAt, DateTimeOffset endAt, CancellationToken cancellationToken)
+        DateTimeOffset startAt, DateTimeOffset endAt, CancellationToken cancellationToken, int? technicianId = null)
     {
         var sessionToken = await InitSessionAsync(cancellationToken);
         try
@@ -315,16 +315,22 @@ public sealed class GlpiApiClient : IGlpiApiClient
             // `pending = 0` is GLPI's own "no longer pending" input. On a Waiting
             // ticket the TicketTask post-update hook reopens it and derives Planned
             // from the planned task, so the API never writes status 3 directly.
+            var input = new Dictionary<string, object?>
+            {
+                ["content"] = content,
+                ["state"] = 1,
+                ["begin"] = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                ["end"] = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                ["actiontime"] = (int)(endAt - startAt).TotalSeconds,
+                ["pending"] = 0
+            };
+            if (technicianId.HasValue && technicianId.Value > 0)
+            {
+                input["users_id_tech"] = technicianId.Value;
+            }
+
             using var response = await SendAsync(HttpMethod.Put, $"TicketTask/{taskId}", sessionToken,
-                new { input = new
-                {
-                    content,
-                    state = 1,
-                    begin = startAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    end = endAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    actiontime = (int)(endAt - startAt).TotalSeconds,
-                    pending = 0
-                } }, cancellationToken);
+                new { input }, cancellationToken);
         }
         finally { await KillSessionAsync(sessionToken, cancellationToken); }
     }

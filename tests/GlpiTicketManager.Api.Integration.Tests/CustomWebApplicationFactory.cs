@@ -768,8 +768,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     return Task.CompletedTask;
                 });
             glpiMock.Setup(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-                    It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
-                .Returns((int taskId, string content, DateTimeOffset start, DateTimeOffset end, CancellationToken _) =>
+                    It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()))
+                .Returns((int taskId, string content, DateTimeOffset start, DateTimeOffset end, CancellationToken _, int? techId) =>
                 {
                     lock (_stateLock)
                         foreach (var items in _nativeTasks.Values)
@@ -779,6 +779,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                             {
                                 var ownerTicketId = items[index].TicketId;
                                 items[index] = items[index] with { Content = content, State = 1,
+                                    TechnicianId = techId ?? items[index].TechnicianId,
                                     StartAt = start, EndAt = end,
                                     DurationSeconds = (int)(end - start).TotalSeconds };
                                 // Real GLPI reopens Waiting and derives Planned from the

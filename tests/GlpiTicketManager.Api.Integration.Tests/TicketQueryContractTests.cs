@@ -31,9 +31,9 @@ public sealed class TicketQueryContractTests
     }
 
     [Fact]
-    public void CreatedAt_falls_back_to_date_mod_for_GLPI_zero_dates()
+    public void CreatedAt_prioritizes_date_creation_and_falls_back_for_GLPI_zero_dates()
     {
         TicketQueries.BaseProjection.Should().Contain(
-            "COALESCE(NULLIF(t.date, '0000-00-00 00:00:00'), t.date_mod) AS CreatedAt");
+            "COALESCE(NULLIF(t.date_creation, '0000-00-00 00:00:00'), NULLIF(t.date, '0000-00-00 00:00:00'), t.date_mod) AS CreatedAt");
     }
 }

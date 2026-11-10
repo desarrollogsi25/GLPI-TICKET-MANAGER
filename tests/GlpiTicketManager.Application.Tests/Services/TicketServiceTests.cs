@@ -235,6 +235,84 @@ public class TicketServiceTests
         result.SuggestedStart.Should().Be(request.EndAt);
     }
 
+    [Fact]
+    public async Task Availability_AdminCanCheckAvailabilityForExistingTaskWithLegacyTechnician()
+    {
+        var request = ValidPlan();
+        // Ticket 1027 is assigned to technician 16 (tech_sd)
+        _repo.Setup(repo => repo.GetByIdAsync(1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 1027, Status = 3, AssigneeIds = new[] { 16 } });
+        _accessPolicy.Setup(policy => policy.CanViewAsync(10, AppRole.Admin, 1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(policy => policy.CanPlanAsync(10, AppRole.Admin, 1027, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        // Task 49 historically belongs to technician 10 (admin_test)
+        _glpi.Setup(glpi => glpi.GetTicketTasksAsync(1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new TicketTaskDto(49, 1027, 10, "Legacy task", 1, false,
+                request.StartAt, request.EndAt, 3600) });
+        _repo.Setup(repo => repo.GetScheduledTaskConflictsAsync(10, It.IsAny<DateTime>(),
+            It.IsAny<DateTime>(), 49, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        // 1. Checking availability for the legacy technician (10) on existing task 49 does NOT throw 403
+        var resultLegacy = await _svc.GetAvailabilityAsync(1027, 10, request.StartAt, request.EndAt,
+            49, 10, AppRole.Admin, CancellationToken.None);
+        resultLegacy.Available.Should().BeTrue();
+
+        // 2. Checking availability for the ticket's assigned technician (16) on existing task 49 also succeeds
+        _repo.Setup(repo => repo.GetScheduledTaskConflictsAsync(16, It.IsAny<DateTime>(),
+            It.IsAny<DateTime>(), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        var resultAssignee = await _svc.GetAvailabilityAsync(1027, 16, request.StartAt, request.EndAt,
+            49, 10, AppRole.Admin, CancellationToken.None);
+        resultAssignee.Available.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReplanTaskAsync_AdminCanReassignLegacyTaskToTicketAssignee()
+    {
+        var request = ValidPlan();
+        var original = new TicketTaskDto(49, 1027, 10, "Legacy admin task", 1, false,
+            request.StartAt, request.EndAt, 3600);
+        var updated = new TicketTaskDto(49, 1027, 16, "Reassigned to tech_sd", 1, false,
+            request.StartAt.AddHours(1), request.EndAt.AddHours(1), 3600);
+
+        _repo.Setup(repo => repo.GetByIdAsync(1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Ticket { Id = 1027, Status = 3, AssigneeIds = new[] { 16 } });
+        _accessPolicy.Setup(policy => policy.CanViewAsync(10, AppRole.Admin, 1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _accessPolicy.Setup(policy => policy.EvaluateStatusTransitionAsync(10, AppRole.Admin, 1027, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StatusTransitionDecision.Allow());
+        _accessPolicy.Setup(policy => policy.CanPlanAsync(10, AppRole.Admin, 1027, 16, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _glpi.Setup(glpi => glpi.GetTicketStateAsync(1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketState(1027, 3));
+        _glpi.SetupSequence(glpi => glpi.GetTicketTasksAsync(1027, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { original })
+            .ReturnsAsync(new[] { original })
+            .ReturnsAsync(new[] { updated });
+
+        _planningRequests.Setup(store => store.ClaimAsync(request.RequestId, 1027, 10, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PlanningRequestClaim(PlanningRequestState.Started));
+        _repo.Setup(repo => repo.GetScheduledTaskConflictsAsync(16, It.IsAny<DateTime>(), It.IsAny<DateTime>(), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ScheduledTaskConflict>());
+
+        var replanRequest = new ReplanTicketTaskRequest(
+            request.RequestId,
+            "Reassigned to tech_sd",
+            request.StartAt.AddHours(1),
+            request.EndAt.AddHours(1),
+            TechnicianId: 16);
+
+        var response = await _svc.ReplanTaskAsync(1027, 49, replanRequest, 10, AppRole.Admin, CancellationToken.None);
+
+        response.TicketId.Should().Be(1027);
+        response.TaskId.Should().Be(49);
+        _glpi.Verify(glpi => glpi.ReplanTicketTaskAsync(49, "Reassigned to tech_sd",
+            request.StartAt.AddHours(1), request.EndAt.AddHours(1), It.IsAny<CancellationToken>(), 16), Times.Once);
+    }
+
     [Theory]
     [InlineData("replan")]
     [InlineData("complete")]
@@ -269,7 +347,7 @@ public class TicketServiceTests
         };
         await mutate.Should().ThrowAsync<ConflictException>().WithMessage("*responsable*");
         _glpi.Verify(glpi => glpi.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Never);
         _glpi.Verify(glpi => glpi.UpdateTicketTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         _glpi.Verify(glpi => glpi.DeleteTicketTaskAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         if (action == "replan")
@@ -1006,7 +1084,7 @@ public class TicketServiceTests
 
         response.Should().Be(new PlanTicketResponse(10, 900, 3, Rescheduled: true));
         _glpi.Verify(g => g.ReplanTicketTaskAsync(900, "Revisar servidor",
-            request.StartAt, request.EndAt, It.IsAny<CancellationToken>()), Times.Once);
+            request.StartAt, request.EndAt, It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Once);
         _glpi.Verify(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
             It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
         _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(),
@@ -1085,7 +1163,7 @@ public class TicketServiceTests
         var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
         exception.Code.Should().Be("no_changes");
         _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Never);
         _planningRequests.Verify(s => s.CancelAsync(request.RequestId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -1121,7 +1199,7 @@ public class TicketServiceTests
         var exception = (await act.Should().ThrowAsync<ConflictException>()).Which;
         exception.Code.Should().Be("schedule_conflict");
         _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Never);
         _glpi.Verify(g => g.CreatePlannedTaskAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
             It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -1161,7 +1239,7 @@ public class TicketServiceTests
 
         response.Should().Be(new TicketTaskMutationResponse(10, 900, 3));
         _glpi.Verify(g => g.ReplanTicketTaskAsync(900, request.Content,
-            request.StartAt, request.EndAt, It.IsAny<CancellationToken>()), Times.Once);
+            request.StartAt, request.EndAt, It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Once);
         _planningRequests.Verify(s => s.CompleteAsync(request.RequestId, 900,
             It.IsAny<CancellationToken>()), Times.Once);
         _glpi.Verify(g => g.UpdateTicketStatusAsync(It.IsAny<int>(), It.IsAny<int>(),
@@ -1192,7 +1270,7 @@ public class TicketServiceTests
 
         await act.Should().ThrowAsync<ForbiddenException>();
         _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Never);
     }
 
     [Fact]
@@ -1260,6 +1338,6 @@ public class TicketServiceTests
 
         response.Should().Be(new TicketTaskMutationResponse(10, 900, 3));
         _glpi.Verify(g => g.ReplanTicketTaskAsync(It.IsAny<int>(), It.IsAny<string>(),
-            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>(), It.IsAny<int?>()), Times.Never);
     }
 }

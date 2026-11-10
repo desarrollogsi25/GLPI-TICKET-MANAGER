@@ -238,16 +238,30 @@ export function Detail() {
                           {formatDateTime(task.startAt)} – {formatDateTime(task.endAt)}
                         </p>
                       )}
+                      {task.state === 1 && ticket.status >= 5 && (
+                        <p className="mt-2 text-xs text-muted-foreground italic">
+                          Ticket finalizado; la tarea es de sólo lectura.
+                        </p>
+                      )}
+                      {task.state === 1 && ticket.status === 1 && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Asigna el ticket antes de interactuar con sus tareas.
+                        </p>
+                      )}
+                      {task.state === 1 && ticket.status >= 2 && ticket.status <= 4 &&
+                        role === 'technician' && currentUser?.userId !== task.technicianId && (
+                          <p className="mt-2 text-xs text-muted-foreground italic">
+                            Tarea asignada a {getTechName(task.technicianId)}. Solo el técnico responsable o un supervisor/administrador pueden completarla.
+                          </p>
+                        )}
                       {task.state === 1 && ticket.status >= 2 && ticket.status <= 4 &&
                         (role === 'admin' || role === 'supervisor' ||
                           (currentUser?.userId === task.technicianId &&
                             ticket.assigneeIds.includes(task.technicianId))) && (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {ticket.status !== 4 && (
-                              <Button size="sm" variant="outline" onClick={() => setReplanTask(task)}>
-                                Reprogramar
-                              </Button>
-                            )}
+                            <Button size="sm" variant="outline" onClick={() => setReplanTask(task)}>
+                              Reprogramar
+                            </Button>
                             <Button size="sm" variant="outline"
                               onClick={() => setTaskAction({ taskId: task.id, action: 'complete' })}>
                               Completar

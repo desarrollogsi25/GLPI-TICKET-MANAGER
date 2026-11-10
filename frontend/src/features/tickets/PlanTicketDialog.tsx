@@ -33,20 +33,12 @@ import { toPlainText } from '@/lib/format'
 import { useToastStore } from '@/store/toastStore'
 import { localDateTime, offsetDateTime, parseUnambiguousLocal } from './planningDates'
 import { PlanningDateTimeField } from './PlanningDateTimeField'
+import { VisualScheduleSelector } from './VisualScheduleSelector'
 
 type PlanMode = 'reschedule' | 'new'
 
 const NO_CHANGES =
   'El horario y el comentario no cambiaron. GLPI solo reanuda un ticket Pendiente cuando la tarea se modifica: ajusta la fecha, la duración o el comentario.'
-
-const DURATIONS = [
-  { label: '15m', minutes: 15 },
-  { label: '30m', minutes: 30 },
-  { label: '1h', minutes: 60 },
-  { label: '2h', minutes: 120 },
-  { label: '4h', minutes: 240 },
-  { label: '1 día', minutes: 1440 },
-]
 
 function formatInterval(startAt: string | null, endAt: string | null) {
   if (!startAt || !endAt) return 'sin horario'
@@ -155,11 +147,6 @@ export function PlanTicketDialog({
     if (task.endAt) setEnd(localDateTime(new Date(task.endAt)))
   }
 
-  const applyDuration = (minutes: number) => {
-    const base = parseUnambiguousLocal(start) ?? new Date()
-    setEnd(localDateTime(new Date(base.getTime() + minutes * 60_000)))
-  }
-
   const applySuggestedStart = (iso: string) => {
     const suggested = new Date(iso)
     const startDate = parseUnambiguousLocal(start)
@@ -203,6 +190,25 @@ export function PlanTicketDialog({
     refetchInterval: open ? 15_000 : false,
     retry: false,
   })
+
+  const durationMinutes = useMemo(() => {
+    if (!startDateObj || !endDateObj || endDateObj <= startDateObj) return 60
+    return Math.round((endDateObj.getTime() - startDateObj.getTime()) / 60_000)
+  }, [startDateObj, endDateObj])
+
+  const isSameSchedule = useMemo(() => {
+    if (mode !== 'reschedule' || !selectedTask) return false
+    const effectiveContent = content.trim() || 'Intervención planificada'
+    const origStart = selectedTask.startAt ? new Date(selectedTask.startAt).getTime() : 0
+    const origEnd = selectedTask.endAt ? new Date(selectedTask.endAt).getTime() : 0
+    const currStart = startDateObj ? startDateObj.getTime() : 0
+    const currEnd = endDateObj ? endDateObj.getTime() : 0
+    return (
+      toPlainText(selectedTask.content).trim() === effectiveContent &&
+      origStart === currStart &&
+      origEnd === currEnd
+    )
+  }, [mode, selectedTask, content, startDateObj, endDateObj])
 
   const close = () => {
     if (!busy) onOpenChange(false)
@@ -474,51 +480,43 @@ export function PlanTicketDialog({
           {mode === 'reschedule' && <p className="text-xs text-muted-foreground">Se conserva el responsable de la tarea existente.</p>}
         </div>
 
-        {/* Date and Time Fields */}
-        <div className="grid gap-3">
-          <PlanningDateTimeField
-            id="plan-start"
-            label="Fecha y hora de inicio"
-            value={start}
-            onChange={setStart}
-            testId="plan-start"
-            disabled={busy || tasksUnavailable}
-          />
-          <PlanningDateTimeField
-            id="plan-end"
-            label="Fecha y hora de fin"
-            value={end}
-            onChange={setEnd}
-            testId="plan-end"
-            disabled={busy || tasksUnavailable}
-          />
-        </div>
-
-        <section aria-label="Disponibilidad del técnico" aria-live="polite" className="space-y-2 rounded-xl border border-border p-3 text-sm">
-          <p className="font-medium">Agenda del técnico · {zone}</p>
-          {availability.isFetching ? <p role="status">Comprobando disponibilidad…</p>
-            : availability.isError ? <div role="alert" className="space-y-2 text-red-700 dark:text-red-400">
-                <p>{getApiErrorMessage(availability.error)}</p>
-                <Button type="button" variant="outline" onClick={() => void availability.refetch()}>Reintentar disponibilidad</Button>
-              </div>
-            : availability.data ? <>
-                <p className={availability.data.available ? 'text-foreground' : 'text-red-700 dark:text-red-400'}>
-                  {availability.data.available ? 'La franja seleccionada está libre.' : 'La franja seleccionada está ocupada.'}
-                </p>
-                {availability.data.suggestedStart && !availability.data.available &&
-                  <Button type="button" variant="outline" disabled={busy || tasksUnavailable} className="h-auto min-h-11 whitespace-normal text-left"
-                    onClick={() => applySuggestedStart(availability.data!.suggestedStart!)}>
-                    Usar horario libre · {formatInterval(availability.data.suggestedStart,
-                      new Date(new Date(availability.data.suggestedStart).getTime() + (endDateObj!.getTime() - startDateObj!.getTime())).toISOString())}
-                  </Button>}
-                {availability.data.busy.length > 0 && <div className="max-h-32 overflow-y-auto space-y-1 text-xs text-muted-foreground">
-                  <p className="font-medium">Ocupados · próximas fechas consultadas</p>
-                  {availability.data.busy.map((period, index) => <p key={index}>
-                    {formatInterval(period.startAt, period.endAt)} · Intervención programada
-                  </p>)}
-                </div>}
-              </> : <p>Selecciona técnico, inicio y duración para consultar su agenda.</p>}
-        </section>
+        {/* Selector visual de agenda interactiva y accesible */}
+        <VisualScheduleSelector
+          selectedStart={startDateObj}
+          durationMinutes={durationMinutes}
+          onSlotSelect={(newStart, newDuration) => {
+            setStart(localDateTime(newStart))
+            setEnd(localDateTime(new Date(newStart.getTime() + newDuration * 60_000)))
+            setError('')
+            setConflict(null)
+          }}
+          busyPeriods={availability.data?.busy}
+          suggestedStart={availability.data?.suggestedStart}
+          isAvailable={availability.data?.available ?? true}
+          isFetchingAvailability={availability.isFetching}
+          timeZone={zone}
+          disabled={busy || tasksUnavailable || !responsibleId}
+          manualInputSection={
+            <div className="grid gap-2">
+              <PlanningDateTimeField
+                id="plan-start"
+                label="Fecha y hora de inicio"
+                value={start}
+                onChange={setStart}
+                testId="plan-start"
+                disabled={busy || tasksUnavailable}
+              />
+              <PlanningDateTimeField
+                id="plan-end"
+                label="Fecha y hora de fin"
+                value={end}
+                onChange={setEnd}
+                testId="plan-end"
+                disabled={busy || tasksUnavailable}
+              />
+            </div>
+          }
+        />
 
         {/* Immediate validation indicators */}
         {isEndBeforeStart && (
@@ -533,22 +531,6 @@ export function PlanTicketDialog({
             <span>Aviso: La hora seleccionada es anterior a la actual.</span>
           </div>
         )}
-
-        {/* Duration Quick Picks */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-[11px] font-medium text-muted-foreground mr-1">Duración estimada:</span>
-          {DURATIONS.map((duration) => (
-            <button
-              key={duration.label}
-              type="button"
-              onClick={() => applyDuration(duration.minutes)}
-              disabled={busy || tasksUnavailable}
-              className="min-h-11 text-xs px-2.5 py-0.5 rounded-full border border-border/80 bg-muted/40 hover:bg-muted hover:border-primary/60 text-foreground transition-colors cursor-pointer"
-            >
-              +{duration.label}
-            </button>
-          ))}
-        </div>
 
         {/* Existing Open Tasks Mini Agenda */}
         {openTasks.length > 0 && (
@@ -635,6 +617,12 @@ export function PlanTicketDialog({
           </div>
         )}
 
+        {isSameSchedule && (
+          <p className="text-xs text-muted-foreground text-center">
+            Modifica la fecha, duración o comentario para guardar los cambios.
+          </p>
+        )}
+
         <div className="flex flex-wrap justify-end gap-2 pt-2">
           <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={busy} onClick={close}>
             Cancelar
@@ -642,7 +630,7 @@ export function PlanTicketDialog({
           <Button
             type="submit"
             className="min-h-11 w-full sm:w-auto"
-            disabled={busy || tasksUnavailable || isEndBeforeStart || !responsibleId || availability.isFetching || !availability.data?.available || availability.isError}
+            disabled={busy || tasksUnavailable || isEndBeforeStart || !responsibleId || availability.isFetching || !availability.data?.available || availability.isError || isSameSchedule}
             data-testid="plan-confirm-btn"
           >
             {busy
