@@ -84,6 +84,16 @@ export function Login() {
           isAllowedRouteForRole(rawFrom, data.user.role)
         ) {
           target = rawFrom
+        } else if (
+          isDifferentUser &&
+          rawFrom &&
+          rawFrom.startsWith('/') &&
+          !rawFrom.startsWith('//') &&
+          !isResourceDetail &&
+          isAllowedRouteForRole(rawFrom, data.user.role)
+        ) {
+          // P3-07: another identity keeps the base view (e.g. /tickets) without inheriting query params
+          target = rawFrom
         }
 
         navigate(target, { replace: true })

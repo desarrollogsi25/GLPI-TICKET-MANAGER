@@ -35,7 +35,7 @@ export async function confirmPlanning(page: Page): Promise<void> {
   // The dialog stays read-only until GLPI returns the ticket's tasks. A fresh
   // fixture pays the first REST session handshake (measured 3.7 s warm, more on
   // a cold GLPI), so allow well beyond the default 5 s expect timeout.
-  await expect(dialog.getByTestId('plan-start')).not.toHaveValue('', { timeout: 30_000 })
+  await expect(dialog.getByTestId('plan-start')).toBeVisible({ timeout: 30_000 })
   // E2E exercises a *shared* GLPI technician calendar. After enforcing real
   // overlap rejection, unrelated sequential tests must not all schedule the
   // default "now + 15 min" slot. Choose a high-entropy 2-hour block within

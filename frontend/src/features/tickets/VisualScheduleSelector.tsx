@@ -450,8 +450,8 @@ export function VisualScheduleSelector({
               {isFetchingAvailability
                 ? 'Comprobando disponibilidad…'
                 : isAvailable
-                  ? 'Horario seleccionado confirmado y disponible'
-                  : 'Horario con conflicto de disponibilidad'}
+                  ? 'La franja seleccionada está libre.'
+                  : 'La franja seleccionada está ocupada.'}
             </span>
             <Badge variant="outline" className="text-[10px] border-current/30 text-current">
               {tz}
