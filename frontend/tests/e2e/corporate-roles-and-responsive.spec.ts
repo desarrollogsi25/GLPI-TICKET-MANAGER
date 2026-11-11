@@ -26,7 +26,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
 
         await page.goto('/kanban')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByText('Cola del grupo')).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Cola del grupo' })).toBeVisible()
       } finally {
         await adminCtx.close()
       }
@@ -45,7 +45,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
 
         await page.goto('/kanban')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByText('Cola del grupo')).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Cola del grupo' })).toBeVisible()
       } finally {
         await supCtx.close()
       }
@@ -64,7 +64,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
 
         await page.goto('/kanban')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByText('Cola del grupo')).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Cola del grupo' })).toBeVisible()
       } finally {
         await techCtx.close()
       }
@@ -100,9 +100,10 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
     const serviceHeading = page.getByRole('heading', { name: /Servicios|Catálogo/i }).first()
     await expect(serviceHeading).toBeVisible()
 
-    // Comprobar tarjetas de servicios
-    const cards = page.locator('[data-testid^="service-card-"], .service-card, article')
+    // Comprobar tarjetas de servicios destacados (8 servicios configurados)
+    const cards = page.locator('[data-testid^="featured-service-card-"]')
     await expect(cards.first()).toBeVisible()
+    await expect(cards).toHaveCount(8)
   })
 
   const viewports = [
@@ -127,7 +128,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
       expect(hasHorizontalOverflow).toBeFalsy()
 
       // Verificar elementos principales accesibles
-      await expect(page.locator('header, nav').first()).toBeVisible()
+      await expect(page.locator('#main-content, main, [role="main"]').first()).toBeVisible()
     })
   }
 })

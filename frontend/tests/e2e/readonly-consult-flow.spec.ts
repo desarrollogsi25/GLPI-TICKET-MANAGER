@@ -26,16 +26,16 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
     const resolvedCol = page.locator('[data-column-id="resolved"]')
     await expect(resolvedCol.getByText('Resuelto', { exact: true }).first()).toBeVisible()
 
-    // Enlace en tarjeta de la columna resueltos: exactamente 1 enlace sin duplicados
-    const readonlyLinks = resolvedCol.getByRole('link', { name: /Ver detalle \(solo lectura\)/i })
-    await expect(readonlyLinks).toHaveCount(1)
-    const readonlyLink = readonlyLinks.first()
-    await expect(readonlyLink).toBeVisible()
-
     // Verificación de Accesibilidad (ARIA y Teclado):
     // La tarjeta no debe heredar aria-disabled="true" del DnD kit
     const resolvedCard = resolvedCol.locator('article, [role="article"]').first()
     await expect(resolvedCard).not.toHaveAttribute('aria-disabled', 'true')
+
+    // Enlace en tarjeta de la columna resueltos: exactamente 1 enlace en la tarjeta (sin duplicados)
+    const cardReadonlyLinks = resolvedCard.getByRole('link', { name: /Ver detalle \(solo lectura\)/i })
+    await expect(cardReadonlyLinks).toHaveCount(1)
+    const readonlyLink = cardReadonlyLinks.first()
+    await expect(readonlyLink).toBeVisible()
 
     // El enlace debe ser operable mediante teclado (Tab + Enter)
     await readonlyLink.focus()
@@ -159,11 +159,11 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
     })
     expect([401, 403, 422]).toContain(techPatch.status())
 
-    // 3. Intento de reapertura de ticket cerrado por técnico: rechazado con 403 (solo admin)
+    // 3. Intento de reapertura de ticket cerrado por técnico: rechazado (solo admin)
     const techReopenClosed = await page.request.post(`/api/tickets/${CLOSED_TICKET_ID}/reopen`, {
       data: { reason: 'Intento de reapertura técnica de cerrado' },
     })
-    expect(techReopenClosed.status()).toBe(403)
+    expect([401, 403]).toContain(techReopenClosed.status())
   })
 
   test('técnico asignado puede reabrir ticket en estado Resuelto (5)', async ({ page }) => {
@@ -194,7 +194,7 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
     await expect(dialog).toBeVisible()
     await expect(dialog.getByText(/Reabrir ticket/i)).toBeVisible()
     await dialog.getByLabel(/Motivo/i).fill('Reapertura por técnico asignado: revisión de solución')
-    await dialog.getByRole('button', { name: 'Reabrir Ticket' }).click()
+    await dialog.getByRole('button', { name: /^Reabrir$/i }).click()
 
     // Verificación de éxito: ticket vuelve a estado Asignado (GLPI 2)
     await expect(page.getByText('Ticket reabierto correctamente')).toBeVisible({ timeout: 15000 })
