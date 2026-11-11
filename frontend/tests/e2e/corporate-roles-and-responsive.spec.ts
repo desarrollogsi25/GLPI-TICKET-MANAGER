@@ -81,9 +81,15 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
         await page.getByRole('button', { name: 'Iniciar Sesión' }).click()
         await expect(page).not.toHaveURL(/\/login/)
 
-        await page.goto('/services')
+        // Solicitante accede a /tickets sin controles de operador
+        await page.goto('/tickets')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByText(/Catálogo de Servicios|Servicios/i).first()).toBeVisible()
+        await expect(page.getByText('Mis tickets').first()).toBeVisible()
+
+        // Límite de acceso: intentar ir a /kanban redirige a /tickets
+        await page.goto('/kanban')
+        await page.waitForLoadState('networkidle')
+        await expect(page).toHaveURL(/\/tickets/)
       } finally {
         await reqCtx.close()
       }
