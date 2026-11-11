@@ -5,7 +5,7 @@ import path from 'node:path'
 const OUT_DIR = path.resolve(process.cwd(), 'frontend/docs/qa/all-eight-profiles')
 fs.mkdirSync(OUT_DIR, { recursive: true })
 
-const BASE_URL = 'http://127.0.0.1:4173'
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1'
 
 function getCred(user) {
   const key = `CRED_${user.toUpperCase()}`
