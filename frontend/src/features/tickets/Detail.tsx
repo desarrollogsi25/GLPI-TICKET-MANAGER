@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ShieldAlert, ArrowLeft } from 'lucide-react'
+import { ShieldAlert, ArrowLeft, CheckCircle, Lock } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -71,6 +71,14 @@ export function Detail() {
   }
 
   const changeStatus = (status: number) => {
+    if (ticket?.status === 6) {
+      pushToast({
+        title: 'Operación no permitida',
+        description: 'No se puede modificar directamente el estado de un ticket cerrado. Requiere reapertura administrativa formal.',
+        variant: 'destructive',
+      })
+      return
+    }
     updateStatus.mutate(
       { ticketId, status },
       {
@@ -146,14 +154,19 @@ export function Detail() {
   const status = statusMeta(ticket.status)
   const priority = priorityMeta(ticket.priority)
   const type = TICKET_TYPES.find((item) => item.value === ticket.type)?.label ?? ticket.typeLabel
-  // Reopen policy (backend-enforced): only an admin can reopen a Closed (6) ticket.
-  // An assigned technician may still reopen a Solved (5) ticket.
+  // Reopen policy (backend-enforced in TicketAccessPolicy):
+  // - Admin: can reopen both Solved (5) and Closed (6) tickets.
+  // - Supervisor: can reopen Solved (5) tickets belonging to their groups or assigned to them.
+  // - Technician: can reopen Solved (5) tickets assigned to them.
+  // - Closed (6) tickets are terminal for non-admins (only admin can reopen).
+  const isAssigned =
+    currentUser?.userId != null &&
+    ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))
+
   const canReopen =
     role === 'admin'
       ? ticket.status === 5 || ticket.status === 6
-      : ticket.status === 5 &&
-        currentUser?.userId != null &&
-        ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))
+      : ticket.status === 5 && (isAssigned || role === 'supervisor')
 
   return (
     <div className="space-y-4">
@@ -337,6 +350,30 @@ export function Detail() {
               <CardTitle className="text-base font-semibold">Cambiar estado</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {ticket.status === 6 && (
+                <div className="space-y-1.5 rounded-xl border border-muted-foreground/20 bg-muted/50 p-3 text-sm text-muted-foreground" data-testid="closed-readonly-banner">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <Lock className="size-4 text-muted-foreground" />
+                    <span>Ticket Cerrado (Modo lectura)</span>
+                  </div>
+                  <p className="text-xs">
+                    {role === 'admin'
+                      ? 'Este ticket está cerrado de forma definitiva. Las modificaciones directas están bloqueadas; como administrador conservas la facultad de reabrirlo formalmente registrando el motivo de auditoría.'
+                      : 'Este ticket está cerrado de forma definitiva. No se admiten modificaciones ni reapertura por técnicos.'}
+                  </p>
+                </div>
+              )}
+              {ticket.status === 5 && (
+                <div className="space-y-1.5 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-sm text-emerald-950 dark:text-emerald-200" data-testid="resolved-banner">
+                  <div className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle className="size-4 text-emerald-600" />
+                    <span>Ticket Resuelto</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    La solución ha sido registrada en GLPI. El cierre automático definitivo lo gestiona la acción programada closeticket de GLPI.
+                  </p>
+                </div>
+              )}
               {ticket.status === 4 && (
                 <div className="space-y-2 rounded-xl border border-amber-300/50 bg-amber-50/70 p-3 text-sm text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/20 dark:text-amber-100">
                   <p>
@@ -418,6 +455,8 @@ export function Detail() {
 
               <div className="pt-2 border-t border-border/40 flex flex-wrap gap-1.5">
                 {TICKET_STATUSES.map((option) => {
+                  const isClosedDirectTransitionBlocked = ticket.status === 6
+
                   const isBackwardBlocked =
                     role !== 'admin' &&
                     ((ticket.status === 5 && option.value < 5) ||
@@ -439,6 +478,7 @@ export function Detail() {
                     option.value === 6 && ticket.status !== 5
 
                   const isDisabled =
+                    isClosedDirectTransitionBlocked ||
                     option.value === ticket.status ||
                     updateStatus.isPending ||
                     isBackwardBlocked ||
@@ -455,8 +495,11 @@ export function Detail() {
                       size="sm"
                       className="rounded-xl text-xs"
                       disabled={isDisabled}
+                      data-testid={`status-btn-${option.value}`}
                       title={
-                        isCloseUnsolvedBlocked
+                        isClosedDirectTransitionBlocked
+                          ? 'Los tickets cerrados no admiten cambios directos de estado; un administrador debe reabrirlo formalmente.'
+                          : isCloseUnsolvedBlocked
                           ? 'El ticket debe ser resuelto antes de poder cerrarse.'
                           : isAssigneeDirectResolveBlocked
                             ? 'Primero debes asignarte el ticket para resolverlo.'

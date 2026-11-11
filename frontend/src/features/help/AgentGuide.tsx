@@ -4,11 +4,11 @@ import { useRole } from '@/hooks/useRole'
 
 const STATUS_STEPS = [
   ['1. Nuevo', 'Ticket recién creado, todavía sin responsable.'],
-  ['2. Asignado', 'Tiene técnico asignado y aún no tiene una tarea planificada.'],
-  ['3. En proceso', 'Tiene una programación activa (TicketTask) con fecha y técnico.'],
-  ['4. Pendiente', 'En espera de respuesta del usuario o de un repuesto.'],
-  ['5. Resuelto', 'Tiene solución registrada; permanece visible en el tablero.'],
-  ['6. Cerrado', 'Estado final de GLPI; solo aparece en el histórico.'],
+  ['2. Asignado', 'Tiene técnico o grupo asignado y aún no tiene una tarea planificada.'],
+  ['3. En proceso (planificado)', 'Tiene una programación activa (TicketTask) con fecha y técnico.'],
+  ['4. Pendiente (En espera)', 'En espera de respuesta del usuario o de un tercero.'],
+  ['5. Resuelto', 'Tiene solución registrada; el cierre definitivo lo gestiona la acción closeticket de GLPI.'],
+  ['6. Cerrado', 'Estado final definitivo de GLPI; accesible para consulta en modo solo lectura.'],
 ] as const
 
 export function AgentGuide() {
@@ -80,7 +80,7 @@ export function AgentGuide() {
             <CardContent>
               <ol className="list-decimal space-y-1 pl-5 text-sm">
                 <li>Entrá al menú “Cola del grupo”.</li>
-                <li>Cada tarjeta muestra un ticket sin asignar con su prioridad y urgencia.</li>
+                <li>Cada tarjeta muestra un ticket sin técnico asignado (estado Nuevo o Asignado al grupo sin técnico) con su prioridad y urgencia.</li>
                 <li>Usá el selector de grupo si tu perfil tiene varios grupos.</li>
               </ol>
             </CardContent>
@@ -93,8 +93,8 @@ export function AgentGuide() {
             <CardContent>
               <ol className="list-decimal space-y-1 pl-5 text-sm">
                 <li>En la cola, hacé clic en “Asignarme”.</li>
-                <li>El ticket pasa a estado “Asignado” y desaparece de la cola.</li>
-                <li>Si no aparece, verificá que sea del grupo correcto y que esté en estado Nuevo.</li>
+                <li>El ticket pasa a estar asignado a tu usuario y se traslada a tu columna personal.</li>
+                <li>Si no aparece en la cola, verificá que pertenezca a tu grupo y que no tenga ya un técnico asignado (los tickets entran a la cola en estado Nuevo o Asignado a grupo sin técnico).</li>
               </ol>
             </CardContent>
           </Card>
@@ -122,7 +122,7 @@ export function AgentGuide() {
                 <li>Abrí el ticket asignado.</li>
                 <li>Después de atenderlo, pulsá “Resolver”.</li>
                 <li>Ingresá la solución obligatoria en el modal.</li>
-                <li>El ticket pasa a estado “Resuelto”. El cierre final se gestiona en GLPI.</li>
+                <li>El ticket pasa a estado “Resuelto”. El cierre definitivo a estado “Cerrado” es gestionado automáticamente por GLPI (acción closeticket) o por el supervisor.</li>
               </ol>
             </CardContent>
           </Card>

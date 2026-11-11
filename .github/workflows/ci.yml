@@ -100,7 +100,7 @@ jobs:
 
   e2e:
     name: E2E (Playwright against full stack)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [backend, frontend, secret-scan]
     steps:
@@ -134,7 +134,7 @@ jobs:
             fi
           done
       - name: Install browser on ephemeral runner
-        run: pnpm --dir frontend exec playwright install --with-deps chromium
+        run: pnpm --dir frontend exec playwright install chromium
       - name: Run disposable full-stack fixture
         # Creates unique resources and synthetic secrets, verifies identity before
         # writes, and removes only its own resources in finally. Never uses .env.

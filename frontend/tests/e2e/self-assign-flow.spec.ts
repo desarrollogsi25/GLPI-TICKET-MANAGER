@@ -53,7 +53,7 @@ test('flujo completo: cola -> asignarme -> resolver con solucion', async ({ page
 
   await confirmButton.click()
 
-  await expect(page.getByText('Ticket resuelto')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText(/Ticket resuelto/i).first()).toBeVisible({ timeout: 15000 })
   await expect(page.locator('textarea')).toHaveCount(0, { timeout: 15000 })
 
   expect(consoleErrors).toEqual([])
