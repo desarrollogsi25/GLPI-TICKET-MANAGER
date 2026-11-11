@@ -51,6 +51,7 @@ const secrets = {
   E2E_GLPI_APP_TOKEN: secret(), E2E_GLPI_USER_TOKEN: secret(), E2E_JWT_KEY: jwtKey, E2E_WEBHOOK_SECRET: secret(),
   // Ephemeral fixture accounts: generated per run, never versioned.
   E2E_TECH_PASSWORD: randomBytes(24).toString('base64url'),
+  E2E_SUPERVISOR_PASSWORD: randomBytes(24).toString('base64url'),
   E2E_REQUESTER_PASSWORD: randomBytes(24).toString('base64url'),
   E2E_ADMIN_PASSWORD: randomBytes(24).toString('base64url'),
 }
@@ -195,6 +196,15 @@ try {
       progress(`apply disposable PostgreSQL migration ${name}`)
       sqlRaw('postgres', readFileSync(resolve(root, 'db/migrations', name), 'utf8'))
     }
+    progress('seed PostgreSQL role overrides for corporate supervisors')
+    sqlRaw('postgres', `
+      INSERT INTO user_role_overrides (user_id, app_role, granted_by, granted_at, reason)
+      VALUES
+        (11, 'supervisor', 10, NOW(), 'Líder Desarrollo H-38'),
+        (12, 'supervisor', 10, NOW(), 'Líder BI H-38'),
+        (13, 'supervisor', 10, NOW(), 'Líder Service Desk H-38')
+      ON CONFLICT (user_id) DO UPDATE SET app_role = 'supervisor';
+    `)
     progress('create and verify both database identity sentinels')
     for (const engine of ['mariadb', 'postgres']) {
       sqlRaw(engine, `CREATE TABLE e2e_fixture_identity (run_id VARCHAR(32) PRIMARY KEY); INSERT INTO e2e_fixture_identity(run_id) VALUES ('${runId}');`)
@@ -204,7 +214,7 @@ try {
     runFixtureSql('mariadb', readFileSync(resolve(root, 'scripts/seed-e2e.sql'), 'utf8'), env)
 
     // The installer generates the encryption key; provision only synthetic API credentials.
-    progress('provision synthetic GLPI API credentials')
+    progress('provision synthetic GLPI API credentials and corporate roles')
     const php = `<?php
 require '/var/www/glpi/vendor/autoload.php';
 $kernel = new \\Glpi\\Kernel\\Kernel();
@@ -214,10 +224,22 @@ $key = new GLPIKey();
 if (!$DB->insert('glpi_apiclients', ['id'=>2,'name'=>'Disposable E2E','entities_id'=>0,'is_recursive'=>1,'app_token'=>$key->encrypt('${secrets.E2E_GLPI_APP_TOKEN}'),'is_active'=>1])) exit(1);
 if (!$DB->update('glpi_users', ['api_token'=>$key->encrypt('${secrets.E2E_GLPI_USER_TOKEN}'),'api_token_date'=>date('Y-m-d H:i:s')], ['id'=>10])) exit(1);
 foreach (['enable_api','enable_api_login_external_token'] as $name) { if (!$DB->update('glpi_configs', ['value'=>'1'], ['context'=>'core','name'=>$name])) exit(1); }
-$hash = password_hash('${secrets.E2E_REQUESTER_PASSWORD}', PASSWORD_BCRYPT);
-if (!$DB->update('glpi_users', ['password'=>password_hash('${secrets.E2E_TECH_PASSWORD}', PASSWORD_BCRYPT)], ['name'=>'tech1'])) exit(1);
-if (!$DB->update('glpi_users', ['password'=>password_hash('${secrets.E2E_ADMIN_PASSWORD}', PASSWORD_BCRYPT)], ['name'=>'admin_test'])) exit(1);
-if (!$DB->insert('glpi_users', ['id'=>19,'name'=>'user1','password'=>$hash,'authtype'=>1,'auths_id'=>0,'is_active'=>1,'is_deleted'=>0,'profiles_id'=>1,'entities_id'=>0])) exit(1);
+$adminHash = password_hash('${secrets.E2E_ADMIN_PASSWORD}', PASSWORD_BCRYPT);
+$supervisorHash = password_hash('${secrets.E2E_SUPERVISOR_PASSWORD}', PASSWORD_BCRYPT);
+$techHash = password_hash('${secrets.E2E_TECH_PASSWORD}', PASSWORD_BCRYPT);
+$requesterHash = password_hash('${secrets.E2E_REQUESTER_PASSWORD}', PASSWORD_BCRYPT);
+
+if (!$DB->update('glpi_users', ['password'=>$adminHash], ['name'=>'admin_test'])) exit(1);
+foreach (['lider_dev', 'lider_bi', 'lider_sd'] as $name) {
+  if (!$DB->update('glpi_users', ['password'=>$supervisorHash], ['name'=>$name])) exit(1);
+}
+foreach (['tech1', 'tech2', 'tech_dev', 'tech_bi', 'tech_sd'] as $name) {
+  if (!$DB->update('glpi_users', ['password'=>$techHash], ['name'=>$name])) exit(1);
+}
+foreach (['user_test', 'solicitante_test'] as $name) {
+  if (!$DB->update('glpi_users', ['password'=>$requesterHash], ['name'=>$name])) exit(1);
+}
+if (!$DB->insert('glpi_users', ['id'=>19,'name'=>'user1','password'=>$requesterHash,'authtype'=>1,'auths_id'=>0,'is_active'=>1,'is_deleted'=>0,'profiles_id'=>1,'entities_id'=>0])) exit(1);
 if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entities_id'=>0,'is_recursive'=>0,'is_default_profile'=>1])) exit(1);
 `
     assertDisposableFixture(env)
@@ -228,6 +250,7 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
     await ready(`${manifest.apiUrl}/health/ready`)
     Object.assign(env, { E2E_DESK_URL: manifest.frontendUrl, E2E_GLPI_URL: manifest.glpiUrl,
       E2E_API_URL: manifest.apiUrl, E2E_TECH_USERNAME: 'tech1', E2E_TECH_PASSWORD: secrets.E2E_TECH_PASSWORD,
+      E2E_SUPERVISOR_USERNAME: 'lider_dev', E2E_SUPERVISOR_PASSWORD: secrets.E2E_SUPERVISOR_PASSWORD,
       E2E_REQUESTER_USERNAME: 'user1', E2E_REQUESTER_PASSWORD: secrets.E2E_REQUESTER_PASSWORD,
       E2E_ADMIN_USERNAME: 'admin_test', E2E_ADMIN_PASSWORD: secrets.E2E_ADMIN_PASSWORD,
       E2E_GLPI_NATIVE: nativeGlpi ? 'true' : 'false' })
@@ -266,14 +289,27 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
       console.log(`Project:      ${project}`)
       console.log(`Run ID:       ${runId}`)
       console.log('------------------------------------------------------')
-      console.log('USUARIOS DE PRUEBA SINTÉTICOS:')
-      console.log(`- Técnico (tech1):       Usuario: tech1      Password: ${secrets.E2E_TECH_PASSWORD}`)
-      console.log(`- Solicitante (user1):   Usuario: user1      Password: ${secrets.E2E_REQUESTER_PASSWORD}`)
-      console.log(`- Administrador (admin): Usuario: admin_test Password: ${secrets.E2E_ADMIN_PASSWORD}`)
+      console.log('LOS 8 ROLES CORPORATIVOS SINTÉTICOS DISPONIBLES:')
+      console.log(`- Administrador (admin):         Usuario: admin_test   Password: ${secrets.E2E_ADMIN_PASSWORD}`)
+      console.log(`- Líder Desarrollo (supervisor):  Usuario: lider_dev    Password: ${secrets.E2E_SUPERVISOR_PASSWORD}`)
+      console.log(`- Líder BI (supervisor):          Usuario: lider_bi     Password: ${secrets.E2E_SUPERVISOR_PASSWORD}`)
+      console.log(`- Líder Service Desk (superv.):   Usuario: lider_sd     Password: ${secrets.E2E_SUPERVISOR_PASSWORD}`)
+      console.log(`- Técnico Desarrollo (tech):      Usuario: tech_dev     Password: ${secrets.E2E_TECH_PASSWORD}`)
+      console.log(`- Técnico BI (tech):              Usuario: tech_bi      Password: ${secrets.E2E_TECH_PASSWORD}`)
+      console.log(`- Técnico Service Desk (tech):    Usuario: tech_sd      Password: ${secrets.E2E_TECH_PASSWORD}`)
+      console.log(`- Solicitante (autoservicio):     Usuario: user_test    Password: ${secrets.E2E_REQUESTER_PASSWORD}`)
+      console.log('--- Cuentas auxiliares de automatización ---')
+      console.log(`- tech1:                         Usuario: tech1        Password: ${secrets.E2E_TECH_PASSWORD}`)
+      console.log(`- user1:                         Usuario: user1        Password: ${secrets.E2E_REQUESTER_PASSWORD}`)
       console.log('------------------------------------------------------')
       console.log('El laboratorio permanecerá activo hasta recibir SIGINT (Ctrl+C).')
       console.log('======================================================\n')
-      await new Promise(() => {})
+      await new Promise(resolve => {
+        const keepAlive = setInterval(() => {}, 60_000)
+        const onExit = () => { clearInterval(keepAlive); resolve() }
+        process.once('SIGINT', onExit)
+        process.once('SIGTERM', onExit)
+      })
     } else {
       progress('run Playwright against the exclusive memory-backed fixture')
       const result = spawnSync(process.execPath, [playwrightCli, 'test', ...playwrightArgs], { cwd: resolve(root, 'frontend'), env, stdio: 'inherit' })

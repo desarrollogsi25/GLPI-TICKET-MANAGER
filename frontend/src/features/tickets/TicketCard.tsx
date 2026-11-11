@@ -82,6 +82,16 @@ function TicketCardComponent({
     disabled: !draggable,
   })
 
+  // Prevent DnD from injecting aria-disabled="true" or drag attributes into non-draggable
+  // (e.g. resolved/closed) cards. An article is not disabled; its links must remain accessible.
+  const dndAttributes = useMemo(() => {
+    if (!draggable) {
+      return {}
+    }
+    const { 'aria-disabled': _dndDisabled, ...rest } = attributes
+    return rest
+  }, [draggable, attributes])
+
   const priority = priorityMeta(ticket.priority)
   const status = statusMeta(ticket.status)
 
@@ -250,8 +260,8 @@ function TicketCardComponent({
         isOverlay && 'shadow-2xl ring-2 ring-primary bg-card scale-105',
         !shouldReduceMotion && shake && 'toast-error-shake',
       )}
-      {...attributes}
-      {...listeners}
+      {...dndAttributes}
+      {...(draggable ? listeners : {})}
       role="article"
     >
       {/* Top row: Priority Dot + Assignee Avatar */}

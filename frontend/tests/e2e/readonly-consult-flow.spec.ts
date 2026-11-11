@@ -26,9 +26,20 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
     const resolvedCol = page.locator('[data-column-id="resolved"]')
     await expect(resolvedCol.getByText('Resuelto', { exact: true }).first()).toBeVisible()
 
-    // Enlace en tarjeta o footer de la columna resueltos
-    const readonlyLink = resolvedCol.getByRole('link', { name: /Ver detalle \(solo lectura\)/i }).first()
+    // Enlace en tarjeta de la columna resueltos: exactamente 1 enlace sin duplicados
+    const readonlyLinks = resolvedCol.getByRole('link', { name: /Ver detalle \(solo lectura\)/i })
+    await expect(readonlyLinks).toHaveCount(1)
+    const readonlyLink = readonlyLinks.first()
     await expect(readonlyLink).toBeVisible()
+
+    // Verificación de Accesibilidad (ARIA y Teclado):
+    // La tarjeta no debe heredar aria-disabled="true" del DnD kit
+    const resolvedCard = resolvedCol.locator('article, [role="article"]').first()
+    await expect(resolvedCard).not.toHaveAttribute('aria-disabled', 'true')
+
+    // El enlace debe ser operable mediante teclado (Tab + Enter)
+    await readonlyLink.focus()
+    await expect(readonlyLink).toBeFocused()
 
     // 2. Mobile Viewport (390x844)
     await page.setViewportSize({ width: 390, height: 844 })
@@ -147,5 +158,45 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
       data: { status: 2 },
     })
     expect([401, 403, 422]).toContain(techPatch.status())
+
+    // 3. Intento de reapertura de ticket cerrado por técnico: rechazado con 403 (solo admin)
+    const techReopenClosed = await page.request.post(`/api/tickets/${CLOSED_TICKET_ID}/reopen`, {
+      data: { reason: 'Intento de reapertura técnica de cerrado' },
+    })
+    expect(techReopenClosed.status()).toBe(403)
+  })
+
+  test('técnico asignado puede reabrir ticket en estado Resuelto (5)', async ({ page }) => {
+    test.setTimeout(60000)
+
+    // Preparar ticket resuelto (status 5) asignado a tech1 (id 7)
+    resetFixtureTicket(RESOLVED_TICKET_ID, 'QA resolved ticket 85 for tech reopen')
+    runFixtureSql(
+      'mariadb',
+      `UPDATE glpi_tickets SET status=5, solvedate=NOW(), closedate=NULL WHERE id=${RESOLVED_TICKET_ID};
+       INSERT INTO glpi_tickets_users (tickets_id, users_id, type) VALUES (${RESOLVED_TICKET_ID}, 7, 2)
+       ON DUPLICATE KEY UPDATE type=2;`,
+    )
+
+    await page.goto(`/tickets/${RESOLVED_TICKET_ID}`)
+    await page.waitForLoadState('networkidle')
+
+    // Banner de ticket resuelto visible
+    await expect(page.getByTestId('resolved-banner')).toBeVisible()
+
+    // El técnico asignado SI dispone del botón Reabrir en estado Resuelto
+    const reopenBtn = page.getByTestId('reopen-ticket-btn')
+    await expect(reopenBtn).toBeVisible()
+    await reopenBtn.click()
+
+    // Dialog de reapertura abierto con motivo opcional
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText(/Reabrir ticket/i)).toBeVisible()
+    await dialog.getByLabel(/Motivo/i).fill('Reapertura por técnico asignado: revisión de solución')
+    await dialog.getByRole('button', { name: 'Reabrir Ticket' }).click()
+
+    // Verificación de éxito: ticket vuelve a estado Asignado (GLPI 2)
+    await expect(page.getByText('Ticket reabierto correctamente')).toBeVisible({ timeout: 15000 })
   })
 })

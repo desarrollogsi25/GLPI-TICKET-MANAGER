@@ -154,14 +154,19 @@ export function Detail() {
   const status = statusMeta(ticket.status)
   const priority = priorityMeta(ticket.priority)
   const type = TICKET_TYPES.find((item) => item.value === ticket.type)?.label ?? ticket.typeLabel
-  // Reopen policy (backend-enforced): only an admin can reopen a Closed (6) ticket.
-  // An assigned technician may still reopen a Solved (5) ticket.
+  // Reopen policy (backend-enforced in TicketAccessPolicy):
+  // - Admin: can reopen both Solved (5) and Closed (6) tickets.
+  // - Supervisor: can reopen Solved (5) tickets belonging to their groups or assigned to them.
+  // - Technician: can reopen Solved (5) tickets assigned to them.
+  // - Closed (6) tickets are terminal for non-admins (only admin can reopen).
+  const isAssigned =
+    currentUser?.userId != null &&
+    ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))
+
   const canReopen =
     role === 'admin'
       ? ticket.status === 5 || ticket.status === 6
-      : ticket.status === 5 &&
-        currentUser?.userId != null &&
-        ticket.assigneeIds.some((id) => Number(id) === Number(currentUser.userId))
+      : ticket.status === 5 && (isAssigned || role === 'supervisor')
 
   return (
     <div className="space-y-4">
