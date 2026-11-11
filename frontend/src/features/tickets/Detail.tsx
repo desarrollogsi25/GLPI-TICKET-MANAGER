@@ -71,6 +71,14 @@ export function Detail() {
   }
 
   const changeStatus = (status: number) => {
+    if (ticket?.status === 6) {
+      pushToast({
+        title: 'Operación no permitida',
+        description: 'No se puede modificar directamente el estado de un ticket cerrado. Requiere reapertura administrativa formal.',
+        variant: 'destructive',
+      })
+      return
+    }
     updateStatus.mutate(
       { ticketId, status },
       {
@@ -344,7 +352,9 @@ export function Detail() {
                     <span>Ticket Cerrado (Modo lectura)</span>
                   </div>
                   <p className="text-xs">
-                    Este ticket está cerrado de forma definitiva. No se admiten modificaciones ni planificación adicional.
+                    {role === 'admin'
+                      ? 'Este ticket está cerrado de forma definitiva. Las modificaciones directas están bloqueadas; como administrador conservas la facultad de reabrirlo formalmente registrando el motivo de auditoría.'
+                      : 'Este ticket está cerrado de forma definitiva. No se admiten modificaciones ni reapertura por técnicos.'}
                   </p>
                 </div>
               )}
@@ -440,6 +450,8 @@ export function Detail() {
 
               <div className="pt-2 border-t border-border/40 flex flex-wrap gap-1.5">
                 {TICKET_STATUSES.map((option) => {
+                  const isClosedDirectTransitionBlocked = ticket.status === 6
+
                   const isBackwardBlocked =
                     role !== 'admin' &&
                     ((ticket.status === 5 && option.value < 5) ||
@@ -461,6 +473,7 @@ export function Detail() {
                     option.value === 6 && ticket.status !== 5
 
                   const isDisabled =
+                    isClosedDirectTransitionBlocked ||
                     option.value === ticket.status ||
                     updateStatus.isPending ||
                     isBackwardBlocked ||
@@ -477,8 +490,11 @@ export function Detail() {
                       size="sm"
                       className="rounded-xl text-xs"
                       disabled={isDisabled}
+                      data-testid={`status-btn-${option.value}`}
                       title={
-                        isCloseUnsolvedBlocked
+                        isClosedDirectTransitionBlocked
+                          ? 'Los tickets cerrados no admiten cambios directos de estado; un administrador debe reabrirlo formalmente.'
+                          : isCloseUnsolvedBlocked
                           ? 'El ticket debe ser resuelto antes de poder cerrarse.'
                           : isAssigneeDirectResolveBlocked
                             ? 'Primero debes asignarte el ticket para resolverlo.'
