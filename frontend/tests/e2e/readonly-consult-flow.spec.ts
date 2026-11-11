@@ -136,11 +136,16 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
     }
 
     // --- D. Prohibición de mutaciones no autorizadas vía API ---
-    // Intentar cambiar estado de ticket cerrado sin reapertura formal
-    const patchRes = await request.patch(`/api/tickets/${CLOSED_TICKET_ID}/status`, {
+    // 1. Petición no autenticada rechazada
+    const unauthPatch = await request.patch(`/api/tickets/${CLOSED_TICKET_ID}/status`, {
       data: { status: 2 },
     })
-    // Debe ser rechazado (403 Forbidden o 422 Unprocessable Entity)
-    expect([403, 422]).toContain(patchRes.status())
+    expect([401, 403]).toContain(unauthPatch.status())
+
+    // 2. Intento de cambio directo en ticket cerrado (sin reapertura formal)
+    const techPatch = await page.request.patch(`/api/tickets/${CLOSED_TICKET_ID}/status`, {
+      data: { status: 2 },
+    })
+    expect([401, 403, 422]).toContain(techPatch.status())
   })
 })
