@@ -217,7 +217,7 @@ function TicketCardComponent({
               to={`/tickets/${ticket.id}`}
               className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5 min-h-[36px] px-1"
             >
-              Ver detalle →
+              {ticket.status >= 5 ? 'Ver detalle (solo lectura) →' : 'Ver detalle →'}
             </Link>
           )}
         </div>
@@ -352,12 +352,22 @@ function TicketCardComponent({
         </div>
       )}
 
-      {/* Meta: Relative time */}
+      {/* Meta: Relative time + Read-only detail link for resolved/closed */}
       <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1 shrink-0">
           <Clock className="size-3" aria-hidden="true" />
           Actualizado {formatRelative(ticket.updatedAt)}
         </span>
+        {ticket.status >= 5 && (
+          <Link
+            to={`/tickets/${ticket.id}`}
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+            onClick={(e) => e.stopPropagation()}
+            data-testid={`readonly-detail-link-${ticket.id}`}
+          >
+            Ver detalle (solo lectura) →
+          </Link>
+        )}
       </div>
 
       {actionButton ? (

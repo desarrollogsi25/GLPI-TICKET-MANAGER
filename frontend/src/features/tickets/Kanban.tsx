@@ -59,7 +59,7 @@ const COLUMNS: ColumnDef[] = [
   {
     id: 'queue',
     title: 'Cola del grupo',
-    description: 'Sin asignar',
+    description: 'Sin técnico asignado · GLPI 1/2',
     bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
@@ -133,7 +133,7 @@ const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
 const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: string }> = {
   queue: {
     title: 'No hay tickets en cola 🎉',
-    subtitle: 'Todos los tickets del grupo han sido asignados.',
+    subtitle: 'Todos los tickets del grupo tienen técnico asignado.',
     icon: '📭',
   },
   mine: {
@@ -453,6 +453,20 @@ function KanbanColumn({
                           <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-tight">
                             No se puede resolver un ticket en este estado. Primero debe replanificarse una tarea.
                           </p>
+                        </div>
+                      ) : column.id === 'resolved' ? (
+                        <div className="flex items-center justify-between w-full pt-1">
+                          <Link
+                            to={`/tickets/${ticket.id}`}
+                            className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`column-readonly-link-${ticket.id}`}
+                          >
+                            Ver detalle (solo lectura) →
+                          </Link>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                            {ticket.status === 6 ? 'Cerrado' : 'Resuelto'}
+                          </span>
                         </div>
                       ) : null
                     }

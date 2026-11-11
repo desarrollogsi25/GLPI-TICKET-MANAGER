@@ -19,12 +19,13 @@ const suppliedArgs = process.argv.slice(2)
 const nativeGlpi = true
 const args = suppliedArgs[0] === '--native-glpi' ? suppliedArgs.slice(1) : suppliedArgs
 if (args.includes('--help')) {
-  console.log('node scripts/e2e/run.mjs [--native-glpi] [--check] [-- Playwright arguments]\nCreates a new, memory-backed fixture; never uses the repository .env or local stack.\n--check validates Compose only, without starting containers.\nNative GLPI forms are always provisioned; --native-glpi remains accepted for compatibility.')
+  console.log('node scripts/e2e/run.mjs [--native-glpi] [--check] [--manual] [-- Playwright arguments]\nCreates a new, memory-backed fixture; never uses the repository .env or local stack.\n--check validates Compose only, without starting containers.\n--manual starts and holds the isolated fixture open for manual browser audits.\nNative GLPI forms are always provisioned; --native-glpi remains accepted for compatibility.')
   process.exit(0)
 }
 const checkOnly = args[0] === '--check'
+const manual = args.includes('--manual')
 const playwrightArgs = args[0] === '--' ? args.slice(1) : []
-if (!checkOnly && args.length && args[0] !== '--') throw new Error('Use --help for supported arguments')
+if (!checkOnly && !manual && args.length && args[0] !== '--') throw new Error('Use --help for supported arguments')
 const playwrightCli = resolve(root, 'frontend/node_modules/@playwright/test/cli.js')
 if (!checkOnly && !existsSync(playwrightCli)) throw new Error('Install the declared frontend dependencies before starting the isolated fixture')
 
@@ -255,9 +256,29 @@ if (!$DB->insert('glpi_profiles_users', ['users_id'=>19,'profiles_id'=>1,'entiti
       const visualSeed = spawnSync(process.execPath, [resolve(root, 'scripts/seed-visual-forms.js')], { cwd: root, env, stdio: 'inherit' })
       if (visualSeed.error || visualSeed.status !== 0) throw new Error('Synthetic visual fixture provisioning failed')
     }
-    progress('run Playwright against the exclusive memory-backed fixture')
-    const result = spawnSync(process.execPath, [playwrightCli, 'test', ...playwrightArgs], { cwd: resolve(root, 'frontend'), env, stdio: 'inherit' })
-    if (result.error || result.status !== 0) throw new Error('Playwright did not pass in the isolated fixture')
+    if (manual) {
+      console.log('\n======================================================')
+      console.log('[e2e-manual] LABORATORIO AISLADO H-20 DISPONIBLE')
+      console.log('======================================================')
+      console.log(`Frontend URL: ${manifest.frontendUrl}`)
+      console.log(`GLPI URL:     ${manifest.glpiUrl}`)
+      console.log(`API URL:      ${manifest.apiUrl}`)
+      console.log(`Project:      ${project}`)
+      console.log(`Run ID:       ${runId}`)
+      console.log('------------------------------------------------------')
+      console.log('USUARIOS DE PRUEBA SINTÉTICOS:')
+      console.log(`- Técnico (tech1):       Usuario: tech1      Password: ${secrets.E2E_TECH_PASSWORD}`)
+      console.log(`- Solicitante (user1):   Usuario: user1      Password: ${secrets.E2E_REQUESTER_PASSWORD}`)
+      console.log(`- Administrador (admin): Usuario: admin_test Password: ${secrets.E2E_ADMIN_PASSWORD}`)
+      console.log('------------------------------------------------------')
+      console.log('El laboratorio permanecerá activo hasta recibir SIGINT (Ctrl+C).')
+      console.log('======================================================\n')
+      await new Promise(() => {})
+    } else {
+      progress('run Playwright against the exclusive memory-backed fixture')
+      const result = spawnSync(process.execPath, [playwrightCli, 'test', ...playwrightArgs], { cwd: resolve(root, 'frontend'), env, stdio: 'inherit' })
+      if (result.error || result.status !== 0) throw new Error('Playwright did not pass in the isolated fixture')
+    }
   }
 } catch (error) {
   failed = true

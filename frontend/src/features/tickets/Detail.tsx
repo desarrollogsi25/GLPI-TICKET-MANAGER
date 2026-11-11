@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ShieldAlert, ArrowLeft } from 'lucide-react'
+import { ShieldAlert, ArrowLeft, CheckCircle, Lock } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -337,6 +337,28 @@ export function Detail() {
               <CardTitle className="text-base font-semibold">Cambiar estado</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {ticket.status === 6 && (
+                <div className="space-y-1.5 rounded-xl border border-muted-foreground/20 bg-muted/50 p-3 text-sm text-muted-foreground" data-testid="closed-readonly-banner">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <Lock className="size-4 text-muted-foreground" />
+                    <span>Ticket Cerrado (Modo lectura)</span>
+                  </div>
+                  <p className="text-xs">
+                    Este ticket está cerrado de forma definitiva. No se admiten modificaciones ni planificación adicional.
+                  </p>
+                </div>
+              )}
+              {ticket.status === 5 && (
+                <div className="space-y-1.5 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-sm text-emerald-950 dark:text-emerald-200" data-testid="resolved-banner">
+                  <div className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle className="size-4 text-emerald-600" />
+                    <span>Ticket Resuelto</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    La solución ha sido registrada en GLPI. El cierre automático definitivo lo gestiona la acción programada closeticket de GLPI.
+                  </p>
+                </div>
+              )}
               {ticket.status === 4 && (
                 <div className="space-y-2 rounded-xl border border-amber-300/50 bg-amber-50/70 p-3 text-sm text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/20 dark:text-amber-100">
                   <p>
