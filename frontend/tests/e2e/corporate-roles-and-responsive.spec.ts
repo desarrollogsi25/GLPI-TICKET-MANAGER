@@ -26,7 +26,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
 
         await page.goto('/kanban')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByRole('heading', { name: 'Cola del grupo' })).toBeVisible()
+        await expect(page.getByTestId('kanban-column-queue')).toBeVisible()
       } finally {
         await adminCtx.close()
       }
@@ -45,7 +45,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
 
         await page.goto('/kanban')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByRole('heading', { name: 'Cola del grupo' })).toBeVisible()
+        await expect(page.getByTestId('kanban-column-queue')).toBeVisible()
       } finally {
         await supCtx.close()
       }
@@ -64,7 +64,7 @@ test.describe('Roles corporativos, formularios y diseño responsive (H-20)', () 
 
         await page.goto('/kanban')
         await page.waitForLoadState('networkidle')
-        await expect(page.getByRole('heading', { name: 'Cola del grupo' })).toBeVisible()
+        await expect(page.getByTestId('kanban-column-queue')).toBeVisible()
       } finally {
         await techCtx.close()
       }
