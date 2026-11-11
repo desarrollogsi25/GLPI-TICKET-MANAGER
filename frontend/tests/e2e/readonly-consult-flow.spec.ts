@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetFixtureTicket } from './support/ticket-fixtures'
-import { runFixtureSql } from '../../../../scripts/e2e/guard.mjs'
+import { resetFixtureTicket, runFixtureSql } from './support/ticket-fixtures'
 
 const CLOSED_TICKET_ID = 9340
 const RESOLVED_TICKET_ID = 85
