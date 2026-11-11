@@ -9,7 +9,9 @@ test.describe('consulta de solo lectura en resueltos y cerrados', () => {
     resetFixtureTicket(CLOSED_TICKET_ID, 'QA readonly closed ticket 9340')
     runFixtureSql(
       'mariadb',
-      `UPDATE glpi_tickets SET status=6, solvedate=NOW(), closedate=NOW() WHERE id=${CLOSED_TICKET_ID};`,
+      `UPDATE glpi_tickets SET status=6, solvedate=NOW(), closedate=NOW() WHERE id=${CLOSED_TICKET_ID};
+       INSERT INTO glpi_tickets_users (tickets_id, users_id, type, use_notification) VALUES (${CLOSED_TICKET_ID}, 7, 2, 1);
+       INSERT INTO glpi_tickets_users (tickets_id, users_id, type) VALUES (${CLOSED_TICKET_ID}, 19, 1);`,
     )
   })
 
