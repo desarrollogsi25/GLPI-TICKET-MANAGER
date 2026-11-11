@@ -134,9 +134,7 @@ jobs:
             fi
           done
       - name: Install browser on ephemeral runner
-        run: |
-          sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/apt-mirrors.txt 2>/dev/null || true
-          pnpm --dir frontend exec playwright install --with-deps chromium
+        run: pnpm --dir frontend exec playwright install chromium
       - name: Run disposable full-stack fixture
         # Creates unique resources and synthetic secrets, verifies identity before
         # writes, and removes only its own resources in finally. Never uses .env.
