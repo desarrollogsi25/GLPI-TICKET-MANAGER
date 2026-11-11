@@ -22,10 +22,10 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
 
   // 2. Verificar las 5 columnas
   await expect(page.locator('[data-column-id="queue"]').getByText('Cola del grupo')).toBeVisible({ timeout: 10000 })
-  await expect(page.locator('[data-column-id="mine"]').getByText('Asignado', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-column-id="mine"]').getByText('Asignado', { exact: true }).first()).toBeVisible()
   await expect(page.locator('[data-column-id="in_progress"]').getByText('En proceso (planificado)').first()).toBeVisible()
-  await expect(page.locator('[data-column-id="pending"]').getByText('Pendiente', { exact: true })).toBeVisible()
-  await expect(page.locator('[data-column-id="resolved"]').getByText('Resuelto', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-column-id="pending"]').getByText('Pendiente', { exact: true }).first()).toBeVisible()
+  await expect(page.locator('[data-column-id="resolved"]').getByText('Resuelto', { exact: true }).first()).toBeVisible()
 
   // 3. Verificar que el ticket de prueba está en la cola.
   const queueColumn = page.locator('[data-column-id="queue"]')
@@ -34,10 +34,10 @@ test('kanban: 5 columns, valid drag flow, invalid drag blocked', async ({ page }
   // 4. Reclamar el ticket dedicado.
   const card = queueColumn.getByText(`#${TICKET_ID}`, { exact: true }).first().locator('xpath=ancestor::div[.//button[contains(normalize-space(.), "Asignarme")]][1]')
   const claimBtn = card.locator('button', { hasText: 'Asignarme' })
-  await expect(claimBtn).toBeVisible()
   // H-63: la tarjeta revela sus botones de acción al hacer hover (expansión suave),
   // así que hay que pasar el mouse por la tarjeta antes de poder clickear.
   await card.hover()
+  await expect(claimBtn).toBeVisible()
   await claimBtn.click()
 
   // 5. Esperar a que el ticket se retire de la cola (sin pausa arbitraria).
