@@ -56,7 +56,11 @@ test('journey real: solicitante, técnico, SignalR, filtros, administrador y per
     const response = await submission
     const responseReceivedAt = Date.now()
     expect(response.status()).toBeLessThan(400)
-    await expect(glpiPage.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
+    // GLPI 11.0.13 redirects directly to /front/ticket.form.php?id=<id>; 11.0.11 showed "Formulario enviado".
+    await Promise.race([
+      glpiPage.waitForURL(/\/front\/ticket\.form\.php\?id=\d+/, { timeout: 15000 }),
+      glpiPage.getByText('Formulario enviado').waitFor({ state: 'visible', timeout: 15000 }),
+    ])
     await glpiPage.screenshot({ path: testInfo.outputPath('glpi-submitted.png'), fullPage: true })
     return { submitStartedAt, responseReceivedAt }
   }

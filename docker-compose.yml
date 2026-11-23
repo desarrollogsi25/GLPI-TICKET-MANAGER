@@ -1,11 +1,10 @@
 services:
   glpi:
-    # Pinned by digest: the mutable 11.0 tag was re-published on 2026-10-28 with a
-    # build that breaks apirest.php/initSession (returns HTML instead of JSON),
-    # which made the CI E2E smoke test fail with HTTP 500. The digest below is the
-    # last known-good image (built 2026-10-11). Bump deliberately after verifying
-    # the API works end to end.
-    image: glpi/glpi:11.0@sha256:45572164994cbd12bedd99bf6dd954b7962076dd3b529f0fdc4a84131f30a32a
+    # Pinned by digest to official GLPI 11.0.13 + PHP 8.5.13 (built 2026-11-19/22),
+    # remediating PHP 8.5.12/8.5.13 and GLPI 11.0.12/11.0.13 security advisories.
+    # Validated end-to-end in H-20 (apirest.php/initSession, 8 corporate forms,
+    # RuleTicket routing, AssignGroupToTicketAsync, 62/62 Playwright E2E).
+    image: glpi/glpi:11.0@sha256:9bcedc76763ff9642761f53eb82ec48f944135074b7c83e84af2b7199251a261
     container_name: glpi
     restart: unless-stopped
     volumes:

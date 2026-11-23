@@ -50,7 +50,7 @@ services:
       Jwt__ExpiryMinutes: ${JWT_EXPIRY_MINUTES:-480}
       Seq__ServerUrl: ${SEQ_SERVER_URL:-http://seq:5341}
     ports:
-      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 15s

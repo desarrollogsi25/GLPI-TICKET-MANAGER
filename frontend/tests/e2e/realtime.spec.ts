@@ -72,7 +72,11 @@ test('realtime: connection indicator connects and maintains real-time link acros
   await expect(submitButton).toBeEnabled()
   await expect(description).toContainText('Ticket nativo de prueba automatizada del evento SignalR.')
   await submitButton.click()
-  await expect(glpi.getByText('Formulario enviado')).toBeVisible({ timeout: 15000 })
+  // GLPI 11.0.13 redirects directly to /front/ticket.form.php?id=<id>; 11.0.11 showed "Formulario enviado".
+  await Promise.race([
+    glpi.waitForURL(/\/front\/ticket\.form\.php\?id=\d+/, { timeout: 15000 }),
+    glpi.getByText('Formulario enviado').waitFor({ state: 'visible', timeout: 15000 }),
+  ])
 
   // Observe the rendered queue without an explicit fetch, navigation or reload.
   await pageA.bringToFront()
