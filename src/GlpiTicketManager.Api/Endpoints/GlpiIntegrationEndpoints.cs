@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Globalization;
+using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Integrations;
 using Microsoft.AspNetCore.Mvc;
@@ -23,9 +24,11 @@ public static class GlpiIntegrationEndpoints
             .WithName("GlpiTicketCreatedWebhook")
             .WithSummary("Webhook receptor de eventos de creación de tickets en GLPI (H-35)")
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.GlpiWebhook)
             .Produces(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status429TooManyRequests);
 
         return group;
     }
@@ -35,6 +38,7 @@ public static class GlpiIntegrationEndpoints
         IConfiguration configuration,
         IDashboardRepository dashboardRepository,
         ITicketRepository ticketRepository,
+        IGlpiApiClient glpiApiClient,
         INotificationService notificationService,
         ITicketNotificationService ticketNotificationService,
         ILogger<Program> logger,
@@ -122,7 +126,7 @@ public static class GlpiIntegrationEndpoints
                 groupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(ticket.CategoryId.Value, cancellationToken);
                 if (groupId is > 0)
                 {
-                    await ticketRepository.EnsureTicketGroupAssignedAsync(ticketId, groupId.Value, cancellationToken);
+                    await glpiApiClient.AssignGroupToTicketAsync(ticketId, groupId.Value, cancellationToken);
                 }
             }
         }

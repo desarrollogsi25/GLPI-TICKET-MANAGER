@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using System.Net.Http.Json;
 using System.Text;
 using System.Security.Cryptography;
@@ -292,6 +293,65 @@ public class GlpiWebhookTests : IClassFixture<CustomWebApplicationFactory>
             rows.Select(n => n.TicketId).Should().BeEquivalentTo(new int?[] { 951, 952 });
         }
         factory.TicketCreatedKeys.Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task Webhook_WhenTicketHasNoGroupYet_AssignsGroupViaGlpiRestApi()
+    {
+        using var factory = new CustomWebApplicationFactory();
+        using var client = factory.CreateClient();
+        using var scope = factory.Services.CreateScope();
+        var dashboardRepo = Mock.Get(scope.ServiceProvider.GetRequiredService<IDashboardRepository>());
+        var ticketRepo = Mock.Get(scope.ServiceProvider.GetRequiredService<ITicketRepository>());
+        const int ticketId = 960;
+
+        dashboardRepo
+            .Setup(d => d.GetTicketGroupAssignmentAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GlpiTicketGroupInfo?)null!);
+        ticketRepo
+            .Setup(t => t.GetGroupIdsForTicketAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<int>());
+        ticketRepo
+            .Setup(t => t.GetByIdAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GlpiTicketManager.Domain.Entities.Ticket
+            {
+                Id = ticketId,
+                Name = "Ticket sin grupo",
+                CategoryId = 7,
+                Status = 1
+            });
+        ticketRepo
+            .Setup(t => t.GetAssignmentGroupForCategoryAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CustomWebApplicationFactory.Group1Id);
+
+        const string body = "{\"ticket_id\":960}";
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/glpi/ticket-created")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        Sign(request, body);
+
+        using var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        factory.GlpiMock.Verify(
+            g => g.AssignGroupToTicketAsync(ticketId, CustomWebApplicationFactory.Group1Id, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task OpenApiAndScalar_AreNotExposedInProductionEnvironment()
+    {
+        using var factory = new CustomWebApplicationFactory().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+        });
+        using var client = factory.CreateClient();
+
+        using var openApiResponse = await client.GetAsync("/openapi/v1.json");
+        openApiResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        using var scalarResponse = await client.GetAsync("/scalar/v1");
+        scalarResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     private static void Sign(HttpRequestMessage request, string rawBody, DateTimeOffset? time = null)

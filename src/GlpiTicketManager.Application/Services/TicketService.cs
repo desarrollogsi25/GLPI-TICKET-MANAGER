@@ -1987,7 +1987,7 @@ public sealed class TicketService : ITicketService
 
             if (effectiveGroupId > 0 && ticketGroups.Count == 0)
             {
-                await _tickets.EnsureTicketGroupAssignedAsync(ticketId, effectiveGroupId, cancellationToken);
+                await _glpi.AssignGroupToTicketAsync(ticketId, effectiveGroupId, cancellationToken);
             }
 
             if (_persistentNotifications is not null && _dashboard is not null && effectiveGroupId > 0)

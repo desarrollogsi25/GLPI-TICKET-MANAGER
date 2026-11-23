@@ -56,7 +56,7 @@ export function TeamDashboard() {
   useRealtimeTicketHub({ groupId })
 
   const { data, isLoading, isError } = useTeamDashboardQuery(groupId)
-  const technicians = data?.technicians ?? []
+  const technicians = useMemo(() => data?.technicians ?? [], [data?.technicians])
   const summary = data?.summary
   const allTickets: GroupTicketDetail[] = useMemo(() => data?.tickets ?? [], [data?.tickets])
 

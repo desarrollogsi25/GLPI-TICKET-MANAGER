@@ -271,6 +271,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
         using var scope = _scopeFactory.CreateScope();
         var ticketRepository = scope.ServiceProvider.GetRequiredService<ITicketRepository>();
+        var glpiApiClient = scope.ServiceProvider.GetService<IGlpiApiClient>();
         var dashboardRepository = scope.ServiceProvider.GetRequiredService<IDashboardRepository>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var ticketNotificationService = scope.ServiceProvider.GetRequiredService<ITicketNotificationService>();
@@ -295,9 +296,9 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
             if ((groupId is null || groupId <= 0) && categoryId > 0)
             {
                 groupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(categoryId, ct);
-                if (groupId is > 0)
+                if (groupId is > 0 && glpiApiClient is not null)
                 {
-                    await ticketRepository.EnsureTicketGroupAssignedAsync(ticketId, groupId.Value, ct);
+                    await glpiApiClient.AssignGroupToTicketAsync(ticketId, groupId.Value, ct);
                 }
             }
 
@@ -374,6 +375,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
         var ticketRepository = scope.ServiceProvider.GetRequiredService<ITicketRepository>();
+        var glpiApiClient = scope.ServiceProvider.GetService<IGlpiApiClient>();
         var dashboardRepository = scope.ServiceProvider.GetRequiredService<IDashboardRepository>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var ticketNotificationService = scope.ServiceProvider.GetRequiredService<ITicketNotificationService>();
@@ -397,9 +399,9 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
             if ((groupId is null || groupId <= 0) && item.CategoryId > 0)
             {
                 groupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(item.CategoryId, ct);
-                if (groupId is > 0)
+                if (groupId is > 0 && glpiApiClient is not null)
                 {
-                    await ticketRepository.EnsureTicketGroupAssignedAsync(item.TicketId, groupId.Value, ct);
+                    await glpiApiClient.AssignGroupToTicketAsync(item.TicketId, groupId.Value, ct);
                 }
             }
 

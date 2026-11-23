@@ -115,6 +115,44 @@ public sealed class GlpiApiClient : IGlpiApiClient
         }
     }
 
+    public async Task AssignGroupToTicketAsync(int ticketId, int groupId, CancellationToken cancellationToken)
+    {
+        if (ticketId <= 0 || groupId <= 0)
+        {
+            return;
+        }
+
+        var sessionToken = await InitSessionAsync(cancellationToken);
+
+        try
+        {
+            var payload = new
+            {
+                input = new
+                {
+                    tickets_id = ticketId,
+                    groups_id = groupId,
+                    type = 2
+                }
+            };
+
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                $"Ticket/{ticketId}/Group_Ticket",
+                sessionToken,
+                payload,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Assigned GLPI group {GroupId} to ticket {TicketId} via GLPI REST API",
+                groupId, ticketId);
+        }
+        finally
+        {
+            await KillSessionAsync(sessionToken, cancellationToken);
+        }
+    }
+
     public Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken) =>
         CreateSolutionAsync(ticketId, content, null, cancellationToken);
 
