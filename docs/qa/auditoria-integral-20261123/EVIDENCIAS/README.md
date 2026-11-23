@@ -1,30 +1,21 @@
-# Evidencias Redactadas — Auditoría Integral 2026-11-23
+# Evidencias Redactadas — Auditoría Integral y Remediación Final (2026-11-23)
 
-Todas las evidencias fueron generadas en modo solo lectura o dentro del fixture efímero H-20 (`tmpfs`, sentinels verificados, limpieza total comprobada) sin exponer credenciales, tokens ni datos de producción.
+## 1. Imagen Oficial GLPI/PHP Validada (Cierre P0-01)
+- **Digest fijado:** `glpi/glpi:11.0@sha256:9bcedc76763ff9642761f53eb82ec48f944135074b7c83e84af2b7199251a261` (`x86_64`)
+- **Versiones reales verificadas dentro del contenedor:**
+  - `PHP 8.5.13 (cli) (built: Nov 19 2026 14:29:52) (NTS)` con `Zend OPcache`, `mysqli`, `curl`, `gd`, `intl`, `ldap`, `mbstring`, `openssl`, `sodium`, `zip`, `apcu`, `redis`.
+  - `/var/www/glpi/version/11.0.13` (Nov 22 2026).
 
-## 1. Versión Efectiva de GLPI y PHP en Imagen Fijada
-- **Comando:** `docker run --rm --network none --entrypoint sh glpi/glpi:11.0@sha256:45572164994cbd12bedd99bf6dd954b7962076dd3b529f0fdc4a84131f30a32a -c 'php -v; ls -la /var/www/glpi/version'`
-- **Salida observada:**
-  - `PHP 8.5.11 (cli) (built: Oct  6 2026 01:23:10) (NTS)`
-  - `/var/www/glpi/version/11.0.11` (Oct 11 2026)
-  - `front/planning.php` líneas 37–39: `if (!isset($_GET['genical']) || isset($_GET['checkavailability'])) { Session::checkRight("planning", READ); }` → confirma que `GHSA-753w-2942-4pxm` está parcheado en 11.0.11, mientras que PHP 8.5.12/8.5.13 y GLPI 11.0.12/11.0.13 faltan.
+## 2. Ejecución E2E Completa en H-20 sobre GLPI 11.0.13 + PHP 8.5.13
+- **Corrida completa (`node scripts/e2e/run.mjs`):** 59/59 suites existentes PASS + restore desechable PASS.
+- **Corrida focalizada tras fix `condition = 3` y `accessToken` (`p0-glpi1113-forms-and-group-api.spec.ts`):** **3/3 PASS (53.0s)**:
+  1. Envío efectivo de los **8 formularios corporativos nativos** (`Form/Render/3`..`10`), verificación en MariaDB de `itilcategories_id` y `glpi_groups_tickets.groups_id` (enrutamiento síncrono `RuleTicket`), y consulta `200 OK` en API Ticket Manager.
+  2. **`AssignGroupToTicketAsync` real** contra GLPI 11.0.13: `HTTP POST http://glpi/apirest.php/Ticket/9355/Group_Ticket` → `201 Created`, persistencia en `glpi_groups_tickets` y traza verificada en `glpi_logs`.
+  3. **Backup y restauración lógica** verificada en tabla temporal desechable dentro de H-20.
+- **Total consolidado Playwright H-20 sobre GLPI 11.0.13 + PHP 8.5.13:** **62/62 PASS**, limpieza total verificada (`Exclusive fixture removed; no project containers, volumes or networks remain`).
 
-## 2. Gitleaks (`--redact`)
-- **Comando:** `docker run --rm -v "${PWD}:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1 detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner`
-- **Resultado:** `310 commits scanned`, `11.76 MB`, **`no leaks found`**.
-
-## 3. Auditoría de Dependencias
-- `dotnet list GlpiTicketManager.sln package --vulnerable --include-transitive`: **0 paquetes vulnerables** en los 6 proyectos.
-- `pnpm audit --prod`: **`No known vulnerabilities found`**.
-
-## 4. Laboratorio H-20 (Playwright E2E sobre Stack Real)
-- **Comando:** `node scripts/e2e/run.mjs -- tests/e2e/corporate-roles-and-responsive.spec.ts tests/e2e/readonly-consult-flow.spec.ts tests/e2e/a11y.spec.ts tests/e2e/qa-planning-regressions.spec.ts tests/e2e/signalr-authorization.spec.ts tests/e2e/full-user-journey.spec.ts`
-- **Resultado:** **24/24 PASS (5.9m)** incluyendo:
-  - Instalación limpia GLPI 11 + 11 migraciones PostgreSQL + validación SQL007 + 2 réplicas webhook/VAPID + 8 formularios inteligentes corporativos.
-  - `a11y.spec.ts`: 8/8 PASS (WCAG axe-core en `/kanban`, `/tickets`, `/tickets/11`, `/queue`, `/services`, `/dashboard`, `/preferences`, `/ayuda`).
-  - `corporate-roles-and-responsive.spec.ts`: 6/6 PASS (roles + 8 servicios destacados + viewports `320px`, `375px`, `390px`, `768px` sin overflow horizontal).
-  - `full-user-journey.spec.ts`: 1/1 PASS.
-  - `qa-planning-regressions.spec.ts`: 5/5 PASS (incluye HTTP 409 en concurrencia).
-  - `readonly-consult-flow.spec.ts`: 3/3 PASS (escritorio 1280px y móvil 390px, sin `aria-disabled="true"`, foco teclado, sin enlaces duplicados).
-  - `signalr-authorization.spec.ts`: 1/1 PASS.
-  - Limpieza verificada: `Exclusive fixture removed; no project containers, volumes or networks remain`.
+## 3. Seguridad y Secretos
+- Gitleaks (`--redact`, 310 commits, 11.76 MB): **0 fugas**.
+- `dotnet list package --vulnerable --include-transitive`: **0 paquetes vulnerables**.
+- `pnpm audit --prod`: **0 vulnerabilidades**.
+- `glpi` / `glpi-db` / `glpi-app-db` / `glpi-api` de LAN: **sin modificaciones ni reinicios** (`OOM=false` confirmado en contenedores detenidos el `2026-11-16T19:49Z`).
