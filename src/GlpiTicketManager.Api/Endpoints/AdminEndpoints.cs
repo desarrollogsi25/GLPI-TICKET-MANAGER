@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using GlpiTicketManager.Api.Auth;
+using GlpiTicketManager.Api.RateLimiting;
 using GlpiTicketManager.Application.Abstractions;
 using GlpiTicketManager.Application.Dtos.Dashboard;
 using GlpiTicketManager.Domain.Enums;
@@ -12,7 +13,8 @@ public static class AdminEndpoints
     {
         var group = app.MapGroup("/api/admin")
             .WithTags("Admin")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicies.PerUser);
 
         // GET /api/admin/dashboard -> resumen global por grupo (H-35)
         group.MapGet("/dashboard", GetAdminDashboard)

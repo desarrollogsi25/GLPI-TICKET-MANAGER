@@ -16,29 +16,32 @@ Esta guía describe el funcionamiento operativo diario para los técnicos de sop
 ## 3. Flujo Operativo en el Tablero Kanban
 
 ### 3.1. Reclamar un Ticket de la Cola (`Claim`)
-- En la columna **Cola del grupo**, visualice las incidencias pendientes de asignación pertenecientes a su grupo de trabajo.
-- **En Escritorio**: Arrastre la tarjeta desde "Cola del grupo" hacia "Mis tickets", o pulse el botón `[Asignarme]`.
+- En la columna **Cola del grupo**, visualice las incidencias sin técnico asignado pertenecientes a su grupo de trabajo (tickets en estado Nuevo - 1 o Asignado al grupo sin técnico individual - 2).
+- **En Escritorio**: Arrastre la tarjeta desde "Cola del grupo" hacia "Asignado", o pulse el botón `[Asignarme]`.
 - **En Móvil**: Seleccione la pestaña "Cola" y pulse `[Asignarme]`.
 - El ticket se asignará exclusivamente a su usuario y pasará de inmediato a su columna personal.
 
-### 3.2. Iniciar Trabajo en una Incidencia
-- Desde la columna **Mis tickets**, pulse `[Empezar]` o arrastre la tarjeta a **En progreso**.
-- El estado en GLPI cambiará a "Planificado" (3).
+### 3.2. Iniciar Trabajo y Planificación de una Incidencia
+- Para iniciar el trabajo en una incidencia asignada, pulse `[Planificar]` o abra el detalle del ticket para programar una tarea (`TicketTask`).
+- Indique fecha de inicio, duración estimada, técnico y comentario de la tarea.
+- La tarea se registra en GLPI y el estado del ticket pasa a "En proceso (planificado)" (3).
 
 ### 3.3. Pausar y Retomar
-- Si requiere esperar insumos de un tercero, mueva la tarjeta a **Pendiente**.
-- Para reanudar el trabajo, mueva la tarjeta a **En progreso** o pulse `[Retomar]`.
+- Si requiere esperar insumos de un tercero o usuario, use la acción **Poner en pendiente** para trasladar el ticket a estado "Pendiente" (4).
+- Para reanudar el trabajo, reanude el ticket hacia "Asignado" o replanifique una tarea para volver a "En proceso (planificado)".
 
 ### 3.4. Resolver la Incidencia
 - Cuando la incidencia esté solucionada, pulse `[Resolver]` o arrastre a **Resuelto**.
 - Se desplegará el diálogo mandatorio de solución:
   - Ingrese una descripción de la solución aplicada. Puede ser breve: para incidencias triviales basta con una respuesta corta como `OK` o `Listo`. Lo único obligatorio es que el campo **no quede vacío**.
   - Confirme la resolución. La solución quedará registrada en GLPI y el ticket pasará al estado "Resuelto" (5).
+  - **Cierre definitivo:** El cambio de estado a "Cerrado" (6) es administrado automáticamente por la tarea programada nativa de GLPI (`closeticket`) o por la supervisión tras el plazo de conformidad administrativa.
 
 ## 4. Consulta de Detalles y Seguimientos
 
-- Haga clic en el número o título de cualquier tarjeta para abrir la vista detallada del ticket.
-- Podrá consultar la descripción original, los datos de contacto del llamante y el historial de seguimientos públicos o privados según sus permisos.
+- Haga clic en el número, título o enlace "Ver detalle" de cualquier tarjeta para abrir la vista detallada del ticket.
+- Los tickets resueltos o cerrados se visualizan en **modo solo lectura**, impidiendo mutaciones indebidas de estado o programación.
+- Podrá consultar la descripción original, los datos de contacto del llamante, tareas asociadas y el historial de seguimientos públicos o privados según sus permisos.
 
 ## 5. Listado de Tickets y Filtros
 

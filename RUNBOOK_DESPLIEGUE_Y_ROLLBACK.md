@@ -58,6 +58,7 @@ Notas operativas:
 
 - No se eliminaron volúmenes ni se modificaron MariaDB/PostgreSQL durante el despliegue.
 - En Git Bash (MSYS) usar `MSYS_NO_PATHCONV=1` delante de `docker exec` cuando se pasen rutas `/tmp/...`, o Windows las convierte.
+- En Windows PowerShell, **NO** redirigir salida binaria (`> file.dump`) por riesgo de corrupción de bytes. Utilizar siempre volcado dentro del contenedor a `/tmp/` + `docker cp` + verificación de paridad de hash SHA-256 (ver detalle en `docs/qa/auditoria-integral-20261123/DESPLIEGUE-SEGURO-Y-ROLLBACK.md`).
 - SDK .NET local: `/c/Users/DEVELOPMENT/AppData/Local/Microsoft/dotnet/dotnet.exe` (10.0.402). El de `Program Files` es 9.0 y falla contra `global.json`.
 
 ## 4. Respaldos e integridad

@@ -99,20 +99,23 @@ ON DUPLICATE KEY UPDATE
 -- fuente de verdad del enrutamiento.
 UPDATE glpi_rules SET is_active = 0 WHERE name LIKE 'Enrutamiento ITIL%';
 
+-- condition = 3 (RuleTicket::ONADD | RuleTicket::ONUPDATE) so GLPI's native rule
+-- engine assigns the support group synchronously on ticket creation/update.
 INSERT INTO glpi_rules (entities_id, sub_type, ranking, name, `match`, is_active, is_recursive, `condition`)
-SELECT 0, 'RuleTicket', 1, 'H38 Route Desarrollo', 'OR', 1, 0, 0
+SELECT 0, 'RuleTicket', 1, 'H38 Route Desarrollo', 'OR', 1, 0, 3
 WHERE NOT EXISTS (SELECT 1 FROM glpi_rules WHERE name = 'H38 Route Desarrollo');
 SET @rule_dev = (SELECT id FROM glpi_rules WHERE name = 'H38 Route Desarrollo' LIMIT 1);
 
 INSERT INTO glpi_rules (entities_id, sub_type, ranking, name, `match`, is_active, is_recursive, `condition`)
-SELECT 0, 'RuleTicket', 2, 'H38 Route BI', 'OR', 1, 0, 0
+SELECT 0, 'RuleTicket', 2, 'H38 Route BI', 'OR', 1, 0, 3
 WHERE NOT EXISTS (SELECT 1 FROM glpi_rules WHERE name = 'H38 Route BI');
 SET @rule_bi = (SELECT id FROM glpi_rules WHERE name = 'H38 Route BI' LIMIT 1);
 
 INSERT INTO glpi_rules (entities_id, sub_type, ranking, name, `match`, is_active, is_recursive, `condition`)
-SELECT 0, 'RuleTicket', 3, 'H38 Route Service Desk', 'OR', 1, 0, 0
+SELECT 0, 'RuleTicket', 3, 'H38 Route Service Desk', 'OR', 1, 0, 3
 WHERE NOT EXISTS (SELECT 1 FROM glpi_rules WHERE name = 'H38 Route Service Desk');
 SET @rule_sd = (SELECT id FROM glpi_rules WHERE name = 'H38 Route Service Desk' LIMIT 1);
+UPDATE glpi_rules SET `condition` = 3 WHERE id IN (@rule_dev, @rule_bi, @rule_sd);
 
 -- Criterios (condition = 0 -> "es")
 DELETE FROM glpi_rulecriterias WHERE rules_id IN (@rule_dev, @rule_bi, @rule_sd);

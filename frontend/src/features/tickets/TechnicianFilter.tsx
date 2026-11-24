@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Label } from '@/components/ui/label'
 import { DropdownSelect } from '@/components/ui/dropdown-select'
 import { useRole } from '@/hooks/useRole'
@@ -25,7 +25,7 @@ export function TechnicianFilter({ groupId }: TechnicianFilterProps = {}) {
   const currentUserId = useAuthStore((state) => state.user?.userId ?? null)
   const { data: technicians } = useTechniciansQuery(groupId)
 
-  const list = technicians ?? []
+  const list = useMemo(() => technicians ?? [], [technicians])
 
   // QA-17: Si el técnico seleccionado no pertenece al nuevo grupo cargado, limpiar el filtro.
   useEffect(() => {

@@ -708,6 +708,133 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         _factory.GlpiMock.Invocations.Should().NotContain(i => i.Method.Name == "CreateTicketAsync");
     }
 
+    [Fact]
+    public async Task Scenario14_GlpiApiClientMissing_FailsClosed_MultiCycleReconciliation_PreservesPendingUntilAssigned()
+    {
+        using var realScope = _factory.Services.CreateScope();
+        var realProvider = realScope.ServiceProvider;
+
+        var stateRepo = realProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+        var notifService = realProvider.GetRequiredService<INotificationService>();
+        var ticketNotificationService = realProvider.GetRequiredService<ITicketNotificationService>();
+        var localTicketRepo = new Mock<ITicketRepository>();
+        var localDashboardRepo = new Mock<IDashboardRepository>();
+        var localGlpiMock = new Mock<IGlpiApiClient>();
+        IGlpiApiClient? activeGlpiClient = null;
+
+        const int ticketId = 99991;
+        const int categoryId = 7;
+        const int expectedGroupId = CustomWebApplicationFactory.Group1Id;
+
+        // Category 7 maps to Group 1
+        localTicketRepo.Setup(r => r.GetAssignmentGroupForCategoryAsync(categoryId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedGroupId);
+
+        // GLPI ticket currently has NO group assigned in MariaDB read model
+        localDashboardRepo.Setup(d => d.GetTicketGroupAssignmentAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GlpiTicketGroupInfo?)null);
+
+        // Technicians exist in the group
+        localDashboardRepo.Setup(d => d.GetTechnicianUserIdsInGroupAsync(expectedGroupId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<int> { CustomWebApplicationFactory.Tech1Id });
+
+        // Dynamic scope provider where IGlpiApiClient resolves to activeGlpiClient (null initially)
+        var customScope = new Mock<IServiceScope>();
+        var customProvider = new Mock<IServiceProvider>();
+        customScope.Setup(s => s.ServiceProvider).Returns(customProvider.Object);
+        customProvider.Setup(p => p.GetService(typeof(IGlpiApiClient))).Returns(() => activeGlpiClient);
+        customProvider.Setup(p => p.GetService(typeof(ITicketRepository))).Returns(localTicketRepo.Object);
+        customProvider.Setup(p => p.GetService(typeof(IDashboardRepository))).Returns(localDashboardRepo.Object);
+        customProvider.Setup(p => p.GetService(typeof(IGlpiWatcherStateRepository))).Returns(stateRepo);
+        customProvider.Setup(p => p.GetService(typeof(INotificationService))).Returns(notifService);
+        customProvider.Setup(p => p.GetService(typeof(ITicketNotificationService))).Returns(ticketNotificationService);
+
+        var scopeFactoryMock = new Mock<IServiceScopeFactory>();
+        scopeFactoryMock.Setup(f => f.CreateScope()).Returns(customScope.Object);
+
+        var dbFactory = _factory.Services.GetRequiredService<IDbConnectionFactory>();
+        var logger = _factory.Services.GetRequiredService<ILogger<GlpiNativeTicketWatcher>>();
+
+        var watcher = new GlpiNativeTicketWatcher(scopeFactoryMock.Object, dbFactory, logger);
+
+        // =========================================================================
+        // CICLO 1: Ingestión / Descubrimiento sin cliente API
+        // =========================================================================
+        var newTickets = new List<GlpiNativeTicketWatcher.NewTicketRow>
+        {
+            new(ticketId, "Fail-Closed Multi-Cycle Ticket", categoryId, 1)
+        };
+        await watcher.ProcessBatchAsync(newTickets, CancellationToken.None);
+
+        // 1. Discovery cursor advances so the MariaDB poll is not blocked
+        watcher.LastDiscoveredTicketId.Should().Be(ticketId);
+        (await stateRepo.GetLastSeenTicketIdAsync(CancellationToken.None)).Should().Be(ticketId);
+
+        // 2. Processing checkpoint is NOT completed: ticket remains in durable pending registry
+        var pending1 = await stateRepo.GetPendingTicketsAsync(10, CancellationToken.None);
+        var item1 = pending1.FirstOrDefault(p => p.TicketId == ticketId);
+        item1.Should().NotBeNull();
+        item1!.Status.Should().Be("AwaitingGroup");
+        item1.Attempts.Should().Be(1);
+        item1.LastError.Should().Contain("GLPI API client unavailable");
+
+        // 3. Technicians MUST NOT be notified before assignment is confirmed in GLPI
+        _factory.TicketCreatedKeys.Should().NotContain(k => k.TicketId == ticketId);
+
+        // =========================================================================
+        // CICLO 2: Reconciliación 1 aún sin cliente API (reintento periódico)
+        // =========================================================================
+        await watcher.ReconcilePendingAsync(CancellationToken.None);
+
+        var pending2 = await stateRepo.GetPendingTicketsAsync(10, CancellationToken.None);
+        var item2 = pending2.FirstOrDefault(p => p.TicketId == ticketId);
+        item2.Should().NotBeNull();
+        item2!.Status.Should().Be("AwaitingGroup");
+        item2.Attempts.Should().Be(2);
+        _factory.TicketCreatedKeys.Should().NotContain(k => k.TicketId == ticketId);
+
+        // =========================================================================
+        // CICLO 3: Reconciliación con cliente API presente pero fallo de red/upstream
+        // =========================================================================
+        localGlpiMock.Setup(g => g.AssignGroupToTicketAsync(ticketId, expectedGroupId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("GLPI API error 503 Service Unavailable"));
+        activeGlpiClient = localGlpiMock.Object;
+
+        await watcher.ReconcilePendingAsync(CancellationToken.None);
+
+        var pending3 = await stateRepo.GetPendingTicketsAsync(10, CancellationToken.None);
+        var item3 = pending3.FirstOrDefault(p => p.TicketId == ticketId);
+        item3.Should().NotBeNull();
+        item3!.Status.Should().Be("Retry");
+        item3.Attempts.Should().Be(3);
+        item3.LastError.Should().Contain("GLPI API error 503");
+        _factory.TicketCreatedKeys.Should().NotContain(k => k.TicketId == ticketId);
+
+        // =========================================================================
+        // CICLO 4: Reconciliación exitosa (GLPI API confirma asignación de grupo)
+        // =========================================================================
+        localGlpiMock.Setup(g => g.AssignGroupToTicketAsync(ticketId, expectedGroupId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await watcher.ReconcilePendingAsync(CancellationToken.None);
+
+        // 1. Group assignment was called via official GLPI REST API
+        localGlpiMock.Verify(g => g.AssignGroupToTicketAsync(ticketId, expectedGroupId, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+
+        // 2. Technicians in Group 1 are notified ONLY AFTER assignment is confirmed
+        _factory.TicketCreatedKeys.Should().Contain((CustomWebApplicationFactory.Tech1Id, ticketId));
+
+        // 3. Ticket is now successfully completed and removed from pending storage
+        var pending4 = await stateRepo.GetPendingTicketsAsync(10, CancellationToken.None);
+        pending4.Should().NotContain(p => p.TicketId == ticketId);
+
+        // =========================================================================
+        // CICLO 5: Reconciliaciones posteriores no generan duplicados (idempotencia)
+        // =========================================================================
+        await watcher.ReconcilePendingAsync(CancellationToken.None);
+        _factory.TicketCreatedKeys.Count(k => k == (CustomWebApplicationFactory.Tech1Id, ticketId)).Should().Be(1);
+    }
+
     private static HttpRequestMessage CreateSignedRequest(string uri, string rawBody)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, uri);

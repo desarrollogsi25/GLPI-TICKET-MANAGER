@@ -49,7 +49,7 @@ services:
       retries: 60
 
   glpi:
-    image: glpi/glpi:11.0@sha256:45572164994cbd12bedd99bf6dd954b7962076dd3b529f0fdc4a84131f30a32a
+    image: glpi/glpi:11.0@sha256:9bcedc76763ff9642761f53eb82ec48f944135074b7c83e84af2b7199251a261
     labels: *fixture-labels
     networks:
       - e2e_data

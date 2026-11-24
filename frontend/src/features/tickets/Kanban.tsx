@@ -59,7 +59,7 @@ const COLUMNS: ColumnDef[] = [
   {
     id: 'queue',
     title: 'Cola del grupo',
-    description: 'Sin asignar',
+    description: 'Sin técnico asignado · GLPI 1/2',
     bgClass: 'bg-muted/30 shadow-xs',
     badgeClass: 'bg-muted/60 text-muted-foreground',
   },
@@ -133,7 +133,7 @@ const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
 const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: string }> = {
   queue: {
     title: 'No hay tickets en cola 🎉',
-    subtitle: 'Todos los tickets del grupo han sido asignados.',
+    subtitle: 'Todos los tickets del grupo tienen técnico asignado.',
     icon: '📭',
   },
   mine: {

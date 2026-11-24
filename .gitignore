@@ -64,8 +64,27 @@ CLAUDE.md
 
 e2e-artifacts/
 
-infra/nginx/certs
+# TLS Certificates and Private Keys (NUNCA versionar secretos ni claves)
+infra/nginx/certs/
+infra/nginx/certs/*.key
+infra/nginx/certs/*.crt
+infra/nginx/certs/*.csr
+infra/nginx/certs/*.srl
+infra/nginx/certs/*.cnf
+*.key
+*.pem
+*.pfx
+*.p12
+*.cer
+*.crt
 GLPI/
 
-# Private delivery credentials (never commit)
+# Private delivery credentials and temporary logs (never commit)
 ENTREGA_JEFE_PRIVADO.txt
+*cred*.txt
+*cred*
+*.cred
+*.log
+token.txt
+login_body.json
+body.json

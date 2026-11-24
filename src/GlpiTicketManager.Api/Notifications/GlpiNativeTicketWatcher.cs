@@ -30,7 +30,18 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
     private readonly IConfiguration? _configuration;
     private readonly IHostEnvironment? _hostEnvironment;
 
+    /// <summary>
+    /// Discovery cursor: Tracks the highest ticket ID discovered from MariaDB polling.
+    /// Ingestion advances this cursor once a ticket is safely recorded in durable storage
+    /// (either fully processed or enqueued in glpi_watcher_pending_tickets).
+    /// </summary>
     internal int LastSeenTicketId { get; private set; } = -1;
+
+    /// <summary>
+    /// Public alias distinguishing the MariaDB Discovery Cursor from the Completed Processing Checkpoint.
+    /// Processing is only complete when the ticket is confirmed in GLPI and removed from pending storage.
+    /// </summary>
+    public int LastDiscoveredTicketId => LastSeenTicketId;
 
     private readonly Dictionary<int, int> _knownStatuses = new();
     private DateTime _lastChangeScanUtc = DateTime.MinValue;
@@ -271,6 +282,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
         using var scope = _scopeFactory.CreateScope();
         var ticketRepository = scope.ServiceProvider.GetRequiredService<ITicketRepository>();
+        var glpiApiClient = scope.ServiceProvider.GetService<IGlpiApiClient>();
         var dashboardRepository = scope.ServiceProvider.GetRequiredService<IDashboardRepository>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var ticketNotificationService = scope.ServiceProvider.GetRequiredService<ITicketNotificationService>();
@@ -294,10 +306,37 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
             if ((groupId is null || groupId <= 0) && categoryId > 0)
             {
-                groupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(categoryId, ct);
-                if (groupId is > 0)
+                var targetGroupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(categoryId, ct);
+                if (targetGroupId is > 0)
                 {
-                    await ticketRepository.EnsureTicketGroupAssignedAsync(ticketId, groupId.Value, ct);
+                    if (glpiApiClient is null)
+                    {
+                        _logger.LogWarning(
+                            "Watcher: IGlpiApiClient is not available to assign ticket {TicketId} to category {CategoryId} default group {GroupId}. Halting progression for ticket.",
+                            ticketId, categoryId, targetGroupId.Value);
+                        await stateRepo.RecordPendingTicketAsync(
+                            ticketId, categoryId, row.Name, "AwaitingGroup", "GLPI API client unavailable for group assignment", ct);
+                        LastSeenTicketId = ticketId;
+                        await stateRepo.SetLastSeenTicketIdAsync(ticketId, ct);
+                        continue;
+                    }
+
+                    try
+                    {
+                        await glpiApiClient.AssignGroupToTicketAsync(ticketId, targetGroupId.Value, ct);
+                        groupId = targetGroupId;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Watcher: Failed to assign ticket {TicketId} to group {GroupId} via GLPI API. Retrying later.",
+                            ticketId, targetGroupId.Value);
+                        await stateRepo.RecordPendingTicketAsync(
+                            ticketId, categoryId, row.Name, "Retry", $"Group assignment failed: {ex.Message}", ct);
+                        LastSeenTicketId = ticketId;
+                        await stateRepo.SetLastSeenTicketIdAsync(ticketId, ct);
+                        continue;
+                    }
                 }
             }
 
@@ -374,6 +413,7 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var stateRepo = scope.ServiceProvider.GetRequiredService<IGlpiWatcherStateRepository>();
         var ticketRepository = scope.ServiceProvider.GetRequiredService<ITicketRepository>();
+        var glpiApiClient = scope.ServiceProvider.GetService<IGlpiApiClient>();
         var dashboardRepository = scope.ServiceProvider.GetRequiredService<IDashboardRepository>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var ticketNotificationService = scope.ServiceProvider.GetRequiredService<ITicketNotificationService>();
@@ -396,10 +436,33 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
 
             if ((groupId is null || groupId <= 0) && item.CategoryId > 0)
             {
-                groupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(item.CategoryId, ct);
-                if (groupId is > 0)
+                var targetGroupId = await ticketRepository.GetAssignmentGroupForCategoryAsync(item.CategoryId, ct);
+                if (targetGroupId is > 0)
                 {
-                    await ticketRepository.EnsureTicketGroupAssignedAsync(item.TicketId, groupId.Value, ct);
+                    if (glpiApiClient is null)
+                    {
+                        _logger.LogWarning(
+                            "Reconciliation: IGlpiApiClient is not available to assign ticket {TicketId} to category {CategoryId} default group {GroupId}. Preserving pending state.",
+                            item.TicketId, item.CategoryId, targetGroupId.Value);
+                        await stateRepo.RecordPendingTicketAsync(
+                            item.TicketId, item.CategoryId, item.TicketName, "AwaitingGroup", "GLPI API client unavailable for group assignment", ct);
+                        continue;
+                    }
+
+                    try
+                    {
+                        await glpiApiClient.AssignGroupToTicketAsync(item.TicketId, targetGroupId.Value, ct);
+                        groupId = targetGroupId;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Reconciliation: Failed to assign ticket {TicketId} to group {GroupId} via GLPI API. Retrying later.",
+                            item.TicketId, targetGroupId.Value);
+                        await stateRepo.RecordPendingTicketAsync(
+                            item.TicketId, item.CategoryId, item.TicketName, "Retry", $"Group assignment failed: {ex.Message}", ct);
+                        continue;
+                    }
                 }
             }
 

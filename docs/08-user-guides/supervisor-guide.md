@@ -25,7 +25,7 @@ Los supervisores cuentan con visibilidad y control sobre tickets de todos los gr
 ## 3. Flujo de Supervisión en el Tablero Kanban
 
 ### 3.1 Monitoreo de Colas
-- **Columna "Cola del grupo":** Muestra incidencias no asignadas en los grupos del supervisor.
+- **Columna "Cola del grupo":** Muestra incidencias sin técnico asignado pertenecientes a los grupos del supervisor (tickets en estado Nuevo - 1 o Asignado al grupo sin técnico individual - 2).
 - **Acción de Asignación:** El supervisor puede arrastrar la tarjeta o abrir el detalle para asignar un técnico específico o autoasignarse el ticket.
 
 ### 3.2 Desbloqueo y Reasignación

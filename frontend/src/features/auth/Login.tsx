@@ -26,9 +26,9 @@ interface LocationState {
 const EASE = [0.23, 1, 0.32, 1] as const
 
 const isAllowedRouteForRole = (path: string, userRole?: string): boolean => {
-  if (['/tickets', '/preferences', '/ayuda', '/services'].some(p => path === p || path.startsWith(p + '/'))) return true
+  if (['/tickets', '/preferences', '/ayuda'].some(p => path === p || path.startsWith(p + '/'))) return true
   if (!userRole || userRole === 'solicitante') return false
-  if (['/kanban', '/queue', '/dashboard'].some(p => path === p || path.startsWith(p + '/'))) return true
+  if (['/kanban', '/queue', '/dashboard', '/services'].some(p => path === p || path.startsWith(p + '/'))) return true
   if (path === '/equipo' || path.startsWith('/equipo/')) return userRole === 'supervisor' || userRole === 'admin'
   if (path === '/administracion' || path.startsWith('/administracion/')) return userRole === 'admin'
   return false

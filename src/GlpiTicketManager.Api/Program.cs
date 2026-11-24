@@ -256,9 +256,12 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 
-// OpenAPI document + Scalar UI
-app.MapOpenApi();
-app.MapScalarApiReference();
+// OpenAPI document + Scalar UI (Development only; never expose schema/docs unauthenticated in Production)
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 app.MapAuthEndpoints();
 app.MapTicketEndpoints();

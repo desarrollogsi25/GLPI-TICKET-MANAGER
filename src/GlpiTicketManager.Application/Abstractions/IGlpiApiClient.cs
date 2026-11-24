@@ -17,6 +17,12 @@ public interface IGlpiApiClient
     /// </summary>
     Task AssignTicketAsync(int ticketId, int technicianId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Assigns a support group (type = 2) to a ticket via native GLPI REST API (Group_Ticket).
+    /// Replaces direct MariaDB writes so GLPI rules, history, and notifications remain intact.
+    /// </summary>
+    Task AssignGroupToTicketAsync(int ticketId, int groupId, CancellationToken cancellationToken);
+
     Task<int> CreateSolutionAsync(int ticketId, string content, CancellationToken cancellationToken);
     Task<int> CreateSolutionAsync(int ticketId, string content, int? userId, CancellationToken cancellationToken);
 

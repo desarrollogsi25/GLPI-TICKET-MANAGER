@@ -55,7 +55,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await confirmResolve.click()
 
   // 3. Verificar estado resuelto sin forzar cierre.
-  await expect(page.getByText('Ticket resuelto')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText(/Ticket resuelto/i).first()).toBeVisible({ timeout: 15000 })
   await expect(page.locator('textarea')).toHaveCount(0, { timeout: 15000 })
   await expect(page.getByText(/Resuelto|Solved/).first()).toBeVisible({ timeout: 10000 })
 
@@ -127,7 +127,7 @@ test('flujo completo de reapertura: resolver -> reabrir con motivo -> verificar 
   await expect(confirmResolve2).toBeEnabled()
   await confirmResolve2.click()
 
-  await expect(page.getByText('Ticket resuelto')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText(/Ticket resuelto/i).first()).toBeVisible({ timeout: 15000 })
   await expect(page.getByText(/Resuelto|Solved/).first()).toBeVisible({ timeout: 10000 })
 
   expect(consoleErrors).toEqual([])
