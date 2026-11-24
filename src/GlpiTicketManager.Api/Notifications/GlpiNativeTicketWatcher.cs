@@ -30,7 +30,18 @@ public sealed class GlpiNativeTicketWatcher : BackgroundService
     private readonly IConfiguration? _configuration;
     private readonly IHostEnvironment? _hostEnvironment;
 
+    /// <summary>
+    /// Discovery cursor: Tracks the highest ticket ID discovered from MariaDB polling.
+    /// Ingestion advances this cursor once a ticket is safely recorded in durable storage
+    /// (either fully processed or enqueued in glpi_watcher_pending_tickets).
+    /// </summary>
     internal int LastSeenTicketId { get; private set; } = -1;
+
+    /// <summary>
+    /// Public alias distinguishing the MariaDB Discovery Cursor from the Completed Processing Checkpoint.
+    /// Processing is only complete when the ticket is confirmed in GLPI and removed from pending storage.
+    /// </summary>
+    public int LastDiscoveredTicketId => LastSeenTicketId;
 
     private readonly Dictionary<int, int> _knownStatuses = new();
     private DateTime _lastChangeScanUtc = DateTime.MinValue;

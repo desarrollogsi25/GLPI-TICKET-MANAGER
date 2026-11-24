@@ -15,7 +15,7 @@
 | **H-20 Guard (`guard.test.mjs`)** | **PASS** | **68 / 68** |
 | **Compose Validation (`e2e` y `prod`)** | **PASS** | `run.mjs --check` PASS, `docker-compose.prod.yml` EXIT 0, sin colisión 8081 |
 | **Playwright E2E Completo en H-20 (GLPI 11.0.13 + PHP 8.5.13)** | **PASS** | **62 / 62** (59/59 suites existentes + 3/3 en `p0-glpi1113-forms-and-group-api.spec.ts`: 8 formularios corporativos + `AssignGroupToTicketAsync` real con `glpi_logs` + backup/restore desechable) |
-| **Gitleaks (`--redact`)** | **PASS** | 310 commits / 11.76 MB, **0 fugas** |
+| **Gitleaks (`--redact`)** | **PASS** | 315 commits / 11.85 MB escaneados vía Docker official `zricethezav/gitleaks:latest`, **0 fugas** |
 | **Dependencias (.NET + pnpm)** | **PASS** | 0 paquetes NuGet vulnerables, 0 vulnerabilidades `pnpm audit --prod` |
 | **Git Diff Hygiene (`git diff --check`)** | **PASS** | Limpio |
 | **GitNexus CLI** | **BLOCKED (FALLBACK)** | Fallback manual documentado según `AGENTS.md` §3 |

@@ -1,0 +1,520 @@
+{
+  "generatedAt": "2026-11-24T14:07:25.582Z",
+  "fixture": {
+    "runId": "89aaacec995f9f6df2ab85a4df7288d9",
+    "apiUrl": "http://127.0.0.1:57054",
+    "frontendUrl": "http://127.0.0.1:57055",
+    "glpiUrl": "http://127.0.0.1:57053",
+    "glpiVersion": "11.0.13",
+    "phpVersion": "8.5.13"
+  },
+  "summary": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0
+  },
+  "evidence": [
+    {
+      "timestamp": "2026-11-24T14:07:11.926Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-01",
+      "scenario": "Login exitoso e intercambio de JWT para admin_test",
+      "user": "admin_test",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: admin, UserId: 10",
+      "details": {
+        "userId": 10,
+        "role": "admin",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:11.9156253Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:12.313Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-02",
+      "scenario": "Login exitoso e intercambio de JWT para lider_dev",
+      "user": "lider_dev",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: supervisor, UserId: 11",
+      "details": {
+        "userId": 11,
+        "role": "supervisor",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:12.3118074Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:12.712Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-03",
+      "scenario": "Login exitoso e intercambio de JWT para lider_bi",
+      "user": "lider_bi",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: supervisor, UserId: 12",
+      "details": {
+        "userId": 12,
+        "role": "supervisor",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:12.7107282Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:13.199Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-04",
+      "scenario": "Login exitoso e intercambio de JWT para lider_sd",
+      "user": "lider_sd",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: supervisor, UserId: 13",
+      "details": {
+        "userId": 13,
+        "role": "supervisor",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:13.1954528Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:13.764Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-05",
+      "scenario": "Login exitoso e intercambio de JWT para tech_dev",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: technician, UserId: 14",
+      "details": {
+        "userId": 14,
+        "role": "technician",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:13.7634474Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:14.245Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-06",
+      "scenario": "Login exitoso e intercambio de JWT para tech_bi",
+      "user": "tech_bi",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: technician, UserId: 15",
+      "details": {
+        "userId": 15,
+        "role": "technician",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:14.2449111Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:14.746Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-07",
+      "scenario": "Login exitoso e intercambio de JWT para tech_sd",
+      "user": "tech_sd",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: technician, UserId: 16",
+      "details": {
+        "userId": 16,
+        "role": "technician",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:14.7401525Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.331Z",
+      "suite": "RBAC_LOGIN",
+      "testId": "AUTH-08",
+      "scenario": "Login exitoso e intercambio de JWT para user_test",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Rol: solicitante, UserId: 17",
+      "details": {
+        "userId": 17,
+        "role": "solicitante",
+        "tokenType": "Bearer",
+        "expiresAtUtc": "2026-11-24T15:07:15.3247971Z",
+        "tokenPrefix": "eyJhbGciOiJIUzI..."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.343Z",
+      "suite": "SECURITY_NEGATIVE",
+      "testId": "NEG-01",
+      "scenario": "Acceso no autorizado de Solicitante a /api/admin/dashboard",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "HTTP 403 (Esperado 403 Forbidden)",
+      "details": {
+        "responseTitle": "Acceso denegado",
+        "responseDetail": "Solo administradores pueden acceder a este dashboard."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.412Z",
+      "suite": "SECURITY_NEGATIVE",
+      "testId": "NEG-02",
+      "scenario": "Acceso no autorizado de Técnico a /api/admin/dashboard",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "HTTP 403 (Esperado 403 Forbidden)",
+      "details": {
+        "responseTitle": "Acceso denegado",
+        "responseDetail": "Solo administradores pueden acceder a este dashboard."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.417Z",
+      "suite": "SECURITY_NEGATIVE",
+      "testId": "NEG-03",
+      "scenario": "Acceso no autorizado de Supervisor a /api/admin/watcher-status",
+      "user": "lider_sd",
+      "status": "PASS",
+      "result": "HTTP 403 (Esperado 403 Forbidden)",
+      "details": {
+        "responseTitle": "Acceso denegado",
+        "responseDetail": "Solo administradores pueden acceder a este dashboard."
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.428Z",
+      "suite": "SECURITY_NEGATIVE",
+      "testId": "POS-01",
+      "scenario": "Acceso autorizado de Administrador a /api/admin/dashboard",
+      "user": "admin_test",
+      "status": "PASS",
+      "result": "HTTP 200 OK, Grupos retornados: 3",
+      "details": {
+        "groupCount": 3
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.433Z",
+      "suite": "SECURITY_NEGATIVE",
+      "testId": "NEG-04",
+      "scenario": "Acceso anónimo denegado a endpoint protegido /api/tickets",
+      "user": "anonymous",
+      "status": "PASS",
+      "result": "HTTP 401 (Esperado 401 Unauthorized)",
+      "details": {}
+    },
+    {
+      "timestamp": "2026-11-24T14:07:15.466Z",
+      "suite": "SECURITY_NEGATIVE",
+      "testId": "NEG-05",
+      "scenario": "Solicitante intenta ejecutar claim sobre ticket #81",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "HTTP 403 (Esperado 403 Forbidden)",
+      "details": {
+        "ticketId": 81,
+        "detail": "User 17 cannot claim ticket 81"
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:16.476Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-01",
+      "scenario": "Formulario 3: Requerimiento Service Desk",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9364, Cat: 7 (Esperado 7), Grupo: 3 (Service Desk)",
+      "details": {
+        "formId": 3,
+        "categoryId": 7,
+        "expectedGroupId": 3,
+        "actualGroupId": 3
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:17.533Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-02",
+      "scenario": "Formulario 4: Requerimiento BI",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9365, Cat: 14 (Esperado 14), Grupo: 2 (BI)",
+      "details": {
+        "formId": 4,
+        "categoryId": 14,
+        "expectedGroupId": 2,
+        "actualGroupId": 2
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:18.431Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-03",
+      "scenario": "Formulario 5: Aplicaciones GSI",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9372, Cat: 9 (Esperado 9), Grupo: 1 (Desarrollo)",
+      "details": {
+        "formId": 5,
+        "categoryId": 9,
+        "expectedGroupId": 1,
+        "actualGroupId": 1
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:19.317Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-04",
+      "scenario": "Formulario 6: Periféricos",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9367, Cat: 19 (Esperado 19), Grupo: 3 (Service Desk)",
+      "details": {
+        "formId": 6,
+        "categoryId": 19,
+        "expectedGroupId": 3,
+        "actualGroupId": 3
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:20.196Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-05",
+      "scenario": "Formulario 7: Hardware",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9368, Cat: 16 (Esperado 16), Grupo: 3 (Service Desk)",
+      "details": {
+        "formId": 7,
+        "categoryId": 16,
+        "expectedGroupId": 3,
+        "actualGroupId": 3
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:21.214Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-06",
+      "scenario": "Formulario 8: Software",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9369, Cat: 4 (Esperado 4), Grupo: 1 (Desarrollo)",
+      "details": {
+        "formId": 8,
+        "categoryId": 4,
+        "expectedGroupId": 1,
+        "actualGroupId": 1
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:22.262Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-07",
+      "scenario": "Formulario 9: Informes",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9370, Cat: 18 (Esperado 18), Grupo: 2 (BI)",
+      "details": {
+        "formId": 9,
+        "categoryId": 18,
+        "expectedGroupId": 2,
+        "actualGroupId": 2
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:23.125Z",
+      "suite": "CORPORATE_FORMS",
+      "testId": "FORM-08",
+      "scenario": "Formulario 10: Acceso a sistema",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Ticket #9371, Cat: 3 (Esperado 3), Grupo: 3 (Service Desk)",
+      "details": {
+        "formId": 10,
+        "categoryId": 3,
+        "expectedGroupId": 3,
+        "actualGroupId": 3
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:23.999Z",
+      "suite": "TICKET_LIFECYCLE",
+      "testId": "STATE-01",
+      "scenario": "Ticket #9999 creado con estado 1 (Nuevo)",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Estado inicial: 1 (Nuevo), Categoría: 9 (Aplicaciones GSI), Grupo: 1",
+      "details": {
+        "ticketId": 9999,
+        "status": 1
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:24.222Z",
+      "suite": "TICKET_LIFECYCLE",
+      "testId": "STATE-02",
+      "scenario": "Transición 1 (Nuevo) -> 2 (Asignado) mediante /claim",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "HTTP 200, Estado reportado: 2",
+      "details": {
+        "ticketId": 9999,
+        "claimResponse": {
+          "id": 9999,
+          "title": "Ticket QA Lifecycle 9999",
+          "content": "Fixture E2E",
+          "status": 2,
+          "statusLabel": "Asignado",
+          "type": 1,
+          "typeLabel": "Incidente",
+          "priority": 3,
+          "priorityLabel": "Media",
+          "urgency": 3,
+          "impact": 3,
+          "categoryId": 2,
+          "createdAt": "2026-11-24T13:58:45Z",
+          "updatedAt": "2026-11-24T14:07:24Z",
+          "solvedAt": null,
+          "closedAt": null,
+          "assigneeIds": [
+            14
+          ],
+          "requesterIds": [],
+          "followups": [],
+          "solutions": [],
+          "nextPlannedAt": null,
+          "nextPlannedTechnicianId": null,
+          "nextPlannedDuration": null,
+          "nextPlannedComment": null,
+          "groupId": 1,
+          "groupName": "Desarrollo",
+          "participantNames": {}
+        }
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:24.779Z",
+      "suite": "TICKET_LIFECYCLE",
+      "testId": "STATE-03",
+      "scenario": "Transición 2 (Asignado) -> 3 (En proceso/planificado) mediante TicketTask (/plan)",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "HTTP 200, Estado GLPI reportado: 3, TaskId: 3",
+      "details": {
+        "ticketId": 9999,
+        "planResponse": {
+          "ticketId": 9999,
+          "taskId": 3,
+          "status": 3,
+          "rescheduled": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:25.567Z",
+      "suite": "TICKET_LIFECYCLE",
+      "testId": "STATE-04",
+      "scenario": "Transición 3 (En proceso) -> 5 (Resuelto) mediante /resolve con ITILSolution",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "HTTP 200, Estado GLPI reportado: 5",
+      "details": {
+        "ticketId": 9999,
+        "resolveResponse": {
+          "id": 9999,
+          "title": "Ticket QA Lifecycle 9999",
+          "content": "Fixture E2E",
+          "status": 5,
+          "statusLabel": "Resuelto",
+          "type": 1,
+          "typeLabel": "Incidente",
+          "priority": 3,
+          "priorityLabel": "Media",
+          "urgency": 3,
+          "impact": 3,
+          "categoryId": 2,
+          "createdAt": "2026-11-24T13:58:45Z",
+          "updatedAt": "2026-11-24T14:07:25Z",
+          "solvedAt": "2026-11-24T14:07:25Z",
+          "closedAt": null,
+          "assigneeIds": [
+            14
+          ],
+          "requesterIds": [],
+          "followups": [],
+          "solutions": [
+            {
+              "id": 5,
+              "userId": 14,
+              "content": "Solución aplicada: corrección de dependencias y pruebas unitarias completadas satisfactoriamente.",
+              "createdAt": "2026-11-24T14:07:25Z"
+            }
+          ],
+          "nextPlannedAt": null,
+          "nextPlannedTechnicianId": null,
+          "nextPlannedDuration": null,
+          "nextPlannedComment": null,
+          "groupId": 1,
+          "groupName": "Desarrollo",
+          "participantNames": {}
+        }
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:25.571Z",
+      "suite": "TICKET_LIFECYCLE",
+      "testId": "STATE-05",
+      "scenario": "Transición 5 (Resuelto) -> 6 (Cerrado) verificada en GLPI",
+      "user": "admin_test",
+      "status": "PASS",
+      "result": "Ticket #9999 cerrado formalmente con solución aprobada",
+      "details": {
+        "ticketId": 9999,
+        "status": 6
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:25.575Z",
+      "suite": "SIGNALR_REALTIME",
+      "testId": "SIG-01",
+      "scenario": "Negociación de conexión SignalR para tech_dev",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "HTTP 200 OK, ConnectionId: Generado",
+      "details": {
+        "connectionId": "k-C8KOUhyR...",
+        "availableTransports": [
+          "WebSockets",
+          "ServerSentEvents",
+          "LongPolling"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:25.579Z",
+      "suite": "SIGNALR_REALTIME",
+      "testId": "SIG-02",
+      "scenario": "Negociación de conexión SignalR para user_test (canal personal aislado)",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "HTTP 200 OK, ConnectionId generado",
+      "details": {
+        "availableTransports": [
+          "WebSockets",
+          "ServerSentEvents",
+          "LongPolling"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:07:25.581Z",
+      "suite": "SIGNALR_REALTIME",
+      "testId": "SIG-03",
+      "scenario": "Rechazo de conexión anónima a SignalR Hub",
+      "user": "anonymous",
+      "status": "PASS",
+      "result": "HTTP 401 (Esperado 401 Unauthorized)",
+      "details": {}
+    }
+  ]
+}

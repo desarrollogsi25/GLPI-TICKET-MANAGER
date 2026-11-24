@@ -39,22 +39,34 @@ if ($crtSize -eq 0 -or $keySize -eq 0) {
 
 ## 2. Respaldo Previo Verificado (En Windows PowerShell)
 
-Para evitar la discrepancia de nombres de carpeta y la corrupción de bytes por codificación de texto de PowerShell con `pg_dump -Fc`:
+Para evitar la discrepancia de nombres de carpeta, la falta de variables en sesiones nuevas de PowerShell y la corrupción de bytes por codificación de texto de PowerShell con `pg_dump -Fc`:
 
 ```powershell
-# 1. Crear carpeta con marca temporal consistente
+# 1. Carga segura de variables desde .env si no existen en la sesión interactiva de PowerShell (sin imprimir secretos)
+if (-not $env:MARIADB_ROOT_PASSWORD -and (Test-Path ".env")) {
+    Get-Content ".env" | ForEach-Object {
+        if ($_ -match '^\s*MARIADB_ROOT_PASSWORD\s*=\s*(.*)$') {
+            $env:MARIADB_ROOT_PASSWORD = $matches[1].Trim('"').Trim("'")
+        }
+    }
+}
+if (-not $env:MARIADB_ROOT_PASSWORD) {
+    throw "ERROR: MARIADB_ROOT_PASSWORD no está definida en la sesión ni en .env"
+}
+
+# 2. Crear carpeta con marca temporal consistente
 $backupDir = "backups/pre-glpi-11.0.13-$(Get-Date -Format 'yyyyMMdd-HHmm')"
 New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
 
-# 2. MariaDB GLPI (solo lectura, transacción consistente)
+# 3. MariaDB GLPI Completa (solo lectura, transacción consistente, rutinas y triggers)
 docker exec glpi-db mariadb-dump --single-transaction --routines --triggers -u root -p"$env:MARIADB_ROOT_PASSWORD" glpi | Set-Content -Encoding utf8 "$backupDir/glpi-mariadb.sql"
 
-# 3. PostgreSQL app-db (Preservando bytes binarios puros vía docker cp)
+# 4. PostgreSQL app-db (Preservando bytes binarios puros vía docker cp)
 docker exec glpi-app-db pg_dump -U app -Fc glpi_ticket_manager -f /tmp/app-db.dump
 docker cp glpi-app-db:/tmp/app-db.dump "$backupDir/app-db.dump"
 docker exec glpi-app-db rm -f /tmp/app-db.dump
 
-# 4. Verificar integridad y calcular hashes SHA-256
+# 5. Verificar integridad y calcular hashes SHA-256
 Get-FileHash "$backupDir/*" -Algorithm SHA256 | Format-Table -AutoSize
 ```
 
