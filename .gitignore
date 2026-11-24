@@ -79,11 +79,12 @@ infra/nginx/certs/*.cnf
 *.crt
 GLPI/
 
-# Private delivery credentials (never commit)
+# Private delivery credentials and temporary logs (never commit)
 ENTREGA_JEFE_PRIVADO.txt
-cred-*.txt
 *cred*.txt
+*cred*
 *.cred
-.git/cred-push.txt
-.git*
-C*
+*.log
+token.txt
+login_body.json
+body.json

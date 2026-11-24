@@ -5,9 +5,9 @@
 > **API URL:** `http://127.0.0.1:57054`<br>
 > **Frontend URL:** `http://127.0.0.1:57055`<br>
 > **Run ID / Fixture:** `89aaacec995f9f6df2ab85a4df7288d9` (Memoria `tmpfs`, bases aisladas H-20)<br>
-> **Fecha de Ejecución y Validación:** `2026-11-24T14:07:25.582Z`<br>
-> **Total Escenarios Validados:** 30 | **Superados:** 30 (100% PASS) | **Fallidos:** 0<br>
-> **Seguridad de Credenciales:** Solo se documentan los nombres de usuario sintéticos y fragmentos de tokens no confidenciales. Ninguna contraseña o secreto es revelado.
+> **Fecha de Ejecución y Validación:** `2026-11-24T14:31:57.329Z`<br>
+> **Total Escenarios Validados:** 33 | **Superados:** 33 (100% PASS) | **Fallidos:** 0<br>
+> **Seguridad de Credenciales:** Solo se documentan los nombres de usuario sintéticos. Ninguna contraseña, token o secreto es revelado ni siquiera de forma parcial.<br>
 
 ---
 
@@ -28,16 +28,16 @@
 
 ## 2. Registro Empírico de Pruebas de Autenticación y Tokens
 
-| Test ID | Usuario Sintético | Endpoint | Método | HTTP Status | Rol Reportado | Token Generado | Resultado |
+| Test ID | Usuario Sintético | Endpoint | Método | HTTP Status | Rol Reportado | Token Emitido | Resultado |
 |---|---|---|---|---|---|---|---|
-| `AUTH-01` | `admin_test` | `/api/auth/login` | POST | 200 OK | `admin` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-02` | `lider_dev` | `/api/auth/login` | POST | 200 OK | `supervisor` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-03` | `lider_bi` | `/api/auth/login` | POST | 200 OK | `supervisor` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-04` | `lider_sd` | `/api/auth/login` | POST | 200 OK | `supervisor` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-05` | `tech_dev` | `/api/auth/login` | POST | 200 OK | `technician` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-06` | `tech_bi` | `/api/auth/login` | POST | 200 OK | `technician` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-07` | `tech_sd` | `/api/auth/login` | POST | 200 OK | `technician` | `eyJhbGciOiJIUzI...` | **PASS** |
-| `AUTH-08` | `user_test` | `/api/auth/login` | POST | 200 OK | `solicitante` | `eyJhbGciOiJIUzI...` | **PASS** |
+| `AUTH-01` | `admin_test` | `/api/auth/login` | POST | 200 OK | `admin` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-02` | `lider_dev` | `/api/auth/login` | POST | 200 OK | `supervisor` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-03` | `lider_bi` | `/api/auth/login` | POST | 200 OK | `supervisor` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-04` | `lider_sd` | `/api/auth/login` | POST | 200 OK | `supervisor` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-05` | `tech_dev` | `/api/auth/login` | POST | 200 OK | `technician` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-06` | `tech_bi` | `/api/auth/login` | POST | 200 OK | `technician` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-07` | `tech_sd` | `/api/auth/login` | POST | 200 OK | `technician` | `[PROTECTED_JWT]` | **PASS** |
+| `AUTH-08` | `user_test` | `/api/auth/login` | POST | 200 OK | `solicitante` | `[PROTECTED_JWT]` | **PASS** |
 
 ---
 
@@ -60,14 +60,14 @@ Verificado en GLPI 11.0.13 con motor de reglas `RuleTicket` (`glpi_rules` con `c
 
 | Test ID | Formulario Nativo | Categoría ITIL Fija | Grupo Asignado | Tipo de Ticket | Verificación en DB | Estado |
 |---|---|---|---|---|---|---|
-| `FORM-01` | **Requerimiento Service Desk** | `7` | `Grupo 3` | Incidencia / Solicitud | `Ticket #9364, Cat: 7 (Esperado 7), Grupo: 3 (Service Desk)` | **PASS** |
-| `FORM-02` | **Requerimiento BI** | `14` | `Grupo 2` | Incidencia / Solicitud | `Ticket #9365, Cat: 14 (Esperado 14), Grupo: 2 (BI)` | **PASS** |
-| `FORM-03` | **Aplicaciones GSI** | `9` | `Grupo 1` | Incidencia / Solicitud | `Ticket #9372, Cat: 9 (Esperado 9), Grupo: 1 (Desarrollo)` | **PASS** |
-| `FORM-04` | **Periféricos** | `19` | `Grupo 3` | Incidencia / Solicitud | `Ticket #9367, Cat: 19 (Esperado 19), Grupo: 3 (Service Desk)` | **PASS** |
-| `FORM-05` | **Hardware** | `16` | `Grupo 3` | Incidencia / Solicitud | `Ticket #9368, Cat: 16 (Esperado 16), Grupo: 3 (Service Desk)` | **PASS** |
-| `FORM-06` | **Software** | `4` | `Grupo 1` | Incidencia / Solicitud | `Ticket #9369, Cat: 4 (Esperado 4), Grupo: 1 (Desarrollo)` | **PASS** |
-| `FORM-07` | **Informes** | `18` | `Grupo 2` | Incidencia / Solicitud | `Ticket #9370, Cat: 18 (Esperado 18), Grupo: 2 (BI)` | **PASS** |
-| `FORM-08` | **Acceso a sistema** | `3` | `Grupo 3` | Incidencia / Solicitud | `Ticket #9371, Cat: 3 (Esperado 3), Grupo: 3 (Service Desk)` | **PASS** |
+| `FORM-01` | **Requerimiento Service Desk** | `7` | `Grupo 3` | Incidencia / Solicitud | `Ticket #10016 creado en vivo, Cat: 7 (Esperado 7), Grupo: 3 (Service Desk), API: 200` | **PASS** |
+| `FORM-02` | **Requerimiento BI** | `14` | `Grupo 2` | Incidencia / Solicitud | `Ticket #10017 creado en vivo, Cat: 14 (Esperado 14), Grupo: 2 (BI), API: 200` | **PASS** |
+| `FORM-03` | **Aplicaciones GSI** | `9` | `Grupo 1` | Incidencia / Solicitud | `Ticket #10018 creado en vivo, Cat: 9 (Esperado 9), Grupo: 1 (Desarrollo), API: 200` | **PASS** |
+| `FORM-04` | **Periféricos** | `19` | `Grupo 3` | Incidencia / Solicitud | `Ticket #10019 creado en vivo, Cat: 19 (Esperado 19), Grupo: 3 (Service Desk), API: 200` | **PASS** |
+| `FORM-05` | **Hardware** | `16` | `Grupo 3` | Incidencia / Solicitud | `Ticket #10020 creado en vivo, Cat: 16 (Esperado 16), Grupo: 3 (Service Desk), API: 200` | **PASS** |
+| `FORM-06` | **Software** | `4` | `Grupo 1` | Incidencia / Solicitud | `Ticket #10021 creado en vivo, Cat: 4 (Esperado 4), Grupo: 1 (Desarrollo), API: 200` | **PASS** |
+| `FORM-07` | **Informes** | `18` | `Grupo 2` | Incidencia / Solicitud | `Ticket #10022 creado en vivo, Cat: 18 (Esperado 18), Grupo: 2 (BI), API: 200` | **PASS** |
+| `FORM-08` | **Acceso a sistema** | `3` | `Grupo 3` | Incidencia / Solicitud | `Ticket #10023 creado en vivo, Cat: 3 (Esperado 3), Grupo: 3 (Service Desk), API: 200` | **PASS** |
 
 **Resultado:** 8 de 8 formularios probados tanto por UI como por E2E, con persistencia íntegra de inputs obligatorios y redirección válida a ticket.
 
@@ -79,11 +79,11 @@ Conforme a la matriz de ciclo de vida de GLPI y las políticas del repositorio:
 
 | Test ID | Transición Evaluada | Actor | Endpoint / Mecanismo | Estado Previo | Estado Posterior | Evidencia Observable | Resultado |
 |---|---|---|---|---|---|---|---|
-| `STATE-01` | Ticket #9999 creado con estado 1 (Nuevo) | `user_test` | API / MariaDB | — | 1 | `Estado inicial: 1 (Nuevo), Categoría: 9 (Aplicaciones GSI), Grupo: 1` | **PASS** |
-| `STATE-02` | Transición 1 (Nuevo) -> 2 (Asignado) mediante /claim | `tech_dev` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 200, Estado reportado: 2` | **PASS** |
-| `STATE-03` | Transición 2 (Asignado) -> 3 (En proceso/planificado) mediante TicketTask (/plan) | `tech_dev` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 200, Estado GLPI reportado: 3, TaskId: 3` | **PASS** |
-| `STATE-04` | Transición 3 (En proceso) -> 5 (Resuelto) mediante /resolve con ITILSolution | `tech_dev` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 200, Estado GLPI reportado: 5` | **PASS** |
-| `STATE-05` | Transición 5 (Resuelto) -> 6 (Cerrado) verificada en GLPI | `admin_test` | API / MariaDB | 5 (Resuelto) | 6 | `Ticket #9999 cerrado formalmente con solución aprobada` | **PASS** |
+| `STATE-01` | Ticket #9999 verificado en estado inicial 1 (Nuevo) | `user_test` | API / MariaDB | — | 1 | `Estado verificado en MariaDB: 1 (Nuevo), Categoría: 2, Grupo: 1` | **PASS** |
+| `STATE-02` | Transición 1 (Nuevo) -> 2 (Asignado) mediante /claim | `tech_dev` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 200, API status: 2, MariaDB status: 2` | **PASS** |
+| `STATE-03` | Transición 2 (Asignado) -> 3 (En proceso/planificado) mediante TicketTask (/plan) | `tech_dev` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 200, API status: 3, MariaDB status: 3, Tasks en DB: 1` | **PASS** |
+| `STATE-04` | Transición 3 (En proceso) -> 5 (Resuelto) mediante /resolve con ITILSolution | `tech_dev` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 200, API status: 5, MariaDB status: 5, Solutions en DB: 1` | **PASS** |
+| `STATE-05` | Transición 5 (Resuelto) -> 6 (Cerrado) verificada en GLPI | `admin_test` | API / MariaDB | 5 (Resuelto) | undefined | `HTTP 204, MariaDB status: 6 (Esperado 6 Cerrado)` | **PASS** |
 
 - **Nuevo (1) → Asignado (2):** Mediante claim del técnico asignado (`POST /api/tickets/{id}/claim`) o asignación de grupo por API REST (`Group_Ticket`).
 - **Asignado (2) → En Proceso / Planificado (3):** Implementación real con `TicketTask` (`POST /api/tickets/{id}/plan`). No simulación de estado: crea el registro de tarea planificada con inicio y fin respetando concurrencia e idempotencia.
@@ -93,17 +93,21 @@ Conforme a la matriz de ciclo de vida de GLPI y las políticas del repositorio:
 
 ---
 
-## 6. SignalR y Notificaciones en Tiempo Real
+## 6. SignalR, WebSockets en Tiempo Real y Aislamiento de Colas
 
-| Test ID | Usuario / Rol | Endpoint Hub | Método | HTTP Status | ConnectionId Generado | Transportes Disponibles | Resultado |
-|---|---|---|---|---|---|---|---|
-| `SIG-01` | `tech_dev` | `/hubs/tickets/negotiate` | POST | HTTP 200 | Generado | `WebSockets, ServerSentEvents, LongPolling` | **PASS** |
-| `SIG-02` | `user_test` | `/hubs/tickets/negotiate` | POST | HTTP 200 | Rechazado (401) | `WebSockets, ServerSentEvents, LongPolling` | **PASS** |
-| `SIG-03` | `anonymous` | `/hubs/tickets/negotiate` | POST | HTTP 401 | Rechazado (401) | `None` | **PASS** |
+| Test ID | Usuario / Rol | Escenario Evaluado | Protocolo | Estado Conexión | Aislamiento / Eventos | Resultado |
+|---|---|---|---|---|---|---|
+| `SIG-01` | `tech_dev` | Negociación de conexión SignalR para tech_dev | WebSocket / HTTP | `[ESTABLISHED]` | `HTTP 200 OK, Conexión: [ESTABLISHED]` | **PASS** |
+| `SIG-02` | `user_test` | Negociación de conexión SignalR para user_test (canal personal aislado) | WebSocket / HTTP | `[ESTABLISHED]` | `HTTP 200 OK, Conexión: [ESTABLISHED]` | **PASS** |
+| `SIG-03` | `anonymous` | Rechazo de conexión anónima a SignalR Hub | WebSocket / HTTP | `[REJECTED]` | `HTTP 401 (Esperado 401 Unauthorized)` | **PASS** |
+| `SIG-04` | `tech_dev` | Recepción de evento TicketClaimed en WebSocket para técnico de Grupo 1 (tech_dev) | WebSocket / HTTP | `[ESTABLISHED]` | `Eventos recibidos: 2, TicketId: 9998` | **PASS** |
+| `SIG-05` | `tech_bi` | Aislamiento de colas SignalR: técnico de Grupo 2 (tech_bi) no recibe eventos de Grupo 1 | WebSocket / HTTP | `[ESTABLISHED]` | `Eventos recibidos en Grupo 2: 0 (Esperado 0 - Aislamiento verificado)` | **PASS** |
+| `SIG-06` | `user_test` | Aislamiento de solicitante: user_test no recibe eventos de cola operativa técnica | WebSocket / HTTP | `[ESTABLISHED]` | `Eventos recibidos en solicitante: 0 (Esperado 0 - Privacidad verificada)` | **PASS** |
 
-- Conexión WebSocket a `/hubs/tickets` con JWT verificado.
-- Aislamiento de grupos: un técnico del Grupo 1 solo recibe eventos de SignalR dirigidos a su grupo o tickets asignados.
-- Notificaciones de escritorio / WebPush VAPID probadas con clave persistente y deduplicación.
+- **Negociación y Autenticación:** Verificación de token JWT Bearer en handshake. Conexiones anónimas rechazadas con `401 Unauthorized`.
+- **Conexión WebSocket Nativa:** Conexiones concurrentes activas con protocolo WebSocket.
+- **Aislamiento Estricto de Colas (H-35 / ADR-018):** Un ticket asignado al Grupo 1 (Desarrollo) despacha el evento `TicketClaimed` exclusivamente a los técnicos suscritos a dicho grupo (`tech_dev`). Los técnicos de otros grupos (`tech_bi` en Grupo 2) y los solicitantes (`user_test`) tienen audiencia aislada y reciben 0 eventos de colas ajenas.
+- **Canal Personal Solicitante:** El solicitante (`user_test`) únicamente se suscribe al canal personal `user-{id}` sin visibilidad sobre las colas operativas del equipo técnico.
 
 ---
 

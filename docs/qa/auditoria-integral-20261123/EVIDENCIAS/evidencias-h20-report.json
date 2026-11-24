@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-24T14:07:25.582Z",
+  "generatedAt": "2026-11-24T14:31:57.327Z",
   "fixture": {
     "runId": "89aaacec995f9f6df2ab85a4df7288d9",
     "apiUrl": "http://127.0.0.1:57054",
@@ -9,13 +9,13 @@
     "phpVersion": "8.5.13"
   },
   "summary": {
-    "total": 30,
-    "passed": 30,
+    "total": 33,
+    "passed": 33,
     "failed": 0
   },
   "evidence": [
     {
-      "timestamp": "2026-11-24T14:07:11.926Z",
+      "timestamp": "2026-11-24T14:31:06.645Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-01",
       "scenario": "Login exitoso e intercambio de JWT para admin_test",
@@ -26,12 +26,12 @@
         "userId": 10,
         "role": "admin",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:11.9156253Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:06.6364606Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:12.313Z",
+      "timestamp": "2026-11-24T14:31:07.062Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-02",
       "scenario": "Login exitoso e intercambio de JWT para lider_dev",
@@ -42,12 +42,12 @@
         "userId": 11,
         "role": "supervisor",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:12.3118074Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:07.0609417Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:12.712Z",
+      "timestamp": "2026-11-24T14:31:07.461Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-03",
       "scenario": "Login exitoso e intercambio de JWT para lider_bi",
@@ -58,12 +58,12 @@
         "userId": 12,
         "role": "supervisor",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:12.7107282Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:07.4606184Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:13.199Z",
+      "timestamp": "2026-11-24T14:31:07.882Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-04",
       "scenario": "Login exitoso e intercambio de JWT para lider_sd",
@@ -74,12 +74,12 @@
         "userId": 13,
         "role": "supervisor",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:13.1954528Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:07.8810116Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:13.764Z",
+      "timestamp": "2026-11-24T14:31:08.280Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-05",
       "scenario": "Login exitoso e intercambio de JWT para tech_dev",
@@ -90,12 +90,12 @@
         "userId": 14,
         "role": "technician",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:13.7634474Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:08.279465Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:14.245Z",
+      "timestamp": "2026-11-24T14:31:08.692Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-06",
       "scenario": "Login exitoso e intercambio de JWT para tech_bi",
@@ -106,12 +106,12 @@
         "userId": 15,
         "role": "technician",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:14.2449111Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:08.6911906Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:14.746Z",
+      "timestamp": "2026-11-24T14:31:09.095Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-07",
       "scenario": "Login exitoso e intercambio de JWT para tech_sd",
@@ -122,12 +122,12 @@
         "userId": 16,
         "role": "technician",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:14.7401525Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:09.0950006Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:15.331Z",
+      "timestamp": "2026-11-24T14:31:09.489Z",
       "suite": "RBAC_LOGIN",
       "testId": "AUTH-08",
       "scenario": "Login exitoso e intercambio de JWT para user_test",
@@ -138,12 +138,12 @@
         "userId": 17,
         "role": "solicitante",
         "tokenType": "Bearer",
-        "expiresAtUtc": "2026-11-24T15:07:15.3247971Z",
-        "tokenPrefix": "eyJhbGciOiJIUzI..."
+        "expiresAtUtc": "2026-11-24T15:31:09.4838536Z",
+        "tokenStatus": "[PROTECTED_JWT_ISSUED]"
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:15.343Z",
+      "timestamp": "2026-11-24T14:31:09.496Z",
       "suite": "SECURITY_NEGATIVE",
       "testId": "NEG-01",
       "scenario": "Acceso no autorizado de Solicitante a /api/admin/dashboard",
@@ -156,7 +156,7 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:15.412Z",
+      "timestamp": "2026-11-24T14:31:09.504Z",
       "suite": "SECURITY_NEGATIVE",
       "testId": "NEG-02",
       "scenario": "Acceso no autorizado de Técnico a /api/admin/dashboard",
@@ -169,7 +169,7 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:15.417Z",
+      "timestamp": "2026-11-24T14:31:09.510Z",
       "suite": "SECURITY_NEGATIVE",
       "testId": "NEG-03",
       "scenario": "Acceso no autorizado de Supervisor a /api/admin/watcher-status",
@@ -182,7 +182,7 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:15.428Z",
+      "timestamp": "2026-11-24T14:31:09.519Z",
       "suite": "SECURITY_NEGATIVE",
       "testId": "POS-01",
       "scenario": "Acceso autorizado de Administrador a /api/admin/dashboard",
@@ -194,7 +194,7 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:15.433Z",
+      "timestamp": "2026-11-24T14:31:09.523Z",
       "suite": "SECURITY_NEGATIVE",
       "testId": "NEG-04",
       "scenario": "Acceso anónimo denegado a endpoint protegido /api/tickets",
@@ -204,7 +204,7 @@
       "details": {}
     },
     {
-      "timestamp": "2026-11-24T14:07:15.466Z",
+      "timestamp": "2026-11-24T14:31:09.541Z",
       "suite": "SECURITY_NEGATIVE",
       "testId": "NEG-05",
       "scenario": "Solicitante intenta ejecutar claim sobre ticket #81",
@@ -217,146 +217,162 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:16.476Z",
+      "timestamp": "2026-11-24T14:31:17.548Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-01",
       "scenario": "Formulario 3: Requerimiento Service Desk",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9364, Cat: 7 (Esperado 7), Grupo: 3 (Service Desk)",
+      "result": "Ticket #10016 creado en vivo, Cat: 7 (Esperado 7), Grupo: 3 (Service Desk), API: 200",
       "details": {
         "formId": 3,
+        "ticketId": 10016,
         "categoryId": 7,
         "expectedGroupId": 3,
-        "actualGroupId": 3
+        "actualGroupId": 3,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:17.533Z",
+      "timestamp": "2026-11-24T14:31:21.504Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-02",
       "scenario": "Formulario 4: Requerimiento BI",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9365, Cat: 14 (Esperado 14), Grupo: 2 (BI)",
+      "result": "Ticket #10017 creado en vivo, Cat: 14 (Esperado 14), Grupo: 2 (BI), API: 200",
       "details": {
         "formId": 4,
+        "ticketId": 10017,
         "categoryId": 14,
         "expectedGroupId": 2,
-        "actualGroupId": 2
+        "actualGroupId": 2,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:18.431Z",
+      "timestamp": "2026-11-24T14:31:25.221Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-03",
       "scenario": "Formulario 5: Aplicaciones GSI",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9372, Cat: 9 (Esperado 9), Grupo: 1 (Desarrollo)",
+      "result": "Ticket #10018 creado en vivo, Cat: 9 (Esperado 9), Grupo: 1 (Desarrollo), API: 200",
       "details": {
         "formId": 5,
+        "ticketId": 10018,
         "categoryId": 9,
         "expectedGroupId": 1,
-        "actualGroupId": 1
+        "actualGroupId": 1,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:19.317Z",
+      "timestamp": "2026-11-24T14:31:28.627Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-04",
       "scenario": "Formulario 6: Periféricos",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9367, Cat: 19 (Esperado 19), Grupo: 3 (Service Desk)",
+      "result": "Ticket #10019 creado en vivo, Cat: 19 (Esperado 19), Grupo: 3 (Service Desk), API: 200",
       "details": {
         "formId": 6,
+        "ticketId": 10019,
         "categoryId": 19,
         "expectedGroupId": 3,
-        "actualGroupId": 3
+        "actualGroupId": 3,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:20.196Z",
+      "timestamp": "2026-11-24T14:31:32.518Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-05",
       "scenario": "Formulario 7: Hardware",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9368, Cat: 16 (Esperado 16), Grupo: 3 (Service Desk)",
+      "result": "Ticket #10020 creado en vivo, Cat: 16 (Esperado 16), Grupo: 3 (Service Desk), API: 200",
       "details": {
         "formId": 7,
+        "ticketId": 10020,
         "categoryId": 16,
         "expectedGroupId": 3,
-        "actualGroupId": 3
+        "actualGroupId": 3,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:21.214Z",
+      "timestamp": "2026-11-24T14:31:36.514Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-06",
       "scenario": "Formulario 8: Software",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9369, Cat: 4 (Esperado 4), Grupo: 1 (Desarrollo)",
+      "result": "Ticket #10021 creado en vivo, Cat: 4 (Esperado 4), Grupo: 1 (Desarrollo), API: 200",
       "details": {
         "formId": 8,
+        "ticketId": 10021,
         "categoryId": 4,
         "expectedGroupId": 1,
-        "actualGroupId": 1
+        "actualGroupId": 1,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:22.262Z",
+      "timestamp": "2026-11-24T14:31:40.483Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-07",
       "scenario": "Formulario 9: Informes",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9370, Cat: 18 (Esperado 18), Grupo: 2 (BI)",
+      "result": "Ticket #10022 creado en vivo, Cat: 18 (Esperado 18), Grupo: 2 (BI), API: 200",
       "details": {
         "formId": 9,
+        "ticketId": 10022,
         "categoryId": 18,
         "expectedGroupId": 2,
-        "actualGroupId": 2
+        "actualGroupId": 2,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:23.125Z",
+      "timestamp": "2026-11-24T14:31:44.661Z",
       "suite": "CORPORATE_FORMS",
       "testId": "FORM-08",
       "scenario": "Formulario 10: Acceso a sistema",
       "user": "user_test",
       "status": "PASS",
-      "result": "Ticket #9371, Cat: 3 (Esperado 3), Grupo: 3 (Service Desk)",
+      "result": "Ticket #10023 creado en vivo, Cat: 3 (Esperado 3), Grupo: 3 (Service Desk), API: 200",
       "details": {
         "formId": 10,
+        "ticketId": 10023,
         "categoryId": 3,
         "expectedGroupId": 3,
-        "actualGroupId": 3
+        "actualGroupId": 3,
+        "apiVisible": true
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:23.999Z",
+      "timestamp": "2026-11-24T14:31:46.624Z",
       "suite": "TICKET_LIFECYCLE",
       "testId": "STATE-01",
-      "scenario": "Ticket #9999 creado con estado 1 (Nuevo)",
+      "scenario": "Ticket #9999 verificado en estado inicial 1 (Nuevo)",
       "user": "user_test",
       "status": "PASS",
-      "result": "Estado inicial: 1 (Nuevo), Categoría: 9 (Aplicaciones GSI), Grupo: 1",
+      "result": "Estado verificado en MariaDB: 1 (Nuevo), Categoría: 2, Grupo: 1",
       "details": {
         "ticketId": 9999,
         "status": 1
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:24.222Z",
+      "timestamp": "2026-11-24T14:31:47.757Z",
       "suite": "TICKET_LIFECYCLE",
       "testId": "STATE-02",
       "scenario": "Transición 1 (Nuevo) -> 2 (Asignado) mediante /claim",
       "user": "tech_dev",
       "status": "PASS",
-      "result": "HTTP 200, Estado reportado: 2",
+      "result": "HTTP 200, API status: 2, MariaDB status: 2",
       "details": {
         "ticketId": 9999,
         "claimResponse": {
@@ -373,7 +389,7 @@
           "impact": 3,
           "categoryId": 2,
           "createdAt": "2026-11-24T13:58:45Z",
-          "updatedAt": "2026-11-24T14:07:24Z",
+          "updatedAt": "2026-11-24T14:31:46Z",
           "solvedAt": null,
           "closedAt": null,
           "assigneeIds": [
@@ -389,35 +405,38 @@
           "groupId": 1,
           "groupName": "Desarrollo",
           "participantNames": {}
-        }
+        },
+        "dbStatus": 2
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:24.779Z",
+      "timestamp": "2026-11-24T14:31:50.247Z",
       "suite": "TICKET_LIFECYCLE",
       "testId": "STATE-03",
       "scenario": "Transición 2 (Asignado) -> 3 (En proceso/planificado) mediante TicketTask (/plan)",
       "user": "tech_dev",
       "status": "PASS",
-      "result": "HTTP 200, Estado GLPI reportado: 3, TaskId: 3",
+      "result": "HTTP 200, API status: 3, MariaDB status: 3, Tasks en DB: 1",
       "details": {
         "ticketId": 9999,
         "planResponse": {
           "ticketId": 9999,
-          "taskId": 3,
+          "taskId": 5,
           "status": 3,
           "rescheduled": false
-        }
+        },
+        "dbStatus": 3,
+        "taskCount": 1
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:25.567Z",
+      "timestamp": "2026-11-24T14:31:52.963Z",
       "suite": "TICKET_LIFECYCLE",
       "testId": "STATE-04",
       "scenario": "Transición 3 (En proceso) -> 5 (Resuelto) mediante /resolve con ITILSolution",
       "user": "tech_dev",
       "status": "PASS",
-      "result": "HTTP 200, Estado GLPI reportado: 5",
+      "result": "HTTP 200, API status: 5, MariaDB status: 5, Solutions en DB: 1",
       "details": {
         "ticketId": 9999,
         "resolveResponse": {
@@ -434,8 +453,8 @@
           "impact": 3,
           "categoryId": 2,
           "createdAt": "2026-11-24T13:58:45Z",
-          "updatedAt": "2026-11-24T14:07:25Z",
-          "solvedAt": "2026-11-24T14:07:25Z",
+          "updatedAt": "2026-11-24T14:31:50Z",
+          "solvedAt": "2026-11-24T14:31:50Z",
           "closedAt": null,
           "assigneeIds": [
             14
@@ -444,10 +463,10 @@
           "followups": [],
           "solutions": [
             {
-              "id": 5,
+              "id": 7,
               "userId": 14,
               "content": "Solución aplicada: corrección de dependencias y pruebas unitarias completadas satisfactoriamente.",
-              "createdAt": "2026-11-24T14:07:25Z"
+              "createdAt": "2026-11-24T14:31:50Z"
             }
           ],
           "nextPlannedAt": null,
@@ -457,32 +476,35 @@
           "groupId": 1,
           "groupName": "Desarrollo",
           "participantNames": {}
-        }
+        },
+        "dbStatus": 5,
+        "solCount": 1
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:25.571Z",
+      "timestamp": "2026-11-24T14:31:54.178Z",
       "suite": "TICKET_LIFECYCLE",
       "testId": "STATE-05",
       "scenario": "Transición 5 (Resuelto) -> 6 (Cerrado) verificada en GLPI",
       "user": "admin_test",
       "status": "PASS",
-      "result": "Ticket #9999 cerrado formalmente con solución aprobada",
+      "result": "HTTP 204, MariaDB status: 6 (Esperado 6 Cerrado)",
       "details": {
         "ticketId": 9999,
-        "status": 6
+        "httpStatus": 204,
+        "dbStatus": 6
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:25.575Z",
+      "timestamp": "2026-11-24T14:31:54.184Z",
       "suite": "SIGNALR_REALTIME",
       "testId": "SIG-01",
       "scenario": "Negociación de conexión SignalR para tech_dev",
       "user": "tech_dev",
       "status": "PASS",
-      "result": "HTTP 200 OK, ConnectionId: Generado",
+      "result": "HTTP 200 OK, Conexión: [ESTABLISHED]",
       "details": {
-        "connectionId": "k-C8KOUhyR...",
+        "connectionEstablished": "[ESTABLISHED]",
         "availableTransports": [
           "WebSockets",
           "ServerSentEvents",
@@ -491,14 +513,15 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:25.579Z",
+      "timestamp": "2026-11-24T14:31:54.188Z",
       "suite": "SIGNALR_REALTIME",
       "testId": "SIG-02",
       "scenario": "Negociación de conexión SignalR para user_test (canal personal aislado)",
       "user": "user_test",
       "status": "PASS",
-      "result": "HTTP 200 OK, ConnectionId generado",
+      "result": "HTTP 200 OK, Conexión: [ESTABLISHED]",
       "details": {
+        "connectionEstablished": "[ESTABLISHED]",
         "availableTransports": [
           "WebSockets",
           "ServerSentEvents",
@@ -507,14 +530,67 @@
       }
     },
     {
-      "timestamp": "2026-11-24T14:07:25.581Z",
+      "timestamp": "2026-11-24T14:31:54.191Z",
       "suite": "SIGNALR_REALTIME",
       "testId": "SIG-03",
       "scenario": "Rechazo de conexión anónima a SignalR Hub",
       "user": "anonymous",
       "status": "PASS",
       "result": "HTTP 401 (Esperado 401 Unauthorized)",
-      "details": {}
+      "details": {
+        "connectionEstablished": "[REJECTED]"
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:31:57.308Z",
+      "suite": "SIGNALR_REALTIME",
+      "testId": "SIG-04",
+      "scenario": "Recepción de evento TicketClaimed en WebSocket para técnico de Grupo 1 (tech_dev)",
+      "user": "tech_dev",
+      "status": "PASS",
+      "result": "Eventos recibidos: 2, TicketId: 9998",
+      "details": {
+        "eventsCount": 2,
+        "eventReceived": {
+          "event": "TicketClaimed",
+          "data": {
+            "ticketId": 9998,
+            "assignedUserId": 14,
+            "groupId": 1,
+            "timestamp": "2026-11-24T14:31:55.7921564Z"
+          },
+          "time": "2026-11-24T14:31:55.793Z"
+        },
+        "connectionEstablished": "[ESTABLISHED]"
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:31:57.308Z",
+      "suite": "SIGNALR_REALTIME",
+      "testId": "SIG-05",
+      "scenario": "Aislamiento de colas SignalR: técnico de Grupo 2 (tech_bi) no recibe eventos de Grupo 1",
+      "user": "tech_bi",
+      "status": "PASS",
+      "result": "Eventos recibidos en Grupo 2: 0 (Esperado 0 - Aislamiento verificado)",
+      "details": {
+        "eventsCount": 0,
+        "isolated": true,
+        "connectionEstablished": "[ESTABLISHED]"
+      }
+    },
+    {
+      "timestamp": "2026-11-24T14:31:57.309Z",
+      "suite": "SIGNALR_REALTIME",
+      "testId": "SIG-06",
+      "scenario": "Aislamiento de solicitante: user_test no recibe eventos de cola operativa técnica",
+      "user": "user_test",
+      "status": "PASS",
+      "result": "Eventos recibidos en solicitante: 0 (Esperado 0 - Privacidad verificada)",
+      "details": {
+        "eventsCount": 0,
+        "isolated": true,
+        "connectionEstablished": "[ESTABLISHED]"
+      }
     }
   ]
 }

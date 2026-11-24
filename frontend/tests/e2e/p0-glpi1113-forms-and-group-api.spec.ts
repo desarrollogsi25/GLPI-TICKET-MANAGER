@@ -176,18 +176,24 @@ test.describe('P0 GLPI 11.0.13 + PHP 8.5.13: 8 formularios corporativos, AssignG
       await new Promise((r) => setTimeout(r, 500))
     }
 
-    expect(specificLogRow, 'Debe existir un registro nuevo y específico en glpi_logs con la asignación del grupo').toBeTruthy()
+    // 1. Verificación independiente de la persistencia en glpi_groups_tickets
+    expect(Number(assignedGroup), 'El grupo 3 debe estar persistido en glpi_groups_tickets').toBe(3)
+
+    // 2. Verificación independiente y estricta del registro de auditoría en glpi_logs
+    expect(specificLogRow, 'Un grupo persistido sin registro nuevo de auditoría en glpi_logs es un fallo crítico').toBeTruthy()
     const [logId, logItemType, logItemsId, logLink, logSearchOpt, logAction, ...logValParts] = specificLogRow.split(/\s+/)
     const logNewValue = logValParts.join(' ')
 
     expect(Number(logId)).toBeGreaterThan(maxLogIdBefore)
     expect(logItemType).toBe('Ticket')
     expect(Number(logItemsId)).toBe(ticketId)
-    // Exigir que corresponda estrictamente al vínculo de grupo
-    expect(logLink === 'Group' || Number(logSearchOpt) === 8).toBeTruthy()
-    // Exigir que el valor nuevo identifique al grupo esperado (Grupo 3: Service Desk) sin condiciones permisivas
-    const matchesExpectedGroup = logNewValue === 'Service Desk' || logNewValue === '3' || logNewValue.includes('Service Desk') || Number(assignedGroup) === 3
-    expect(matchesExpectedGroup, `El log debe corresponder al grupo 3 (Service Desk). Valor registrado: '${logNewValue}'`).toBeTruthy()
+    // Correlación exacta: tipo de vínculo Group, opción de búsqueda 8 y acción vinculada 15
+    expect(logLink).toBe('Group')
+    expect(Number(logSearchOpt)).toBe(8)
+    expect(Number(logAction)).toBe(15)
+    // El valor registrado debe ser inequívocamente el grupo asignado (Service Desk / 3), sin dependencias circulares
+    const containsServiceDeskOr3 = logNewValue.includes('Service Desk') || logNewValue.includes('(3)') || logNewValue === '3'
+    expect(containsServiceDeskOr3, `El log de auditoría debe registrar inequívocamente 'Service Desk' o '(3)'. Valor registrado: '${logNewValue}'`).toBe(true)
   })
 
   test('procedimiento de backup y restauración real completa (mariadb-dump y pg_dump -Fc) en bases desechables H-20', async () => {

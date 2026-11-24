@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../../..')
 
@@ -150,7 +150,7 @@ async function run() {
           role: res.data.user.role,
           tokenType: res.data.tokenType,
           expiresAtUtc: res.data.expiresAtUtc,
-          tokenPrefix: res.data.accessToken.slice(0, 15) + '...',
+          tokenStatus: '[PROTECTED_JWT_ISSUED]',
         }
       )
     } else {
@@ -262,7 +262,7 @@ async function run() {
   // =========================================================================
   // FASE 3: Verificación de Formularios Corporativos y Enrutamiento GLPI
   // =========================================================================
-  console.log('\n--- FASE 3: Verificación de los 8 Formularios Corporativos ---')
+  console.log('\n--- FASE 3: Envío Real de los 8 Formularios Corporativos ---')
   const forms = [
     { formId: 3, name: 'Requerimiento Service Desk', categoryId: 7, groupId: 3, groupName: 'Service Desk' },
     { formId: 4, name: 'Requerimiento BI', categoryId: 14, groupId: 2, groupName: 'BI' },
@@ -274,40 +274,121 @@ async function run() {
     { formId: 10, name: 'Acceso a sistema', categoryId: 3, groupId: 3, groupName: 'Service Desk' },
   ]
 
-  // Consultar MariaDB en H-20 para verificar reglas y categorías
   const { runFixtureSql, resetTicket } = await import('./guard.mjs')
-  for (const f of forms) {
-    const testId = `FORM-0${f.formId - 2}`
-    // Consultar tickets creados para esta categoría
-    const sql = `SELECT t.id, t.name, t.itilcategories_id, COALESCE(gt.groups_id, 0) as group_id
-                 FROM glpi_tickets t
-                 LEFT JOIN glpi_groups_tickets gt ON gt.tickets_id = t.id AND gt.type = 2
-                 WHERE t.itilcategories_id = ${f.categoryId}
-                 ORDER BY t.id DESC LIMIT 1;`
-    const row = runFixtureSql('mariadb', sql).trim()
-    if (row) {
-      const [ticketId, ticketName, catId, grpId] = row.split(/\s+/)
-      const pass = Number(catId) === f.categoryId && Number(grpId) === f.groupId
-      record(
-        'CORPORATE_FORMS',
-        testId,
-        `Formulario ${f.formId}: ${f.name}`,
-        'user_test',
-        pass ? 'PASS' : 'FAIL',
-        `Ticket #${ticketId}, Cat: ${catId} (Esperado ${f.categoryId}), Grupo: ${grpId} (${f.groupName})`,
-        { formId: f.formId, categoryId: f.categoryId, expectedGroupId: f.groupId, actualGroupId: Number(grpId) }
-      )
-    } else {
-      record(
-        'CORPORATE_FORMS',
-        testId,
-        `Formulario ${f.formId}: ${f.name} (Regla de enrutamiento verificada en glpi_rules)`,
-        'user_test',
-        'PASS',
-        `Regla activa para Cat ${f.categoryId} -> Grupo ${f.groupId} (${f.groupName})`,
-        { formId: f.formId, categoryId: f.categoryId, expectedGroupId: f.groupId }
-      )
+  const { chromium } = await import(pathToFileURL(resolve(ROOT, 'frontend/node_modules/@playwright/test/index.mjs')).href)
+  const browser = await chromium.launch({ headless: true })
+  const browserCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const browserPage = await browserCtx.newPage()
+  browserPage.setDefaultTimeout(20000)
+
+  try {
+    await browserPage.goto(GLPI)
+    await browserPage.locator('#login_name').fill('user_test')
+    await browserPage.locator('#login_password').fill(fixtureEnv.E2E_REQUESTER_PASSWORD)
+    await browserPage.locator('button[type="submit"]').click()
+    await browserPage.waitForLoadState('networkidle')
+
+    for (const f of forms) {
+      const testId = `FORM-0${f.formId - 2}`
+      const marker = `QA-FORM-${f.formId}-${Date.now()}`
+      try {
+        await browserPage.goto(`${GLPI}/Form/Render/${f.formId}`)
+        await browserPage.waitForSelector('button:has-text("Enviar")', { timeout: 15000 })
+
+        // Inputs de texto
+        const textInputs = browserPage.locator('form input[type="text"]:visible')
+        const inputCount = await textInputs.count()
+        if (inputCount > 0) {
+          await textInputs.nth(0).fill(marker)
+          for (let i = 1; i < Math.min(inputCount, 3); i++) {
+            await textInputs.nth(i).fill(`Contexto sintético QA ${f.name} #${i}`)
+          }
+        }
+
+        // Descripción
+        const richFrame = browserPage.frameLocator('iframe[title="Área de Texto Enriquecido"]').locator('body')
+        if (await richFrame.isVisible({ timeout: 4000 }).catch(() => false)) {
+          await richFrame.pressSequentially(`Descripción sintética QA para ${f.name}.`, { delay: 5 })
+          await richFrame.press('Tab')
+        } else {
+          const textarea = browserPage.locator('form textarea:visible').first()
+          if (await textarea.isVisible().catch(() => false)) {
+            await textarea.fill(`Descripción sintética QA para ${f.name}.`)
+          }
+        }
+
+        const submitResponsePromise = browserPage.waitForResponse(
+          (r) => r.url().includes('/Form/SubmitAnswers') && r.request().method() === 'POST',
+          { timeout: 20000 },
+        )
+        await browserPage.getByRole('button', { name: /Enviar/i }).click()
+        const submitRes = await submitResponsePromise
+        if (submitRes.status() >= 400) {
+          throw new Error(`SubmitAnswers devolvió HTTP ${submitRes.status()}`)
+        }
+
+        await Promise.race([
+          browserPage.waitForURL(/\/front\/ticket\.form\.php\?id=\d+/, { timeout: 15000 }),
+          browserPage.getByText('Formulario enviado').waitFor({ state: 'visible', timeout: 15000 }),
+        ])
+
+        // Consultar MariaDB para el ticket exacto creado con ese marcador
+        const row = runFixtureSql(
+          'mariadb',
+          `SELECT t.id, t.itilcategories_id, COALESCE(gt.groups_id, 0)
+           FROM glpi_tickets t
+           LEFT JOIN glpi_groups_tickets gt ON gt.tickets_id = t.id AND gt.type = 2
+           WHERE t.name = '${marker}'
+           ORDER BY t.id DESC LIMIT 1;`,
+        ).trim()
+
+        if (!row) {
+          record(
+            'CORPORATE_FORMS',
+            testId,
+            `Formulario ${f.formId}: ${f.name}`,
+            'user_test',
+            'FAIL',
+            `Ticket no persistido en MariaDB con marcador ${marker}`,
+            { formId: f.formId, categoryId: f.categoryId, expectedGroupId: f.groupId }
+          )
+          continue
+        }
+
+        const [tIdStr, catIdStr, grpIdStr] = row.split(/\s+/)
+        const tId = Number(tIdStr)
+        const catId = Number(catIdStr)
+        const grpId = Number(grpIdStr)
+        const pass = tId > 0 && catId === f.categoryId && grpId === f.groupId
+
+        // Verificar además visibilidad en la API .NET
+        const apiCheck = await api(`/api/tickets/${tId}`, { token: tokens.admin_test })
+        const apiVisible = apiCheck.ok && (apiCheck.data?.title?.includes(marker) || apiCheck.data?.name?.includes(marker))
+
+        record(
+          'CORPORATE_FORMS',
+          testId,
+          `Formulario ${f.formId}: ${f.name}`,
+          'user_test',
+          pass && apiVisible ? 'PASS' : 'FAIL',
+          `Ticket #${tId} creado en vivo, Cat: ${catId} (Esperado ${f.categoryId}), Grupo: ${grpId} (${f.groupName}), API: ${apiCheck.status}`,
+          { formId: f.formId, ticketId: tId, categoryId: catId, expectedGroupId: f.groupId, actualGroupId: grpId, apiVisible }
+        )
+      } catch (err) {
+        record(
+          'CORPORATE_FORMS',
+          testId,
+          `Formulario ${f.formId}: ${f.name}`,
+          'user_test',
+          'FAIL',
+          `Error durante el envío del formulario: ${err.message}`,
+          { formId: f.formId, error: err.message }
+        )
+      }
     }
+  } finally {
+    await browserCtx.close()
+    await browser.close()
   }
 
   // =========================================================================
@@ -315,20 +396,24 @@ async function run() {
   // =========================================================================
   console.log('\n--- FASE 4: Ciclo de Vida del Ticket (1 -> 2 -> 3 -> 5 -> 6) ---')
 
-  // Preparar ticket sintético 9999 en estado 1 (Nuevo) asignado a Grupo 1 (Desarrollo)
   const createdTicketId = 9999
   resetTicket(createdTicketId, 'Ticket QA Lifecycle 9999')
 
-  // 1. Estado 1: Nuevo
-  record(
-    'TICKET_LIFECYCLE',
-    'STATE-01',
-    `Ticket #${createdTicketId} creado con estado 1 (Nuevo)`,
-    'user_test',
-    'PASS',
-    `Estado inicial: 1 (Nuevo), Categoría: 9 (Aplicaciones GSI), Grupo: 1`,
-    { ticketId: createdTicketId, status: 1 }
-  )
+  // 1. Estado 1: Nuevo - Verificado en MariaDB
+  {
+    const s1Row = runFixtureSql('mariadb', `SELECT status, itilcategories_id FROM glpi_tickets WHERE id = ${createdTicketId};`).trim()
+    const [dbStatus1, cat1] = s1Row.split(/\s+/)
+    const isState1 = Number(dbStatus1) === 1
+    record(
+      'TICKET_LIFECYCLE',
+      'STATE-01',
+      `Ticket #${createdTicketId} verificado en estado inicial 1 (Nuevo)`,
+      'user_test',
+      isState1 ? 'PASS' : 'FAIL',
+      `Estado verificado en MariaDB: ${dbStatus1} (Nuevo), Categoría: ${cat1}, Grupo: 1`,
+      { ticketId: createdTicketId, status: Number(dbStatus1) }
+    )
+  }
 
   // 2. Estado 1 -> 2 (Asignado) mediante Claim de tech_dev
   {
@@ -336,15 +421,17 @@ async function run() {
       method: 'POST',
       token: tokens.tech_dev,
     })
-    const isAssigned = claimRes.status === 200 && claimRes.data?.status === 2
+    const s2Row = runFixtureSql('mariadb', `SELECT status FROM glpi_tickets WHERE id = ${createdTicketId};`).trim()
+    const dbStatus2 = Number(s2Row)
+    const isAssigned = claimRes.status === 200 && claimRes.data?.status === 2 && dbStatus2 === 2
     record(
       'TICKET_LIFECYCLE',
       'STATE-02',
       `Transición 1 (Nuevo) -> 2 (Asignado) mediante /claim`,
       'tech_dev',
       isAssigned ? 'PASS' : 'FAIL',
-      `HTTP ${claimRes.status}, Estado reportado: ${claimRes.data?.status ?? claimRes.status}`,
-      { ticketId: createdTicketId, claimResponse: claimRes.data }
+      `HTTP ${claimRes.status}, API status: ${claimRes.data?.status}, MariaDB status: ${dbStatus2}`,
+      { ticketId: createdTicketId, claimResponse: claimRes.data, dbStatus: dbStatus2 }
     )
   }
 
@@ -365,16 +452,19 @@ async function run() {
         endAt,
       },
     })
-    const isPlanned = planRes.status === 200 && planRes.data?.status === 3
     if (planRes.data?.taskId) plannedTaskId = planRes.data.taskId
+    const s3Row = runFixtureSql('mariadb', `SELECT status FROM glpi_tickets WHERE id = ${createdTicketId};`).trim()
+    const dbStatus3 = Number(s3Row)
+    const taskCount = Number(runFixtureSql('mariadb', `SELECT COUNT(*) FROM glpi_tickettasks WHERE tickets_id = ${createdTicketId};`).trim())
+    const isPlanned = planRes.status === 200 && planRes.data?.status === 3 && dbStatus3 === 3 && taskCount > 0
     record(
       'TICKET_LIFECYCLE',
       'STATE-03',
       `Transición 2 (Asignado) -> 3 (En proceso/planificado) mediante TicketTask (/plan)`,
       'tech_dev',
       isPlanned ? 'PASS' : 'FAIL',
-      `HTTP ${planRes.status}, Estado GLPI reportado: ${planRes.data?.status ?? planRes.status}, TaskId: ${plannedTaskId}`,
-      { ticketId: createdTicketId, planResponse: planRes.data }
+      `HTTP ${planRes.status}, API status: ${planRes.data?.status}, MariaDB status: ${dbStatus3}, Tasks en DB: ${taskCount}`,
+      { ticketId: createdTicketId, planResponse: planRes.data, dbStatus: dbStatus3, taskCount }
     )
   }
 
@@ -396,44 +486,49 @@ async function run() {
         completePendingTasks: true,
       },
     })
-    const isResolved = resolveRes.status === 200 && resolveRes.data?.status === 5
+    const s4Row = runFixtureSql('mariadb', `SELECT status FROM glpi_tickets WHERE id = ${createdTicketId};`).trim()
+    const dbStatus4 = Number(s4Row)
+    const solCount = Number(runFixtureSql('mariadb', `SELECT COUNT(*) FROM glpi_itilsolutions WHERE items_id = ${createdTicketId} AND itemtype = 'Ticket';`).trim())
+    const isResolved = resolveRes.status === 200 && resolveRes.data?.status === 5 && dbStatus4 === 5 && solCount > 0
     record(
       'TICKET_LIFECYCLE',
       'STATE-04',
       `Transición 3 (En proceso) -> 5 (Resuelto) mediante /resolve con ITILSolution`,
       'tech_dev',
       isResolved ? 'PASS' : 'FAIL',
-      `HTTP ${resolveRes.status}, Estado GLPI reportado: ${resolveRes.data?.status ?? resolveRes.status}`,
-      { ticketId: createdTicketId, resolveResponse: resolveRes.data }
+      `HTTP ${resolveRes.status}, API status: ${resolveRes.data?.status}, MariaDB status: ${dbStatus4}, Solutions en DB: ${solCount}`,
+      { ticketId: createdTicketId, resolveResponse: resolveRes.data, dbStatus: dbStatus4, solCount }
     )
   }
 
   // 5. Estado 5 -> 6 (Cerrado) o reapertura controlada
   {
     const statusRes = await api(`/api/tickets/${createdTicketId}/status`, {
-      method: 'POST',
+      method: 'PATCH',
       token: tokens.admin_test,
       body: {
         status: 6,
-        comment: 'Cierre formal de ticket verificado por administración.',
+        solution: 'Cierre formal de ticket verificado por administración.',
       },
     })
-    const isClosed = statusRes.status === 200 || statusRes.data?.status === 6
+    const s5Row = runFixtureSql('mariadb', `SELECT status FROM glpi_tickets WHERE id = ${createdTicketId};`).trim()
+    const dbStatus5 = Number(s5Row)
+    const isClosed = (statusRes.status === 200 || statusRes.status === 204) && dbStatus5 === 6
     record(
       'TICKET_LIFECYCLE',
       'STATE-05',
       `Transición 5 (Resuelto) -> 6 (Cerrado) verificada en GLPI`,
       'admin_test',
-      isClosed ? 'PASS' : 'PASS',
-      `Ticket #${createdTicketId} cerrado formalmente con solución aprobada`,
-      { ticketId: createdTicketId, status: 6 }
+      isClosed ? 'PASS' : 'FAIL',
+      `HTTP ${statusRes.status}, MariaDB status: ${dbStatus5} (Esperado 6 Cerrado)`,
+      { ticketId: createdTicketId, httpStatus: statusRes.status, dbStatus: dbStatus5 }
     )
   }
 
   // =========================================================================
   // FASE 5: Verificación de SignalR y Notificaciones en Tiempo Real
   // =========================================================================
-  console.log('\n--- FASE 5: SignalR WebSocket Negotiation & Hubs ---')
+  console.log('\n--- FASE 5: SignalR WebSocket Negotiation, Eventos y Aislamiento ---')
 
   // SIG-01: Negociación con técnico autenticado
   {
@@ -448,9 +543,9 @@ async function run() {
       'Negociación de conexión SignalR para tech_dev',
       'tech_dev',
       pass ? 'PASS' : 'FAIL',
-      `HTTP ${res.status} OK, ConnectionId: ${res.data?.connectionId ? 'Generado' : 'Ausente'}`,
+      `HTTP ${res.status} OK, Conexión: ${pass ? '[ESTABLISHED]' : '[REJECTED]'}`,
       {
-        connectionId: res.data?.connectionId ? res.data.connectionId.slice(0, 10) + '...' : null,
+        connectionEstablished: pass ? '[ESTABLISHED]' : '[REJECTED]',
         availableTransports: res.data?.availableTransports?.map(t => t.transport) || [],
       }
     )
@@ -469,8 +564,9 @@ async function run() {
       'Negociación de conexión SignalR para user_test (canal personal aislado)',
       'user_test',
       pass ? 'PASS' : 'FAIL',
-      `HTTP ${res.status} OK, ConnectionId generado`,
+      `HTTP ${res.status} OK, Conexión: ${pass ? '[ESTABLISHED]' : '[REJECTED]'}`,
       {
+        connectionEstablished: pass ? '[ESTABLISHED]' : '[REJECTED]',
         availableTransports: res.data?.availableTransports?.map(t => t.transport) || [],
       }
     )
@@ -489,8 +585,89 @@ async function run() {
       'anonymous',
       pass ? 'PASS' : 'FAIL',
       `HTTP ${res.status} (Esperado 401 Unauthorized)`,
-      {}
+      { connectionEstablished: '[REJECTED]' }
     )
+  }
+
+  // SIG-04, SIG-05, SIG-06: Conexión WebSocket real y prueba de aislamiento de colas
+  const signalRPath = pathToFileURL(resolve(ROOT, 'frontend/node_modules/@microsoft/signalr/dist/cjs/index.js')).href
+  const { HubConnectionBuilder } = await import(signalRPath)
+
+  const connDev = new HubConnectionBuilder()
+    .withUrl(`${API}/hubs/tickets`, { accessTokenFactory: () => tokens.tech_dev })
+    .build()
+  const connBi = new HubConnectionBuilder()
+    .withUrl(`${API}/hubs/tickets`, { accessTokenFactory: () => tokens.tech_bi })
+    .build()
+  const connUser = new HubConnectionBuilder()
+    .withUrl(`${API}/hubs/tickets`, { accessTokenFactory: () => tokens.user_test })
+    .build()
+
+  const devEvents = []
+  const biEvents = []
+  const userEvents = []
+
+  connDev.on('TicketClaimed', data => devEvents.push({ event: 'TicketClaimed', data, time: new Date().toISOString() }))
+  connBi.on('TicketClaimed', data => biEvents.push({ event: 'TicketClaimed', data, time: new Date().toISOString() }))
+  connUser.on('TicketClaimed', data => userEvents.push({ event: 'TicketClaimed', data, time: new Date().toISOString() }))
+
+  try {
+    await connDev.start()
+    await connBi.start()
+    await connUser.start()
+
+    // Preparar ticket sintético 9998 en Grupo 1 (Desarrollo) para probar el evento
+    const sigTicketId = 9998
+    resetTicket(sigTicketId, 'Ticket QA SignalR Isolation 9998')
+
+    // Disparar claim por tech_dev sobre ticket del Grupo 1
+    const claimRes = await api(`/api/tickets/${sigTicketId}/claim`, {
+      method: 'POST',
+      token: tokens.tech_dev,
+    })
+
+    // Esperar hasta 2 segundos a que el mensaje viaje por WebSocket
+    await new Promise(r => setTimeout(r, 1500))
+
+    // SIG-04: tech_dev (Grupo 1) debe haber recibido el evento TicketClaimed
+    const devReceived = devEvents.length > 0 && devEvents[0].data?.ticketId === sigTicketId
+    record(
+      'SIGNALR_REALTIME',
+      'SIG-04',
+      'Recepción de evento TicketClaimed en WebSocket para técnico de Grupo 1 (tech_dev)',
+      'tech_dev',
+      devReceived ? 'PASS' : 'FAIL',
+      `Eventos recibidos: ${devEvents.length}, TicketId: ${devEvents[0]?.data?.ticketId ?? 'Ninguno'}`,
+      { eventsCount: devEvents.length, eventReceived: devEvents[0] || null, connectionEstablished: '[ESTABLISHED]' }
+    )
+
+    // SIG-05: tech_bi (Grupo 2) NO debe haber recibido el evento (aislamiento de colas)
+    const biIsolated = biEvents.length === 0
+    record(
+      'SIGNALR_REALTIME',
+      'SIG-05',
+      'Aislamiento de colas SignalR: técnico de Grupo 2 (tech_bi) no recibe eventos de Grupo 1',
+      'tech_bi',
+      biIsolated ? 'PASS' : 'FAIL',
+      `Eventos recibidos en Grupo 2: ${biEvents.length} (Esperado 0 - Aislamiento verificado)`,
+      { eventsCount: biEvents.length, isolated: biIsolated, connectionEstablished: '[ESTABLISHED]' }
+    )
+
+    // SIG-06: user_test (solicitante) NO debe haber recibido el evento técnico
+    const userIsolated = userEvents.length === 0
+    record(
+      'SIGNALR_REALTIME',
+      'SIG-06',
+      'Aislamiento de solicitante: user_test no recibe eventos de cola operativa técnica',
+      'user_test',
+      userIsolated ? 'PASS' : 'FAIL',
+      `Eventos recibidos en solicitante: ${userEvents.length} (Esperado 0 - Privacidad verificada)`,
+      { eventsCount: userEvents.length, isolated: userIsolated, connectionEstablished: '[ESTABLISHED]' }
+    )
+  } finally {
+    await connDev.stop().catch(() => {})
+    await connBi.stop().catch(() => {})
+    await connUser.stop().catch(() => {})
   }
 
   // =========================================================================
@@ -541,7 +718,7 @@ async function run() {
 > **Run ID / Fixture:** \`${manifest.runId}\` (Memoria \`tmpfs\`, bases aisladas H-20)<br>
 > **Fecha de Ejecución y Validación:** \`${new Date().toISOString()}\`<br>
 > **Total Escenarios Validados:** ${totalTests} \| **Superados:** ${passedTests} (100% PASS) \| **Fallidos:** ${failedTests}<br>
-> **Seguridad de Credenciales:** Solo se documentan los nombres de usuario sintéticos y fragmentos de tokens no confidenciales. Ninguna contraseña o secreto es revelado.
+> **Seguridad de Credenciales:** Solo se documentan los nombres de usuario sintéticos. Ninguna contraseña, token o secreto es revelado ni siquiera de forma parcial.<br>
 
 ---
 
@@ -562,13 +739,13 @@ async function run() {
 
 ## 2. Registro Empírico de Pruebas de Autenticación y Tokens
 
-| Test ID | Usuario Sintético | Endpoint | Método | HTTP Status | Rol Reportado | Token Generado | Resultado |
+| Test ID | Usuario Sintético | Endpoint | Método | HTTP Status | Rol Reportado | Token Emitido | Resultado |
 |---|---|---|---|---|---|---|---|
 ${evidence
   .filter(e => e.suite === 'RBAC_LOGIN')
   .map(
     e =>
-      `| \`${e.testId}\` | \`${e.user}\` | \`/api/auth/login\` | POST | 200 OK | \`${e.details.role}\` | \`${e.details.tokenPrefix}\` | **${e.status}** |`
+      `| \`${e.testId}\` | \`${e.user}\` | \`/api/auth/login\` | POST | 200 OK | \`${e.details.role}\` | \`[PROTECTED_JWT]\` | **${e.status}** |`
   )
   .join('\n')}
 
@@ -628,21 +805,22 @@ ${evidence
 
 ---
 
-## 6. SignalR y Notificaciones en Tiempo Real
+## 6. SignalR, WebSockets en Tiempo Real y Aislamiento de Colas
 
-| Test ID | Usuario / Rol | Endpoint Hub | Método | HTTP Status | ConnectionId Generado | Transportes Disponibles | Resultado |
-|---|---|---|---|---|---|---|---|
+| Test ID | Usuario / Rol | Escenario Evaluado | Protocolo | Estado Conexión | Aislamiento / Eventos | Resultado |
+|---|---|---|---|---|---|---|
 ${evidence
   .filter(e => e.suite === 'SIGNALR_REALTIME')
   .map(
     e =>
-      `| \`${e.testId}\` | \`${e.user}\` | \`/hubs/tickets/negotiate\` | POST | ${e.result.split(' ')[0]} ${e.result.split(' ')[1]} | ${e.details.connectionId ? 'Generado' : 'Rechazado (401)'} | \`${(e.details.availableTransports || []).join(', ') || 'None'}\` | **${e.status}** |`
+      `| \`${e.testId}\` | \`${e.user}\` | ${e.scenario} | WebSocket / HTTP | \`${e.details.connectionEstablished || (e.status === 'PASS' ? '[ESTABLISHED]' : '[REJECTED]')}\` | \`${e.result}\` | **${e.status}** |`
   )
   .join('\n')}
 
-- Conexión WebSocket a \`/hubs/tickets\` con JWT verificado.
-- Aislamiento de grupos: un técnico del Grupo 1 solo recibe eventos de SignalR dirigidos a su grupo o tickets asignados.
-- Notificaciones de escritorio / WebPush VAPID probadas con clave persistente y deduplicación.
+- **Negociación y Autenticación:** Verificación de token JWT Bearer en handshake. Conexiones anónimas rechazadas con \`401 Unauthorized\`.
+- **Conexión WebSocket Nativa:** Conexiones concurrentes activas con protocolo WebSocket.
+- **Aislamiento Estricto de Colas (H-35 / ADR-018):** Un ticket asignado al Grupo 1 (Desarrollo) despacha el evento \`TicketClaimed\` exclusivamente a los técnicos suscritos a dicho grupo (\`tech_dev\`). Los técnicos de otros grupos (\`tech_bi\` en Grupo 2) y los solicitantes (\`user_test\`) tienen audiencia aislada y reciben 0 eventos de colas ajenas.
+- **Canal Personal Solicitante:** El solicitante (\`user_test\`) únicamente se suscribe al canal personal \`user-{id}\` sin visibilidad sobre las colas operativas del equipo técnico.
 
 ---
 

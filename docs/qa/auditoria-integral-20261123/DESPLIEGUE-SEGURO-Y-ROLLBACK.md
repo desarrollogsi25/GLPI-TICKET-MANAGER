@@ -39,9 +39,28 @@ if ($crtSize -eq 0 -or $keySize -eq 0) {
 
 ## 2. Respaldo Previo Verificado (En Windows PowerShell)
 
-Para evitar la discrepancia de nombres de carpeta, la falta de variables en sesiones nuevas de PowerShell y la corrupción de bytes por codificación de texto de PowerShell con `pg_dump -Fc`:
+Para evitar la discrepancia de nombres de carpeta, la falta de variables en sesiones nuevas de PowerShell y la corrupción de bytes por codificación de texto de PowerShell con `pg_dump -Fc` o `mariadb-dump`:
+
+| Ámbito de Ejecución | Comando / Operación | Propósito y Garantía |
+|---|---|---|
+| **Contenedor Docker (`glpi-db`)** | `mariadb-dump --single-transaction --routines --triggers ... > /tmp/...` | Generación nativa sin paso por pipes del host. |
+| **Contenedor Docker (`glpi-db`)** | `sha256sum /tmp/glpi-mariadb.sql` | Hash criptográfico fuente calculado en el origen. |
+| **Windows PowerShell** | `docker cp glpi-db:/tmp/... "$backupDir/..."` | Transferencia binaria bit a bit preservando integridad. |
+| **Windows PowerShell** | `Get-FileHash "$backupDir/..." -Algorithm SHA256` | Verificación de paridad: el hash destino debe coincidir exactamente. |
+| **Contenedor Docker (`glpi-app-db`)** | `pg_dump -U app -Fc ... -f /tmp/...` | Volcado binario custom (-Fc) con compresión nativa. |
+| **Contenedor Docker (`glpi-app-db`)** | `sha256sum /tmp/app-db.dump` | Hash criptográfico fuente de PostgreSQL. |
+| **Windows PowerShell** | `docker cp glpi-app-db:/tmp/... "$backupDir/..."` | Transferencia binaria bit a bit al disco del host. |
+| **Windows PowerShell** | Comprobación `$LASTEXITCODE -eq 0` en cada paso | Aborta el script inmediatamente ante cualquier error sin imprimir secretos. |
 
 ```powershell
+# Función de verificación de código de salida seguro (sin exponer secretos en consola)
+function Assert-LastExitCode {
+    param([string]$StepDescription)
+    if ($LASTEXITCODE -ne 0) {
+        throw "ERROR CRÍTICO: Falló el paso '$StepDescription' con exit code $LASTEXITCODE. Proceso de respaldo abortado."
+    }
+}
+
 # 1. Carga segura de variables desde .env si no existen en la sesión interactiva de PowerShell (sin imprimir secretos)
 if (-not $env:MARIADB_ROOT_PASSWORD -and (Test-Path ".env")) {
     Get-Content ".env" | ForEach-Object {
@@ -58,15 +77,47 @@ if (-not $env:MARIADB_ROOT_PASSWORD) {
 $backupDir = "backups/pre-glpi-11.0.13-$(Get-Date -Format 'yyyyMMdd-HHmm')"
 New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
 
-# 3. MariaDB GLPI Completa (solo lectura, transacción consistente, rutinas y triggers)
-docker exec glpi-db mariadb-dump --single-transaction --routines --triggers -u root -p"$env:MARIADB_ROOT_PASSWORD" glpi | Set-Content -Encoding utf8 "$backupDir/glpi-mariadb.sql"
+# 3. MariaDB GLPI Completa (dump dentro del contenedor, hash fuente, copia binaria y verificación en host)
+Write-Host "Generando backup MariaDB en glpi-db..." -ForegroundColor Cyan
+docker exec glpi-db sh -c 'mariadb-dump --single-transaction --routines --triggers -u root -p"$MARIADB_ROOT_PASSWORD" glpi > /tmp/glpi-mariadb.sql'
+Assert-LastExitCode "mariadb-dump en glpi-db"
 
-# 4. PostgreSQL app-db (Preservando bytes binarios puros vía docker cp)
+$mariaContainerHashOutput = (docker exec glpi-db sha256sum /tmp/glpi-mariadb.sql)
+Assert-LastExitCode "sha256sum en glpi-db"
+$mariaContainerHash = ($mariaContainerHashOutput -split '\s+')[0].Trim().ToLower()
+
+docker cp glpi-db:/tmp/glpi-mariadb.sql "$backupDir/glpi-mariadb.sql"
+Assert-LastExitCode "docker cp glpi-mariadb.sql al host"
+
+docker exec glpi-db rm -f /tmp/glpi-mariadb.sql
+
+$mariaHostHash = (Get-FileHash "$backupDir/glpi-mariadb.sql" -Algorithm SHA256).Hash.ToLower()
+if ($mariaContainerHash -ne $mariaHostHash) {
+    throw "ERROR DE INTEGRIDAD: Hash SHA-256 de MariaDB no coincide. Contenedor: $mariaContainerHash vs Host: $mariaHostHash"
+}
+Write-Host "MariaDB backup verificado OK: $mariaHostHash" -ForegroundColor Green
+
+# 4. PostgreSQL app-db (Preservando bytes binarios puros vía docker cp y verificación de hash)
+Write-Host "Generando backup PostgreSQL en glpi-app-db..." -ForegroundColor Cyan
 docker exec glpi-app-db pg_dump -U app -Fc glpi_ticket_manager -f /tmp/app-db.dump
+Assert-LastExitCode "pg_dump en glpi-app-db"
+
+$pgContainerHashOutput = (docker exec glpi-app-db sha256sum /tmp/app-db.dump)
+Assert-LastExitCode "sha256sum en glpi-app-db"
+$pgContainerHash = ($pgContainerHashOutput -split '\s+')[0].Trim().ToLower()
+
 docker cp glpi-app-db:/tmp/app-db.dump "$backupDir/app-db.dump"
+Assert-LastExitCode "docker cp app-db.dump al host"
+
 docker exec glpi-app-db rm -f /tmp/app-db.dump
 
-# 5. Verificar integridad y calcular hashes SHA-256
+$pgHostHash = (Get-FileHash "$backupDir/app-db.dump" -Algorithm SHA256).Hash.ToLower()
+if ($pgContainerHash -ne $pgHostHash) {
+    throw "ERROR DE INTEGRIDAD: Hash SHA-256 de PostgreSQL no coincide. Contenedor: $pgContainerHash vs Host: $pgHostHash"
+}
+Write-Host "PostgreSQL backup verificado OK: $pgHostHash" -ForegroundColor Green
+
+# 5. Resumen final de hashes persistidos
 Get-FileHash "$backupDir/*" -Algorithm SHA256 | Format-Table -AutoSize
 ```
 
@@ -140,8 +191,10 @@ $res80 = Invoke-WebRequest -Uri "http://127.0.0.1:80/" -MaximumRedirection 0 -Sk
 2. Restaurar `docker-compose.yml` al commit anterior y reetiquetar `rollback-pre-11.0.13` → `latest`/`local`.
 3. Si hubo migración de datos o inconsistencias, restaurar desde `$backupDir`:
    ```powershell
-   # Restaurar MariaDB:
-   Get-Content "$backupDir/glpi-mariadb.sql" | docker exec -i glpi-db mariadb -u root -p"$env:MARIADB_ROOT_PASSWORD" glpi
+   # Restaurar MariaDB (preservando integridad binaria sin piping de PowerShell):
+   docker cp "$backupDir/glpi-mariadb.sql" glpi-db:/tmp/glpi-mariadb-restore.sql
+   docker exec glpi-db sh -c 'mariadb -u root -p"$MARIADB_ROOT_PASSWORD" glpi < /tmp/glpi-mariadb-restore.sql'
+   docker exec glpi-db rm -f /tmp/glpi-mariadb-restore.sql
 
    # Restaurar PostgreSQL:
    docker cp "$backupDir/app-db.dump" glpi-app-db:/tmp/app-db-restore.dump

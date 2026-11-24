@@ -1,0 +1,21 @@
+================================================================================
+GITLEAKS SECURITY SCAN AUDIT REPORT
+================================================================================
+Fecha de ejecución: 2026-11-24T14:17:56Z
+Versión de Gitleaks: v8.30.1 (Docker image zricethezav/gitleaks:latest)
+Comando: gitleaks git --redact --verbose /repo
+
+Resultado del Escaneo:
+--------------------------------------------------------------------------------
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+2:17PM INF 316 commits scanned.
+2:17PM INF scanned ~11915900 bytes (11.92 MB) in 30.9s
+2:17PM INF no leaks found
+--------------------------------------------------------------------------------
+Estado de la compuerta de seguridad: PASS (0 leaks found across 316 commits)
+================================================================================
