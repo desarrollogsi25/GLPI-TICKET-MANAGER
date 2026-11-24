@@ -708,6 +708,76 @@ public class GlpiWatcherReconciliationTests : IClassFixture<CustomWebApplication
         _factory.GlpiMock.Invocations.Should().NotContain(i => i.Method.Name == "CreateTicketAsync");
     }
 
+    [Fact]
+    public async Task Scenario14_GlpiApiClientMissing_FailsClosed_DoesNotNotifyTechnicians_PreservesPending()
+    {
+        using var realScope = _factory.Services.CreateScope();
+        var realProvider = realScope.ServiceProvider;
+
+        var stateRepo = realProvider.GetRequiredService<IGlpiWatcherStateRepository>();
+        var notifService = realProvider.GetRequiredService<INotificationService>();
+        var ticketNotificationService = realProvider.GetRequiredService<ITicketNotificationService>();
+        var localTicketRepo = new Mock<ITicketRepository>();
+        var localDashboardRepo = new Mock<IDashboardRepository>();
+
+        const int ticketId = 99991;
+        const int categoryId = 7;
+        const int expectedGroupId = CustomWebApplicationFactory.Group1Id;
+
+        // Category 7 maps to Group 1
+        localTicketRepo.Setup(r => r.GetAssignmentGroupForCategoryAsync(categoryId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedGroupId);
+
+        // GLPI ticket currently has NO group assigned
+        localDashboardRepo.Setup(d => d.GetTicketGroupAssignmentAsync(ticketId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GlpiTicketGroupInfo?)null);
+
+        // Technicians exist in the group
+        localDashboardRepo.Setup(d => d.GetTechnicianUserIdsInGroupAsync(expectedGroupId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<int> { CustomWebApplicationFactory.Tech1Id });
+
+        // Create a scope provider where IGlpiApiClient is intentionally missing/null
+        var customScope = new Mock<IServiceScope>();
+        var customProvider = new Mock<IServiceProvider>();
+        customScope.Setup(s => s.ServiceProvider).Returns(customProvider.Object);
+        customProvider.Setup(p => p.GetService(typeof(IGlpiApiClient))).Returns((object?)null);
+        customProvider.Setup(p => p.GetService(typeof(ITicketRepository))).Returns(localTicketRepo.Object);
+        customProvider.Setup(p => p.GetService(typeof(IDashboardRepository))).Returns(localDashboardRepo.Object);
+        customProvider.Setup(p => p.GetService(typeof(IGlpiWatcherStateRepository))).Returns(stateRepo);
+        customProvider.Setup(p => p.GetService(typeof(INotificationService))).Returns(notifService);
+        customProvider.Setup(p => p.GetService(typeof(ITicketNotificationService))).Returns(ticketNotificationService);
+
+        var scopeFactoryMock = new Mock<IServiceScopeFactory>();
+        scopeFactoryMock.Setup(f => f.CreateScope()).Returns(customScope.Object);
+
+        var dbFactory = _factory.Services.GetRequiredService<IDbConnectionFactory>();
+        var logger = _factory.Services.GetRequiredService<ILogger<GlpiNativeTicketWatcher>>();
+
+        var watcher = new GlpiNativeTicketWatcher(scopeFactoryMock.Object, dbFactory, logger);
+
+        // Act: Process the new ticket batch
+        var newTickets = new List<GlpiNativeTicketWatcher.NewTicketRow>
+        {
+            new(ticketId, "Fail-Closed Test Ticket", categoryId, 1)
+        };
+        await watcher.ProcessBatchAsync(newTickets, CancellationToken.None);
+
+        // Assert:
+        // 1. Technicians were NOT notified because group was never assigned via GLPI API
+        _factory.TicketCreatedKeys.Should().NotContain(k => k.TicketId == ticketId);
+
+        // 2. Ticket is recorded in durable pending registry as AwaitingGroup with explanatory message
+        var pending = await stateRepo.GetPendingTicketsAsync(10, CancellationToken.None);
+        var pendingTicket = pending.FirstOrDefault(p => p.TicketId == ticketId);
+        pendingTicket.Should().NotBeNull();
+        pendingTicket!.Status.Should().Be("AwaitingGroup");
+        pendingTicket.LastError.Should().Contain("GLPI API client unavailable");
+
+        // 3. ReconcilePending without client also fails closed
+        await watcher.ReconcilePendingAsync(CancellationToken.None);
+        _factory.TicketCreatedKeys.Should().NotContain(k => k.TicketId == ticketId);
+    }
+
     private static HttpRequestMessage CreateSignedRequest(string uri, string rawBody)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, uri);

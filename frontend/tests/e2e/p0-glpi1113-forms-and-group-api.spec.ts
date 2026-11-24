@@ -130,6 +130,11 @@ test.describe('P0 GLPI 11.0.13 + PHP 8.5.13: 8 formularios corporativos, AssignG
        UPDATE glpi_tickets SET itilcategories_id = 7, status = 1 WHERE id = ${ticketId};`,
     )
 
+    // Obtener el ID más alto actual en glpi_logs antes de la mutación para asegurar verificación de registro nuevo
+    const maxLogIdBefore = Number(
+      runFixtureSql('mariadb', 'SELECT COALESCE(MAX(id), 0) FROM glpi_logs;').trim(),
+    )
+
     const body = JSON.stringify({ ticket_id: ticketId })
     const timestamp = Math.floor(Date.now() / 1000).toString()
     const signature = createHmac('sha256', WEBHOOK_SECRET).update(body + timestamp).digest('hex')
@@ -146,38 +151,94 @@ test.describe('P0 GLPI 11.0.13 + PHP 8.5.13: 8 formularios corporativos, AssignG
     const json = await res.json()
     expect(json.groupId).toBe(3)
 
-    // Verificar persistencia en glpi_groups_tickets Y registro de auditoría en glpi_logs (prueba API REST oficial)
+    // Verificar persistencia en glpi_groups_tickets
     const assignedGroup = runFixtureSql(
       'mariadb',
       `SELECT groups_id FROM glpi_groups_tickets WHERE tickets_id = ${ticketId} AND type = 2 LIMIT 1;`,
     ).trim()
     expect(Number(assignedGroup)).toBe(3)
 
-    const logCount = runFixtureSql(
+    // Verificar un registro NUEVO y ESPECÍFICO en glpi_logs generado por la API oficial de GLPI (Group_Ticket)
+    const specificLog = runFixtureSql(
       'mariadb',
-      `SELECT COUNT(*) FROM glpi_logs WHERE itemtype = 'Ticket' AND items_id = ${ticketId};`,
+      `SELECT id, itemtype, items_id, itemtype_link, new_value
+       FROM glpi_logs
+       WHERE id > ${maxLogIdBefore}
+         AND itemtype = 'Ticket'
+         AND items_id = ${ticketId}
+         AND (itemtype_link = 'Group' OR id_search_option = 8 OR new_value LIKE '%3%')
+       ORDER BY id DESC LIMIT 1;`,
     ).trim()
-    expect(Number(logCount)).toBeGreaterThan(0)
+
+    expect(specificLog, 'Debe existir un registro nuevo y específico en glpi_logs con la asignación del grupo').toBeTruthy()
+    expect(specificLog).toContain('Ticket')
+    expect(specificLog).toContain(ticketId.toString())
   })
 
-  test('backup y restauración lógica verificada en tabla temporal desechable dentro de H-20', async () => {
-    test.setTimeout(30000)
-    const originalCount = Number(
+  test('procedimiento de backup y restauración real (mariadb-dump y pg_dump -Fc) en bases desechables H-20', async () => {
+    test.setTimeout(60000)
+
+    // 1. MariaDB: dump real con mariadb-dump, restauración en base desechable y verificación de integridad
+    const originalTicketsCount = Number(
       runFixtureSql('mariadb', 'SELECT COUNT(*) FROM glpi_tickets;').trim(),
     )
-    expect(originalCount).toBeGreaterThan(0)
+    expect(originalTicketsCount).toBeGreaterThan(0)
 
-    runFixtureSql(
-      'mariadb',
-      `DROP TABLE IF EXISTS _qa_backup_tickets_verify;
-       CREATE TABLE _qa_backup_tickets_verify LIKE glpi_tickets;
-       INSERT INTO _qa_backup_tickets_verify SELECT * FROM glpi_tickets;`,
-    )
-    const restoredCount = Number(
-      runFixtureSql('mariadb', 'SELECT COUNT(*) FROM _qa_backup_tickets_verify;').trim(),
-    )
-    expect(restoredCount).toBe(originalCount)
+    // Ejecutar mariadb-dump dentro del contenedor glpi-db hacia un archivo temporal
+    runFixtureCommand('glpi-db', [
+      'sh', '-c',
+      'mariadb-dump -u e2e -p"$MARIADB_PASSWORD" --single-transaction glpi glpi_tickets glpi_itilcategories > /tmp/qa_mariadb_backup.sql',
+    ])
 
-    runFixtureSql('mariadb', 'DROP TABLE IF EXISTS _qa_backup_tickets_verify;')
+    // Crear base de datos temporal desechable en el contenedor MariaDB
+    runFixtureSql('mariadb', 'DROP DATABASE IF EXISTS _qa_mariadb_restore_test; CREATE DATABASE _qa_mariadb_restore_test;')
+
+    // Restaurar el backup real en la base desechable
+    runFixtureCommand('glpi-db', [
+      'sh', '-c',
+      'mariadb -u e2e -p"$MARIADB_PASSWORD" _qa_mariadb_restore_test < /tmp/qa_mariadb_backup.sql',
+    ])
+
+    // Verificar integridad en la base restaurada
+    const restoredTicketsCount = Number(
+      runFixtureCommand('glpi-db', [
+        'sh', '-c',
+        'mariadb -u e2e -p"$MARIADB_PASSWORD" -N -e "SELECT COUNT(*) FROM glpi_tickets;" _qa_mariadb_restore_test',
+      ]).trim(),
+    )
+    expect(restoredTicketsCount).toBe(originalTicketsCount)
+
+    // Limpieza de base desechable y archivo temporal MariaDB
+    runFixtureSql('mariadb', 'DROP DATABASE IF EXISTS _qa_mariadb_restore_test;')
+    runFixtureCommand('glpi-db', ['rm', '-f', '/tmp/qa_mariadb_backup.sql'])
+
+    // 2. PostgreSQL: backup binario pg_dump -Fc preservando bytes, restore en base desechable
+    // Crear base temporal en PostgreSQL
+    runFixtureSql('postgres', 'DROP DATABASE IF EXISTS _qa_pg_restore_test; CREATE DATABASE _qa_pg_restore_test;')
+
+    // Generar dump con pg_dump -Fc
+    runFixtureCommand('app-db', [
+      'sh', '-c',
+      'pg_dump -U e2e -Fc glpi_ticket_manager -f /tmp/qa_pg_backup.dump',
+    ])
+
+    // Restaurar con pg_restore en base desechable
+    runFixtureCommand('app-db', [
+      'sh', '-c',
+      'pg_restore -U e2e -d _qa_pg_restore_test /tmp/qa_pg_backup.dump',
+    ])
+
+    // Verificar que las tablas existen y contienen datos en la base restaurada
+    const restoredTableCount = Number(
+      runFixtureCommand('app-db', [
+        'sh', '-c',
+        'psql -U e2e -d _qa_pg_restore_test -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \'public\';"',
+      ]).trim(),
+    )
+    expect(restoredTableCount).toBeGreaterThan(0)
+
+    // Limpieza de base desechable y dump temporal PostgreSQL
+    runFixtureSql('postgres', 'DROP DATABASE IF EXISTS _qa_pg_restore_test;')
+    runFixtureCommand('app-db', ['rm', '-f', '/tmp/qa_pg_backup.dump'])
   })
 })

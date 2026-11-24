@@ -10,12 +10,13 @@
 
 | Entorno / Contenedor | Imagen / Versión Efectiva | Estado al Auditar | Clasificación |
 |---|---|---|---|
-| `glpi` (LAN/local persistente) | `glpi/glpi:11.0@sha256:45572164...` (**GLPI 11.0.11**, **PHP 8.5.11**, built 2026-10-11) | `Exited (137)` | Persistente (no modificado) |
+| `glpi` (objetivo validado / remediación P0) | `glpi/glpi:11.0@sha256:9bcedc76...` (**GLPI 11.0.13**, **PHP 8.5.13**, built 2026-11-19/22) | Validado en H-20 / Compose fijado por digest | Producción LAN / Objetivo de despliegue |
+| `glpi` (estado previo local/LAN sin migrar) | `glpi/glpi:11.0@sha256:45572164...` (GLPI 11.0.11, PHP 8.5.11, built 2026-10-11) | `Exited (137)` | Persistente (no modificado sin autorización) |
 | `glpi-db` (vol. `sistemaopensourceglpi_glpi-db-data`) | `mariadb:10.11` | `Exited (0)` | **Producción LAN / Persistente** (no fixture) |
 | `glpi-app-db` (vol. `sistemaopensourceglpi_app-db-data`) | `postgres:16-alpine` | `Exited (0)` | Persistente (no modificado) |
 | `glpi-api` | `sistemaopensourceglpi-api:latest` (.NET 10) | `Up 2 days` (`127.0.0.1:8080`) | Persistente (no reiniciado) |
 | `glpi-frontend` / `glpi-lan-frontend` / `glpi-nginx` | React 19 + Vite 6 + Nginx Alpine | `Exited (0)` | Persistente (no modificado) |
-| **Fixture H-20** (`docker-compose.e2e.yml`) | `tmpfs` MariaDB 10.11 + PostgreSQL 16 + GLPI 11.0.11 + API .NET 10 + Frontend | Efímero (creado y destruido por `scripts/e2e/run.mjs`) | **Desechable verificado** (68/68 guard tests PASS) |
+| **Fixture H-20 Activo** (`docker-compose.e2e.yml`) | `tmpfs` MariaDB 10.11 + PostgreSQL 16 + **GLPI 11.0.13** (**PHP 8.5.13**) + API .NET 10 + Frontend | **ACTIVO (Laboratorio manual)** (`task-320`) | **Desechable verificado** (62/62 E2E PASS) |
 
 ---
 

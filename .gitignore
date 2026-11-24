@@ -69,3 +69,6 @@ GLPI/
 
 # Private delivery credentials (never commit)
 ENTREGA_JEFE_PRIVADO.txt
+cred-*.txt
+*.cred
+.git/cred-push.txt

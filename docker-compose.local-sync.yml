@@ -1,6 +1,10 @@
 # Local delivery overlay: one static image for loopback and LAN, existing data.
 # docker compose -p sistemaopensourceglpi -f docker-compose.yml -f docker-compose.local-sync.yml up -d --build
 services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
   frontend:
     image: glpi-ticket-manager-frontend:local
     build:

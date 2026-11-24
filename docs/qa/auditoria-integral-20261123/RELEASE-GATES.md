@@ -7,7 +7,7 @@
 |---|---|---|
 | **.NET Release Build** | **PASS** | 0 errores, 0 advertencias |
 | **Backend Unit Tests (`Application.Tests`)** | **PASS** | **95 / 95** |
-| **Backend Integration Tests (`Api.Integration.Tests`)** | **PASS** | **250 / 250** (incluye regresión `AssignGroupToTicketAsync` y OpenAPI/Scalar `404` en Production) |
+| **Backend Integration Tests (`Api.Integration.Tests`)** | **PASS** | **251 / 251** (incluye regresión `AssignGroupToTicketAsync`, OpenAPI/Scalar `404` en Production y fallo seguro del Watcher sin API client) |
 | **Frontend TypeScript (`pnpm typecheck`)** | **PASS** | 0 errores |
 | **Frontend ESLint (`pnpm lint`)** | **PASS** | **0 errores, 0 advertencias** |
 | **Frontend Unit Tests (`pnpm test:unit`)** | **PASS** | **24 / 24** |
@@ -22,5 +22,33 @@
 
 ## Estado de Liberación
 
-- **Código y PR:** **READY FOR HUMAN REVIEW** (0 P0/P1 abiertos en rama).
+- **Código y PR:** **READY FOR HUMAN REVIEW** (0 P0/P1 abiertos en rama; PR #58 abierta en modo Draft dependiente de #57).
 - **Merge y Despliegue LAN:** **AWAITING_HUMAN_APPROVAL** — seguir [DESPLIEGUE-SEGURO-Y-ROLLBACK.md](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/DESPLIEGUE-SEGURO-Y-ROLLBACK.md).
+
+---
+
+## Estrategia de CI y Procedimiento de Promoción de PR #58
+
+PR #58 (`audit/mision-maestra-20261123`) se mantiene intencionalmente como **Draft** con base en `feat/mision-final-qa-laboratorio-audit` (PR #57), aislando el trabajo de auditoría del histórico sin interferir en la revisión humana de #57.
+
+> **IMPORTANTE sobre GitHub Actions:** Al fusionar el PR base #57 a `main`, GitHub **NO** re-ejecuta automáticamente el workflow de CI para PR #58 contra `main`. Para actualizar la base y disparar una corrida limpia de CI, el procedimiento exacto es:
+
+1. **Re-target del PR a `main`:**
+   ```bash
+   gh pr edit 58 --base main
+   ```
+2. **Actualizar la rama local con los últimos cambios de `main`:**
+   ```powershell
+   & "C:\Users\DEVELOPMENT\AppData\Local\Programs\Git\cmd\git.exe" fetch origin main
+   & "C:\Users\DEVELOPMENT\AppData\Local\Programs\Git\cmd\git.exe" merge origin/main
+   & "C:\Users\DEVELOPMENT\AppData\Local\Programs\Git\cmd\git.exe" push origin audit/mision-maestra-20261123
+   ```
+3. **Marcar PR #58 como lista para revisión final:**
+   ```bash
+   gh pr ready 58
+   ```
+4. **Verificar la ejecución de CI en GitHub Actions:**
+   ```bash
+   gh pr checks 58 --watch
+   ```
+   Comprobar que todas las compuertas remotas (compilación, pruebas unitarias, lint y guard) finalicen en `SUCCESS`.
