@@ -119,6 +119,31 @@ Conforme a la matriz de ciclo de vida de GLPI y las políticas del repositorio:
 
 ---
 
-## 8. Estado del Laboratorio
+## 8. Evidencia de Pruebas Manuales Interactivas con Clics Reales E2E (16 Capturas Paso a Paso)
+
+Ejecutado con automatización interactiva Playwright (`scripts/e2e/manual-interactive-clicks.mjs`), interactuando mediante clics, llenado de formularios y navegación real desde GLPI nativo hasta el software de administración de tickets (GSI Service Desk), cubriendo el ciclo de vida completo:
+
+| Paso | Flujo / Pantalla | Acción Ejecutada | Evidencia Capturada | Resultado |
+|---|---|---|---|---|
+| **01** | Portal GLPI Nativo | Carga de formulario de login en GLPI 11.0.13 | [01_glpi_login_form.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/01_glpi_login_form.png) | **PASS** |
+| **02** | Portal GLPI Nativo | Login interactivo como solicitante (`user_test`) | [02_glpi_dashboard_solicitante.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/02_glpi_dashboard_solicitante.png) | **PASS** |
+| **03** | Formulario Corporativo GLPI | Llenado interactivo de campos (Formulario 3: Requerimiento Service Desk) | [03_glpi_form_filled.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/03_glpi_form_filled.png) | **PASS** |
+| **04** | Confirmación GLPI | Envío y redirección al ticket creado (#10027) | [04_glpi_ticket_submitted_success.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/04_glpi_ticket_submitted_success.png) | **PASS** |
+| **05** | GSI Service Desk | Formulario de autenticación en `/login` | [05_desk_login_form.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/05_desk_login_form.png) | **PASS** |
+| **06** | GSI Service Desk | Sesión iniciada con éxito para técnico de Service Desk (`tech_sd`) | [06_desk_home_technician.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/06_desk_home_technician.png) | **PASS** |
+| **07** | Cola Kanban | Visualización del ticket recién creado en la columna de Cola | [07_desk_kanban_ticket_in_queue.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/07_desk_kanban_ticket_in_queue.png) | **PASS** |
+| **08** | Asignación (Claim) | Clic interactivo en botón "Asignarme", confirmación toast y movimiento | [08_desk_ticket_claimed.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/08_desk_ticket_claimed.png) | **PASS** |
+| **09** | Detalle de Ticket | Vista detallada del ticket asignado (#10027) | [09_desk_ticket_detail_assigned.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/09_desk_ticket_detail_assigned.png) | **PASS** |
+| **10** | Planificación Asistida | Apertura de modal, selección de fechas e intervención técnica | [10_desk_plan_dialog_filled.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/10_desk_plan_dialog_filled.png) | **PASS** |
+| **11** | En Proceso (Planificado) | Estado 3 verificado y tarea nativa `TicketTask` en timeline | [11_desk_ticket_planned_in_progress.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/11_desk_ticket_planned_in_progress.png) | **PASS** |
+| **12** | Modal de Resolución | Detección de tareas pendientes con botón "✓ Completar" | [12_desk_resolve_dialog_initial.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/12_desk_resolve_dialog_initial.png) | **PASS** |
+| **13** | Solución Formal | Tarea completada y redacción de solución técnica ITIL | [13_desk_resolve_dialog_solution_filled.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/13_desk_resolve_dialog_solution_filled.png) | **PASS** |
+| **14** | Ticket Resuelto | Estado 5 (Resuelto) con banner verde de solución aplicada | [14_desk_ticket_resolved_view.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/14_desk_ticket_resolved_view.png) | **PASS** |
+| **15** | Cierre Administrativo | Cierre a estado 6 y banner "Ticket Cerrado (Modo lectura)" para Admin | [15_desk_admin_closed_readonly_mode.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/15_desk_admin_closed_readonly_mode.png) | **PASS** |
+| **16** | Experiencia Solicitante | Solicitante consulta solución de ticket cerrado en modo sólo lectura | [16_desk_requester_view_closed_ticket.png](file:///c:/Users/DEVELOPMENT/Desktop/sistema%20opensourceglpi/docs/qa/auditoria-integral-20261123/EVIDENCIAS/screenshots/16_desk_requester_view_closed_ticket.png) | **PASS** |
+
+---
+
+## 9. Estado del Laboratorio
 
 El laboratorio H-20 permanece activo en segundo plano (`task-320`) con el servidor GLPI 11.0.13, API .NET y Frontend disponibles para cualquier inspección interactiva requerida. Prohibido apagarlo hasta indicación explícita del usuario.
