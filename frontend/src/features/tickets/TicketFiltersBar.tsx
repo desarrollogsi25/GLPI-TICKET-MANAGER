@@ -1,8 +1,10 @@
+import { Search, SlidersHorizontal, X } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
+import { DropdownSelect } from '@/components/ui/dropdown-select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { DropdownSelect } from '@/components/ui/dropdown-select'
-import { DatePicker } from '@/components/ui/date-picker'
 
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './labels'
 
@@ -37,23 +39,45 @@ export function TicketFiltersBar({
   onOpenSheet,
   activeFiltersCount,
 }: TicketFiltersBarProps) {
+  const hasAnyFilter = activeFiltersCount > 0 || Boolean(search.trim())
+
   return (
     <div>
-      {/* Vista Desktop (md:+): Fila horizontal */}
-      <div className="hidden md:flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="search">Buscar</Label>
-          <Input
-            id="search"
-            className="w-56"
-            placeholder="Título o #ID"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
+      {/* Desktop Toolbar (md:+) */}
+      <div className="hidden md:flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-3.5 shadow-xs">
+        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px] max-w-xs">
+          <Label htmlFor="search" className="text-xs font-medium text-muted-foreground">
+            Buscar
+          </Label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              id="search"
+              className="w-full pl-8 pr-7 h-9"
+              placeholder="Título o #ID"
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer rounded p-0.5"
+              >
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="status-filter">Estado</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
+            Estado
+          </Label>
           <DropdownSelect
             id="status-filter"
             className="w-40"
@@ -66,11 +90,13 @@ export function TicketFiltersBar({
           />
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="priority-filter">Prioridad</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="priority-filter" className="text-xs font-medium text-muted-foreground">
+            Prioridad
+          </Label>
           <DropdownSelect
             id="priority-filter"
-            className="w-40"
+            className="w-36"
             value={priority}
             onChange={onPriorityChange}
             options={[
@@ -80,8 +106,10 @@ export function TicketFiltersBar({
           />
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="start-date-filter">Desde</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="start-date-filter" className="text-xs font-medium text-muted-foreground">
+            Desde
+          </Label>
           <DatePicker
             id="start-date-filter"
             label="Desde"
@@ -93,8 +121,10 @@ export function TicketFiltersBar({
           />
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="end-date-filter">Hasta</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="end-date-filter" className="text-xs font-medium text-muted-foreground">
+            Hasta
+          </Label>
           <DatePicker
             id="end-date-filter"
             label="Hasta"
@@ -109,40 +139,42 @@ export function TicketFiltersBar({
         <Button
           type="button"
           variant="outline"
+          size="sm"
           data-testid="clear-filters-btn"
           onClick={onClearFilters}
-          disabled={activeFiltersCount === 0 && !search.trim()}
+          disabled={!hasAnyFilter}
+          className="h-9 gap-1.5 cursor-pointer"
         >
-          Limpiar filtros
+          <X className="size-3.5" aria-hidden="true" />
+          <span>Limpiar filtros</span>
         </Button>
       </div>
 
-      {/* Vista Móvil (<md): Input + Botón Filtros (Bottom Sheet) */}
+      {/* Mobile Compact Bar (<md): Search Input + Filters Bottom Sheet Trigger */}
       <div className="flex md:hidden items-center gap-2">
         <div className="relative flex-1">
           <Input
             id="mobile-search"
             aria-label="Buscar tickets por título o ID"
-            className="w-full h-11 pl-9 pr-3 text-sm bg-card"
-            placeholder="Buscar por título o #ID..."
+            className="w-full h-11 pl-9 pr-8 text-sm bg-card"
+            placeholder="Buscar por título o #ID…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
           />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+          <Search
+            className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+            aria-hidden="true"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearchChange('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
         <Button
@@ -150,24 +182,12 @@ export function TicketFiltersBar({
           variant={activeFiltersCount > 0 ? 'default' : 'outline'}
           data-testid="filters-open-btn"
           onClick={onOpenSheet}
-          className="relative min-h-[44px] px-3.5 text-xs font-semibold gap-1.5 shrink-0"
+          className="relative min-h-[44px] px-3.5 text-xs font-semibold gap-1.5 shrink-0 cursor-pointer"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
+          <SlidersHorizontal className="size-4" aria-hidden="true" />
           <span>Filtros</span>
           {activeFiltersCount > 0 && (
-            <span className="flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold rounded-full bg-background text-foreground ml-0.5">
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold rounded-full bg-background text-foreground ml-0.5 tabular-nums">
               {activeFiltersCount}
             </span>
           )}

@@ -2,11 +2,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   Enterprise Precision — IT Service Management Design Tokens
+   Referencias: IBM Carbon Design System, Atlassian Design System, WCAG 2.2 AA
+   ============================================================================ */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  --background: #f8fafc;
+  /* Neutral Surfaces */
+  --background: #f4f6f9;
   --foreground: #0f172a;
+
+  --surface-subtle: #eef2f6;
+  --surface-elevated: #ffffff;
 
   --card: #ffffff;
   --card-foreground: #0f172a;
@@ -14,127 +22,166 @@
   --popover: #ffffff;
   --popover-foreground: #0f172a;
 
+  /* Brand / Primary Action — Enterprise Deep Slate & Precision Blue Accent */
   --primary: #0f172a;
   --primary-foreground: #ffffff;
 
-  --secondary: #f1f5f9;
+  --brand-accent: #1d4ed8;
+  --brand-accent-foreground: #ffffff;
+
+  --secondary: #edf1f7;
   --secondary-foreground: #0f172a;
 
-  --muted: #f1f5f9;
-  --muted-foreground: #334155;
+  --muted: #eef2f6;
+  --muted-foreground: #475569;
 
-  --accent: #f1f5f9;
+  --accent: #e8eef6;
   --accent-foreground: #0f172a;
+
+  /* Semantic Status Tokens (WCAG AA >= 4.5:1) */
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+
+  --success: #047857;
+  --success-foreground: #ffffff;
+
+  --info: #1d4ed8;
+  --info-foreground: #ffffff;
+
+  /* Architectural Hairline Borders */
+  --border: #dce3ec;
+  --input: #cbd5e1;
+  --ring: #1d4ed8;
+
+  /* Motion Timing */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ============================================================================
+   Dark Mode Profesional — Presets WCAG 2.2 AA
+   ============================================================================ */
+.dark,
+.dark[data-dark-preset='midnight'] {
+  --background: #0b1120;
+  --foreground: #f1f5f9;
+
+  --surface-subtle: #11192c;
+  --surface-elevated: #162036;
+
+  --card: #131c31;
+  --card-foreground: #f1f5f9;
+
+  --popover: #162036;
+  --popover-foreground: #f1f5f9;
+
+  --primary: #38bdf8;
+  --primary-foreground: #09111f;
+
+  --brand-accent: #38bdf8;
+  --brand-accent-foreground: #09111f;
+
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  --accent: #243249;
+  --accent-foreground: #f8fafc;
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
-  --success: #10b981;
-  --success-foreground: #ffffff;
-
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #0f172a;
-}
-
-/* ============================================================================
-   H-44 / H-60: Paleta Dark Mode Profesional
-   Evita el negro puro (#000000) usando Warm Slate (#0F172A) y Stone cálido (#1C1917)
-   Alto contraste WCAG AA
-   ============================================================================ */
-.dark,
-.dark[data-dark-preset='midnight'] {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-
-  --card: #1e293b;
-  --card-foreground: #f8fafc;
-
-  --popover: #1e293b;
-  --popover-foreground: #f8fafc;
-
-  --primary: #38bdf8;
-  --primary-foreground: #0f172a;
-
-  --secondary: #334155;
-  --secondary-foreground: #f8fafc;
-
-  --muted: #334155;
-  --muted-foreground: #94a3b8;
-
-  --accent: #334155;
-  --accent-foreground: #f8fafc;
-
-  --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
+  --warning: #f59e0b;
+  --warning-foreground: #0b1120;
 
   --success: #10b981;
-  --success-foreground: #0f172a;
+  --success-foreground: #06281e;
 
-  --border: #334155;
+  --info: #38bdf8;
+  --info-foreground: #09111f;
+
+  --border: #25334a;
   --input: #334155;
   --ring: #38bdf8;
 }
 
-/* Preset 2: "Carbón cálido" (charcoal — stone cálido #1C1917 / #292524) */
 .dark[data-dark-preset='charcoal'] {
-  --background: #1c1917;
+  --background: #181615;
   --foreground: #fafaf9;
 
-  --card: #292524;
+  --surface-subtle: #201d1b;
+  --surface-elevated: #282422;
+
+  --card: #221f1d;
   --card-foreground: #fafaf9;
 
   --popover: #292524;
   --popover-foreground: #fafaf9;
 
-  --primary: #d97706;
-  --primary-foreground: #fafaf9;
+  --primary: #f59e0b;
+  --primary-foreground: #181615;
 
-  --secondary: #332c26;
+  --brand-accent: #f59e0b;
+  --brand-accent-foreground: #181615;
+
+  --secondary: #2e2a27;
   --secondary-foreground: #fafaf9;
 
-  --muted: #332c26;
+  --muted: #2e2a27;
   --muted-foreground: #a8a29e;
 
-  --accent: #332c26;
+  --accent: #38332f;
   --accent-foreground: #fafaf9;
 
-  --border: #44403c;
-  --input: #44403c;
-  --ring: #d97706;
+  --border: #3d3733;
+  --input: #4a433e;
+  --ring: #f59e0b;
 }
 
-/* Preset 3: "Azul profundo" (deep-blue — navy cálido #0b1329 / #132042) */
 .dark[data-dark-preset='deep-blue'] {
-  --background: #0b1329;
-  --foreground: #f8fafc;
+  --background: #091024;
+  --foreground: #f1f5f9;
 
-  --card: #132042;
-  --card-foreground: #f8fafc;
+  --surface-subtle: #0e1834;
+  --surface-elevated: #142248;
 
-  --popover: #132042;
-  --popover-foreground: #f8fafc;
+  --card: #101b3a;
+  --card-foreground: #f1f5f9;
+
+  --popover: #142248;
+  --popover-foreground: #f1f5f9;
 
   --primary: #60a5fa;
-  --primary-foreground: #0b1329;
+  --primary-foreground: #091024;
 
-  --secondary: #1c2d5a;
-  --secondary-foreground: #f8fafc;
+  --brand-accent: #60a5fa;
+  --brand-accent-foreground: #091024;
 
-  --muted: #1c2d5a;
+  --secondary: #192954;
+  --secondary-foreground: #f1f5f9;
+
+  --muted: #192954;
   --muted-foreground: #94a3b8;
 
-  --accent: #1c2d5a;
+  --accent: #1f3366;
   --accent-foreground: #f8fafc;
 
-  --border: #1e293b;
-  --input: #1e293b;
+  --border: #20325e;
+  --input: #2b4175;
   --ring: #60a5fa;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-elevated: var(--surface-elevated);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -149,30 +196,34 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
 
-  /* Emil Kowalski custom easing curves */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-:root {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-}
-
 @layer base {
+  html {
+    scroll-padding-top: 4.5rem;
+  }
+
   * {
     @apply border-border;
   }
@@ -183,31 +234,33 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Enterprise Precision: unified crisp geometric headings (alias preserved for backwards compatibility) */
   .font-serif-luxury {
-    font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
-    font-optical-sizing: auto;
+    font-family: var(--font-sans);
+    letter-spacing: -0.025em;
   }
 
-  /* Prevenir zoom no deseado en iOS Safari al enfocar inputs */
+  /* Prevent unwanted zoom on iOS Safari when focusing inputs without breaking WCAG pinch-to-zoom */
   @media screen and (max-width: 768px) {
-    input, select, textarea {
+    input,
+    select,
+    textarea {
       font-size: 16px !important;
     }
   }
 }
 
 @layer components {
-  /* Native <select> chevron so the styled select keeps its affordance. */
   .select-shell {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.5rem center;
     background-size: 1rem;
@@ -216,7 +269,6 @@
     padding-right: 2rem;
   }
 
-  /* Shimmer effect for skeletons */
   .shimmer-effect {
     position: relative;
     overflow: hidden;
@@ -230,7 +282,7 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      color-mix(in srgb, var(--foreground) 8%, transparent) 50%,
+      color-mix(in srgb, var(--foreground) 7%, transparent) 50%,
       transparent 100%
     );
     animation: shimmer 1.8s infinite;
@@ -243,41 +295,39 @@
   }
 
   @keyframes toast-shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-4px); }
-    40% { transform: translateX(4px); }
-    60% { transform: translateX(-3px); }
-    80% { transform: translateX(3px); }
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-4px);
+    }
+    40% {
+      transform: translateX(4px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
   }
 
   .toast-error-shake {
     animation: toast-shake 260ms var(--ease-out);
   }
 
-  /* Pulse sutil para badges de prioridad alta/crítica */
-  @keyframes badge-glow {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.85;
-      transform: scale(1.04);
-    }
-  }
-
+  /* Enterprise Precision: crisp high-contrast indicator without distracting perpetual motion */
   .badge-pulse-subtle {
-    animation: badge-glow 2.4s ease-in-out infinite;
+    font-weight: 600;
   }
 
-  /* Gate card hover elevation behind fine pointer media query (Emil Kowalski rule) */
   @media (hover: hover) and (pointer: fine) {
     .kanban-card-hover:hover {
-      transform: translateY(-2px);
+      transform: translateY(-1px);
     }
   }
 
-  /* Ocultar barra de scroll preservando la funcionalidad de desplazamiento */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -286,10 +336,9 @@
     scrollbar-width: none;
   }
 
-  /* Custom modern lightweight scrollbar for Search and Popovers */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
+    scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
   }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -299,11 +348,11 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: color-mix(in srgb, var(--foreground) 20%, transparent);
+    background-color: color-mix(in srgb, var(--foreground) 22%, transparent);
     border-radius: 9999px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in srgb, var(--foreground) 35%, transparent);
+    background-color: color-mix(in srgb, var(--foreground) 38%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -312,9 +361,6 @@
       display: none;
     }
     .toast-error-shake {
-      animation: none;
-    }
-    .badge-pulse-subtle {
       animation: none;
     }
     .kanban-card-hover:hover {

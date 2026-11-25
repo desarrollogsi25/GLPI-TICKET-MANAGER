@@ -21,14 +21,12 @@ for (const path of PAGES) {
     })
     await page.goto(path)
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(400)
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .disableRules(['meta-viewport'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze()
 
-    // Reportar violaciones
     if (results.violations.length > 0) {
       console.log(`\n=== ${path} ===`)
       for (const v of results.violations) {

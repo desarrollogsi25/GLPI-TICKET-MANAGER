@@ -12,6 +12,7 @@ import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, CalendarClock, CheckCircle2, ClipboardList, Inbox, PauseCircle, Users } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -130,31 +131,34 @@ const VALID_TRANSITIONS: Record<ColumnId, ColumnId[]> = {
   resolved: [],
 }
 
-const EMPTY_MESSAGES: Record<ColumnId, { title: string; subtitle: string; icon: string }> = {
+const EMPTY_MESSAGES: Record<
+  ColumnId,
+  { title: string; subtitle: string; Icon: React.ComponentType<{ className?: string }> }
+> = {
   queue: {
-    title: 'No hay tickets en cola 🎉',
+    title: 'Cola al día',
     subtitle: 'Todos los tickets del grupo tienen técnico asignado.',
-    icon: '📭',
+    Icon: Inbox,
   },
   mine: {
     title: 'No hay tickets asignados',
     subtitle: 'Revisa la cola para tomar nuevos tickets y empezar.',
-    icon: '📋',
+    Icon: ClipboardList,
   },
   in_progress: {
     title: 'No hay tickets en proceso',
     subtitle: 'Programa una tarea para comenzar el trabajo.',
-    icon: '⚡',
+    Icon: CalendarClock,
   },
   pending: {
     title: 'No hay tickets en espera',
     subtitle: 'Ningún ticket se encuentra bloqueado por terceros o proveedores.',
-    icon: '⏳',
+    Icon: PauseCircle,
   },
   resolved: {
     title: 'No hay tickets finalizados',
     subtitle: 'Los tickets resueltos o cerrados aparecerán aquí.',
-    icon: '✅',
+    Icon: CheckCircle2,
   },
 }
 
@@ -213,7 +217,7 @@ function KanbanColumn({
               <span className="size-2 rounded-full bg-muted-foreground/40 shrink-0" title="Tickets en cola sin asignar" />
             )}
             {column.id === 'mine' && (
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Tickets asignados · GLPI 2" />
+              <span className="size-2 rounded-full bg-indigo-500 shrink-0" title="Tickets asignados · GLPI 2" />
             )}
             {column.id === 'in_progress' && (
               <span className="size-2 rounded-full bg-blue-500 shrink-0" title="En proceso (planificado) · GLPI 3" />
@@ -243,21 +247,20 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 overflow-y-auto min-h-0 no-scrollbar p-2.5 space-y-3 rounded-2xl border border-border/40 transition-all duration-150 bg-muted/30 shadow-xs',
-          column.bgClass,
+          'flex-1 overflow-y-auto min-h-0 custom-scrollbar p-2.5 space-y-2.5 rounded-xl border border-border transition-all duration-150 bg-surface-subtle',
           isOver
-            ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md scale-[1.01]'
+            ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/25 shadow-sm'
             : '',
         )}
       >
         {isLoading ? (
           <div className="space-y-2 p-1">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
           </div>
         ) : isError ? (
-          <div className="flex flex-col items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center my-auto">
-            <span className="text-xl mb-1">⚠️</span>
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center my-auto">
+            <AlertCircle className="size-5 text-destructive mb-1.5" aria-hidden="true" />
             <p className="text-xs font-semibold text-destructive">Error al cargar</p>
             {errorMessage ? (
               <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px] line-clamp-2">
@@ -462,24 +465,29 @@ function KanbanColumn({
             </AnimatePresence>
 
             {tickets.length === 0 ? (
-              <motion.div
-                initial={shouldReduceMotion ? false : { opacity: 0, transform: 'scale(0.97)' }}
-                animate={{ opacity: 1, transform: 'scale(1)' }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-                className="flex flex-col h-36 items-center justify-center rounded-lg border border-dashed border-border/50 bg-background/40 p-4 text-center"
-              >
-                <span className="text-xl mb-1.5" aria-hidden="true">
-                  {EMPTY_MESSAGES[column.id]?.icon ?? '📭'}
-                </span>
-                <p className="text-xs text-foreground font-semibold">
-                  {emptyMessage === 'No hay tickets aquí'
-                    ? 'No hay tickets en esta columna'
-                    : emptyMessage}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
-                  {EMPTY_MESSAGES[column.id]?.subtitle}
-                </p>
-              </motion.div>
+              (() => {
+                const EmptyIcon = EMPTY_MESSAGES[column.id]?.Icon ?? Inbox
+                return (
+                  <motion.div
+                    initial={shouldReduceMotion ? false : { opacity: 0, transform: 'scale(0.98)' }}
+                    animate={{ opacity: 1, transform: 'scale(1)' }}
+                    transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                    className="flex flex-col h-36 items-center justify-center rounded-lg border border-dashed border-border bg-card/70 p-4 text-center"
+                  >
+                    <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground mb-2" aria-hidden="true">
+                      <EmptyIcon className="size-4" />
+                    </span>
+                    <p className="text-xs text-foreground font-semibold">
+                      {emptyMessage === 'No hay tickets aquí'
+                        ? 'No hay tickets en esta columna'
+                        : emptyMessage}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                      {EMPTY_MESSAGES[column.id]?.subtitle}
+                    </p>
+                  </motion.div>
+                )
+              })()
             ) : null}
           </>
         )}
@@ -1167,15 +1175,20 @@ export function Kanban() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.25 }}
-                className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2 }}
+                className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 text-center bg-card/70 my-2"
               >
-                <span className="text-3xl mb-2">
-                  {activeTab === 'queue' && hasNoGroups
-                    ? '👥'
-                    : activeTab === 'queue' && queueQuery.isError
-                      ? '⚠️'
-                      : EMPTY_MESSAGES[activeTab].icon}
+                <span className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground mb-2.5" aria-hidden="true">
+                  {activeTab === 'queue' && hasNoGroups ? (
+                    <Users className="size-5" />
+                  ) : activeTab === 'queue' && queueQuery.isError ? (
+                    <AlertCircle className="size-5 text-destructive" />
+                  ) : (
+                    (() => {
+                      const TabEmptyIcon = EMPTY_MESSAGES[activeTab].Icon
+                      return <TabEmptyIcon className="size-5" />
+                    })()
+                  )}
                 </span>
                 <p className="text-sm font-semibold text-foreground">
                   {activeTab === 'queue' && hasNoGroups

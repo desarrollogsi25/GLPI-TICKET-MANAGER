@@ -1,14 +1,15 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { PriorityBadge, StatusBadge } from '@/components/ui/status-badge'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { priorityMeta, statusMeta } from './labels'
+import { priorityMeta, typeLabel } from './labels'
 
 interface TicketListCardProps {
   ticket: TicketSummary
@@ -18,16 +19,25 @@ export function TicketListCard({ ticket }: TicketListCardProps) {
   const navigate = useNavigate()
   const [isExpanded, setIsExpanded] = useState(false)
   const priority = priorityMeta(ticket.priority)
-  const status = statusMeta(ticket.status)
 
   return (
     <article
       data-testid="ticket-card"
       onClick={() => navigate(`/tickets/${ticket.id}`)}
-      className="rounded-xl border border-border bg-card p-4 transition-all duration-150 ease-out shadow-xs hover:border-primary/40 text-foreground cursor-pointer active:scale-[0.99]"
+      className={cn(
+        'rounded-xl border border-border border-l-[3px] bg-card p-3.5 transition-all duration-150 ease-out shadow-xs hover:border-primary/40 text-foreground cursor-pointer active:scale-[0.99]',
+        priority.stripeClass,
+      )}
     >
-      {/* Vista Compacta Inicial: Título, Estado y Fecha */}
       <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono text-xs font-semibold text-muted-foreground shrink-0">#{ticket.id}</span>
+            <span className="text-[11px] text-muted-foreground truncate">· {formatRelative(ticket.updatedAt)}</span>
+          </div>
+          <PriorityBadge priority={ticket.priority} size="sm" />
+        </div>
+
         <Link
           to={`/tickets/${ticket.id}`}
           onClick={(e) => e.stopPropagation()}
@@ -38,15 +48,11 @@ export function TicketListCard({ ticket }: TicketListCardProps) {
           </h3>
         </Link>
 
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 text-xs">
-          <div className="flex items-center gap-2">
-            <Badge className={cn('text-[10px] px-2 py-0.5 font-medium', status.badgeClass)}>
-              {status.label}
-            </Badge>
-            <span className="text-muted-foreground">{formatRelative(ticket.updatedAt)}</span>
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <StatusBadge status={ticket.status} size="sm" />
           </div>
 
-          {/* Botón "Ver detalles" con divulgación progresiva */}
           <Button
             type="button"
             variant="ghost"
@@ -58,63 +64,45 @@ export function TicketListCard({ ticket }: TicketListCardProps) {
             }}
             data-testid={`toggle-details-${ticket.id}`}
             aria-expanded={isExpanded}
-            className="h-7 px-2 text-xs font-medium text-primary hover:text-primary/80 hover:bg-primary/10 gap-1 flex items-center cursor-pointer"
+            className="h-8 px-2 text-xs font-medium text-primary hover:text-primary/80 hover:bg-primary/10 gap-1 flex items-center cursor-pointer shrink-0"
           >
             <span>{isExpanded ? 'Ocultar' : 'Ver detalles'}</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={cn('transition-transform duration-200', isExpanded && 'rotate-180')}
+            <ChevronDown
+              className={cn('size-3.5 transition-transform duration-200', isExpanded && 'rotate-180')}
               aria-hidden="true"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            />
           </Button>
         </div>
       </div>
 
-      {/* Divulgación Progresiva: Detalles adicionales expandibles */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18 }}
             onClick={(e) => e.stopPropagation()}
-            className="overflow-hidden pt-3 mt-3 border-t border-dashed border-border/60 text-xs space-y-2.5"
+            className="overflow-hidden pt-3 mt-2.5 border-t border-dashed border-border text-xs space-y-2.5"
           >
-            <div className="grid grid-cols-2 gap-2 text-muted-foreground bg-muted/30 p-2.5 rounded-lg">
+            <div className="grid grid-cols-2 gap-2 text-muted-foreground bg-surface-subtle p-2.5 rounded-lg">
               <div>
-                <span className="font-semibold block text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                <span className="font-semibold block text-[10px] uppercase tracking-wider text-muted-foreground">
                   ID Ticket
                 </span>
                 <span className="font-mono text-xs font-bold text-foreground">#{ticket.id}</span>
               </div>
               <div>
-                <span className="font-semibold block text-[11px] uppercase tracking-wider text-muted-foreground/80">
-                  Prioridad
+                <span className="font-semibold block text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Tipo
                 </span>
-                <Badge className={cn('text-[10px] px-1.5 py-0 font-medium mt-0.5', priority.badgeClass)}>
-                  {priority.label}
-                </Badge>
-              </div>
-              <div className="col-span-2">
-                <span className="font-semibold block text-[11px] uppercase tracking-wider text-muted-foreground/80">
-                  Tipo de solicitud
+                <span className="text-xs text-foreground font-medium">
+                  {ticket.typeLabel || typeLabel(ticket.type)}
                 </span>
-                <span className="text-xs text-foreground font-medium">{ticket.typeLabel || 'Incidencia'}</span>
               </div>
             </div>
 
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end">
               <Link
                 to={`/tickets/${ticket.id}`}
                 onClick={(e) => e.stopPropagation()}
