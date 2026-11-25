@@ -1,72 +1,90 @@
 import { useState } from 'react'
-import { motion } from 'motion/react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
-  Calendar,
+  ArrowRight,
+  CalendarClock,
   CheckCircle2,
   Clock,
   Inbox,
   ListTodo,
-  PauseCircle,
-  PlayCircle,
   ShieldAlert,
 } from 'lucide-react'
 
-import { DropdownSelect } from '@/components/ui/dropdown-select'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { DropdownSelect } from '@/components/ui/dropdown-select'
+import { EmptyState, ErrorState } from '@/components/ui/empty-state'
+import { SectionHeader } from '@/components/ui/section-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGroupsQuery, useGroupQueueQuery, useTicketsQuery } from '@/hooks/useTickets'
+import { PriorityBadge, StatusBadge } from '@/components/ui/status-badge'
+import { priorityMeta, statusMeta, urgencyLabel } from '@/features/tickets/labels'
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStats'
 import { useRole } from '@/hooks/useRole'
-import { useAuthStore } from '@/store/authStore'
-import { useUiStore } from '@/store/uiStore'
+import { useGroupsQuery, useGroupQueueQuery, useTicketsQuery } from '@/hooks/useTickets'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { priorityMeta, statusMeta } from '@/features/tickets/labels'
+import { useAuthStore } from '@/store/authStore'
+import { useUiStore } from '@/store/uiStore'
 
-function StatCard({
+function KpiCard({
   title,
   value,
   subtitle,
   icon: Icon,
-  variant = 'default',
+  tone = 'neutral',
   onClick,
 }: {
   title: string
   value: number
-  subtitle?: string
-  icon?: React.ComponentType<{ className?: string }>
-  variant?: 'default' | 'primary' | 'warning' | 'danger' | 'success'
+  subtitle: string
+  icon: React.ComponentType<{ className?: string }>
+  tone?: 'neutral' | 'primary' | 'warning' | 'danger' | 'success'
   onClick?: () => void
 }) {
-  const Tag = onClick ? 'button' : 'div'
-  const variantStyles = {
-    default: 'hover:border-primary/50',
-    primary: 'border-blue-500/30 bg-blue-500/5 hover:border-blue-500/60',
-    warning: 'border-amber-500/30 bg-amber-500/5 hover:border-amber-500/60',
-    danger: 'border-rose-500/30 bg-rose-500/5 hover:border-rose-500/60',
-    success: 'border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60',
+  const iconTone: Record<typeof tone, string> = {
+    neutral: 'bg-muted text-foreground',
+    primary: 'bg-blue-500/12 text-blue-700 dark:text-blue-300',
+    warning: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+    danger: 'bg-red-500/15 text-red-700 dark:text-red-300',
+    success: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  }
+
+  const borderTone: Record<typeof tone, string> = {
+    neutral: 'border-border hover:border-primary/40',
+    primary: 'border-blue-200 dark:border-blue-900/70 hover:border-blue-400',
+    warning: 'border-amber-300 dark:border-amber-800/80 hover:border-amber-500',
+    danger: 'border-red-300 dark:border-red-800/80 hover:border-red-500',
+    success: 'border-emerald-200 dark:border-emerald-900/70 hover:border-emerald-400',
   }
 
   return (
-    <Card className={cn('transition-all rounded-2xl shadow-xs', onClick && 'cursor-pointer', variantStyles[variant])}>
-      <CardContent className="p-4 space-y-2">
-        <Tag
-          {...(onClick ? { onClick, type: 'button' } : {})}
-          className="text-left w-full"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">{title}</p>
-            {Icon && <Icon className="size-4 text-muted-foreground/70" />}
-          </div>
-          <p className="text-2xl sm:text-3xl font-semibold tracking-tight tabular-nums">{value}</p>
-          {subtitle ? <p className="text-xs text-muted-foreground truncate">{subtitle}</p> : null}
-        </Tag>
-      </CardContent>
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group text-left w-full rounded-xl border bg-card p-4 shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        borderTone[tone],
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">{title}</span>
+        <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', iconTone[tone])}>
+          <Icon className="size-4" aria-hidden="true" />
+        </span>
+      </div>
+      <div className="mt-2.5 flex items-baseline justify-between gap-2">
+        <span className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground tabular-nums">
+          {value}
+        </span>
+        <ArrowRight
+          className="size-3.5 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 transition-all"
+          aria-hidden="true"
+        />
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground truncate">{subtitle}</p>
+    </button>
   )
 }
 
@@ -89,8 +107,6 @@ export function Dashboard() {
     groups.data?.find((group) => group.id === selectedGroupId) ??
     (groups.data && groups.data.length > 0 ? groups.data[0] : null)
   const effectiveGroupId = currentGroup?.id ?? null
-  // Scope is explicit: the queue cards belong to the selected group, while the
-  // counters below are personal (every group the user belongs to).
   const effectiveGroupName = currentGroup?.name ?? 'Sin grupo'
   const groupQueue = useGroupQueueQuery(effectiveGroupId)
   const assigned = useTicketsQuery(userId ?? null)
@@ -99,16 +115,12 @@ export function Dashboard() {
   const dbStats = stats.data
   const assignedItems = assigned.data?.items ?? []
 
-  // Totales agregados directos desde backend SQL (soporta > 100 tickets sin truncar).
-  // El alcance lo decide el backend: admin = global, supervisor = sus grupos,
-  // técnico = solo los tickets asignados a él.
   const totalInScope = dbStats?.totalTickets ?? assignedItems.length
   const scopeLabel = isAdmin
     ? 'Métricas globales de la instancia'
     : isSupervisor
       ? 'Métricas de tus grupos supervisados'
-      : 'Métricas personales (tickets asignados a vos)'
-  const totalCardTitle = isAdmin ? 'Tickets totales' : isSupervisor ? 'Tickets del grupo' : 'Total asignados'
+      : 'Métricas personales (tickets asignados)'
   const assignedOpenCount = dbStats?.openTickets ?? assignedItems.filter((t) => [1, 2, 3, 4].includes(t.status)).length
   const ticketsNuevos = dbStats?.newTickets ?? assignedItems.filter((t) => t.status === 1).length
   const ticketsEnProgreso = dbStats?.executionTickets ?? dbStats?.assignedTickets ?? assignedItems.filter((t) => t.status === 2).length
@@ -137,6 +149,21 @@ export function Dashboard() {
   const queueCount = groupQueue.data?.total ?? 0
   const groupItems = groupQueue.data?.items ?? []
 
+  const statusBreakdown = [
+    { status: 1, label: '1. Nuevo', count: ticketsNuevos },
+    { status: 2, label: '2. Asignado', count: ticketsEnProgreso },
+    { status: 3, label: '3. En proceso (planificado)', count: ticketsPlanificados },
+    { status: 4, label: '4. Pendiente', count: ticketsEnPausa },
+    { status: 5, label: '5. Resuelto', count: ticketsResueltos },
+    { status: 6, label: '6. Cerrado', count: ticketsCerrados },
+  ]
+  const breakdownTotal = Math.max(
+    1,
+    statusBreakdown.reduce((sum, item) => sum + item.count, 0),
+  )
+
+  const pageTitle = isAdmin ? 'Dashboard global' : isSupervisor ? 'Dashboard de supervisión' : 'Dashboard operativo'
+
   if (
     groups.isLoading ||
     (effectiveGroupId && groupQueue.isLoading) ||
@@ -144,16 +171,20 @@ export function Dashboard() {
     stats.isLoading
   ) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 pb-6">
         <PageHeader
-          title={isAdmin ? 'Dashboard global' : isSupervisor ? 'Dashboard de supervisión' : 'Dashboard del Agente'}
+          title={pageTitle}
           description="Resumen operativo en tiempo real de los tickets en tu alcance."
           breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
         />
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-xl" />
           ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Skeleton className="h-72 w-full rounded-xl lg:col-span-2" />
+          <Skeleton className="h-72 w-full rounded-xl" />
         </div>
       </div>
     )
@@ -162,20 +193,25 @@ export function Dashboard() {
   const hasError = groups.isError || groupQueue.isError || assigned.isError || stats.isError
   if (hasError) {
     return (
-      <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm space-y-3">
-        <p>{getApiErrorMessage(groups.error ?? groupQueue.error ?? assigned.error ?? stats.error)}</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          Reintentar
-        </Button>
+      <div className="space-y-4">
+        <PageHeader
+          title={pageTitle}
+          description="Resumen operativo en tiempo real."
+          breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
+        />
+        <ErrorState
+          message={getApiErrorMessage(groups.error ?? groupQueue.error ?? assigned.error ?? stats.error)}
+          onRetry={() => window.location.reload()}
+        />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <PageHeader
-        title={isAdmin ? 'Dashboard global' : isSupervisor ? 'Dashboard de supervisión' : 'Dashboard del Agente'}
-        description={`Resumen operativo en tiempo real. ${scopeLabel} · Cola: ${effectiveGroupName}.`}
+        title={pageTitle}
+        description={`${scopeLabel} · Cola: ${effectiveGroupName} · ${totalInScope} ticket(s) totales en alcance.`}
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Dashboard' }]}
         actions={
           (groups.data?.length ?? 0) > 1 ? (
@@ -187,202 +223,207 @@ export function Dashboard() {
                 value: String(group.id),
                 label: group.name,
               }))}
-              className="w-44 sm:w-48"
+              className="w-44 sm:w-52"
               data-testid="dashboard-group-select"
             />
           ) : undefined
         }
       />
 
-      {/* Métricas Principales del Técnico */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        <StatCard
+      {/* 4 Primary High-Signal KPIs */}
+      <section aria-label="Indicadores clave" className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <KpiCard
           title="Tickets en la cola"
           value={queueCount}
-          subtitle={queueCount === 0 ? `${effectiveGroupName}: al día` : `${effectiveGroupName}: ${queueCount} por asignar`}
+          subtitle={queueCount === 0 ? `${effectiveGroupName}: sin pendientes` : `${effectiveGroupName}: por asignar`}
           icon={Inbox}
-          variant="primary"
+          tone={queueCount > 0 ? 'primary' : 'neutral'}
           onClick={() => navigate('/queue')}
         />
-        <StatCard
-          title={totalCardTitle}
-          value={totalInScope}
-          subtitle={`${assignedOpenCount} activos / abiertos`}
+        <KpiCard
+          title="Activos en gestión"
+          value={assignedOpenCount}
+          subtitle={`${ticketsEnProgreso} asignados · ${ticketsPlanificados} planificados · ${ticketsEnPausa} en espera`}
           icon={ListTodo}
-          variant="default"
+          tone="neutral"
           onClick={() => navigateToTickets()}
         />
-        <StatCard
-          title="Asignados"
-          value={ticketsEnProgreso}
-          subtitle={isTechnician ? 'Asignados a ti, sin planificar (GLPI 2)' : 'Sin planificar (GLPI 2)'}
-          icon={PlayCircle}
-          variant="primary"
-          onClick={() => navigateToTickets(2)}
-        />
-        <StatCard
-          title="Planificados"
-          value={ticketsPlanificados}
+        <KpiCard
+          title="Vencimientos SLA"
+          value={ticketsVencidos}
           subtitle={
-            tareasProgramadas === 1
-              ? '1 tarea activa en tickets abiertos'
-              : `${tareasProgramadas} tareas activas en tickets abiertos`
+            ticketsVencidos > 0
+              ? `${ticketsProximos} próximos a vencer (<24h)`
+              : ticketsProximos > 0
+                ? `${ticketsProximos} próximos a vencer (<24h)`
+                : 'SLA al día sin riesgos críticos'
           }
-          icon={Calendar}
-          variant="default"
-          onClick={() => navigateToTickets(3)}
+          icon={ShieldAlert}
+          tone={ticketsVencidos > 0 ? 'danger' : ticketsProximos > 0 ? 'warning' : 'neutral'}
+          onClick={() => navigateToTickets()}
         />
-        <StatCard
-          title="En Espera / Pausa"
-          value={ticketsEnPausa}
-          subtitle="Pendiente usuario o repuesto (GLPI 4)"
-          icon={PauseCircle}
-          variant="warning"
-          onClick={() => navigateToTickets(4)}
-        />
-        <StatCard
-          title="Abiertos / Nuevos"
-          value={ticketsNuevos}
-          subtitle="Por iniciar gestión (GLPI 1)"
-          icon={Clock}
-          variant="default"
-          onClick={() => navigateToTickets(1)}
-        />
-        <StatCard
+        <KpiCard
           title="Resueltos"
           value={ticketsResueltos}
-          subtitle={isTechnician ? `${solvedToday.length} resueltos hoy (GLPI 5)` : 'Solucionados (GLPI 5)'}
+          subtitle={
+            isTechnician
+              ? `${solvedToday.length} hoy · ${ticketsCerrados} cerrados`
+              : `${ticketsCerrados} cerrados en histórico`
+          }
           icon={CheckCircle2}
-          variant="success"
+          tone="success"
           onClick={() => navigateToTickets(5)}
         />
-        <StatCard
-          title="Cerrados"
-          value={ticketsCerrados}
-          subtitle="Histórico finalizado (GLPI 6)"
-          icon={CheckCircle2}
-          variant="default"
-          onClick={() => navigateToTickets(6)}
-        />
-        <StatCard
-          title="Próximos a Vencer (<24h)"
-          value={ticketsProximos}
-          subtitle={ticketsProximos === 0 ? 'Sin riesgos próximos' : 'Atención preventiva recomendada'}
-          icon={Clock}
-          variant={ticketsProximos > 0 ? 'warning' : 'default'}
-          onClick={() => navigateToTickets()}
-        />
-        <StatCard
-          title="Vencimientos Críticos"
-          value={ticketsVencidos}
-          subtitle={ticketsVencidos === 0 ? 'SLA al día' : 'SLA o fecha límite vencida'}
-          icon={ShieldAlert}
-          variant={ticketsVencidos > 0 ? 'danger' : 'default'}
-          onClick={() => navigateToTickets()}
-        />
+      </section>
+
+      {/* Secondary Operational Bar: Scheduled Tasks & Quick Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-xs shadow-xs">
+        <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+            <CalendarClock className="size-3.5 text-primary" aria-hidden="true" />
+            <span>
+              <strong className="tabular-nums">{tareasProgramadas}</strong>{' '}
+              {tareasProgramadas === 1 ? 'tarea planificada activa' : 'tareas planificadas activas'}
+            </span>
+          </span>
+          <span className="hidden sm:inline text-border">|</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <span>
+              Próximos a vencer (&lt;24h): <strong className="text-foreground tabular-nums">{ticketsProximos}</strong>
+            </span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => navigate('/kanban')} className="h-7 text-xs">
+            Ir al Kanban
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => navigate('/tickets')} className="h-7 text-xs">
+            Ver todos los tickets
+          </Button>
+        </div>
       </div>
 
-      {/* Cola de Grupo y Tareas Inmediatas */}
+      {/* Main Actionable Split: Group Queue (2/3) + Interactive Status Distribution (1/3) */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold tracking-tight">Próximos en la cola de {effectiveGroupName}</h2>
-              <p className="text-xs text-muted-foreground">Tickets del grupo seleccionado disponibles para auto-asignación</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/queue')}
-              disabled={effectiveGroupId === null}
-              className="gap-1.5"
-            >
-              <Inbox className="size-3.5" />
-              Ver cola ({queueCount})
-            </Button>
-          </div>
+        <section aria-labelledby="dashboard-queue-heading" className="lg:col-span-2 space-y-3">
+          <SectionHeader
+            id="dashboard-queue-heading"
+            title={`Próximos en la cola de ${effectiveGroupName}`}
+            description="Tickets del grupo disponibles para revisión o auto-asignación."
+            count={queueCount}
+            actions={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/queue')}
+                disabled={effectiveGroupId === null}
+                className="gap-1.5"
+              >
+                <Inbox className="size-3.5" aria-hidden="true" />
+                Ver cola ({queueCount})
+              </Button>
+            }
+          />
 
           {groupItems.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground bg-card/40"
-            >
-              <CheckCircle2 className="mx-auto size-7 text-emerald-500/60 mb-2" />
-              No hay tickets pendientes en la cola de tu grupo. ¡Todo al día!
-            </motion.div>
+            <EmptyState
+              icon={CheckCircle2}
+              title="Cola del grupo al día"
+              description="No hay tickets sin asignar en este momento."
+              compact
+            />
           ) : (
-            <div className="space-y-2">
-              {groupItems.slice(0, 5).map((t) => {
+            <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden shadow-xs">
+              {groupItems.slice(0, 6).map((t) => {
                 const priority = priorityMeta(t.priority)
-                const status = statusMeta(t.status)
                 return (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between rounded-xl border border-border/80 bg-card/60 p-3.5 hover:border-primary/40 transition-colors"
+                    className={cn(
+                      'flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 border-l-[3px] hover:bg-muted/40 transition-colors',
+                      priority.stripeClass,
+                    )}
                   >
-                    <div className="min-w-0 pr-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-primary">#{t.id}</span>
-                        <span className="truncate text-sm font-medium text-foreground">{t.title}</span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Link
+                          to={`/tickets/${t.id}`}
+                          className="font-mono text-xs font-semibold text-muted-foreground hover:text-primary shrink-0"
+                        >
+                          #{t.id}
+                        </Link>
+                        <Link
+                          to={`/tickets/${t.id}`}
+                          className="truncate text-sm font-medium text-foreground hover:text-primary hover:underline"
+                          title={t.title}
+                        >
+                          {t.title}
+                        </Link>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className={cn('rounded-md px-2 py-0.5 text-[11px] font-medium', priority.badgeClass)}>
-                          {priority.label}
-                        </span>
-                        <span className={cn('rounded-md px-2 py-0.5 text-[11px] font-medium', status.badgeClass)}>
-                          {status.label}
-                        </span>
-                        <span>{formatRelative(t.createdAt)}</span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <PriorityBadge priority={t.priority} size="sm" />
+                        <StatusBadge status={t.status} size="sm" />
+                        <span>Urgencia {urgencyLabel(t.urgency)}</span>
+                        <span>· {formatRelative(t.createdAt)}</span>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => navigate(`/tickets/${t.id}`)}>
-                      Ver
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/tickets/${t.id}`)}
+                      className="shrink-0 self-start sm:self-center"
+                    >
+                      Ver detalle
                     </Button>
                   </div>
                 )
               })}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Resumen por Estado de Tickets */}
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">Distribución por Estado</h2>
-            <p className="text-xs text-muted-foreground">Balance general del flujo de soporte</p>
-          </div>
+        <section aria-labelledby="dashboard-distribution-heading" className="space-y-3">
+          <SectionHeader
+            id="dashboard-distribution-heading"
+            title="Distribución por Estado"
+            description="Haz clic en un estado para filtrar la lista."
+          />
 
-          <Card className="rounded-2xl border-border/70 bg-card/60 p-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                <span className="text-muted-foreground">1. Nuevo / Abierto</span>
-                <span className="font-semibold tabular-nums">{ticketsNuevos}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                <span className="text-muted-foreground">2. Asignado</span>
-                <span className="font-semibold tabular-nums">{ticketsEnProgreso}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                <span className="text-muted-foreground">3. En Proceso (Planificado)</span>
-                <span className="font-semibold tabular-nums">{ticketsPlanificados}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                <span className="text-muted-foreground">4. En Espera / Pausa</span>
-                <span className="font-semibold tabular-nums">{ticketsEnPausa}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm py-1 border-b border-border/50">
-                <span className="text-muted-foreground">5. Resuelto</span>
-                <span className="font-semibold tabular-nums">{ticketsResueltos}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm py-1">
-                <span className="text-muted-foreground">6. Cerrado</span>
-                <span className="font-semibold tabular-nums">{ticketsCerrados}</span>
-              </div>
-            </div>
+          <Card className="rounded-xl border-border bg-card shadow-xs">
+            <CardContent className="p-4 space-y-2.5">
+              {statusBreakdown.map((item) => {
+                const meta = statusMeta(item.status)
+                const pct = Math.round((item.count / breakdownTotal) * 100)
+                return (
+                  <button
+                    key={item.status}
+                    type="button"
+                    onClick={() => navigateToTickets(item.status)}
+                    className="w-full text-left rounded-lg p-2 -mx-1 hover:bg-muted/60 transition-colors cursor-pointer space-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="inline-flex items-center gap-2 font-medium text-foreground">
+                        <span className={cn('size-2 rounded-full shrink-0', meta.dotClass)} aria-hidden="true" />
+                        <span>{item.label}</span>
+                      </span>
+                      <span className="font-semibold tabular-nums text-foreground">
+                        {item.count}{' '}
+                        <span className="text-muted-foreground font-normal">({pct}%)</span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn('h-full rounded-full transition-all duration-300', meta.dotClass)}
+                        style={{ width: `${item.count > 0 ? Math.max(4, pct) : 0}%` }}
+                      />
+                    </div>
+                  </button>
+                )
+              })}
+            </CardContent>
           </Card>
-        </div>
+        </section>
       </div>
     </div>
   )

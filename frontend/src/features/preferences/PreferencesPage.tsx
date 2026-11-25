@@ -308,7 +308,7 @@ export function PreferencesPage() {
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Preferencias' }]}
       />
 
-      <Card className="max-w-2xl border-border/70 shadow-sm backdrop-blur-xl bg-card/80 rounded-2xl">
+      <Card className="max-w-2xl border-border shadow-xs bg-card rounded-xl">
         <CardHeader>
           <CardTitle className="text-lg">Opciones de visualización</CardTitle>
           <CardDescription>
@@ -499,7 +499,7 @@ export function PreferencesPage() {
       </Card>
 
       {/* Tarjeta de Notificaciones del Dispositivo (Web Push / Windows / Android) */}
-      <Card className="max-w-2xl border-border/70 shadow-sm backdrop-blur-xl bg-card/80 rounded-2xl">
+      <Card className="max-w-2xl border-border shadow-xs bg-card rounded-xl">
         <CardHeader>
           <div className="flex items-center gap-2">
             <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
@@ -613,8 +613,11 @@ export function PreferencesPage() {
             </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground/80 border-t border-border/30 pt-3">
-            🔒 <strong>Privacidad:</strong> Las alertas en pantalla bloqueada solo muestran el número de ticket y tipo de acción para resguardar la confidencialidad de los datos.
+          <p className="flex items-start gap-2 text-[11px] text-muted-foreground border-t border-border pt-3">
+            <Lock className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" aria-hidden="true" />
+            <span>
+              <strong>Privacidad:</strong> Las alertas en pantalla bloqueada solo muestran el número de ticket y tipo de acción para resguardar la confidencialidad de los datos.
+            </span>
           </p>
         </CardContent>
       </Card>

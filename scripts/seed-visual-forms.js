@@ -58,13 +58,14 @@ const FORMS_CONFIG = [
     illustration: 'helpdesk',
     itilCategoryId: 7, // Service Desk -> Grupo 3 (Service Desk)
     requestType: 2, // Solicitud
+    areaLabel: 'Service Desk',
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Sistema o plataforma relacionada', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Área o usuario beneficiario', type: 'QuestionTypeShortText', mandatory: 0 },
-      { key: 'desc', name: 'Descripción detallada del requerimiento', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Archivo adjunto (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen claro de tu requerimiento (ej. Alta de ficha CRM para área comercial).', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Sistema o plataforma relacionada', description: 'Indica el nombre del sistema, módulo o plataforma (ej. CRM, Moodle, Correo).', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Área o usuario beneficiario', description: 'Persona o equipo que recibirá el requerimiento (opcional si eres tú mismo).', type: 'QuestionTypeShortText', mandatory: 0 },
+      { key: 'desc', name: 'Descripción detallada del requerimiento', description: 'Detalla qué necesitas, fecha esperada y cualquier dato necesario para atenderlo.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa real; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Archivo adjunto (opcional)', description: 'Adjunta capturas, documentos o aprobaciones (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -75,12 +76,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 14, // BI > Requerimiento BI -> Grupo 2 (BI)
     requestType: 2, // Solicitud
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Informe, tablero o indicador requerido', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Objetivo del requerimiento y periodicidad', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'desc', name: 'Descripción y criterios de negocio', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Archivo o plantilla de referencia (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen claro del tablero, KPI o requerimiento analítico.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Informe, tablero o indicador requerido', description: 'Nombre del reporte existente o nuevo indicador solicitado.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Objetivo del requerimiento y periodicidad', description: 'Frecuencia esperada (diario, semanal, mensual) y decisión de negocio que respalda.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'desc', name: 'Descripción y criterios de negocio', description: 'Detalla filtros, fuentes de datos, periodos y columnas esperadas.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Archivo o plantilla de referencia (opcional)', description: 'Adjunta ejemplos, planillas Excel o maquetas (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -91,12 +92,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 9, // Desarrollo > Aplicaciones GSI -> Grupo 1 (Desarrollo)
     requestType: 1, // Incidencia
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Aplicativo corporativo o módulo afectado', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Mensaje de error o comportamiento observado', type: 'QuestionTypeShortText', mandatory: 0 },
-      { key: 'desc', name: 'Descripción y pasos para reproducir', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Captura de pantalla o evidencia (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Describe brevemente el problema detectado en el aplicativo.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Aplicativo corporativo o módulo afectado', description: 'Ejemplo: Portal GSI, Facturación, Módulo de Clientes.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Mensaje de error o comportamiento observado', description: 'Copia el código o mensaje exacto mostrado en pantalla (si existe).', type: 'QuestionTypeShortText', mandatory: 0 },
+      { key: 'desc', name: 'Descripción y pasos para reproducir', description: 'Indica qué acción realizaste, qué esperabas y qué ocurrió realmente.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Indica el impacto operativo real; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Captura de pantalla o evidencia (opcional)', description: 'Adjunta capturas del error o archivos de respaldo (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -107,12 +108,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 19, // Service Desk > Periféricos -> Grupo 3 (Service Desk)
     requestType: 1, // Incidencia
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Periférico afectado (teclado, mouse, auricular, lector, impresora)', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Ubicación o puesto de trabajo', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'desc', name: 'Descripción de la falla', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Fotografía o adjunto (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen del problema (ej. Lector de código de barras sin respuesta).', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Periférico afectado (teclado, mouse, auricular, lector, impresora)', description: 'Indica tipo, marca o modelo si es visible.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Ubicación o puesto de trabajo', description: 'Sede, piso, área o número de estación.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'desc', name: 'Descripción de la falla', description: 'Detalla desde cuándo ocurre y si ya probaste reconectarlo.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Fotografía o adjunto (opcional)', description: 'Adjunta foto del dispositivo o etiqueta si ayuda al diagnóstico.', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -123,12 +124,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 16, // Service Desk > Hardware -> Grupo 3 (Service Desk)
     requestType: 1, // Incidencia
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Equipo afectado (PC, portátil, monitor, fuente)', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Ubicación o número de inventario', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'desc', name: 'Descripción del problema físico', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Archivo o fotografía (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen del fallo físico (ej. Monitor secundario sin señal de video).', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Equipo afectado (PC, portátil, monitor, fuente)', description: 'Especifica el tipo de equipo y marca si la conoces.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Ubicación o número de inventario', description: 'Etiqueta de activo fijo o ubicación exacta del equipo.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'desc', name: 'Descripción del problema físico', description: 'Indica síntomas (ruidos, reinicios, pantalla negra, daños visibles).', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Archivo o fotografía (opcional)', description: 'Adjunta foto del equipo o pantalla de error (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -139,12 +140,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 4, // Desarrollo > Software -> Grupo 1 (Desarrollo)
     requestType: 1, // Incidencia
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Aplicación o programa afectado', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Mensaje o código de error', type: 'QuestionTypeShortText', mandatory: 0 },
-      { key: 'desc', name: 'Descripción del incidente', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Captura de pantalla (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen breve del incidente de software.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Aplicación o programa afectado', description: 'Ejemplo: Microsoft Excel, Outlook, VPN, navegador o Windows.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Mensaje o código de error', description: 'Texto o código exacto si el sistema mostró un aviso.', type: 'QuestionTypeShortText', mandatory: 0 },
+      { key: 'desc', name: 'Descripción del incidente', description: 'Explica qué estabas haciendo cuando falló y si impide continuar trabajando.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Captura de pantalla (opcional)', description: 'Adjunta captura del aviso o log (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -155,12 +156,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 18, // BI > Informes -> Grupo 2 (BI)
     requestType: 1, // Incidencia
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Nombre del informe, reporte o planilla afectada', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Periodo o filtro consultado', type: 'QuestionTypeShortText', mandatory: 0 },
-      { key: 'desc', name: 'Descripción de la inconsistencia o error en los datos', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Planilla o captura de evidencia (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen de la inconsistencia detectada en el informe.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Nombre del informe, reporte o planilla afectada', description: 'Indica el nombre exacto o enlace del reporte.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Periodo o filtro consultado', description: 'Rango de fechas, sucursal o filtros aplicados al generar el dato.', type: 'QuestionTypeShortText', mandatory: 0 },
+      { key: 'desc', name: 'Descripción de la inconsistencia o error en los datos', description: 'Indica el valor observado vs. el valor esperado para agilizar la revisión.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Planilla o captura de evidencia (opcional)', description: 'Adjunta la planilla exportada o captura comparativa (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
   {
@@ -171,12 +172,12 @@ const FORMS_CONFIG = [
     itilCategoryId: 3, // Requerimiento > Acceso a sistema -> Grupo 3 (Service Desk)
     requestType: 2, // Solicitud
     questions: [
-      { key: 'title', name: 'Asunto', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context1', name: 'Sistema o recurso al que solicita acceso', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Perfil, rol o nivel de permisos requerido', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'desc', name: 'Motivo de la solicitud y usuario destinatario', type: 'QuestionTypeLongText', mandatory: 1 },
-      { key: 'urgency', name: 'Urgencia', type: 'QuestionTypeUrgency', mandatory: 0 },
-      { key: 'file', name: 'Autorización o documento adjunto (opcional)', type: 'QuestionTypeFile', mandatory: 0 },
+      { key: 'title', name: 'Asunto', description: 'Resumen de la solicitud (ej. Alta de acceso a CRM para nuevo analista).', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context1', name: 'Sistema o recurso al que solicita acceso', description: 'Nombre del aplicativo, carpeta compartida o plataforma corporativa.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'context2', name: 'Perfil, rol o nivel de permisos requerido', description: 'Ejemplo: Solo lectura, Editor, Supervisor o usuario modelo de referencia.', type: 'QuestionTypeShortText', mandatory: 1 },
+      { key: 'desc', name: 'Motivo de la solicitud y usuario destinatario', description: 'Indica nombre completo, correo corporativo del usuario y justificación.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
+      { key: 'file', name: 'Autorización o documento adjunto (opcional)', description: 'Adjunta aprobación del líder de área si aplica (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
   },
 ];
@@ -185,6 +186,13 @@ function ensureQuestion(sectionId, sectionUuid, rank, qDef) {
   const escapedName = escapeSql(qDef.name);
   const fullType = `Glpi\\\\Form\\\\QuestionType\\\\${qDef.type}`;
   const extraDataSql = qDef.extraData ? `'${escapeSql(JSON.stringify(qDef.extraData))}'` : 'NULL';
+  const descSql = qDef.description ? `'${escapeSql(`<p>${qDef.description}</p>`)}'` : 'NULL';
+  const defaultValSql =
+    qDef.defaultValue != null
+      ? `'${escapeSql(String(qDef.defaultValue))}'`
+      : qDef.type === 'QuestionTypeUrgency'
+        ? `'3'`
+        : 'NULL';
 
   let qId = runSql(
     `SELECT id FROM glpi_forms_questions WHERE forms_sections_id = ${sectionId} AND vertical_rank = ${rank} LIMIT 1;`
@@ -195,6 +203,8 @@ function ensureQuestion(sectionId, sectionUuid, rank, qDef) {
       UPDATE glpi_forms_questions
       SET
         name = '${escapedName}',
+        description = ${descSql},
+        default_value = ${defaultValSql},
         type = '${fullType}',
         is_mandatory = ${qDef.mandatory},
         vertical_rank = ${rank},
@@ -207,10 +217,10 @@ function ensureQuestion(sectionId, sectionUuid, rank, qDef) {
     const qUuid = crypto.randomUUID();
     runSql(`
       INSERT INTO glpi_forms_questions (
-        uuid, forms_sections_id, forms_sections_uuid, name, type,
+        uuid, forms_sections_id, forms_sections_uuid, name, description, default_value, type,
         is_mandatory, vertical_rank, conditions, validation_conditions, extra_data
       ) VALUES (
-        '${qUuid}', ${sectionId}, '${sectionUuid}', '${escapedName}',
+        '${qUuid}', ${sectionId}, '${sectionUuid}', '${escapedName}', ${descSql}, ${defaultValSql},
         '${fullType}', ${qDef.mandatory}, ${rank}, '[]', '[]', ${extraDataSql}
       );
     `);
@@ -257,6 +267,9 @@ function seedVisualForms() {
     const escapedName = escapeSql(cfg.name);
     const escapedDesc = escapeSql(cfg.desc);
     const escapedIll = escapeSql(cfg.illustration);
+    const headerHtml = escapeSql(
+      `<p><strong>Guía rápida:</strong> ${cfg.desc} Los campos marcados con <strong>*</strong> son obligatorios. Al enviar, tu solicitud se asigna automáticamente al equipo responsable y podrás seguir su número de ticket y avance en tiempo real.</p>`
+    );
 
     const existingFormId = runSql(
       `SELECT id FROM glpi_forms_forms WHERE forms_categories_id = ${cfg.catId} OR name = '${escapedName}' ORDER BY id ASC LIMIT 1;`
@@ -269,6 +282,7 @@ function seedVisualForms() {
         UPDATE glpi_forms_forms
         SET
           name = '${escapedName}',
+          header = '${headerHtml}',
           description = '${escapedDesc}',
           illustration = '${escapedIll}',
           forms_categories_id = ${cfg.catId},
@@ -285,12 +299,12 @@ function seedVisualForms() {
       runSql(`
         INSERT INTO glpi_forms_forms (
           uuid, entities_id, is_recursive, is_active, is_deleted, is_draft,
-          render_layout, name, illustration, description, forms_categories_id,
+          render_layout, name, header, illustration, description, forms_categories_id,
           usage_count, submit_button_visibility_strategy, submit_button_conditions,
           date_creation, date_mod
         ) VALUES (
           '${formUuid}', 0, 1, 1, 0, 0,
-          '', '${escapedName}', '${escapedIll}', '${escapedDesc}', ${cfg.catId},
+          '', '${escapedName}', '${headerHtml}', '${escapedIll}', '${escapedDesc}', ${cfg.catId},
           0, '', '[]',
           NOW(), NOW()
         );
@@ -436,26 +450,29 @@ function seedVisualForms() {
   runSql(`
     UPDATE glpi_forms_forms
     SET name = 'Reportar una incidencia general',
+        header = '<p><strong>Guía rápida:</strong> Usa este formulario si tu problema no corresponde a ninguno de los 8 servicios destacados. Selecciona la categoría ITIL exacta para derivar automáticamente al equipo técnico correcto.</p>',
         description = 'Reporte cualquier incidente técnico seleccionando la categoría correspondiente del catálogo completo.',
         is_active = 1, is_deleted = 0
     WHERE id = 1;
 
     UPDATE glpi_forms_forms
     SET name = 'Solicitar un servicio general',
+        header = '<p><strong>Guía rápida:</strong> Usa este formulario para solicitudes generales fuera de los servicios destacados. Los campos marcados con <strong>*</strong> son obligatorios.</p>',
         description = 'Realice una solicitud general seleccionando el servicio requerido dentro de la jerarquía de categorías.',
         is_active = 1, is_deleted = 0
     WHERE id = 2;
 
-    UPDATE glpi_forms_questions SET name = 'Urgencia' WHERE id IN (1, 9);
+    UPDATE glpi_forms_questions SET name = 'Urgencia', default_value = '3', description = '<p>Prioridad operativa del ticket (Media por defecto).</p>' WHERE id IN (1, 9);
     UPDATE glpi_forms_questions SET name = 'Categoría del servicio', is_mandatory = 1,
+      description = '<p>Selecciona la categoría ITIL más específica para enrutar tu ticket al área correcta.</p>',
       extra_data = '{"itemtype":"ITILCategory","categories_filter":["request","incident","change","problem"],"root_items_id":0,"subtree_depth":0,"selectable_tree_root":true}'
       WHERE id IN (2, 10);
     UPDATE glpi_forms_questions SET name = 'Dispositivos afectados' WHERE id IN (3, 11);
     UPDATE glpi_forms_questions SET name = 'Observadores' WHERE id IN (4, 12);
     UPDATE glpi_forms_questions SET name = 'Ubicación' WHERE id IN (5, 13);
-    UPDATE glpi_forms_questions SET name = 'Asunto', is_mandatory = 1 WHERE id IN (6, 14);
-    UPDATE glpi_forms_questions SET name = 'Descripción detallada', is_mandatory = 1 WHERE id IN (7, 15);
-    UPDATE glpi_forms_questions SET name = 'Archivos adjuntos' WHERE id IN (8, 16);
+    UPDATE glpi_forms_questions SET name = 'Asunto', is_mandatory = 1, description = '<p>Resumen claro y conciso de tu solicitud o incidente.</p>' WHERE id IN (6, 14);
+    UPDATE glpi_forms_questions SET name = 'Descripción detallada', is_mandatory = 1, description = '<p>Incluye contexto, pasos para reproducir o datos necesarios para atenderlo.</p>' WHERE id IN (7, 15);
+    UPDATE glpi_forms_questions SET name = 'Archivos adjuntos', description = '<p>Opcional: capturas de pantalla, planillas o respaldos.</p>' WHERE id IN (8, 16);
   `);
 
   const dest1 = JSON.stringify({

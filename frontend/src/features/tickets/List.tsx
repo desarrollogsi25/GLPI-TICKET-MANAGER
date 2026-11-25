@@ -1,4 +1,3 @@
-import { motion } from 'motion/react'
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -6,43 +5,69 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type SortingState,
 } from '@tanstack/react-table'
+import { AlertTriangle, Inbox, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
-import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PriorityBadge, StatusBadge } from '@/components/ui/status-badge'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useRole } from '@/hooks/useRole'
 import { useSelectedAssignee } from '@/hooks/useSelectedAssignee'
 import { useServicesQuery } from '@/hooks/useServices'
 import { useTicketsQuery } from '@/hooks/useTickets'
 import { getApiErrorMessage } from '@/lib/api/errors'
 import type { TicketSummary } from '@/lib/api/types'
 import { formatRelative } from '@/lib/format'
-
-import { PageHeader } from '@/components/layout/PageHeader'
-import { useRole } from '@/hooks/useRole'
 import { useUiStore } from '@/store/uiStore'
-import { priorityMeta, statusMeta } from './labels'
+
+import { typeLabel } from './labels'
 import { TechnicianFilter } from './TechnicianFilter'
 import { TicketFiltersBar } from './TicketFiltersBar'
 import { TicketFiltersSheet } from './TicketFiltersSheet'
 import { TicketListCard } from './TicketListCard'
 import { TicketTable } from './TicketTable'
 
-const columns: ColumnDef<TicketSummary>[] = [  {
+const columns: ColumnDef<TicketSummary>[] = [
+  {
     accessorKey: 'id',
     header: 'ID',
-    cell: ({ row }) => <span className="text-muted-foreground">#{row.original.id}</span>,
+    cell: ({ row }) => (
+      <Link
+        to={`/tickets/${row.original.id}`}
+        className="font-mono text-xs font-semibold text-muted-foreground hover:text-primary"
+      >
+        #{row.original.id}
+      </Link>
+    ),
   },
   {
     accessorKey: 'title',
     header: 'Título',
     cell: ({ row }) => (
-      <Link to={`/tickets/${row.original.id}`} className="font-medium hover:underline">
-        {row.original.title}
-      </Link>
+      <div className="max-w-md">
+        <Link
+          to={`/tickets/${row.original.id}`}
+          className="font-medium text-foreground hover:text-primary hover:underline line-clamp-1"
+          title={row.original.title}
+        >
+          {row.original.title}
+        </Link>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'type',
+    header: 'Tipo',
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {row.original.typeLabel || typeLabel(row.original.type)}
+      </span>
     ),
   },
   {
@@ -54,10 +79,7 @@ const columns: ColumnDef<TicketSummary>[] = [  {
       }
       return String(row.getValue(columnId)) === String(filterValue)
     },
-    cell: ({ row }) => {
-      const status = statusMeta(row.original.status)
-      return <Badge className={status.badgeClass}>{status.label}</Badge>
-    },
+    cell: ({ row }) => <StatusBadge status={row.original.status} size="sm" />,
   },
   {
     accessorKey: 'priority',
@@ -68,16 +90,15 @@ const columns: ColumnDef<TicketSummary>[] = [  {
       }
       return String(row.getValue(columnId)) === String(filterValue)
     },
-    cell: ({ row }) => {
-      const priority = priorityMeta(row.original.priority)
-      return <Badge className={priority.badgeClass}>{priority.label}</Badge>
-    },
+    cell: ({ row }) => <PriorityBadge priority={row.original.priority} size="sm" />,
   },
   {
     accessorKey: 'updatedAt',
     header: 'Actualizado',
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{formatRelative(row.original.updatedAt)}</span>
+      <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+        {formatRelative(row.original.updatedAt)}
+      </span>
     ),
   },
   {
@@ -97,11 +118,6 @@ const columns: ColumnDef<TicketSummary>[] = [  {
   },
 ]
 
-/**
- * Stable empty list: TanStack Table re-runs `autoResetPageIndex` whenever the
- * `data` reference changes, so a fresh `[]` literal per render loops forever
- * while the query is pending.
- */
 const EMPTY_TICKETS: TicketSummary[] = []
 
 export function List() {
@@ -111,7 +127,6 @@ export function List() {
   const serviceIdParam = searchParams.get('serviceId')
   const serviceId = serviceIdParam ? parseInt(serviceIdParam, 10) : null
 
-  // Sincronización de filtros con URL
   const initialSearch = searchParams.get('q') ?? ''
   const initialStatus = searchParams.get('status') ?? 'all'
   const initialPriority = searchParams.get('priority') ?? 'all'
@@ -123,6 +138,7 @@ export function List() {
   const [priorityFilter, setPriorityFilter] = useState(initialPriority)
   const [startDate, setStartDate] = useState(initialStartDate)
   const [endDate, setEndDate] = useState(initialEndDate)
+  const [sorting, setSorting] = useState<SortingState>([])
 
   useEffect(() => {
     const s = searchParams.get('status') ?? 'all'
@@ -139,7 +155,6 @@ export function List() {
 
   const isDateRangeInvalid = Boolean(startDate && endDate && startDate > endDate)
 
-  // Draft filters para el Bottom Sheet móvil
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [draftStatus, setDraftStatus] = useState(statusFilter)
   const [draftPriority, setDraftPriority] = useState(priorityFilter)
@@ -152,7 +167,7 @@ export function List() {
   const activeService = services?.find((s) => s.id === serviceId)
   const serviceName = activeService?.name ?? (serviceId ? `Servicio #${serviceId}` : '')
 
-  const { data, isLoading, isError, error } = useTicketsQuery({
+  const { data, isLoading, isError, error, refetch } = useTicketsQuery({
     serviceId: serviceId ?? undefined,
     assigneeId: serviceId ? null : assigneeId,
     startDate: isDateRangeInvalid ? null : (startDate || null),
@@ -162,7 +177,6 @@ export function List() {
 
   const navigate = useNavigate()
 
-  /** Rebuilds the /tickets URL from a filter snapshot, so every filter stays shareable. */
   const buildUrl = useCallback(
     (next: {
       status: string
@@ -180,7 +194,6 @@ export function List() {
       if (next.serviceId) sp.set('serviceId', String(next.serviceId))
       if (next.search.trim()) sp.set('q', next.search.trim())
       const query = sp.toString()
-      // Navigating to the URL we already have would re-render the route for nothing.
       if (query === searchParams.toString()) return
       navigate(query ? `/tickets?${query}` : '/tickets', { replace: true })
     },
@@ -250,7 +263,6 @@ export function List() {
     [buildUrl, statusFilter, priorityFilter, startDate, globalFilter, serviceIdParam],
   )
 
-  /** Clears every filter (status, priority, dates and search) back to the default view. */
   const handleClearFilters = () => {
     setSelectedAssigneeId(null)
     setStatusFilter('all')
@@ -309,6 +321,7 @@ export function List() {
       serviceId: serviceIdParam,
     })
   }
+
   const handleOpenSheet = () => {
     setDraftStatus(statusFilter)
     setDraftPriority(priorityFilter)
@@ -324,6 +337,7 @@ export function List() {
     columns,
     state: {
       globalFilter,
+      sorting,
       columnFilters: useMemo(
         () => [
           ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
@@ -332,6 +346,7 @@ export function List() {
         [statusFilter, priorityFilter],
       ),
     },
+    onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: (row, _columnId, filterValue) => {
       const term = String(filterValue).trim().toLowerCase()
@@ -355,9 +370,13 @@ export function List() {
     (endDate ? 1 : 0)
 
   const visibleTotal = table.getFilteredRowModel().rows.length
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const rangeStart = visibleTotal === 0 ? 0 : pageIndex * pageSize + 1
+  const rangeEnd = Math.min(visibleTotal, (pageIndex + 1) * pageSize)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-6">
       <PageHeader
         title={isRequester ? 'Mis tickets' : 'Tickets'}
         description={
@@ -382,22 +401,22 @@ export function List() {
       />
 
       {serviceId != null && (
-        <div className="flex items-center gap-2 rounded-md bg-secondary/60 px-3 py-1.5 text-sm border border-border w-fit">
-          <span>
-            Filtrando por: <strong>{serviceName || 'Requerimiento'}</strong>
+        <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-xs border border-border w-fit shadow-xs">
+          <span className="text-muted-foreground">
+            Filtrando por: <strong className="text-foreground">{serviceName || 'Requerimiento'}</strong>
           </span>
           <button
             type="button"
             onClick={handleClearServiceFilter}
-            className="ml-2 rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+            className="ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
             aria-label="Quitar filtro"
           >
-            Quitar
+            <X className="size-3" aria-hidden="true" />
+            <span>Quitar</span>
           </button>
         </div>
       )}
 
-      {/* Barra de Filtros (Responsive: horizontal en desktop, input + botón sheet en móvil) */}
       <TicketFiltersBar
         search={globalFilter}
         onSearchChange={handleSearchChange}
@@ -414,119 +433,139 @@ export function List() {
         activeFiltersCount={activeFiltersCount}
       />
 
-          {/* Bottom Sheet Móvil para Filtros */}
-          <TicketFiltersSheet
-            open={isSheetOpen}
-            onClose={() => setIsSheetOpen(false)}
-            status={draftStatus}
-            onStatusChange={setDraftStatus}
-            priority={draftPriority}
-            onPriorityChange={setDraftPriority}
-            startDate={draftStartDate}
-            onStartDateChange={setDraftStartDate}
-            endDate={draftEndDate}
-            onEndDateChange={setDraftEndDate}
-            onApply={handleApplySheet}
-            onReset={handleResetSheet}
-            activeFiltersCount={activeFiltersCount}
-          />
+      <TicketFiltersSheet
+        open={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        status={draftStatus}
+        onStatusChange={setDraftStatus}
+        priority={draftPriority}
+        onPriorityChange={setDraftPriority}
+        startDate={draftStartDate}
+        onStartDateChange={setDraftStartDate}
+        endDate={draftEndDate}
+        onEndDateChange={setDraftEndDate}
+        onApply={handleApplySheet}
+        onReset={handleResetSheet}
+        activeFiltersCount={activeFiltersCount}
+      />
 
-          {isDateRangeInvalid && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive font-medium"
-            >
-              <span aria-hidden="true">⚠️</span>
-              <span>La fecha de inicio no puede ser posterior a la fecha de fin.</span>
-            </div>
-          )}
+      {isDateRangeInvalid && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive font-medium"
+        >
+          <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+          <span>La fecha de inicio no puede ser posterior a la fecha de fin.</span>
+        </div>
+      )}
 
-          {isError ? (
-            <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              <span>{getApiErrorMessage(error)}</span>
-              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
-                Reintentar
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Vista Desktop (md:+): Tabla TanStack completa */}
-              <div className="hidden md:block">
-                {!isMobile && <TicketTable table={table} columns={columns} isLoading={isLoading} />}
-              </div>
-
-              {/* Vista Móvil (<md): Lista Vertical de Cards */}
-              <div className="md:hidden space-y-2.5">
-                {isMobile && (
-                  isLoading ? (
-                    Array.from({ length: 4 }).map((_, index) => (
-                      <div
-                        key={`card-skel-${index}`}
-                        className="rounded-xl border border-border bg-card p-4 min-h-[88px] space-y-2.5"
-                      >
-                        <div className="flex justify-between items-center">
-                          <Skeleton className="h-4 w-1/4" />
-                          <Skeleton className="h-4 w-1/6" />
-                        </div>
-                        <Skeleton className="h-5 w-4/5" />
-                        <div className="flex justify-between items-center pt-1 border-t border-border/40">
-                          <Skeleton className="h-4 w-1/3" />
-                          <Skeleton className="h-4 w-4" />
-                        </div>
-                      </div>
-                    ))
-                  ) : table.getRowModel().rows.length === 0 ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.1 }}
-                      className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 p-8 text-center bg-card/40 my-2"
-                    >
-                      <span className="text-3xl mb-2">🎫</span>
-                      <p className="text-sm font-semibold text-foreground">
-                        No hay tickets que coincidan con los filtros
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
-                        Intenta cambiar o limpiar los filtros aplicados.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    table.getRowModel().rows.map((row) => (
-                      <TicketListCard key={row.original.id} ticket={row.original} />
-                    ))
-                  )
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Paginación */}
-          <div className="flex items-center justify-between text-sm pt-1">
-            <span className="text-xs md:text-sm text-muted-foreground">
-              Página {table.getState().pagination.pageIndex + 1} de {Math.max(1, table.getPageCount())}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="min-h-[38px] md:min-h-[32px] px-3 text-xs"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="min-h-[38px] md:min-h-[32px] px-3 text-xs"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                Siguiente
-              </Button>
-            </div>
+      {isError ? (
+        <ErrorState
+          message={getApiErrorMessage(error)}
+          onRetry={() => void refetch()}
+        />
+      ) : (
+        <>
+          <div className="hidden md:block">
+            {!isMobile && (
+              <TicketTable
+                table={table}
+                columns={columns}
+                isLoading={isLoading}
+                hasActiveFilters={activeFiltersCount > 0 || Boolean(globalFilter.trim())}
+                onClearFilters={handleClearFilters}
+              />
+            )}
           </div>
+
+          <div className="md:hidden space-y-2.5">
+            {isMobile &&
+              (isLoading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`card-skel-${index}`}
+                    className="rounded-xl border border-border bg-card p-4 min-h-[88px] space-y-2.5"
+                  >
+                    <div className="flex justify-between items-center">
+                      <Skeleton className="h-4 w-1/4" />
+                      <Skeleton className="h-4 w-1/6" />
+                    </div>
+                    <Skeleton className="h-5 w-4/5" />
+                    <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-4 w-4" />
+                    </div>
+                  </div>
+                ))
+              ) : table.getRowModel().rows.length === 0 ? (
+                <EmptyState
+                  icon={Inbox}
+                  title="No hay tickets que coincidan con los filtros"
+                  description="Intenta cambiar o limpiar los filtros aplicados."
+                  action={
+                    activeFiltersCount > 0 || Boolean(globalFilter.trim()) ? (
+                      <Button size="sm" variant="outline" onClick={handleClearFilters}>
+                        Limpiar filtros
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <TicketListCard key={row.original.id} ticket={row.original} />
+                ))
+              ))}
+          </div>
+        </>
+      )}
+
+      {/* Pagination Bar with Range & Page Size */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <span className="tabular-nums">
+            Mostrando <strong className="text-foreground">{rangeStart}–{rangeEnd}</strong> de{' '}
+            <strong className="text-foreground">{visibleTotal}</strong> · Página {pageIndex + 1} de{' '}
+            {Math.max(1, table.getPageCount())}
+          </span>
+          <label className="hidden sm:inline-flex items-center gap-1.5">
+            <span>Filas:</span>
+            <select
+              aria-label="Tickets por página"
+              value={pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="h-7 rounded-md border border-border bg-card px-2 text-xs text-foreground cursor-pointer"
+            >
+              {[15, 30, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-[38px] md:min-h-[32px] px-3 text-xs cursor-pointer"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Anterior
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-[38px] md:min-h-[32px] px-3 text-xs cursor-pointer"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Siguiente
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

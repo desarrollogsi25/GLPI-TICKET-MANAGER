@@ -46,15 +46,18 @@ export function AppLayout() {
   const homePath = isRequester ? '/tickets' : '/kanban'
   const pathSegments = location.pathname.split('/').filter(Boolean)
   const routeLabels: Record<string, string> = {
-    kanban: 'Mis tickets', queue: 'Cola del grupo',
+    kanban: 'Kanban',
+    queue: 'Cola del grupo',
     tickets: isRequester ? 'Mis tickets' : 'Tickets',
-    equipo: 'Mi Equipo', dashboard: 'Dashboard', administracion: 'Administración',
-    preferences: 'Preferencias', services: 'Servicios', ayuda: 'Ayuda',
+    equipo: 'Mi Equipo',
+    dashboard: 'Dashboard',
+    administracion: 'Administración',
+    preferences: 'Preferencias',
+    services: 'Servicios',
+    ayuda: 'Ayuda',
   }
   const currentPage = routeLabels[pathSegments[0]] ?? 'Inicio'
 
-  // QA-13: Push notification permission is only requested upon explicit user action in Preferences
-  // One native-notification listener for both desktop and mobile headers.
   const { connectionState } = useRealtimeTicketHub({
     onNotificationReceived: () => {
       void showNativeNotification('GLPI Ticket Manager', 'Tienes una nueva notificación en el sistema')
@@ -108,22 +111,28 @@ export function AppLayout() {
       {/* Skip to main content link for keyboard / screen-reader accessibility */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:font-medium focus:text-sm"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:font-medium focus:text-sm"
       >
         Saltar al contenido
       </a>
 
-      {/* 1. Desktop Sidebar (md:+), collapsible with 200ms ease-out */}
+      {/* 1. Desktop Sidebar (md:+) */}
       <AppSidebar
         connectionState={connectionState}
         collapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />
 
-      {/* 2. Mobile Header (<md): Logo + User Status + Search + Notification Bell */}
-      <header className="sticky top-0 z-30 flex md:hidden items-center justify-between border-b border-border/40 bg-card/85 backdrop-blur-xl px-4 py-2.5 pt-[env(safe-area-inset-top)] shadow-xs">
+      {/* 2. Mobile Header (<md) */}
+      <header className="sticky top-0 z-30 flex md:hidden items-center justify-between border-b border-border bg-card px-4 py-2 pt-[env(safe-area-inset-top)]">
         <div className="flex items-center gap-2.5 min-w-0">
-          <img src="/isotipo-gsi.png" alt="GSI Service Desk" width="32" height="32" className="size-8 shrink-0 rounded-lg bg-white p-0.5 shadow-xs ring-1 ring-black/5" />
+          <img
+            src="/isotipo-gsi.png"
+            alt="GSI Service Desk"
+            width="32"
+            height="32"
+            className="size-8 shrink-0 rounded-lg bg-white p-0.5 border border-border/80"
+          />
           <div className="flex items-center gap-1.5 min-w-0">
             <span
               data-testid="mobile-header-username"
@@ -142,34 +151,59 @@ export function AppLayout() {
             onClick={() => setIsCommandOpen(true)}
             aria-label="Buscar comando"
             data-testid="mobile-search-btn"
-            className="size-8 p-0 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            className="size-10 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/70"
           >
             <Search className="size-4" />
           </Button>
-          <Button variant="ghost" onClick={handleToggleTheme} aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'} className="size-11 p-0 rounded-xl">
-            {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          <Button
+            variant="ghost"
+            onClick={handleToggleTheme}
+            aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
+            className="size-10 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+          >
+            {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
           </Button>
           <NotificationBell data-testid="notification-bell-mobile" />
         </div>
       </header>
 
-      <nav aria-label="Breadcrumb global" className="flex md:hidden items-center gap-1.5 border-b border-border/40 bg-card px-4 py-2 text-xs text-muted-foreground">
-        <Link to={homePath}>Inicio</Link><ChevronRight className="size-3" aria-hidden="true" />
-        <span aria-current="page">{currentPage}</span>
+      <nav
+        aria-label="Breadcrumb global"
+        className="flex md:hidden items-center gap-1.5 border-b border-border bg-surface-subtle px-4 py-2 text-xs text-muted-foreground"
+      >
+        <Link to={homePath} className="hover:text-foreground">
+          Inicio
+        </Link>
+        <ChevronRight className="size-3" aria-hidden="true" />
+        {pathSegments[1] ? (
+          <>
+            <Link to={`/${pathSegments[0]}`} className="hover:text-foreground">
+              {currentPage}
+            </Link>
+            <ChevronRight className="size-3" aria-hidden="true" />
+            <span aria-current="page" className="font-semibold text-foreground">
+              Detalle
+            </span>
+          </>
+        ) : (
+          <span aria-current="page" className="font-medium text-foreground">
+            {currentPage}
+          </span>
+        )}
       </nav>
+
       {/* 3. Desktop Top Header + Main Content Area */}
       <div
         className={cn(
-          'min-h-screen md:h-screen flex flex-col transition-[margin-left] duration-300 ease-in-out md:overflow-hidden',
+          'min-h-screen md:h-screen flex flex-col transition-[margin-left] duration-200 ease-out md:overflow-hidden',
           isSidebarCollapsed ? 'md:ml-16' : 'md:ml-56',
         )}
       >
-        {/* Global Desktop Header with Contextual Breadcrumb, Command Palette Trigger, Theme Toggle & Notifications */}
+        {/* Global Desktop Header: Breadcrumb, Realtime Status, Command Search, Theme & Notifications */}
         <header
           data-testid="desktop-top-header"
-          className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center justify-between border-none bg-background/60 backdrop-blur-md px-6 shadow-xs"
+          className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6"
         >
-          {/* Contextual Breadcrumb (sin duplicar el H1 de la página) */}
           <nav
             aria-label="Breadcrumb global"
             data-testid="header-breadcrumb"
@@ -184,33 +218,43 @@ export function AppLayout() {
             <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
             {pathSegments[1] ? (
               <>
-                <Link to={`/${pathSegments[0]}`} className="hover:text-foreground">{currentPage}</Link>
+                <Link to={`/${pathSegments[0]}`} className="font-medium hover:text-foreground transition-colors">
+                  {currentPage}
+                </Link>
                 <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
-                <span aria-current="page" className="font-medium text-foreground">#{pathSegments[1]}</span>
+                <span aria-current="page" className="font-semibold font-mono text-foreground">
+                  #{pathSegments[1]}
+                </span>
               </>
-            ) : <span aria-current="page" className="font-medium text-foreground">{currentPage}</span>}
+            ) : (
+              <span aria-current="page" className="font-semibold text-foreground">
+                {currentPage}
+              </span>
+            )}
           </nav>
 
-          {/* Right: Global Command Search (Ctrl+K) + Dark Preset + Theme Toggle + Notifications */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="hidden lg:flex items-center rounded-md border border-border bg-surface-subtle px-2.5 py-1">
+              <ConnectionIndicator state={connectionState} showLabel />
+            </div>
+
             <button
               type="button"
               onClick={() => setIsCommandOpen(true)}
               data-testid="command-palette-trigger"
               aria-label="Abrir buscador global"
-              className="inline-flex h-8 w-56 items-center justify-between rounded-full border-0 bg-muted/50 px-3 text-xs text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors duration-150 cursor-pointer shadow-xs"
+              className="inline-flex h-8 w-56 items-center justify-between rounded-lg border border-border bg-surface-subtle px-3 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors duration-150 cursor-pointer"
             >
               <span className="inline-flex items-center gap-2 truncate">
                 <Search className="size-3.5 shrink-0" aria-hidden="true" />
-                <span>Buscar o saltar a...</span>
+                <span>Buscar ticket o vista…</span>
               </span>
-              <kbd className="inline-flex h-5 items-center gap-0.5 rounded-full border-0 bg-background/80 px-2 font-mono text-[10px] font-medium text-muted-foreground shadow-xs">
+              <kbd className="inline-flex h-5 items-center rounded border border-border bg-card px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
                 Ctrl K
               </kbd>
             </button>
 
-            {/* Pill Container for Quick Actions */}
-            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1 shadow-xs">
+            <div className="flex items-center gap-1 border-l border-border pl-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -218,9 +262,9 @@ export function AppLayout() {
                 aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
                 title={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
                 data-testid="theme-toggle-btn"
-                className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-foreground"
+                className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
               >
-                {isDark ? <Sun className="size-3.5 text-amber-500" /> : <Moon className="size-3.5" />}
+                {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
               </Button>
 
               <NotificationBell />
@@ -231,7 +275,7 @@ export function AppLayout() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 flex flex-col min-h-0 w-full max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 pb-20 md:pb-4 overflow-hidden focus:outline-none"
+          className="flex-1 flex flex-col min-h-0 w-full max-w-[1440px] mx-auto px-4 md:px-6 py-4 pb-20 md:pb-5 overflow-hidden focus:outline-none"
         >
           <PageTransition>
             <Outlet />

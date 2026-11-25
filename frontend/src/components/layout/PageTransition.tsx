@@ -11,17 +11,17 @@ export function PageTransition({ children }: { children: ReactNode }) {
   return (
     <motion.div
       key={location.pathname}
-      tabIndex={isKanban ? undefined : 0}
-      initial={prefersReduced ? undefined : { opacity: 0, y: 6 }}
+      initial={prefersReduced ? undefined : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={
         prefersReduced
           ? { duration: 0 }
-          : { duration: 0.16, ease: [0.23, 1, 0.32, 1] }
+          : { duration: 0.14, ease: [0.23, 1, 0.32, 1] }
       }
+      tabIndex={isKanban ? undefined : 0}
       className={cn(
-        'flex-1 flex flex-col h-full w-full min-h-0',
-        isKanban ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar',
+        'flex-1 flex flex-col h-full w-full min-h-0 focus:outline-none',
+        isKanban ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar',
       )}
     >
       {children}

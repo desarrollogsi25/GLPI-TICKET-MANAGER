@@ -1,9 +1,10 @@
-import { AlertTriangle, Building2, Clock, Layers, RefreshCw, Users } from 'lucide-react'
+import { AlertTriangle, Building2, CheckCircle2, Clock, Layers, RefreshCw, Users } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { NumberTicker } from '@/components/ui/number-ticker'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -13,11 +14,10 @@ import {
 } from '@/hooks/useTickets'
 
 /**
- * Admin view: "Administración" — global overview of all groups (H-42).
- * Consumes GET /api/admin/groups-summary and GET /api/admin/watcher-status.
+ * Admin view: "Administración" — global overview of all groups and GLPI watcher integrity.
  */
 export function AdminDashboard() {
-  const { data, isLoading, isError } = useAdminDashboardQuery()
+  const { data, isLoading, isError, refetch } = useAdminDashboardQuery()
   const { data: watcherStatus } = useAdminWatcherStatusQuery()
   const recoverMutation = useRecoverWatcherTicketMutation()
   const groups = data ?? []
@@ -32,48 +32,47 @@ export function AdminDashboard() {
       label: 'Grupos activos',
       value: groups.length,
       icon: Building2,
-      iconClass: 'text-primary bg-primary/10',
+      iconClass: 'text-foreground bg-muted',
     },
     {
       id: 'tickets',
       label: 'Tickets totales',
       value: totalTickets,
       icon: Layers,
-      iconClass: 'text-blue-600 dark:text-blue-400 bg-blue-500/10',
+      iconClass: 'text-blue-700 dark:text-blue-300 bg-blue-500/12',
     },
     {
       id: 'pending',
       label: 'En espera (Pendientes)',
       value: totalPending,
       icon: Clock,
-      iconClass: 'text-amber-600 dark:text-amber-400 bg-amber-500/10',
+      iconClass: 'text-amber-700 dark:text-amber-300 bg-amber-500/15',
     },
     {
       id: 'techs',
       label: 'Técnicos asignados',
       value: totalTechs,
       icon: Users,
-      iconClass: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10',
+      iconClass: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15',
     },
   ]
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 pb-6">
       <PageHeader
         title="Administración"
-        description="Vista global de todos los grupos de soporte."
+        description="Supervisión global de grupos de soporte e integridad del sincronizador nativo GLPI."
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Administración' }]}
       />
 
-      {/* Tarjetas de resumen global con NumberTicker */}
       <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
         data-testid="admin-kpi-cards"
       >
         {kpiCards.map((kpi) => {
           const Icon = kpi.icon
           return (
-            <Card key={kpi.id} className="shadow-xs border-border/70">
+            <Card key={kpi.id} className="shadow-xs border-border">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
@@ -87,7 +86,7 @@ export function AdminDashboard() {
                 {isLoading ? (
                   <Skeleton className="mt-2.5 h-7 w-16" />
                 ) : (
-                  <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+                  <p className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-foreground tabular-nums">
                     <NumberTicker value={kpi.value} />
                   </p>
                 )}
@@ -97,9 +96,9 @@ export function AdminDashboard() {
         })}
       </div>
 
-      <Card className="shadow-xs border-border/70">
-        <CardHeader className="pb-3 border-b border-border/50">
-          <CardTitle className="text-base font-semibold">Resumen por grupo</CardTitle>
+      <Card className="shadow-xs border-border">
+        <CardHeader className="pb-3 border-b border-border/70">
+          <CardTitle className="text-sm font-semibold">Resumen por grupo</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           {isLoading ? (
@@ -108,28 +107,30 @@ export function AdminDashboard() {
               <Skeleton className="h-10 w-full rounded-lg" />
             </div>
           ) : isError ? (
-            <p className="text-sm text-destructive">Error al cargar el resumen de administración.</p>
+            <ErrorState
+              message="Error al cargar el resumen de administración."
+              onRetry={() => void refetch()}
+            />
           ) : (
             <>
-              {/* Vista móvil: Cards apiladas */}
               <div className="grid grid-cols-1 gap-3 md:hidden" data-testid="admin-mobile-cards">
                 {groups.map((g) => (
                   <div
                     key={g.groupId}
-                    className="rounded-xl border border-border/70 bg-muted/20 p-3.5 space-y-2"
+                    className="rounded-xl border border-border bg-surface-subtle/50 p-3.5 space-y-2"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-sm text-foreground">{g.groupName}</span>
                       <Badge variant="secondary">{g.activeTechnicians} técnicos</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-lg bg-background p-2 border border-border/50">
+                      <div className="rounded-lg bg-card p-2 border border-border">
                         <span className="text-muted-foreground">Tickets totales: </span>
                         <span className="font-bold tabular-nums">{g.totalTickets}</span>
                       </div>
-                      <div className="rounded-lg bg-background p-2 border border-border/50">
+                      <div className="rounded-lg bg-card p-2 border border-border">
                         <span className="text-muted-foreground">Pendientes: </span>
-                        <span className="font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                        <span className="font-bold tabular-nums text-amber-700 dark:text-amber-300">
                           {g.pendingTickets}
                         </span>
                       </div>
@@ -138,36 +139,32 @@ export function AdminDashboard() {
                 ))}
               </div>
 
-              {/* Tabla desktop */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm" data-testid="admin-groups-table">
-                  <thead>
+                  <thead className="bg-surface-subtle">
                     <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="py-3 pr-4">Grupo</th>
-                      <th className="py-3 pr-4">Tickets totales</th>
-                      <th className="py-3 pr-4">Pendientes</th>
-                      <th className="py-3">Técnicos activos</th>
+                      <th className="py-2.5 px-3">Grupo</th>
+                      <th className="py-2.5 px-3">Tickets totales</th>
+                      <th className="py-2.5 px-3">Pendientes</th>
+                      <th className="py-2.5 px-3">Técnicos activos</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/50">
+                  <tbody className="divide-y divide-border/70">
                     {groups.map((g) => (
-                      <tr
-                        key={g.groupId}
-                        className="transition-colors duration-150 hover:bg-muted/40"
-                      >
-                        <td className="py-3 pr-4 font-semibold text-foreground">{g.groupName}</td>
-                        <td className="py-3 pr-4">
+                      <tr key={g.groupId} className="transition-colors duration-150 hover:bg-muted/40">
+                        <td className="py-3 px-3 font-semibold text-foreground">{g.groupName}</td>
+                        <td className="py-3 px-3">
                           <Badge variant="secondary" className="tabular-nums">
                             {g.totalTickets}
                           </Badge>
                         </td>
-                        <td className="py-3 pr-4">
+                        <td className="py-3 px-3">
                           <Badge variant="outline" className="tabular-nums">
                             {g.pendingTickets}
                           </Badge>
                         </td>
-                        <td className="py-3">
-                          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 tabular-nums">
+                        <td className="py-3 px-3">
+                          <Badge className="bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 tabular-nums">
                             {g.activeTechnicians}
                           </Badge>
                         </td>
@@ -175,8 +172,8 @@ export function AdminDashboard() {
                     ))}
                     {groups.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="py-6 text-center text-muted-foreground">
-                          Sin datos de grupos.
+                        <td colSpan={4} className="py-6">
+                          <EmptyState icon={Building2} compact title="Sin datos de grupos." />
                         </td>
                       </tr>
                     )}
@@ -188,22 +185,23 @@ export function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Estado operativo del Watcher GLPI y alertas de fallos permanentes */}
       {watcherStatus && (
         <Card
           className={`shadow-xs ${
             watcherStatus.hasOperationalAlert
               ? 'border-destructive/60 bg-destructive/5'
-              : 'border-border/70'
+              : 'border-border'
           }`}
           data-testid="admin-watcher-status-card"
         >
-          <CardHeader className="pb-3 border-b border-border/50 flex flex-row items-center justify-between gap-2">
+          <CardHeader className="pb-3 border-b border-border/70 flex flex-row items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              {watcherStatus.hasOperationalAlert && (
+              {watcherStatus.hasOperationalAlert ? (
                 <AlertTriangle className="size-4 text-destructive shrink-0" aria-hidden="true" />
+              ) : (
+                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
               )}
-              <CardTitle className="text-base font-semibold">
+              <CardTitle className="text-sm font-semibold">
                 Estado operativo del Watcher GLPI
               </CardTitle>
             </div>
@@ -218,29 +216,29 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="rounded-lg bg-background p-3 border border-border/60">
+              <div className="rounded-lg bg-surface-subtle p-3 border border-border">
                 <span className="text-muted-foreground block">Cursor actual (Ticket ID)</span>
                 <span
-                  className="mt-1 text-base font-bold tabular-nums block"
+                  className="mt-1 text-base font-semibold font-mono tabular-nums block text-foreground"
                   data-testid="watcher-checkpoint-value"
                 >
                   {watcherStatus.lastSeenTicketId ?? 'No inicializado'}
                 </span>
               </div>
-              <div className="rounded-lg bg-background p-3 border border-border/60">
+              <div className="rounded-lg bg-surface-subtle p-3 border border-border">
                 <span className="text-muted-foreground block">Pendientes de reconciliación</span>
                 <span
-                  className="mt-1 text-base font-bold tabular-nums block"
+                  className="mt-1 text-base font-semibold tabular-nums block text-foreground"
                   data-testid="watcher-pending-count"
                 >
                   {watcherStatus.pendingCount}
                 </span>
               </div>
-              <div className="rounded-lg bg-background p-3 border border-border/60">
+              <div className="rounded-lg bg-surface-subtle p-3 border border-border">
                 <span className="text-muted-foreground block">Fallos permanentes (50+ intentos)</span>
                 <span
-                  className={`mt-1 text-base font-bold tabular-nums block ${
-                    watcherStatus.permanentlyFailedCount > 0 ? 'text-destructive' : ''
+                  className={`mt-1 text-base font-semibold tabular-nums block ${
+                    watcherStatus.permanentlyFailedCount > 0 ? 'text-destructive' : 'text-foreground'
                   }`}
                   data-testid="watcher-failed-count"
                 >
@@ -262,7 +260,7 @@ export function AdminDashboard() {
                     <div
                       key={item.ticketId}
                       data-testid={`watcher-failed-ticket-${item.ticketId}`}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-background p-3 text-xs"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-card p-3 text-xs"
                     >
                       <div className="space-y-0.5 min-w-0">
                         <div className="font-semibold text-foreground truncate">
@@ -277,11 +275,12 @@ export function AdminDashboard() {
                         size="sm"
                         variant="outline"
                         data-testid={`watcher-recover-btn-${item.ticketId}`}
+                        loading={recoverMutation.isPending}
                         disabled={recoverMutation.isPending}
                         onClick={() => recoverMutation.mutate(item.ticketId)}
                         className="shrink-0 gap-1.5"
                       >
-                        <RefreshCw className="size-3.5" />
+                        <RefreshCw className="size-3.5" aria-hidden="true" />
                         Recuperar ticket
                       </Button>
                     </div>
