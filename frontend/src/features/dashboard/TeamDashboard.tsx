@@ -16,19 +16,32 @@ import {
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { NumberTicker } from '@/components/ui/number-ticker'
 import { DropdownSelect } from '@/components/ui/dropdown-select'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
-import { priorityMeta, statusMeta } from '@/features/tickets/labels'
+import { PriorityBadge, StatusBadge } from '@/components/ui/status-badge'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useGroupsQuery, useTeamDashboardQuery } from '@/hooks/useTickets'
 import type { GroupTicketDetail } from '@/lib/api/types'
 import { formatRelative, truncate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+
+interface TeamKpiCard {
+  id: string
+  label: string
+  value: number | null
+  emptyLabel?: string
+  suffix: string
+  icon: React.ComponentType<{ className?: string }>
+  iconColor: string
+  accent: string
+}
 
 /**
  * Supervisor view: "Consola de Supervisión del Líder" (H-40 / H-41 / H-42 / H-45 / H-58).
@@ -55,7 +68,7 @@ export function TeamDashboard() {
   // Subscribe to group real-time events so the dashboard updates automatically without F5
   useRealtimeTicketHub({ groupId })
 
-  const { data, isLoading, isError } = useTeamDashboardQuery(groupId)
+  const { data, isLoading, isError, refetch } = useTeamDashboardQuery(groupId)
   const technicians = useMemo(() => data?.technicians ?? [], [data?.technicians])
   const summary = data?.summary
   const allTickets: GroupTicketDetail[] = useMemo(() => data?.tickets ?? [], [data?.tickets])
@@ -113,17 +126,16 @@ export function TeamDashboard() {
         )
       : null
 
-  // 3. Section A KPI Cards
-  const kpiCards = [
+  // 3. Section A KPI Cards (Enterprise Precision)
+  const kpiCards: TeamKpiCard[] = [
     {
       id: 'active',
       label: 'Tickets Activos',
       value: activeCount,
       suffix: '',
       icon: Activity,
-      iconColor: 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10',
-      accent:
-        'border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-950/30 hover:border-indigo-500/50 transition-colors duration-150',
+      iconColor: 'text-blue-700 dark:text-blue-300 bg-blue-500/12',
+      accent: 'border-border bg-card hover:border-blue-400/60 transition-colors duration-150',
     },
     {
       id: 'paused',
@@ -131,9 +143,11 @@ export function TeamDashboard() {
       value: pausedCount,
       suffix: '',
       icon: PauseCircle,
-      iconColor: 'text-amber-600 dark:text-amber-400 bg-amber-500/10',
+      iconColor: 'text-amber-700 dark:text-amber-300 bg-amber-500/15',
       accent:
-        'border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/30 hover:border-amber-500/50 transition-colors duration-150',
+        pausedCount > 0
+          ? 'border-amber-300 dark:border-amber-800/80 bg-card hover:border-amber-500 transition-colors duration-150'
+          : 'border-border bg-card hover:border-primary/40 transition-colors duration-150',
     },
     {
       id: 'resolved-today',
@@ -141,20 +155,18 @@ export function TeamDashboard() {
       value: resolvedTodayCount,
       suffix: '',
       icon: CheckCircle2,
-      iconColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10',
-      accent:
-        'border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/30 hover:border-emerald-500/50 transition-colors duration-150',
+      iconColor: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15',
+      accent: 'border-border bg-card hover:border-emerald-400/60 transition-colors duration-150',
     },
     {
       id: 'mttr',
-      label: 'Tiempo Medio (MTTR)',
+      label: 'MTTR promedio',
       value: mttrHours,
       emptyLabel: 'Sin datos',
       suffix: 'h',
       icon: Timer,
-      iconColor: 'text-sky-600 dark:text-sky-400 bg-sky-500/10',
-      accent:
-        'border-sky-500/30 bg-sky-50/40 dark:bg-sky-950/30 hover:border-sky-500/50 transition-colors duration-150',
+      iconColor: 'text-sky-700 dark:text-sky-300 bg-sky-500/12',
+      accent: 'border-border bg-card hover:border-sky-400/60 transition-colors duration-150',
     },
     {
       id: 'stalled',
@@ -162,25 +174,26 @@ export function TeamDashboard() {
       value: stalledCount,
       suffix: '',
       icon: Flame,
-      iconColor: 'text-rose-600 dark:text-rose-400 bg-rose-500/10',
+      iconColor: 'text-red-700 dark:text-red-300 bg-red-500/15',
       accent:
-        'border-rose-500/30 bg-rose-50/40 dark:bg-rose-950/30 hover:border-rose-500/50 transition-colors duration-150',
+        stalledCount > 0
+          ? 'border-red-300 dark:border-red-800/80 bg-card hover:border-red-500 transition-colors duration-150'
+          : 'border-border bg-card hover:border-primary/40 transition-colors duration-150',
     },
   ]
 
   // Backward compatibility cards for QA test selectors
-  const totalCard = {
+  const totalCard: TeamKpiCard = {
     id: 'total',
     label: 'Total tickets',
     value: totalCount,
     suffix: '',
     icon: Layers,
-    iconColor: 'text-slate-600 dark:text-slate-300 bg-slate-500/10',
-    accent:
-      'border-border/70 bg-card hover:border-slate-400/50 transition-colors duration-150',
+    iconColor: 'text-foreground bg-muted',
+    accent: 'border-border bg-card hover:border-primary/40 transition-colors duration-150',
   }
 
-  const allStatCards = [totalCard, ...kpiCards]
+  const allStatCards: TeamKpiCard[] = [totalCard, ...kpiCards]
 
   const hasActiveFilters =
     techFilter !== 'all' || statusFilter !== 'all' || startDate !== '' || endDate !== ''
@@ -296,7 +309,7 @@ export function TeamDashboard() {
                     </p>
                   ) : (
                     <p className="mt-2 text-lg font-medium text-muted-foreground flex items-baseline">
-                      {(card as any).emptyLabel ?? '—'}
+                      {card.emptyLabel ?? '—'}
                     </p>
                   )}
                 </CardContent>
@@ -328,7 +341,10 @@ export function TeamDashboard() {
                 <Skeleton className="h-10 w-full rounded-lg" />
               </div>
             ) : isError ? (
-              <p className="text-sm text-destructive">Error al cargar el dashboard del equipo.</p>
+              <ErrorState
+                message="Error al cargar el dashboard del equipo."
+                onRetry={() => void refetch()}
+              />
             ) : (
               <>
                 {/* Vista Móvil (< md): Cards apiladas de técnicos */}
@@ -603,8 +619,8 @@ export function TeamDashboard() {
               </Badge>
             </div>
 
-            {/* Filtros por Técnico, Estado y Fecha (Liquid Glass pill design) */}
-            <div className="flex flex-wrap items-center gap-2 bg-muted/20 p-2 rounded-2xl border border-border/30">
+            {/* Filtros por Técnico, Estado y Fecha */}
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface-subtle p-2.5">
               <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
                 <Filter className="size-3.5 text-primary" aria-hidden="true" />
                 <span>Filtros</span>
@@ -618,7 +634,7 @@ export function TeamDashboard() {
                   { value: 'unassigned', label: 'Sin asignar' },
                   ...technicians.map((m) => ({ value: String(m.userId), label: m.name })),
                 ]}
-                className="w-36 sm:w-40 text-xs min-h-11 rounded-xl bg-background/50 hover:bg-primary/10 border-0 shadow-xs"
+                className="w-40 text-xs"
                 data-testid="filter-technician-select"
               />
               <DropdownSelect
@@ -629,12 +645,12 @@ export function TeamDashboard() {
                   { value: 'all', label: 'Todos los estados' },
                   { value: '1', label: '1 · Nuevo' },
                   { value: '2', label: '2 · Asignado' },
-                  { value: '3', label: '3 · En Progreso' },
+                  { value: '3', label: '3 · En proceso (planificado)' },
                   { value: '4', label: '4 · Pendiente' },
                   { value: '5', label: '5 · Resuelto' },
                   { value: '6', label: '6 · Cerrado' },
                 ]}
-                className="w-36 sm:w-40 text-xs min-h-11 rounded-xl bg-background/50 hover:bg-primary/10 border-0 shadow-xs"
+                className="w-48 text-xs"
                 data-testid="filter-status-select"
               />
 
@@ -661,7 +677,7 @@ export function TeamDashboard() {
                   size="sm"
                   onClick={handleClearFilters}
                   data-testid="clear-team-filters-btn"
-                  className="min-h-11 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-background/80 gap-1 transition-colors"
+                  className="h-9 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground gap-1"
                   title="Limpiar filtros"
                 >
                   <X className="size-3.5" aria-hidden="true" />
@@ -678,28 +694,35 @@ export function TeamDashboard() {
                 <Skeleton className="h-10 w-full rounded-lg" />
               </div>
             ) : filteredTickets.length === 0 ? (
-              <div className="py-10 text-center text-muted-foreground">
-                <p className="text-sm">No se encontraron tickets con los filtros seleccionados.</p>
-              </div>
+              <EmptyState
+                icon={Layers}
+                compact
+                title="No se encontraron tickets con los filtros seleccionados."
+                action={
+                  hasActiveFilters ? (
+                    <Button size="sm" variant="outline" onClick={handleClearFilters}>
+                      Limpiar filtros
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               <>
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm" data-testid="group-tickets-table">
-                  <thead>
+                  <thead className="bg-surface-subtle">
                     <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="py-3 pr-3 w-16">ID</th>
-                      <th className="py-3 pr-4">Título</th>
-                      <th className="py-3 pr-4">Estado</th>
-                      <th className="py-3 pr-4">Técnico Asignado</th>
-                      <th className="py-3 pr-4">Prioridad</th>
-                      <th className="py-3 pr-4">Tiempo en Estado</th>
-                      <th className="py-3">Último Comentario</th>
+                      <th className="py-2.5 px-3 w-16">ID</th>
+                      <th className="py-2.5 px-3">Título</th>
+                      <th className="py-2.5 px-3">Estado</th>
+                      <th className="py-2.5 px-3">Técnico Asignado</th>
+                      <th className="py-2.5 px-3">Prioridad</th>
+                      <th className="py-2.5 px-3">Tiempo en Estado</th>
+                      <th className="py-2.5 px-3">Último Comentario</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/50">
+                  <tbody className="divide-y divide-border/70">
                     {filteredTickets.map((ticket) => {
-                      const sMeta = statusMeta(ticket.status)
-                      const pMeta = priorityMeta(ticket.priority)
                       const isPending = ticket.status === 4
                       const timeInState = formatRelative(ticket.updatedAt || ticket.createdAt)
                       const comment = ticket.lastComment?.trim() || null
@@ -709,11 +732,11 @@ export function TeamDashboard() {
                           key={ticket.id}
                           className={cn(
                             'transition-colors duration-150 hover:bg-muted/40',
-                            isPending && 'bg-amber-50/20 dark:bg-amber-950/15',
+                            isPending && 'bg-amber-50/30 dark:bg-amber-950/15',
                           )}
                           data-testid={`group-ticket-row-${ticket.id}`}
                         >
-                          <td className="py-3 pr-3 font-mono font-semibold text-xs">
+                          <td className="py-3 px-3 font-mono font-semibold text-xs">
                             <Link
                               to={`/tickets/${ticket.id}`}
                               className="text-primary hover:underline"
@@ -721,7 +744,7 @@ export function TeamDashboard() {
                               #{ticket.id}
                             </Link>
                           </td>
-                          <td className="py-3 pr-4 font-medium text-foreground max-w-xs sm:max-w-sm truncate">
+                          <td className="py-3 px-3 font-medium text-foreground max-w-xs sm:max-w-sm truncate">
                             <Link
                               to={`/tickets/${ticket.id}`}
                               className="hover:underline"
@@ -730,37 +753,27 @@ export function TeamDashboard() {
                               {ticket.title}
                             </Link>
                           </td>
-                          <td className="py-3 pr-4">
-                            <Badge
-                              variant="outline"
-                              className={cn('text-xs font-medium', sMeta.badgeClass)}
-                            >
-                              {sMeta.label}
-                            </Badge>
+                          <td className="py-3 px-3">
+                            <StatusBadge status={ticket.status} size="sm" />
                           </td>
-                          <td className="py-3 pr-4 text-xs font-medium text-foreground">
+                          <td className="py-3 px-3 text-xs font-medium text-foreground">
                             {ticket.assigneeName ? (
                               <span className="inline-flex items-center gap-1.5">
-                                <span className="size-2 rounded-full bg-primary/70" />
-                                {ticket.assigneeName}
+                                <Avatar name={ticket.assigneeName} size="xs" />
+                                <span>{ticket.assigneeName}</span>
                               </span>
                             ) : (
                               <span className="text-muted-foreground italic">Sin asignar</span>
                             )}
                           </td>
-                          <td className="py-3 pr-4">
-                            <Badge
-                              variant="outline"
-                              className={cn('text-xs font-medium', pMeta.badgeClass)}
-                            >
-                              {pMeta.label}
-                            </Badge>
+                          <td className="py-3 px-3">
+                            <PriorityBadge priority={ticket.priority} size="sm" />
                           </td>
-                          <td className="py-3 pr-4 text-xs text-muted-foreground whitespace-nowrap">
+                          <td className="py-3 px-3 text-xs text-muted-foreground whitespace-nowrap">
                             {timeInState}
                           </td>
                           <td
-                            className="py-3 text-xs max-w-sm"
+                            className="py-3 px-3 text-xs max-w-sm"
                             data-testid={`group-ticket-comment-${ticket.id}`}
                           >
                             {comment ? (
@@ -789,30 +802,30 @@ export function TeamDashboard() {
                 </table>
               </div>
               <div className="space-y-3 md:hidden" data-testid="group-tickets-cards">
-                {filteredTickets.map((ticket) => {
-                  const meta = statusMeta(ticket.status)
-                  return (
-                    <article key={ticket.id} className="w-full space-y-3 rounded-2xl border border-border bg-background/50 p-4" data-testid={`group-ticket-card-${ticket.id}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-mono text-xs font-semibold text-primary">#{ticket.id}</span>
-                        <Badge variant="outline" className={cn('text-xs', meta.badgeClass)}>{meta.label}</Badge>
-                      </div>
-                      <h3 className="break-words text-sm font-semibold leading-relaxed">{ticket.title}</h3>
-                      <p className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <Users className="size-4 shrink-0" aria-hidden="true" />
-                        <span className="break-words">Técnico: <span className="font-medium text-foreground">{ticket.assigneeName || 'Sin asignar'}</span></span>
+                {filteredTickets.map((ticket) => (
+                  <article key={ticket.id} className="w-full space-y-3 rounded-xl border border-border bg-card p-4 shadow-xs" data-testid={`group-ticket-card-${ticket.id}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-xs font-semibold text-primary">#{ticket.id}</span>
+                      <StatusBadge status={ticket.status} size="sm" />
+                    </div>
+                    <h3 className="break-words text-sm font-semibold leading-snug">{ticket.title}</h3>
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5 truncate">
+                        <Users className="size-3.5 shrink-0" aria-hidden="true" />
+                        <span className="truncate font-medium text-foreground">{ticket.assigneeName || 'Sin asignar'}</span>
+                      </span>
+                      <PriorityBadge priority={ticket.priority} size="sm" />
+                    </div>
+                    {ticket.lastComment?.trim() && (
+                      <p className={cn('break-words rounded-lg p-2.5 text-xs', ticket.status === 4 ? 'bg-amber-500/10 text-amber-900 dark:text-amber-200 border border-amber-500/20' : 'bg-surface-subtle text-muted-foreground')}>
+                        {truncate(ticket.lastComment.trim(), 150)}
                       </p>
-                      {ticket.lastComment?.trim() && (
-                        <p className={cn('break-words rounded-xl p-3 text-xs', ticket.status === 4 ? 'bg-amber-500/10 text-amber-900 dark:text-amber-200' : 'bg-muted/40 text-muted-foreground')}>
-                          {truncate(ticket.lastComment.trim(), 150)}
-                        </p>
-                      )}
-                      <Link to={`/tickets/${ticket.id}`} className="flex min-h-11 w-full items-center justify-center rounded-xl bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Ver ticket #${ticket.id}`}>
-                        Ver ticket
-                      </Link>
-                    </article>
-                  )
-                })}
+                    )}
+                    <Link to={`/tickets/${ticket.id}`} className="flex min-h-10 w-full items-center justify-center rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Ver ticket #${ticket.id}`}>
+                      Ver ticket
+                    </Link>
+                  </article>
+                ))}
               </div>
               </>
             )}

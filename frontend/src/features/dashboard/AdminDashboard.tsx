@@ -12,14 +12,22 @@ import {
   useAdminWatcherStatusQuery,
   useRecoverWatcherTicketMutation,
 } from '@/hooks/useTickets'
+import { getApiErrorMessage } from '@/lib/api/errors'
+import { useToastStore } from '@/store/toastStore'
 
 /**
  * Admin view: "Administración" — global overview of all groups and GLPI watcher integrity.
  */
 export function AdminDashboard() {
   const { data, isLoading, isError, refetch } = useAdminDashboardQuery()
-  const { data: watcherStatus } = useAdminWatcherStatusQuery()
+  const {
+    data: watcherStatus,
+    isError: watcherIsError,
+    error: watcherError,
+    refetch: refetchWatcher,
+  } = useAdminWatcherStatusQuery()
   const recoverMutation = useRecoverWatcherTicketMutation()
+  const pushToast = useToastStore((state) => state.push)
   const groups = data ?? []
 
   const totalTickets = groups.reduce((acc, g) => acc + (g.totalTickets ?? 0), 0)
@@ -185,6 +193,14 @@ export function AdminDashboard() {
         </CardContent>
       </Card>
 
+      {watcherIsError && (
+        <ErrorState
+          title="No se pudo consultar el estado del Watcher GLPI"
+          message={getApiErrorMessage(watcherError)}
+          onRetry={() => void refetchWatcher()}
+        />
+      )}
+
       {watcherStatus && (
         <Card
           className={`shadow-xs ${
@@ -277,7 +293,24 @@ export function AdminDashboard() {
                         data-testid={`watcher-recover-btn-${item.ticketId}`}
                         loading={recoverMutation.isPending}
                         disabled={recoverMutation.isPending}
-                        onClick={() => recoverMutation.mutate(item.ticketId)}
+                        onClick={() =>
+                          recoverMutation.mutate(item.ticketId, {
+                            onSuccess: () => {
+                              pushToast({
+                                title: 'Recuperación encolada',
+                                description: `El ticket #${item.ticketId} fue reencolado para reconciliación en GLPI.`,
+                                variant: 'success',
+                              })
+                            },
+                            onError: (err) => {
+                              pushToast({
+                                title: 'No se pudo recuperar el ticket',
+                                description: getApiErrorMessage(err),
+                                variant: 'destructive',
+                              })
+                            },
+                          })
+                        }
                         className="shrink-0 gap-1.5"
                       >
                         <RefreshCw className="size-3.5" aria-hidden="true" />

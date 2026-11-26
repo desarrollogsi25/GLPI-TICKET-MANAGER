@@ -399,14 +399,18 @@ export function VisualScheduleSelector({
                       : slot.isBusy
                         ? 'bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-400 cursor-not-allowed opacity-75'
                         : slot.isAfterHours
-                          ? 'bg-muted/20 border border-border/30 text-muted-foreground/50 cursor-not-allowed'
+                          ? 'bg-muted/20 border border-border/40 text-muted-foreground cursor-not-allowed'
                           : slot.isPast
-                            ? 'bg-muted/30 border border-border/40 text-muted-foreground/60 hover:bg-muted/50'
-                            : 'bg-background/90 border border-border/70 text-foreground hover:border-primary/60 hover:bg-primary/5'
+                            ? 'bg-muted/40 border border-border text-muted-foreground hover:bg-muted/70'
+                            : 'bg-background border border-border text-foreground hover:border-primary/60 hover:bg-primary/5'
                   }`}
                 >
                   <span className="font-mono text-xs sm:text-sm font-semibold leading-none">{slot.timeLabel}</span>
-                  <span className="text-[10px] opacity-75 leading-tight mt-0.5">
+                  <span
+                    className={`text-[10px] leading-tight mt-0.5 ${
+                      slot.isSelected ? 'text-primary-foreground/90' : 'text-muted-foreground'
+                    }`}
+                  >
                     → {slot.endLabel}
                   </span>
                   {slot.isSelected && (

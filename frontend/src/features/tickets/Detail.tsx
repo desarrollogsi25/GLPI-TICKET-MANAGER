@@ -220,6 +220,7 @@ export function Detail() {
       : ticket.status === 5 && (isAssigned || role === 'supervisor')
 
   const canClaimHere = !isRequester && ticket.assigneeIds.length === 0 && (ticket.status === 1 || ticket.status === 2)
+  const isTechnicianWithoutAssignment = role === 'technician' && ticket.assigneeIds.length > 0 && !isAssigned
 
   return (
     <div className="space-y-5 pb-8">
@@ -617,12 +618,18 @@ export function Detail() {
                         size="sm"
                         variant="outline"
                         className="border-primary/50 text-primary hover:bg-primary/10 cursor-pointer"
-                        disabled={ticket.assigneeIds.length === 0 || updateStatus.isPending}
+                        disabled={
+                          ticket.assigneeIds.length === 0 ||
+                          isTechnicianWithoutAssignment ||
+                          updateStatus.isPending
+                        }
                         data-testid="start-ticket-btn"
                         title={
                           ticket.assigneeIds.length === 0
                             ? 'Asigna un técnico antes de planificar.'
-                            : undefined
+                            : isTechnicianWithoutAssignment
+                              ? 'Solo el técnico asignado, un supervisor o un administrador puede planificar este ticket.'
+                              : undefined
                         }
                         onClick={() => setPlanOpen(true)}
                       >
@@ -636,19 +643,22 @@ export function Detail() {
                       className="cursor-pointer"
                       disabled={
                         ticket.assigneeIds.length === 0 ||
+                        isTechnicianWithoutAssignment ||
                         (ticket.status !== 2 && ticket.status !== 3) ||
                         updateStatus.isPending
                       }
                       title={
-                        ticket.status === 4
-                          ? 'No se puede resolver desde Pendiente. Primero debe reanudarse o replanificarse una tarea.'
-                          : ticket.status === 1
-                            ? 'Primero debes asignarte el ticket para poder resolverlo.'
-                            : ticket.status === 5
-                              ? 'El ticket ya fue resuelto.'
-                              : ticket.status === 6
-                                ? 'El ticket está cerrado.'
-                                : undefined
+                        isTechnicianWithoutAssignment
+                          ? 'Solo el técnico asignado, un supervisor o un administrador puede resolver este ticket.'
+                          : ticket.status === 4
+                            ? 'No se puede resolver desde Pendiente. Primero debe reanudarse o replanificarse una tarea.'
+                            : ticket.status === 1
+                              ? 'Primero debes asignarte el ticket para poder resolverlo.'
+                              : ticket.status === 5
+                                ? 'El ticket ya fue resuelto.'
+                                : ticket.status === 6
+                                  ? 'El ticket está cerrado.'
+                                  : undefined
                       }
                       onClick={() => setResolveOpen(true)}
                     >
@@ -661,10 +671,16 @@ export function Detail() {
                       className="cursor-pointer"
                       disabled={
                         ticket.assigneeIds.length === 0 ||
+                        isTechnicianWithoutAssignment ||
                         ticket.status === 4 ||
                         ticket.status === 5 ||
                         ticket.status === 6 ||
                         updateStatus.isPending
+                      }
+                      title={
+                        isTechnicianWithoutAssignment
+                          ? 'Solo el técnico asignado, un supervisor o un administrador puede poner en pendiente este ticket.'
+                          : undefined
                       }
                       onClick={() => setPendingOpen(true)}
                       data-testid="pending-ticket-btn"

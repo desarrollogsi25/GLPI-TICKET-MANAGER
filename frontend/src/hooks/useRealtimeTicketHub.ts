@@ -59,7 +59,7 @@ export interface UseRealtimeTicketHubOptions {
 const STATUS_LABELS: Record<number, string> = {
   1: 'Nuevo',
   2: 'Asignado',
-  3: 'En Progreso',
+  3: 'En proceso (planificado)',
   4: 'Pendiente',
   5: 'Resuelto',
   6: 'Cerrado',

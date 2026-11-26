@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { HelpCircle, Inbox, KanbanSquare, ListTodo, Menu, Settings } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
@@ -32,11 +32,12 @@ const tabClass = (active: boolean) =>
   )
 
 function ActiveIndicator() {
+  const prefersReduced = useReducedMotion()
   return (
     <motion.div
       layoutId="mobile-tab-active"
       className="absolute inset-x-2 inset-y-1 bg-primary/10 rounded-xl"
-      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+      transition={prefersReduced ? { duration: 0 } : { type: 'spring', stiffness: 350, damping: 30 }}
     />
   )
 }
