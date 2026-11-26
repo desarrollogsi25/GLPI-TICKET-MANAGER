@@ -247,7 +247,7 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 overflow-y-auto min-h-0 custom-scrollbar p-2.5 space-y-2.5 rounded-xl border border-border transition-all duration-150 bg-surface-subtle',
+          'flex-1 overflow-y-auto min-h-0 custom-scrollbar p-2.5 space-y-2.5 rounded-2xl transition-all duration-150 bg-surface-subtle/90 dark:bg-surface-subtle/70',
           isOver
             ? 'border-dashed border-2 border-primary bg-primary/10 ring-2 ring-primary/25 shadow-sm'
             : '',

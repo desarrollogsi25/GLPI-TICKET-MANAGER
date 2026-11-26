@@ -1,10 +1,10 @@
 # Auditoría UX/UI, Dirección Visual y Design System — GLPI Ticket Manager (GSI Service Desk)
 
-**Fecha:** 2026-11-26 (Actualización Release Candidate)
+**Fecha:** 2026-11-26 (Versión Final de Release)
 **Rama:** `feat/ux-ui-enterprise-redesign-20261125`
 **Base (`main`):** `e4996e8bee1601cda7470ae8105799eeb1842136`
-**Commit previo de rediseño:** `44e2005594225797fbfa2f0921aac6e1cca83ea1`
-**Dirección Visual:** *Enterprise Precision — IT Service Management*
+**Commits previos:** `44e2005594225797fbfa2f0921aac6e1cca83ea1` (Rediseño base), `b115a8d32f32eed5e9894c614797cfc091a546d5` (RC)
+**Dirección Visual:** *Enterprise Precision + Apple-Inspired Clarity — IT Service Management*
 
 ---
 
@@ -12,7 +12,10 @@
 
 | Referencia | Principios Extraídos y Aplicados |
 |---|---|
-| **IBM Carbon Design System** | Tablas densas escaneables con encabezados ordenables (`aria-sort`), separadores arquitectónicos de 1px (`border-border`), indicadores de estado que combinan icono + texto (nunca solo color) y jerarquía neutra de superficies (`--background`, `--surface-subtle`, `--card`). |
+| **Apple Human Interface Guidelines (macOS / iPadOS)** | Separación espacial y tonal en lugar de grillas wireframe con bordes pesados: sidebar integrado sobre `bg-background` sin `border-r`, ítem activo como píldora flotante elevada (`bg-card` + sombra sutil + `ring-1`), navbar minimalista sin `border-b` con traslucidez controlada (`bg-background/85 backdrop-blur-md`), elevación física suave en tarjetas (`Card`), tracking óptico (`tracking-[-0.025em]`) y springs críticamente amortiguados (`bounce: 0`) respetando `prefers-reduced-motion`. |
+| **Linear / Vercel / Raycast / Mobbin / SaaSFrame / Refero** | Patrones de productividad SaaS moderna: barra de comandos global (`Ctrl+K`), menú flotante de avatar de usuario en el extremo superior derecho (`Preferencias`, `Ayuda y guía`, `Cerrar sesión`), columnas Kanban contenidas en bandejas tonales suaves sin borde pesado, jerarquía de acciones primarias vs secundarias y pantalla de login limpia con composición de marca preservada (ondas orgánicas SVG + tarjeta flotante compacta). |
+| **shadcn/ui + Radix UI + Motion + 21st.dev** | Primitivos accesibles composables (`Dialog`, `ConfirmDialog`, `DropdownSelect`, `Switch`, `Avatar`, `StatusBadge`, `TicketStatusStepper`) con foco visible (`focus-visible:ring-2`), cierre seguro `Escape` y micro-interacciones rápidas (`150–260ms`) sin movimiento decorativo innecesario. |
+| **IBM Carbon Design System** | Tablas densas escaneables con encabezados ordenables (`aria-sort`), indicadores de estado que combinan icono + texto (nunca solo color) y jerarquía neutra de superficies (`--background`, `--surface-subtle`, `--card`). |
 | **Atlassian Design System (ADS)** | Distinción estricta entre *Lozenges* de estado/prioridad (`StatusBadge`, `PriorityBadge`) y contadores numéricos (*Badges*), atenuación controlada de estados terminales (`Cerrado`) para que los tickets activos destaquen, y panel lateral de metadatos estructurado en Detalle. |
 | **Nielsen Norman Group (10 Heurísticas)** | Visibilidad del estado del sistema (`TicketStatusStepper`, `ConnectionIndicator` persistente en header), reconocimiento sobre recuerdo (etiquetas legibles de Urgencia/Impacto en lugar de códigos `3/3`, ejemplos en formularios GLPI), prevención de errores (`ConfirmDialog` en acciones destructivas), control del usuario (botón Volver, limpiar búsqueda/filtros, `Ctrl+K`). |
 | **WCAG 2.2 AA** | Eliminación de `user-scalable=no` y `maximum-scale=1.0` en `index.html` (SC 1.4.4), `scroll-padding-top` para evitar foco oculto tras headers sticky (SC 2.4.11), objetivos táctiles mínimos (SC 2.5.8), contraste ≥ 4.5:1 en claro/oscuro y modales, regiones desplazables accesibles por teclado (`tabIndex={0}` en páginas no-Kanban), respeto a `prefers-reduced-motion` y reactivación de la regla `meta-viewport` en `a11y.spec.ts`. |

@@ -229,7 +229,7 @@ export function GroupQueuePage() {
             aria-label="Filtrar cola por prioridad"
             value={priorityFilter}
             onChange={setPriorityFilter}
-            className="w-full sm:w-44"
+            className="w-full sm:w-52"
             options={[
               { value: 'all', label: 'Todas las prioridades' },
               ...TICKET_PRIORITIES.map((p) => ({ value: String(p.value), label: p.label })),

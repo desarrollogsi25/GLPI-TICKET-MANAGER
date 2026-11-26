@@ -53,6 +53,10 @@ docker compose up -d --build
 - **GLPI Web UI:** [http://localhost:8081](http://localhost:8081)
 - **MariaDB GLPI:** `127.0.0.1:3306`
 
+**Entorno corporativo LAN (overlay docker-compose.local-sync.yml):**
+- **GSI Service Desk (HTTPS):** [https://10.10.40.31/](https://10.10.40.31/) *(HTTP :80 redirige a HTTPS :443)*
+- **GLPI 11.0.13 Nativo:** [http://10.10.40.31:8081/](http://10.10.40.31:8081/)
+
 > **Detener los servicios:**  
 > - Detener contenedores manteniendo volúmenes y datos: `docker compose down`  
 > - Conserva los volúmenes existentes; no borres datos para resolver problemas de arranque.
@@ -235,6 +239,8 @@ The web application is audited and verified against **WCAG 2.1 Level AA** standa
 
 Start at [`docs/`](docs/):
 
+- [`docs/qa/redesign-ux-ui-20261125/AUDITORIA-Y-DESIGN-SYSTEM.md`](docs/qa/redesign-ux-ui-20261125/AUDITORIA-Y-DESIGN-SYSTEM.md) — Auditoría UX/UI, Design System *Enterprise Precision + Apple-Inspired* y referencias de diseño
+- [`docs/qa/redesign-ux-ui-20261125/REPORTE-FINAL-REDISEÑO-UX-UI.md`](docs/qa/redesign-ux-ui-20261125/REPORTE-FINAL-REDISEÑO-UX-UI.md) — Informe final de QA manual interactivo, 69/69 E2E, accesibilidad WCAG 2.2 AA y capturas visuales
 - [`docs/user-guide.md`](docs/user-guide.md) — Guía básica de usuario (creación de tickets en GLPI, autoasignación, ciclo de vida de estados y Command Palette `Ctrl+K`)
 - [`docs/01-architecture/decisions/ADR-022-realtime-and-ui-engineering.md`](docs/01-architecture/decisions/ADR-022-realtime-and-ui-engineering.md) — Arquitectura de tiempo real (SignalR + TanStack Query) y principios de ingeniería de UI (Emil Kowalski)
 - [`docs/09-visual-docs/accessibility.md`](docs/09-visual-docs/accessibility.md) — WCAG 2.1 AA audit, fixes, and multi-viewport QA

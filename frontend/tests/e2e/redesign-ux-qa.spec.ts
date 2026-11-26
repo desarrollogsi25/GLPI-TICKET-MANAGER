@@ -424,6 +424,19 @@ test.describe('Rediseño UX/UI Enterprise Precision — QA Funcional, Responsive
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('command-palette-dialog')).not.toBeVisible()
 
+    // 3b. Menú de usuario flotante en Navbar y colapso de Sidebar
+    const userMenuBtn = page.getByTestId('header-user-menu-btn')
+    await expect(userMenuBtn).toBeVisible()
+    await userMenuBtn.click()
+    await expect(page.getByTestId('header-user-menu')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('header-user-menu')).not.toBeVisible()
+
+    const collapseBtn = page.getByTestId('sidebar-collapse-btn')
+    await expect(collapseBtn).toBeVisible()
+    await collapseBtn.click()
+    await collapseBtn.click()
+
     // 4. Modal de Planificación en Kanban (sobre ticket asignado en columna "Asignado")
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')

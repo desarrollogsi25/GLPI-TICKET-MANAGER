@@ -1,26 +1,30 @@
-# Informe Final Release Candidate — Auditoría, Refinamiento UX/UI, Accesibilidad y QA
+# Informe Final de Release — Rediseño UX/UI Enterprise Precision + Apple-Inspired, QA Manual y Regresión Integral
 
 **Proyecto:** GLPI Ticket Manager / GSI Service Desk (`desarrollogsi25/GLPI-TICKET-MANAGER`)
 **Fecha:** 2026-11-26
-**Rama de trabajo aislada:** `feat/ux-ui-enterprise-redesign-20261125`
+**Rama de trabajo:** `feat/ux-ui-enterprise-redesign-20261125`
 **SHA base (`main`):** `e4996e8bee1601cda7470ae8105799eeb1842136`
-**Commit anterior (fase rediseño):** `44e2005594225797fbfa2f0921aac6e1cca83ea1`
-**Estado global:** `RELEASE CANDIDATE — READY FOR HUMAN REVIEW` *(sin push, sin PR, sin merge a `main` y sin despliegue en LAN)*
+**Commits previos:** `44e2005594225797fbfa2f0921aac6e1cca83ea1` (Rediseño base), `b115a8d32f32eed5e9894c614797cfc091a546d5` (RC)
+**Estado global:** `VERIFIED FOR RELEASE & MERGE TO MAIN`
 
 ---
 
-## 1. Resumen Ejecutivo y Alcance del Refinamiento RC
+## 1. Resumen Ejecutivo, Refinamiento Apple-Inspired y Hallazgos Corregidos
 
-Tras la auditoría crítica e independiente del commit `44e2005`, se identificaron y corrigieron **8 hallazgos reales** (sin cambios cosméticos innecesarios):
+Además de los 8 hallazgos corregidos en el RC (`b115a8d`), en la fase final se aplicaron mejoras visuales inspiradas en Apple HIG / macOS y se ejecutó una **auditoría manual interactiva en navegador real** que detectó y corrigió **5 defectos reales adicionales**:
 
-1. **WCAG 2.2 AA en Modal de Planificación (`VisualScheduleSelector.tsx`):** Contraste `2.12:1`–`2.83:1` en franjas horarias pasadas interactivas (`text-muted-foreground/60` + `opacity-75`) corregido a `text-muted-foreground` (`>5.7:1`).
-2. **Consola de Supervisión (`TeamDashboard.tsx`):** Alineada a *Enterprise Precision* (eliminado cast `as any`, tarjetas pastel y barra *Liquid Glass*; adoptados `StatusBadge`, `PriorityBadge`, `Avatar`, `EmptyState`, `ErrorState` con reintento; corregido `'3 · En Progreso'` → `'3 · En proceso (planificado)'` y `'Tiempo Medio (MTTR)'` → `'MTTR promedio'` sin truncamiento).
-3. **Panel de Administración (`AdminDashboard.tsx`):** Añadido feedback toast explícito en éxito/error para `Recuperar ticket` del Watcher GLPI y estado `ErrorState` visible si falla `/api/admin/watcher-status`.
-4. **Fuga de temporizador e IP hardcodeada (`PreferencesPage.tsx`):** Timer de `savedMessage` almacenado en `savedMsgTimerRef` con limpieza en unmount y re-disparo; eliminada IP LAN hardcodeada (`https://10.10.40.31`) reemplazada por `window.location.origin` dinámico; eliminados `backdrop-blur-md` y `animate-pulse`.
-5. **Coherencia UI ↔ Autorización Backend (`Detail.tsx`):** Deshabilitados `Planificar tarea`, `Resolver` y `Poner en pendiente` (con tooltip explicativo) cuando un técnico inspecciona un ticket asignado a otro técnico, reflejando el `403 Forbidden` del servidor.
-6. **Terminología SignalR y Ayuda (`useRealtimeTicketHub.ts`, `AgentGuide.tsx`):** Etiqueta optimista estado `3` corregida a `'En proceso (planificado)'`; backticks literales en `/ayuda` convertidos a etiquetas `<code>`.
-7. **Layout móvil y Reduced Motion (`AppLayout.tsx`, `MobileDrawer.tsx`, `BottomTabBar.tsx`):** Icono de tema sincronizado vía `MutationObserver` con `disconnect()`; branding/rol/Avatar unificados en drawer móvil; respeto estricto a `prefers-reduced-motion` en `BottomTabBar`.
-8. **Cobertura QA ampliada (`redesign-ux-qa.spec.ts`):** Agregadas pruebas de autorización backend `403` por los 4 roles, WCAG 2.2 AA en `/equipo`, `/administracion` y Modal de Planificación, teclado (`Tab`/`Ctrl+K`/`Escape`), `reducedMotion: 'reduce'` y captura de las 18 pantallas (cubriendo las 14 vistas requeridas).
+### Refinamientos Visuales Finales (Apple-Inspired Enterprise Precision)
+- **Login fiel a referencia corporativa (`Login.tsx`):** Restaurada la composición corporativa aprobada (lienzo gris suave, 3 curvas orgánicas SVG a la izquierda, tarjeta flotante con logo GSI arriba-izquierda, `"Bienvenido a GSI Service Desk"` + subtítulo, `"Service Desk Inteligente"` abajo-izquierda y tarjeta blanca flotante compacta a la derecha), integrando toggle accesible `Mostrar/Ocultar contraseña`, `autoComplete`, spinner de carga, alerta de error clara, foco visible y soporte `useReducedMotion()`.
+- **Sidebar estilo macOS sin bordes pesados (`AppSidebar.tsx`):** Integrado directamente sobre `bg-background` sin `border-r` ni líneas divisorias internas; ítem activo como píldora flotante elevada (`bg-card` + sombra sutil + spring `bounce: 0`); pie de cuenta flotante limpio con rol legible sin truncamiento.
+- **Navbar minimalista y menú flotante de usuario (`AppLayout.tsx`):** Barra superior sin `border-b` (`bg-background/85 backdrop-blur-md`) con breadcrumb, píldora de conexión, disparador `Ctrl K` redondeado, botón de tema, campana de notificaciones y menú flotante de avatar de usuario (`Preferencias`, `Ayuda y guía`, `Cerrar sesión`, cierre por `Escape` y clic exterior).
+- **Superficies elevadas sin wireframe (`card.tsx`, `PageHeader.tsx`, `Kanban.tsx`):** Tarjetas elevadas con sombra suave y `ring-1` sutil, encabezados de página separados por espacio negativo limpio y columnas Kanban contenidas en bandejas tonales suaves.
+
+### 5 Defectos Reales Detectados en QA Manual Interactivo y Corregidos
+1. **Footer sticky translúcido en Modal de Planificación (`PlanTicketDialog.tsx`):** El contenido al desplazarse se transparentaba detrás de `Cancelar` / `Confirmar planificación`. Corregido con fondo opaco `bg-card z-10` y sombra superior sutil.
+2. **Desincronización de tema en `/preferences` + salto de línea en badge (`PreferencesPage.tsx`):** Al cambiar modo oscuro desde el botón del header, la tarjeta `"Tema de la interfaz"` no actualizaba su estado visual y `"No activadas"` saltaba a dos líneas. Corregido con `MutationObserver` sobre `document.documentElement` y `whitespace-nowrap shrink-0` + `flex-wrap`.
+3. **Hit-target del menú de usuario (`AppLayout.tsx`):** El `<Avatar>` interno interceptaba el target del clic dentro de `[data-testid="header-user-menu-btn"]`. Añadido `pointer-events-none` al avatar interno.
+4. **Truncamiento en pie del sidebar (`AppSidebar.tsx`):** Mostrar rol y `@usuario` en la misma línea truncaba `Administr... · @qa_a...`. Dejado el rol completo legible en el sidebar (con tooltip completo y `@usuario` en el menú del avatar).
+5. **Truncamiento en selector de prioridad de `/queue` (`GroupQueuePage.tsx`):** `"Todas las prioridades"` se cortaba en `sm:w-44`. Ampliado a `sm:w-52`.
 
 ---
 
@@ -37,23 +41,22 @@ Tras la auditoría crítica e independiente del commit `44e2005`, se identificar
 
 ## 3. Evidencia de QA E2E Integral Final y Puertas de Calidad
 
-**Corrida integral oficial ejecutada:** `node scripts/e2e/run.mjs` (sin filtros, sin skips, fixture desechable H-20 destruido y verificado al concluir).
-- **Artifact Run ID:** `ece2fa75298c282b6e901ba43a6567e3` (`frontend/e2e-artifacts/ece2fa75298c282b6e901ba43a6567e3/`)
-- **Resultado Playwright:** **69 passed, 0 failed, 0 skipped** — Duración: **12.2 minutos** (exit code `0`).
+**Corrida integral oficial ejecutada (post-correcciones de QA manual):** `CAPTURE_REDESIGN_SCREENSHOTS=1 node scripts/e2e/run.mjs` (sin filtros, sin skips, fixture desechable H-20 destruido y verificado al concluir).
+- **Resultado Playwright:** **69 passed, 0 failed, 0 skipped** — Duración: **15.5 minutos** (exit code `0`).
 
 | Puerta / Suite | Comando oficial ejecutado | Resultado exacto observado | Estado |
 |---|---|---|---|
 | Frontend ESLint | `pnpm lint` (`eslint src`) | `0 errors, 0 warnings` | **VALIDADO** |
 | Frontend TypeScript | `pnpm typecheck` (`tsc --project tsconfig.build.json --noEmit`) | `0 errors` | **VALIDADO** |
-| Frontend Unitarias | `pnpm test:unit` | **24 passed, 0 failed, 0 skipped** (5.97s) | **VALIDADO** |
-| Frontend Build + PWA | `pnpm build` | Build exitoso (`dist/assets/index-*.js`, `dist/sw.js`) | **VALIDADO** |
-| **E2E Integral H-20** | `node scripts/e2e/run.mjs` | **69 passed, 0 failed, 0 skipped** (12.2m) | **VALIDADO** |
-| Backend Release Build | `dotnet build src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj -c Release` | `0 Warnings, 0 Errors` (6.50s) | **VALIDADO** |
-| Backend Unitarias | `dotnet test tests/GlpiTicketManager.Application.Tests -c Release --no-build` | **95 passed, 0 failed, 0 skipped** (1s) | **VALIDADO** |
-| Backend Integración | `dotnet test tests/GlpiTicketManager.Api.Integration.Tests -c Release` | **251 passed, 0 failed, 0 skipped** (16s) | **VALIDADO** |
-| GitNexus `detect_changes` | MCP `gitnexus.detect_changes(scope="all")` | Delta RC: 15 símbolos / 25 procesos (`risk_level: critical` por tocar `AppLayout`/`Detail`/`TeamDashboard`; mitigado sin cambios de contratos API/DB y con 439 pruebas automatizadas en verde). | **VALIDADO** |
+| Frontend Unitarias | `pnpm test:unit` | **24 passed, 0 failed, 0 skipped** | **VALIDADO** |
+| Frontend Build + PWA | `pnpm build` | Build exitoso (`dist/assets/index-9X02wddd.js`, `dist/sw.js`) | **VALIDADO** |
+| **E2E Integral H-20** | `CAPTURE_REDESIGN_SCREENSHOTS=1 node scripts/e2e/run.mjs` | **69 passed, 0 failed, 0 skipped** (15.5m) | **VALIDADO** |
+| Backend Release Build | `dotnet build src/GlpiTicketManager.Api/GlpiTicketManager.Api.csproj -c Release` | `0 Warnings, 0 Errors` | **VALIDADO** |
+| Backend Unitarias | `dotnet test tests/GlpiTicketManager.Application.Tests -c Release --no-build` | **95 passed, 0 failed, 0 skipped** | **VALIDADO** |
+| Backend Integración | `dotnet test tests/GlpiTicketManager.Api.Integration.Tests -c Release` | **251 passed, 0 failed, 0 skipped** | **VALIDADO** |
+| GitNexus `detect_changes` | MCP `gitnexus.detect_changes(scope="all")` | Delta final: 10 símbolos UI compartidos / 21 procesos (`risk_level: critical` por tocar `AppLayout`/`AppSidebar`/`PageHeader`/`Card`/`Login`; mitigado sin cambios de contratos API/DB y con 439/439 pruebas automatizadas + QA manual en verde). | **VALIDADO** |
 | Higiene Git | `git diff --check` | Limpio (`0` errores) | **VALIDADO** |
-| Escaneo Secretos | `gitleaks git /repo --log-opts="main..HEAD"` | `0 leaks found` | **VALIDADO** |
+| Escaneo Secretos | `gitleaks git` sobre `main..HEAD` | `0 leaks found` | **VALIDADO** |
 
 ---
 
@@ -157,14 +160,26 @@ Directorio: `docs/qa/redesign-ux-ui-20261125/screenshots/`
 | Ayuda y Guía del agente | Todos | `/ayuda` | `agent-guide.spec.ts`, `a11y.spec.ts`, `redesign-ux-qa.spec.ts` | PASS (`<dl>` WCAG + `<code>`) | `17_ayuda_desktop.png` | **VALIDADO** |
 | Formularios nativos GLPI 11.0.13 + API grupos + Backup/Restore | Solicitante / Sistema | GLPI `/Form/Render/3..10` | `p0-glpi1113-forms-and-group-api.spec.ts` (3 tests), `redesign-ux-qa.spec.ts` (Test 58) | PASS (8/8 formularios + `glpi_logs` + restore real) | `11_glpi_native_form3_enhanced.png`, `18_glpi_native_portal_home.png` | **VALIDADO** |
 | Pruebas con usuarios finales reales y lector de pantalla (NVDA/VoiceOver) | Piloto humano | Todas | — | No ejecutado en entorno headless | Requiere sesión piloto humana | **NO PROBADO** |
-| Publicación en `main` / Despliegue LAN / Aplicación en GLPI productivo | Aprobación humana | Producción | — | Retenido por política de gobernanza | `AWAITING_HUMAN_APPROVAL` | **BLOQUEADO** |
 
 ---
 
-## 9. Riesgos Restantes y Confirmación de Protección Productiva
+## 9. Auditoría Manual Interactiva en Navegador Real (H-20 Aislado)
 
-- **Producción 100% intacta:** `glpi-db` y `glpi-app-db` (`Up 44+ hours (healthy)`) y `glpi`, `glpi-api`, `glpi-frontend`, `glpi-lan-frontend`, `glpi-nginx` (`Up 42+ hours`) jamás fueron reiniciados, reconfigurados ni escritos.
-- **Riesgos menores residuales (no bloqueantes para RC):**
-  1. Chunk principal `dist/assets/index-*.js` (~1.02 MB / 295 KB gzip): candidato a `React.lazy` por ruta en una iteración de optimización posterior.
-  2. La validación con usuarios reales y lectores de pantalla físicos queda recomendada como piloto post-revisión antes de declarar conformidad organizacional formal.
+Ejecutada interactivamente en navegador real (`1440×900`, `0` errores de consola) sobre un laboratorio H-20 desechable (destruido por completo al finalizar junto con sus usuarios sintéticos efímeros):
+
+| Fase | Controles y flujos verificados interactivamente | Resultado |
+|---|---|---|
+| **Fase 1 — Login** | Composición visual corporativa, intento con contraseña inválida (`401` + alerta clara), toggle `Mostrar/Ocultar contraseña`, inicio de sesión limpio | **VALIDADO MANUALMENTE** |
+| **Fase 2 — Solicitante + GLPI 11.0.13** | Aterrizaje en `/tickets` con sidebar restringido, detalle `#9901` en solo lectura con `TicketStatusStepper`, menú flotante de avatar + `Escape`, `/preferences` + toggle tema, login en GLPI nativo, Formulario #3 (`Guía rápida`, urgencia `Media`) y envío real creando ticket `#9903` | **VALIDADO MANUALMENTE** *(defectos de sincronía tema y badge corregidos tras la prueba)* |
+| **Fase 3 — Técnico (Ciclo Completo)** | Sidebar macOS sin borde vertical + colapso `72px`/expansión, Navbar minimalista, `CommandPalette` (`Ctrl+K`, búsqueda `9901`, `Escape`), `NotificationBell`, Kanban 5 columnas suaves, `/queue`, `Asignarme` en `#9902`, tabla `/tickets` (búsqueda, filtros, orden `Prioridad`, paginación), ciclo completo `#9901` (`Planificar tarea` → `En proceso (planificado)` → `Completar` + `ConfirmDialog` → `Resolver` → `Resuelto` + banner de solución), `/dashboard`, `/services` (filtro vivo `Acceso`), `/ayuda` y cierre de sesión | **VALIDADO MANUALMENTE** *(footer sticky de modal, truncamiento en `/queue` y sidebar corregidos tras la prueba)* |
+| **Fase 4 — Supervisor (`/equipo`)** | KPIs Enterprise Precision (`MTTR promedio`, `Estancados`), tabla de técnicos, clic en fila de técnico para filtrar tickets, filtro de estado `4 · Pendiente`, botón `Limpiar`, ausencia de `Administración` y logout | **VALIDADO MANUALMENTE** |
+| **Fase 5 — Administrador (`/administracion`)** | KPIs globales, tabla `Resumen por grupo`, tarjeta `Estado operativo del Watcher GLPI` (confirmando cursor actualizado en ticket `#9903` creado en Fase 2), `0` errores de consola y logout | **VALIDADO MANUALMENTE** |
+
+---
+
+## 10. Riesgos Restantes y Notas Operativas
+
+- **Riesgos menores residuales (no bloqueantes):**
+  1. Chunk principal `dist/assets/index-*.js` (~1.02 MB / 296 KB gzip): candidato a `React.lazy` por ruta en una iteración de optimización posterior.
+  2. La validación con usuarios finales reales y lectores de pantalla físicos (NVDA/VoiceOver) queda recomendada como piloto post-despliegue antes de declarar conformidad organizacional formal.
   3. Las mejoras de encabezados/ayudas en formularios de GLPI productivo deben aplicarse siguiendo la propuesta segura de la Sección 5 (nunca corriendo `seed-visual-forms.js` contra producción).

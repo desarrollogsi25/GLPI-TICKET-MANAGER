@@ -201,6 +201,23 @@ export function PreferencesPage() {
     }
   }, [])
 
+  // Sincronizar en tiempo real si el tema se cambia desde el botón del header (AppLayout)
+  useEffect(() => {
+    const syncFromDom = () => {
+      const domDark = document.documentElement.classList.contains('dark')
+      setTheme((prev) => {
+        const next = domDark ? 'dark' : 'light'
+        return prev === next ? prev : next
+      })
+    }
+    const observer = new MutationObserver(syncFromDom)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    })
+    return () => observer.disconnect()
+  }, [])
+
   // Sincronizar preferencias iniciales con backend y localStorage
   useEffect(() => {
     if (data?.prefs) {
@@ -523,30 +540,30 @@ export function PreferencesPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl border border-border/60 bg-muted/20">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold text-sm text-foreground">Estado de alertas en este equipo:</span>
                 {pushStatus === 'granted' && isPushSubscribed && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full">
                     <CheckCircle2 className="size-3" /> Activas
                   </span>
                 )}
                 {pushStatus === 'denied' && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-900 dark:text-rose-300 bg-rose-500/15 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-xs font-semibold text-rose-900 dark:text-rose-300 bg-rose-500/15 px-2.5 py-0.5 rounded-full">
                     <AlertCircle className="size-3" /> Bloqueadas
                   </span>
                 )}
                 {(pushStatus === 'default' || (pushStatus === 'granted' && !isPushSubscribed)) && (
-                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  <span className="whitespace-nowrap shrink-0 text-xs font-medium text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
                     No activadas
                   </span>
                 )}
                 {pushStatus === 'insecure_context' && (
-                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full">
+                  <span className="whitespace-nowrap shrink-0 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded-full">
                     Requiere HTTPS
                   </span>
                 )}
                 {pushStatus === 'unsupported' && (
-                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  <span className="whitespace-nowrap shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full">
                     No compatible
                   </span>
                 )}
