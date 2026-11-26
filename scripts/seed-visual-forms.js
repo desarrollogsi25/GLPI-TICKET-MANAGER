@@ -50,6 +50,23 @@ function answerTag(questionId, label) {
   return `<span data-form-tag="true" data-form-tag-value="${questionId}" data-form-tag-provider="${ANSWER_TAG_PROVIDER}" class="border-teal border-start border-3 bg-dark-lt">#Respuesta: ${label}</span>`;
 }
 
+/**
+ * Fuente de verdad del enrutamiento: la CATEGORÍA ITIL (glpi_itilcategories.groups_id) determina el
+ * grupo técnico. Esta tabla solo describe (informativamente) qué equipo recibirá cada servicio para
+ * mostrarlo al solicitante y para que las pruebas verifiquen el resultado persistido. No se asigna
+ * aquí ningún actor ni grupo: el formulario NUNCA pregunta por el equipo técnico.
+ */
+const CATEGORY_GROUP = {
+  7: { id: 3, name: 'Service Desk' },
+  14: { id: 2, name: 'BI' },
+  9: { id: 1, name: 'Desarrollo' },
+  19: { id: 3, name: 'Service Desk' },
+  16: { id: 3, name: 'Service Desk' },
+  4: { id: 1, name: 'Desarrollo' },
+  18: { id: 2, name: 'BI' },
+  3: { id: 3, name: 'Service Desk' },
+};
+
 const FORMS_CONFIG = [
   {
     catId: 1,
@@ -62,7 +79,7 @@ const FORMS_CONFIG = [
     questions: [
       { key: 'title', name: 'Asunto', description: 'Resumen claro de tu requerimiento (ej. Alta de ficha CRM para área comercial).', type: 'QuestionTypeShortText', mandatory: 1 },
       { key: 'context1', name: 'Sistema o plataforma relacionada', description: 'Indica el nombre del sistema, módulo o plataforma (ej. CRM, Moodle, Correo).', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'context2', name: 'Área o usuario beneficiario', description: 'Persona o equipo que recibirá el requerimiento (opcional si eres tú mismo).', type: 'QuestionTypeShortText', mandatory: 0 },
+      { key: 'context2', name: 'Usuario o área beneficiaria (opcional)', description: 'Solo si pides esto en nombre de otra persona o área. No elijas ningún equipo técnico: se asigna automáticamente.', type: 'QuestionTypeShortText', mandatory: 0 },
       { key: 'desc', name: 'Descripción detallada del requerimiento', description: 'Detalla qué necesitas, fecha esperada y cualquier dato necesario para atenderlo.', type: 'QuestionTypeLongText', mandatory: 1 },
       { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa real; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
       { key: 'file', name: 'Archivo adjunto (opcional)', description: 'Adjunta capturas, documentos o aprobaciones (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
@@ -175,7 +192,7 @@ const FORMS_CONFIG = [
       { key: 'title', name: 'Asunto', description: 'Resumen de la solicitud (ej. Alta de acceso a CRM para nuevo analista).', type: 'QuestionTypeShortText', mandatory: 1 },
       { key: 'context1', name: 'Sistema o recurso al que solicita acceso', description: 'Nombre del aplicativo, carpeta compartida o plataforma corporativa.', type: 'QuestionTypeShortText', mandatory: 1 },
       { key: 'context2', name: 'Perfil, rol o nivel de permisos requerido', description: 'Ejemplo: Solo lectura, Editor, Supervisor o usuario modelo de referencia.', type: 'QuestionTypeShortText', mandatory: 1 },
-      { key: 'desc', name: 'Motivo de la solicitud y usuario destinatario', description: 'Indica nombre completo, correo corporativo del usuario y justificación.', type: 'QuestionTypeLongText', mandatory: 1 },
+      { key: 'desc', name: 'Motivo y persona que recibirá el acceso', description: 'Indica nombre completo y correo corporativo de quien usará el acceso, y la justificación. El equipo técnico se asigna automáticamente.', type: 'QuestionTypeLongText', mandatory: 1 },
       { key: 'urgency', name: 'Urgencia', description: 'Selecciona la prioridad operativa; por defecto se asigna Media.', type: 'QuestionTypeUrgency', mandatory: 0, defaultValue: '3' },
       { key: 'file', name: 'Autorización o documento adjunto (opcional)', description: 'Adjunta aprobación del líder de área si aplica (máx. 20 MB).', type: 'QuestionTypeFile', mandatory: 0 },
     ],
@@ -268,7 +285,7 @@ function seedVisualForms() {
     const escapedDesc = escapeSql(cfg.desc);
     const escapedIll = escapeSql(cfg.illustration);
     const headerHtml = escapeSql(
-      `<p><strong>Guía rápida:</strong> ${cfg.desc} Los campos marcados con <strong>*</strong> son obligatorios. Al enviar, tu solicitud se asigna automáticamente al equipo responsable y podrás seguir su número de ticket y avance en tiempo real.</p>`
+      `<p><strong>Guía rápida:</strong> ${cfg.desc} Los campos marcados con <strong>*</strong> son obligatorios. Al enviar, tu solicitud se asigna automáticamente al equipo <strong>${CATEGORY_GROUP[cfg.itilCategoryId].name}</strong>; no necesitas elegir equipo ni categoría. Recibirás el número de tu ticket y podrás seguir su avance en GSI Service Desk (Mis tickets).</p>`
     );
 
     const existingFormId = runSql(
@@ -566,6 +583,13 @@ function seedVisualForms() {
     UPDATE glpi_forms_destinations_formdestinations SET config = '${dest2}' WHERE forms_forms_id = 2;
   `);
 
+  // 4b. Enrutamiento: UNA fuente de verdad (categoría ITIL -> grupo). Las reglas H38 duplicaban esa tabla.
+  runSql(`
+    UPDATE glpi_entities SET auto_assign_mode = 2 WHERE id = 0;
+    UPDATE glpi_rules SET is_active = 0 WHERE sub_type = 'RuleTicket' AND name LIKE 'H38 Route%';
+  `);
+  console.log('✓ Enrutamiento por categoría (auto_assign_mode=2) activo; reglas H38 duplicadas desactivadas.');
+
   // 5. Ordenar los mosaicos del Helpdesk (primero las 8 tarjetas destacadas, luego los 2 formularios generales y el catálogo)
   let tile1Id = runSql(`SELECT id FROM glpi_helpdesks_tiles_formtiles WHERE forms_forms_id = 1 LIMIT 1;`).trim();
   if (!tile1Id) {
@@ -631,4 +655,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { seedVisualForms, FORMS_CONFIG };
+module.exports = { seedVisualForms, FORMS_CONFIG, CATEGORY_GROUP };

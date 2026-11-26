@@ -8,8 +8,6 @@ import {
   KanbanSquare,
   ListTodo,
   LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   ShieldCheck,
   Users,
@@ -105,13 +103,11 @@ const secondaryNav: NavItemConfig[] = [
 interface AppSidebarProps {
   connectionState?: ConnectionState
   collapsed?: boolean
-  onToggleCollapse?: () => void
 }
 
 export function AppSidebar({
   connectionState = 'disconnected',
   collapsed = false,
-  onToggleCollapse,
 }: AppSidebarProps) {
   const prefersReduced = useReducedMotion()
   const storedUser = useAuthStore((state) => state.user)
@@ -233,7 +229,7 @@ export function AppSidebar({
         collapsed ? 'w-[72px]' : 'w-60',
       )}
     >
-      {/* 1. Seamless macOS-style Brand Header + Collapse Control */}
+      {/* 1. Seamless macOS-style Brand Header */}
       <div
         className={cn(
           'flex h-14 shrink-0 items-center',
@@ -260,36 +256,7 @@ export function AppSidebar({
           )}
         </div>
 
-        {onToggleCollapse && !collapsed && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggleCollapse}
-            aria-label="Colapsar barra lateral"
-            title="Colapsar barra lateral"
-            data-testid="sidebar-collapse-btn"
-            className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] shrink-0 cursor-pointer"
-          >
-            <PanelLeftClose className="size-4" />
-          </Button>
-        )}
       </div>
-
-      {onToggleCollapse && collapsed && (
-        <div className="flex justify-center pb-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggleCollapse}
-            aria-label="Expandir barra lateral"
-            title="Expandir barra lateral"
-            data-testid="sidebar-collapse-btn"
-            className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
-          >
-            <PanelLeftOpen className="size-4" />
-          </Button>
-        </div>
-      )}
 
       {/* 2. Role-Aware Seamless Navigation (separated purely by spacing) */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 py-3 space-y-6">

@@ -581,16 +581,16 @@ export function PreferencesPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex w-full sm:w-auto items-center gap-2 sm:shrink-0">
               {pushStatus === 'insecure_context' ? (
                 <Button
                   type="button"
                   onClick={() => {
                     window.location.href = window.location.href.replace(/^http:/, 'https:')
                   }}
-                  className="rounded-xl text-xs font-semibold shadow-xs cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
+                  className="w-full sm:w-auto h-auto py-2 whitespace-normal text-center rounded-xl text-xs font-semibold shadow-xs cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
                 >
-                  <Lock className="size-3.5 mr-1.5" />
+                  <Lock className="size-3.5 mr-1.5 shrink-0" />
                   Ir a HTTPS para activar
                 </Button>
               ) : pushStatus !== 'granted' || !isPushSubscribed ? (
@@ -598,10 +598,10 @@ export function PreferencesPage() {
                   type="button"
                   onClick={handleActivatePush}
                   disabled={isPushLoading || pushStatus === 'unsupported'}
-                  className="rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
+                  className="w-full sm:w-auto h-auto py-2 whitespace-normal text-center rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
                   data-testid="activate-device-notifications-btn"
                 >
-                  <Bell className="size-3.5 mr-1.5" />
+                  <Bell className="size-3.5 mr-1.5 shrink-0" />
                   {isPushLoading ? 'Activando...' : 'Activar notificaciones del dispositivo'}
                 </Button>
               ) : (
@@ -610,10 +610,10 @@ export function PreferencesPage() {
                   variant="outline"
                   onClick={handleTestPush}
                   disabled={isTestingPush}
-                  className="rounded-xl text-xs font-semibold cursor-pointer border-primary/40 hover:bg-primary/10"
+                  className="w-full sm:w-auto h-auto py-2 whitespace-normal text-center rounded-xl text-xs font-semibold cursor-pointer border-primary/40 hover:bg-primary/10"
                   data-testid="test-device-notification-btn"
                 >
-                  <Send className="size-3.5 mr-1.5" />
+                  <Send className="size-3.5 mr-1.5 shrink-0" />
                   {isTestingPush ? 'Enviando...' : 'Probar notificación OS'}
                 </Button>
               )}
