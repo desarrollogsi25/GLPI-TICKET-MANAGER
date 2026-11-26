@@ -432,7 +432,7 @@ test.describe('Rediseño UX/UI Enterprise Precision — QA Funcional, Responsive
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('header-user-menu')).not.toBeVisible()
 
-    const collapseBtn = page.getByTestId('sidebar-collapse-btn')
+    const collapseBtn = page.getByTestId('topbar-nav-toggle')
     await expect(collapseBtn).toBeVisible()
     await collapseBtn.click()
     await collapseBtn.click()

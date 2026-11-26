@@ -1,13 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ChevronRight, HelpCircle, LogOut, Moon, Search, Settings, Sun } from 'lucide-react'
+import {
+  ChevronRight,
+  HelpCircle,
+  LogOut,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Settings,
+  Sun,
+} from 'lucide-react'
 
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/tickets/labels'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
 import { showNativeNotification } from '@/hooks/useAutomaticNotificationPermission'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useRealtimeTicketHub } from '@/hooks/useRealtimeTicketHub'
 import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
@@ -22,6 +33,9 @@ import { PageTransition } from './PageTransition'
 
 export type DarkPreset = 'midnight' | 'charcoal' | 'deep-blue'
 
+/** Debajo de este ancho CSS (zoom incluido) la navegación pasa a rail compacto. */
+const COMPACT_NAV_QUERY = '(max-width: 1099px)'
+
 export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -29,14 +43,17 @@ export function AppLayout() {
   const prefersReduced = useReducedMotion()
   const navigate = useNavigate()
   const logout = useLogout()
+  const isCompactNav = useMediaQuery(COMPACT_NAV_QUERY)
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+  const [userCollapsed, setUserCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('glpi_sidebar_collapsed') === 'true'
     } catch {
       return false
     }
   })
+  // El colapso automático no altera la preferencia guardada del usuario.
+  const isSidebarCollapsed = isCompactNav || userCollapsed
   const [isCommandOpen, setIsCommandOpen] = useState(false)
   const [isDark, setIsDark] = useState<boolean>(() =>
     document.documentElement.classList.contains('dark'),
@@ -52,7 +69,6 @@ export function AppLayout() {
 
   const location = useLocation()
   const { role, isRequester } = useRole()
-  const homePath = isRequester ? '/tickets' : '/kanban'
   const pathSegments = location.pathname.split('/').filter(Boolean)
   const routeLabels: Record<string, string> = {
     kanban: 'Kanban',
@@ -66,6 +82,7 @@ export function AppLayout() {
     ayuda: 'Ayuda',
   }
   const currentPage = routeLabels[pathSegments[0]] ?? 'Inicio'
+  const isDetail = Boolean(pathSegments[1])
 
   const { connectionState } = useRealtimeTicketHub({
     onNotificationReceived: () => {
@@ -112,7 +129,7 @@ export function AppLayout() {
   }, [isUserMenuOpen])
 
   const handleToggleSidebar = () => {
-    setIsSidebarCollapsed((prev) => {
+    setUserCollapsed((prev) => {
       const next = !prev
       try {
         localStorage.setItem('glpi_sidebar_collapsed', String(next))
@@ -138,8 +155,132 @@ export function AppLayout() {
     setIsDark(nextDark)
   }
 
+  const menuItemClass =
+    'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer'
+
+  /** Menú de cuenta único para todas las anchuras: sin acciones duplicadas por viewport. */
+  const renderAccountMenu = (testId: string) => (
+    <div ref={testId === 'header-user-menu-btn' ? userMenuRef : undefined} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setIsUserMenuOpen((prev) => !prev)}
+        aria-label="Menú de usuario"
+        aria-haspopup="menu"
+        aria-expanded={isUserMenuOpen}
+        data-testid={testId}
+        className="flex size-10 md:size-9 items-center justify-center rounded-full transition-transform duration-150 active:scale-95 cursor-pointer hover:ring-2 hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Avatar name={displayName} size="sm" className="pointer-events-none" />
+      </button>
+
+      <AnimatePresence>
+        {isUserMenuOpen && (
+          <motion.div
+            role="menu"
+            aria-label="Opciones de cuenta"
+            data-testid={testId.replace('-btn', '')}
+            initial={prefersReduced ? false : { opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={prefersReduced ? undefined : { opacity: 0, y: -4, scale: 0.98 }}
+            transition={prefersReduced ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.18 }}
+            className="absolute right-0 top-full mt-2 z-50 w-[min(16rem,calc(100vw-1.5rem))] origin-top-right rounded-2xl bg-popover p-1.5 text-popover-foreground shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)] ring-1 ring-black/[0.06] dark:ring-white/[0.1]"
+          >
+            <div className="px-3 py-2.5">
+              <p className="text-xs font-semibold text-foreground truncate">{displayName}</p>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {roleLabel(role)} {username ? `· ${username}` : ''}
+              </p>
+              <div className="mt-2 xl:hidden">
+                <ConnectionIndicator state={connectionState} showLabel />
+              </div>
+            </div>
+            <div className="space-y-0.5 pt-1">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsUserMenuOpen(false)
+                  navigate('/preferences')
+                }}
+                className={cn(menuItemClass, 'md:hidden')}
+              >
+                <Settings className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                <span>Preferencias</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsUserMenuOpen(false)
+                  navigate('/ayuda')
+                }}
+                className={cn(menuItemClass, 'md:hidden')}
+              >
+                <HelpCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                <span>Ayuda y guía</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  handleToggleTheme()
+                  setIsUserMenuOpen(false)
+                }}
+                className={cn(menuItemClass, 'lg:hidden')}
+              >
+                {isDark ? (
+                  <Sun className="size-3.5 text-amber-500" aria-hidden="true" />
+                ) : (
+                  <Moon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                )}
+                <span>{isDark ? 'Activar modo claro' : 'Activar modo oscuro'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsUserMenuOpen(false)
+                  logout()
+                }}
+                className={cn(
+                  menuItemClass,
+                  'md:hidden text-destructive hover:bg-destructive/10',
+                )}
+              >
+                <LogOut className="size-3.5" aria-hidden="true" />
+                <span>Cerrar sesión</span>
+              </button>
+              <p className="hidden md:block lg:hidden px-3 py-1.5 text-[11px] text-muted-foreground">
+                Cerrar sesión: barra lateral.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+
+  const breadcrumb = isDetail ? (
+    <nav
+      aria-label="Breadcrumb global"
+      data-testid="header-breadcrumb"
+      className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+    >
+      <Link
+        to={`/${pathSegments[0]}`}
+        className="truncate font-medium hover:text-foreground transition-colors"
+      >
+        {currentPage}
+      </Link>
+      <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+      <span aria-current="page" className="shrink-0 font-semibold font-mono text-foreground">
+        #{pathSegments[1]}
+      </span>
+    </nav>
+  ) : null
+
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Skip to main content link for keyboard / screen-reader accessibility */}
       <a
         href="#main-content"
@@ -148,144 +289,106 @@ export function AppLayout() {
         Saltar al contenido
       </a>
 
-      {/* 1. Desktop macOS-inspired Seamless Sidebar (md:+) */}
+      {/* 1. Desktop sidebar (md:+): expandida cuando hay espacio, rail compacto al reducirse el ancho CSS */}
       <AppSidebar
         connectionState={connectionState}
         collapsed={isSidebarCollapsed}
-        onToggleCollapse={handleToggleSidebar}
       />
 
-      {/* 2. Mobile Minimalist Header (<md) */}
-      <header className="sticky top-0 z-30 flex md:hidden items-center justify-between bg-background/90 backdrop-blur-md px-4 py-2.5 pt-[env(safe-area-inset-top)]">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <img
-            src="/isotipo-gsi.png"
-            alt="GSI Service Desk"
-            width="32"
-            height="32"
-            className="size-8 shrink-0 rounded-xl bg-white p-0.5 shadow-[0_1px_3px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.05]"
-          />
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              data-testid="mobile-header-username"
-              className="text-xs font-semibold text-foreground truncate max-w-[140px]"
-            >
-              {displayName}
-            </span>
-            <ConnectionIndicator state={connectionState} />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCommandOpen(true)}
-            aria-label="Buscar comando"
-            data-testid="mobile-search-btn"
-            className="size-10 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+      {/* 2. Mobile toolbar (<md): marca + acciones esenciales; el resto vive en el menú de cuenta */}
+      <header className="sticky top-0 z-30 flex md:hidden items-center gap-1 bg-background/90 backdrop-blur-md px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <img
+          src="/isotipo-gsi.png"
+          alt="GSI Service Desk"
+          width="32"
+          height="32"
+          className="size-8 shrink-0 rounded-xl bg-white p-0.5 shadow-[0_1px_3px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.05]"
+        />
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-1.5">
+          <span
+            data-testid="mobile-header-username"
+            className="min-w-0 truncate text-xs font-semibold text-foreground"
           >
-            <Search className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={handleToggleTheme}
-            aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-            className="size-10 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
-          >
-            {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
-          </Button>
-          <NotificationBell data-testid="notification-bell-mobile" />
+            {displayName}
+          </span>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsCommandOpen(true)}
+          aria-label="Buscar comando"
+          data-testid="mobile-search-btn"
+          className="size-10 shrink-0 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+        >
+          <Search className="size-4" />
+        </Button>
+        <NotificationBell data-testid="notification-bell-mobile" />
+        {renderAccountMenu('mobile-user-menu-btn')}
       </header>
 
-      <nav
-        aria-label="Breadcrumb global"
-        className="flex md:hidden items-center gap-1.5 px-4 pb-1 pt-0.5 text-xs text-muted-foreground"
-      >
-        <Link to={homePath} className="hover:text-foreground">
-          Inicio
-        </Link>
-        <ChevronRight className="size-3" aria-hidden="true" />
-        {pathSegments[1] ? (
-          <>
-            <Link to={`/${pathSegments[0]}`} className="hover:text-foreground">
-              {currentPage}
-            </Link>
-            <ChevronRight className="size-3" aria-hidden="true" />
-            <span aria-current="page" className="font-semibold text-foreground">
-              Detalle
-            </span>
-          </>
-        ) : (
-          <span aria-current="page" className="font-medium text-foreground">
-            {currentPage}
-          </span>
-        )}
-      </nav>
+      {isDetail && (
+        <div className="flex md:hidden px-4 pb-1 pt-0.5" data-testid="mobile-breadcrumb">
+          {breadcrumb}
+        </div>
+      )}
 
-      {/* 3. Desktop Borderless Toolbar + Workspace Canvas */}
+      {/* 3. Desktop shell: toolbar en tres zonas + lienzo fluido */}
       <div
         className={cn(
-          'min-h-screen md:h-screen flex flex-col transition-[margin-left] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] md:overflow-hidden',
+          'min-h-screen md:h-screen flex flex-col min-w-0 transition-[margin-left] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] md:overflow-hidden',
           isSidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-60',
         )}
       >
-        {/* Minimalist Borderless macOS Toolbar */}
         <header
           data-testid="desktop-top-header"
-          className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center justify-between bg-background/85 backdrop-blur-md px-6"
+          className="sticky top-0 z-20 hidden md:flex h-14 shrink-0 items-center gap-3 bg-background/85 backdrop-blur-md px-[clamp(1rem,2vw,2rem)]"
         >
-          <nav
-            aria-label="Breadcrumb global"
-            data-testid="header-breadcrumb"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground"
-          >
-            <Link
-              to={homePath}
-              className="font-medium text-muted-foreground hover:text-foreground transition-colors duration-150"
-            >
-              Inicio
-            </Link>
-            <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
-            {pathSegments[1] ? (
-              <>
-                <Link to={`/${pathSegments[0]}`} className="font-medium hover:text-foreground transition-colors">
-                  {currentPage}
-                </Link>
-                <ChevronRight className="size-3.5 text-muted-foreground/50" aria-hidden="true" />
-                <span aria-current="page" className="font-semibold font-mono text-foreground">
-                  #{pathSegments[1]}
-                </span>
-              </>
-            ) : (
-              <span aria-current="page" className="font-semibold text-foreground">
-                {currentPage}
-              </span>
+          {/* Zona izquierda: navegación + contexto (el título de página vive en la página, no se repite aquí) */}
+          <div className="flex min-w-0 flex-1 basis-0 items-center gap-2">
+            {!isCompactNav && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleSidebar}
+                aria-label={isSidebarCollapsed ? 'Expandir navegación' : 'Contraer navegación'}
+                aria-pressed={!isSidebarCollapsed}
+                title={isSidebarCollapsed ? 'Expandir navegación' : 'Contraer navegación'}
+                data-testid="topbar-nav-toggle"
+                className="size-8 shrink-0 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
+              >
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen className="size-4" />
+                ) : (
+                  <PanelLeftClose className="size-4" />
+                )}
+              </Button>
             )}
-          </nav>
+            {breadcrumb}
+          </div>
 
-          <div className="flex items-center gap-2">
-            <div className="hidden lg:flex items-center rounded-full bg-card/90 px-2.5 py-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.04] dark:ring-white/[0.07]">
+          {/* Zona central: búsqueda global / Command Palette */}
+          <button
+            type="button"
+            onClick={() => setIsCommandOpen(true)}
+            data-testid="command-palette-trigger"
+            aria-label="Abrir buscador global"
+            className="inline-flex h-9 w-full min-w-0 max-w-md shrink items-center justify-between gap-2 rounded-full bg-card px-3.5 text-xs text-muted-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.06] dark:ring-white/[0.08] hover:text-foreground hover:ring-black/[0.12] dark:hover:ring-white/[0.14] transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <Search className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">Buscar ticket o vista…</span>
+            </span>
+            <kbd className="hidden lg:inline-flex h-5 shrink-0 items-center rounded-full bg-surface-subtle px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              Ctrl K
+            </kbd>
+          </button>
+
+          {/* Zona derecha: estado, notificaciones, tema y cuenta (prioridad decreciente → overflow al menú) */}
+          <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-1.5">
+            <div className="hidden xl:flex items-center rounded-full bg-card/90 px-2.5 py-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.04] dark:ring-white/[0.07]">
               <ConnectionIndicator state={connectionState} showLabel />
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIsCommandOpen(true)}
-              data-testid="command-palette-trigger"
-              aria-label="Abrir buscador global"
-              className="inline-flex h-8 w-56 items-center justify-between rounded-full bg-card px-3 text-xs text-muted-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.06] dark:ring-white/[0.08] hover:text-foreground hover:ring-black/[0.12] dark:hover:ring-white/[0.14] transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="inline-flex items-center gap-2 truncate">
-                <Search className="size-3.5 shrink-0" aria-hidden="true" />
-                <span>Buscar ticket o vista…</span>
-              </span>
-              <kbd className="inline-flex h-5 items-center rounded-full bg-surface-subtle px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                Ctrl K
-              </kbd>
-            </button>
-
+            <NotificationBell />
             <Button
               variant="ghost"
               size="sm"
@@ -293,98 +396,18 @@ export function AppLayout() {
               aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
               title={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
               data-testid="theme-toggle-btn"
-              className="size-8 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
+              className="hidden lg:inline-flex size-8 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer"
             >
               {isDark ? <Sun className="size-4 text-amber-500" /> : <Moon className="size-4" />}
             </Button>
-
-            <NotificationBell />
-
-            {/* Compact Floating User Avatar Menu */}
-            <div ref={userMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setIsUserMenuOpen((prev) => !prev)}
-                aria-label="Menú de usuario"
-                aria-haspopup="menu"
-                aria-expanded={isUserMenuOpen}
-                data-testid="header-user-menu-btn"
-                className="flex items-center rounded-full p-0.5 transition-transform duration-150 active:scale-95 cursor-pointer hover:ring-2 hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Avatar name={displayName} size="sm" className="pointer-events-none" />
-              </button>
-
-              <AnimatePresence>
-                {isUserMenuOpen && (
-                  <motion.div
-                    role="menu"
-                    aria-label="Opciones de cuenta"
-                    data-testid="header-user-menu"
-                    initial={prefersReduced ? false : { opacity: 0, y: -4, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={prefersReduced ? undefined : { opacity: 0, y: -4, scale: 0.98 }}
-                    transition={
-                      prefersReduced
-                        ? { duration: 0 }
-                        : { type: 'spring', bounce: 0, duration: 0.18 }
-                    }
-                    className="absolute right-0 top-full mt-2 z-50 w-56 rounded-2xl bg-popover p-1.5 text-popover-foreground shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)] ring-1 ring-black/[0.06] dark:ring-white/[0.1]"
-                  >
-                    <div className="px-3 py-2.5">
-                      <p className="text-xs font-semibold text-foreground truncate">{displayName}</p>
-                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                        {roleLabel(role)} {username ? `· ${username}` : ''}
-                      </p>
-                    </div>
-                    <div className="space-y-0.5 pt-1">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setIsUserMenuOpen(false)
-                          navigate('/preferences')
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-                      >
-                        <Settings className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                        <span>Preferencias</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setIsUserMenuOpen(false)
-                          navigate('/ayuda')
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-                      >
-                        <HelpCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                        <span>Ayuda y guía</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setIsUserMenuOpen(false)
-                          logout()
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                      >
-                        <LogOut className="size-3.5" aria-hidden="true" />
-                        <span>Cerrar sesión</span>
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {renderAccountMenu('header-user-menu-btn')}
           </div>
         </header>
 
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 flex flex-col min-h-0 w-full max-w-[1440px] mx-auto px-4 md:px-6 pt-2 pb-20 md:pb-5 overflow-hidden focus:outline-none"
+          className="flex-1 flex flex-col min-h-0 min-w-0 w-full px-[clamp(0.75rem,2vw,2rem)] pt-2 pb-20 md:pb-5 overflow-hidden focus:outline-none"
         >
           <PageTransition>
             <Outlet />

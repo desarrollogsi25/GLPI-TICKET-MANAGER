@@ -53,6 +53,11 @@ test.describe('P0 GLPI 11.0.13 + PHP 8.5.13: 8 formularios corporativos, AssignG
         await page.goto(`${GLPI}/Form/Render/${form.formId}`)
         await expect(page.getByRole('button', { name: /Enviar/i })).toBeVisible({ timeout: 15000 })
 
+        // Verificar que los 8 formularios destacados NO vuelven a pedir categoría ITIL ni grupo técnico
+        // (solo debe existir el selector de Urgencia)
+        const visibleSelects = await page.locator('form select:visible').count()
+        expect(visibleSelects, `El formulario ${form.name} no debe pedir categoría ni grupo técnico`).toBeLessThanOrEqual(1)
+
         // Rellenar preguntas de texto corto obligatorias (Asunto + contexto)
         const textInputs = page.locator('form input[type="text"]:visible')
         const inputCount = await textInputs.count()
@@ -85,30 +90,33 @@ test.describe('P0 GLPI 11.0.13 + PHP 8.5.13: 8 formularios corporativos, AssignG
           page.getByText('Formulario enviado').waitFor({ state: 'visible', timeout: 15000 }),
         ])
 
-        // Verificar persistencia real en MariaDB: ID, categoría ITIL fija y grupo asignado por RuleTicket
+        // Verificar persistencia real en MariaDB: ID, categoría ITIL fija, EXACTAMENTE 1 asignación técnica (type=2) y grupo esperado
         const row = runFixtureSql(
           'mariadb',
-          `SELECT t.id, t.itilcategories_id, COALESCE(gt.groups_id, 0)
+          `SELECT t.id, t.itilcategories_id,
+                  (SELECT COUNT(*) FROM glpi_groups_tickets gt2 WHERE gt2.tickets_id = t.id AND gt2.type = 2) AS grp_count,
+                  COALESCE((SELECT gt3.groups_id FROM glpi_groups_tickets gt3 WHERE gt3.tickets_id = t.id AND gt3.type = 2 LIMIT 1), 0) AS grp_id
            FROM glpi_tickets t
-           LEFT JOIN glpi_groups_tickets gt ON gt.tickets_id = t.id AND gt.type = 2
            WHERE t.name = '${marker}'
            ORDER BY t.id DESC LIMIT 1;`,
         ).trim()
 
         expect(row, `No se encontró ticket creado para formulario ${form.name}`).toBeTruthy()
-        const [ticketIdStr, catIdStr, groupIdStr] = row.split(/\s+/)
+        const [ticketIdStr, catIdStr, grpCountStr, groupIdStr] = row.split(/\s+/)
         const ticketId = Number(ticketIdStr)
         expect(ticketId).toBeGreaterThan(0)
         expect(Number(catIdStr)).toBe(form.categoryId)
+        expect(Number(grpCountStr), `Debe existir exactamente 1 asignación técnica en glpi_groups_tickets para ${form.name}`).toBe(1)
         expect(Number(groupIdStr)).toBe(form.groupId)
 
-        // Verificar aparición posterior en Ticket Manager API
+        // Verificar aparición posterior en Ticket Manager API y cola del grupo correcto
         const apiTicketRes = await request.get(`${API}/api/tickets/${ticketId}`, {
           headers: { Authorization: `Bearer ${adminToken}` },
         })
         expect(apiTicketRes.status()).toBe(200)
         const apiTicket = await apiTicketRes.json()
         expect(apiTicket.title ?? apiTicket.name).toContain(marker)
+        expect(apiTicket.groupId).toBe(form.groupId)
       }
     } finally {
       await ctx.close()
