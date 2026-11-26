@@ -44,6 +44,7 @@ export function AppLayout() {
   const navigate = useNavigate()
   const logout = useLogout()
   const isCompactNav = useMediaQuery(COMPACT_NAV_QUERY)
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const [userCollapsed, setUserCollapsed] = useState<boolean>(() => {
     try {
@@ -326,7 +327,7 @@ export function AppLayout() {
         {renderAccountMenu('mobile-user-menu-btn')}
       </header>
 
-      {isDetail && (
+      {isMobile && isDetail && (
         <div className="flex md:hidden px-4 pb-1 pt-0.5" data-testid="mobile-breadcrumb">
           {breadcrumb}
         </div>

@@ -306,7 +306,7 @@ export function Dashboard() {
 
       {/* Main Actionable Split: Group Queue (2/3) + Interactive Status Distribution (1/3) */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <section aria-labelledby="dashboard-queue-heading" className="lg:col-span-2 space-y-3">
+        <section aria-labelledby="dashboard-queue-heading" className="lg:col-span-2 min-w-0 space-y-3">
           <SectionHeader
             id="dashboard-queue-heading"
             title={`Próximos en la cola de ${effectiveGroupName}`}
@@ -383,7 +383,7 @@ export function Dashboard() {
           )}
         </section>
 
-        <section aria-labelledby="dashboard-distribution-heading" className="space-y-3">
+        <section aria-labelledby="dashboard-distribution-heading" className="min-w-0 space-y-3">
           <SectionHeader
             id="dashboard-distribution-heading"
             title="Distribución por Estado"
@@ -400,7 +400,7 @@ export function Dashboard() {
                     key={item.status}
                     type="button"
                     onClick={() => navigateToTickets(item.status)}
-                    className="w-full text-left rounded-lg p-2 -mx-1 hover:bg-muted/60 transition-colors cursor-pointer space-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full text-left rounded-lg p-2 hover:bg-muted/60 transition-colors cursor-pointer space-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <span className="inline-flex items-center gap-2 font-medium text-foreground">
