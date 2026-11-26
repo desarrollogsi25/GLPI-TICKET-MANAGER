@@ -75,8 +75,12 @@ export function AppLayout() {
   const displayName = profile?.displayName || profile?.username || 'Usuario'
 
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
+    const syncDark = () => setIsDark(document.documentElement.classList.contains('dark'))
+    syncDark()
     document.documentElement.setAttribute('data-dark-preset', darkPreset)
+    const observer = new MutationObserver(syncDark)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
   }, [darkPreset])
 
   const handleToggleSidebar = () => {

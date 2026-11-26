@@ -186,13 +186,17 @@ export function PreferencesPage() {
       setIsTestingPush(false)
     }
   }
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Limpiar timer de debounce al desmontar
+  // Limpiar timers pendientes al desmontar
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
+      }
+      if (savedMsgTimerRef.current) {
+        clearTimeout(savedMsgTimerRef.current)
       }
     }
   }, [])
@@ -259,7 +263,10 @@ export function PreferencesPage() {
               description: label,
               variant: 'success',
             })
-            setTimeout(() => setSavedMessage(false), 3000)
+            if (savedMsgTimerRef.current) {
+              clearTimeout(savedMsgTimerRef.current)
+            }
+            savedMsgTimerRef.current = setTimeout(() => setSavedMessage(false), 3000)
           },
           onError: (err) => {
             pushToast({
@@ -356,10 +363,10 @@ export function PreferencesPage() {
                     data-testid="theme-option-light"
                     onClick={() => autoSaveTheme('light')}
                     className={cn(
-                      'group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                      'group relative flex flex-col items-start gap-3 rounded-xl border p-4 text-left transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       theme === 'light'
-                        ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-md'
-                        : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
+                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5 shadow-xs'
+                        : 'border-border hover:border-primary/40 bg-card hover:bg-muted/40',
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
@@ -391,10 +398,10 @@ export function PreferencesPage() {
                     data-testid="theme-option-dark"
                     onClick={() => autoSaveTheme('dark')}
                     className={cn(
-                      'group relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                      'group relative flex flex-col items-start gap-3 rounded-xl border p-4 text-left transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       theme === 'dark'
-                        ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-md'
-                        : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
+                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5 shadow-xs'
+                        : 'border-border hover:border-primary/40 bg-card hover:bg-muted/40',
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
@@ -436,10 +443,10 @@ export function PreferencesPage() {
                           data-testid={`preset-option-${opt.id}`}
                           onClick={() => handlePresetSelect(opt.id)}
                           className={cn(
-                            'relative flex flex-col items-start gap-2.5 rounded-2xl border p-3.5 text-left transition-all duration-200 cursor-pointer backdrop-blur-md',
+                            'relative flex flex-col items-start gap-2.5 rounded-xl border p-3.5 text-left transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                             active
-                              ? 'border-primary ring-2 ring-primary/25 bg-primary/5 shadow-sm'
-                              : 'border-border/60 hover:border-primary/40 bg-card/60 hover:bg-card/90',
+                              ? 'border-primary ring-2 ring-primary/20 bg-primary/5 shadow-xs'
+                              : 'border-border hover:border-primary/40 bg-card hover:bg-muted/40',
                           )}
                         >
                           <div className="flex items-center justify-between w-full">
@@ -477,8 +484,8 @@ export function PreferencesPage() {
               <div className="flex items-center justify-between pt-3 border-t border-border/40">
                 <div className="flex items-center gap-2">
                   {updateMutation.isPending && (
-                    <span className="text-xs text-muted-foreground animate-pulse">
-                      Guardando automáticamente...
+                    <span className="text-xs text-muted-foreground">
+                      Guardando automáticamente…
                     </span>
                   )}
                   {savedMessage && !updateMutation.isPending && (
@@ -550,7 +557,7 @@ export function PreferencesPage() {
                   : pushStatus === 'denied'
                     ? 'El navegador tiene bloqueado el permiso. Para activarlo, pulsa en el candado de la URL y permite Notificaciones.'
                     : pushStatus === 'insecure_context'
-                      ? 'Las notificaciones del sistema operativo y Web Push requieren un contexto seguro (HTTPS). Conéctate a https://10.10.40.31 para habilitarlas.'
+                      ? `Las notificaciones del sistema operativo y Web Push requieren un contexto seguro (HTTPS). Accede mediante ${typeof window !== 'undefined' ? window.location.origin.replace(/^http:/, 'https:') : 'HTTPS'} para habilitarlas.`
                       : pushStatus === 'unsupported'
                         ? 'Este navegador no soporta la API de notificaciones Web Push.'
                         : 'Activa las notificaciones para enterarte inmediatamente de asignaciones y tickets creados en GLPI.'}

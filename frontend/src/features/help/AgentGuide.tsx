@@ -113,7 +113,7 @@ export function AgentGuide() {
               <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
                 <li>Abre un ticket asignado y pulsa “Planificar tarea”.</li>
                 <li>Indica fecha, horario y descripción de la intervención.</li>
-                <li>Se crea una tarea real (`TicketTask`) en GLPI y el ticket pasa a “En proceso”.</li>
+                <li>Se crea una tarea real (<code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">TicketTask</code>) en GLPI y el ticket pasa a “En proceso”.</li>
                 <li>Al completar la tarea, GLPI actualiza el historial automáticamente.</li>
               </ol>
             </CardContent>
@@ -127,7 +127,7 @@ export function AgentGuide() {
               <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
                 <li>Completa cualquier tarea técnica pendiente asociada al ticket.</li>
                 <li>Pulsa “Resolver” e ingresa la solución obligatoria en el modal.</li>
-                <li>El ticket pasa a “Resuelto”. El cierre definitivo lo gestiona GLPI (`closeticket`) o un administrador.</li>
+                <li>El ticket pasa a “Resuelto”. El cierre definitivo lo gestiona GLPI (<code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">closeticket</code>) o un administrador.</li>
               </ol>
             </CardContent>
           </Card>

@@ -15,7 +15,9 @@ import {
   X,
 } from 'lucide-react'
 
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { roleLabel } from '@/features/tickets/labels'
 import { useCurrentUserQuery, useLogout } from '@/hooks/useAuth'
 import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
@@ -88,7 +90,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
   const prefersReduced = useReducedMotion()
   const storedUser = useAuthStore((state) => state.user)
   const { data: currentUser } = useCurrentUserQuery()
-  const { isAdmin, isSupervisor, isRequester } = useRole()
+  const { role, isAdmin, isSupervisor, isRequester } = useRole()
   const logout = useLogout()
   const profile = currentUser ?? storedUser
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -208,8 +210,8 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
               <div className="flex items-center gap-3">
                 <img src="/isotipo-gsi.png" alt="GSI Service Desk" width="32" height="32" className="size-8 shrink-0 rounded-lg bg-white p-0.5 shadow-xs ring-1 ring-black/5" />
                 <div>
-                  <p className="text-sm font-semibold leading-none">GLPI Manager</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Menú de navegación</p>
+                  <p className="text-sm font-semibold leading-none text-foreground">GSI Service Desk</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">GLPI Ticket Manager</p>
                 </div>
               </div>
               <button
@@ -224,14 +226,16 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             </div>
 
             {/* Perfil del Usuario */}
-            <div className="border-b border-border p-4 bg-muted/40">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Sesión activa
-              </p>
-              <p className="text-sm font-semibold text-foreground truncate">
-                {profile?.displayName || profile?.username || 'Sesión activa'}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">@{profile?.username || 'tech'}</p>
+            <div className="border-b border-border p-4 bg-surface-subtle/60 flex items-center gap-3">
+              <Avatar name={profile?.displayName || profile?.username || 'Usuario'} size="md" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {profile?.displayName || profile?.username || 'Sesión activa'}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {roleLabel(role)} · @{profile?.username || 'usuario'}
+                </p>
+              </div>
             </div>
 
             {/* Enlaces de Navegación */}
