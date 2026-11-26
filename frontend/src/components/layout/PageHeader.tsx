@@ -24,7 +24,7 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div className={cn('mb-5 pb-4 border-b border-border', className)}>
+    <div className={cn('mb-5', className)}>
       {backHref && (
         <div className="mb-2">
           <Link
@@ -40,7 +40,7 @@ export function PageHeader({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1 min-w-0">
           {typeof title === 'string' ? (
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground leading-tight">
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-[-0.025em] text-foreground leading-tight">
               {title}
             </h1>
           ) : (
